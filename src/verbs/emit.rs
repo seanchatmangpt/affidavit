@@ -16,6 +16,8 @@ use clap_noun_verb_macros::verb;
 
 
 /// Append one operation-event to the working receipt
+///
+/// ARDPRD: FR-1 (Receipt emission), §4 Layer 1 (boundary entry), NFR-3 (no bare returns)
 #[verb("emit", "receipt")]
 pub fn emit(
     payload: String,

@@ -225,6 +225,39 @@ pub fn completions(shell: String) -> Result<()> {
     Ok(())
 }
 
+/// `affi receipt help-refs` — print ARDPRD cross-reference map.
+///
+/// Every surface in affidavit is admitted when it carries a witness terminating
+/// outside its producer. This map traces each verb to its ARDPRD requirement.
+pub fn help_refs() -> Result<()> {
+    let refs = [
+        ("emit",        "FR-1 (Receipt emission), §4 Layer 1 (boundary entry), NFR-3"),
+        ("assemble",    "FR-2 (Chain assembly), §4 Layer 2 (sealed transition), NFR-1/NFR-2"),
+        ("verify",      "FR-3 (Verification), §4 Layer 3 (output gate), ADR-5"),
+        ("show",        "FR-4 (Inspection, no verdict), ADR-5 (type-blind pair)"),
+        ("inspect",     "FR-4 (Inspection), §9 (witnessed surface — failing-when-fake)"),
+        ("model",       "§4 Layer 2 (admitted only), §7 Phase 1 (wasm4pm discovery)"),
+        ("diagnose",    "§6 (stdout hazard), §9 (lsp-max witnessed surface)"),
+        ("conformance", "§4 Layer 2 (admitted only), NFR-1 (determinism of metrics)"),
+        ("replay",      "FR-1 (event sequence), §7 Phase 1 (provenance trace)"),
+        ("graph",       "FR-2 (chain = event graph), §7 Phase 1 (wasm4pm integration)"),
+        ("stats",       "§9 (single DX summary of all integrated modules)"),
+        ("mutate",      "§2 (tamper relocation thesis), NFR-2 (forgery cost demonstration)"),
+        ("bench",       "NFR-1 (determinism), NFR-2 (forgery cost), §7 Phase 1 (perf)"),
+        ("help-refs",   "§9 (Acceptance — what 'witnessed' means for this spec)"),
+    ];
+    eprintln!("ARDPRD cross-reference map (affidavit v26.6.14+):");
+    eprintln!("  Spec: ARDPRD.md — https://github.com/seanchatmangpt/affidavit/blob/main/ARDPRD.md");
+    eprintln!();
+    for (verb, ardprd_ref) in &refs {
+        eprintln!("  affi receipt {verb:<14} → {ardprd_ref}");
+    }
+    eprintln!();
+    eprintln!("Acceptance criterion (§9): a surface is ADMITTED when removing it breaks a test");
+    eprintln!("that terminates outside its producer (compile-fail, golden-diff, or dispatch test).");
+    Ok(())
+}
+
 /// `affi receipt diagnose` — render verify outcomes as LSP-shaped diagnostics.
 /// DX capability built on the genuine `lsp-max` Diagnostic surface
 /// (`affidavit::lsp`): an editor would render these as squiggles.

@@ -6,6 +6,8 @@ use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
 /// Discover a process model from a receipt's events (wasm4pm)
+///
+/// ARDPRD: §4 Layer 2 (admitted receipts only), §7 Phase 1 (process discovery integration)
 #[verb("model", "receipt")]
 pub fn model(
     #[arg(index = 1)]

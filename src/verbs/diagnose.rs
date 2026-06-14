@@ -6,6 +6,8 @@ use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
 /// Render verify outcomes as LSP-shaped diagnostics (lsp-max)
+///
+/// ARDPRD: §6 (stdout hazard), §9 (witnessed LSP surface via lsp-max)
 #[verb("diagnose", "receipt")]
 pub fn diagnose(
     #[arg(index = 1)]

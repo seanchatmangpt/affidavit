@@ -16,6 +16,8 @@ use clap_noun_verb_macros::verb;
 
 
 /// Finalize the working receipt into an immutable receipt file
+///
+/// ARDPRD: FR-2 (Chain assembly), §4 Layer 2 (sealed transition), NFR-1 (determinism), NFR-2 (forgery cost)
 #[verb("assemble", "receipt")]
 pub fn assemble(
     out: Option<String>,

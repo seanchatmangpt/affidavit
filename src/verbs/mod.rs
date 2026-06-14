@@ -18,6 +18,7 @@ pub mod stats;
 pub mod mutate;
 pub mod bench;
 pub mod completions;
+pub mod help_refs;
 
 use affidavit::types::Receipt;
 use std::collections::HashMap;

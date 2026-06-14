@@ -16,6 +16,8 @@ use clap_noun_verb_macros::verb;
 
 
 /// Run the certify pipeline over a receipt and print the verdict
+///
+/// ARDPRD: FR-3 (Verification), §4 Layer 3 (output gate), ADR-5 (verify↔show pair)
 #[verb("verify", "receipt")]
 pub fn verify(
     #[arg(index = 1)]

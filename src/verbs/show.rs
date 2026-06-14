@@ -16,6 +16,8 @@ use clap_noun_verb_macros::verb;
 
 
 /// Print a human-readable dump of a receipt chain
+///
+/// ARDPRD: FR-4 (Inspection — no verdict), ADR-5 (type-blind pair, behaviorally distinguished)
 #[verb("show", "receipt")]
 pub fn show(
     #[arg(index = 1)]

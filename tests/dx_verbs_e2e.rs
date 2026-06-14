@@ -150,3 +150,16 @@ fn bench_verb_reports_microsecond_latencies() {
         .stderr(predicate::str::contains("µs/op"))
         .stderr(predicate::str::contains("bench complete"));
 }
+
+#[test]
+fn help_refs_verb_prints_ardprd_map() {
+    let dir = TempDir::new().expect("tempdir");
+    affi(&dir)
+        .args(["receipt", "help-refs"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("ARDPRD cross-reference map"))
+        .stderr(predicate::str::contains("FR-1"))
+        .stderr(predicate::str::contains("ADR-5"))
+        .stderr(predicate::str::contains("Acceptance criterion"));
+}
