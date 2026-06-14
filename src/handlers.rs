@@ -23,6 +23,27 @@ fn adapt<T>(r: anyhow::Result<T>) -> Result<T> {
     r.map_err(|e| NounVerbError::execution_error(format!("{e:#}")))
 }
 
+/// Load and deserialize a receipt from the given path.
+/// Returns a typed error with path context if the file is missing or malformed.
+fn load_receipt(path: &str) -> Result<affidavit::types::Receipt> {
+    adapt(affidavit::cli::show(path))
+}
+
+/// Load a receipt AND run it through the admission gate.
+/// Returns an Error if the receipt fails the OCEL court or chain verifier.
+fn load_admitted(path: &str) -> Result<affidavit::types::AdmittedReceipt> {
+    let parsed = load_receipt(path)?;
+    adapt(
+        affidavit::admission::admit(parsed)
+            .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
+    )
+}
+
+/// Return the first `n` hex characters of a hash string as a short display label.
+fn short_hash(hex: &str, n: usize) -> String {
+    hex.chars().take(n).collect()
+}
+
 /// `affi receipt emit` — append one operation-event to the working receipt.
 ///
 /// Wrapper-fixed param order (alphabetized by the pack SELECT): `payload`,
@@ -64,7 +85,7 @@ pub fn verify(receipt: String) -> Result<()> {
 /// Returns a plain Receipt (show does NOT adjudicate / mint Admitted — ADR-5);
 /// handler formats and outputs (stderr, not stdout).
 pub fn show(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
+    let parsed = load_receipt(&receipt)?;
     eprintln!("receipt format: {}", parsed.format_version);
     eprintln!("events: {}", parsed.events.len());
     for event in &parsed.events {
@@ -77,15 +98,12 @@ pub fn show(receipt: String) -> Result<()> {
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        let short_hash = {
-            let hex = event.payload_commitment.as_hex();
-            hex.chars().take(12).collect::<String>()
-        };
+        let commit = short_hash(event.payload_commitment.as_hex(), 12);
         eprintln!("  [{seq:>3}] {ty} id={id} commit={commit} objects=[{objects}]",
             seq = event.seq,
             ty = event.event_type,
             id = event.id,
-            commit = short_hash
+            commit = commit
         );
     }
     eprintln!("chain hash: {}", parsed.chain_hash);
@@ -95,7 +113,7 @@ pub fn show(receipt: String) -> Result<()> {
 /// `affi receipt inspect` — detailed structural analysis (event/object distribution).
 /// DX capability built on chicago-tdd-style fixture analysis (see `crate::verbs`).
 pub fn inspect(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
+    let parsed = load_receipt(&receipt)?;
     eprint!("{}", crate::verbs::inspect_with_fixtures(&parsed));
     Ok(())
 }
@@ -105,7 +123,7 @@ pub fn inspect(receipt: String) -> Result<()> {
 /// fitness/simplicity (wasm4pm token replay). A single DX summary of a receipt.
 pub fn stats(receipt: String) -> Result<()> {
     affidavit::tracing::trace_stats(&receipt, || {
-        let parsed = adapt(affidavit::cli::show(&receipt))?;
+        let parsed = load_receipt(&receipt)?;
         let event_count = parsed.events.len();
         let object_count: usize = parsed.events.iter().map(|e| e.objects.len()).sum();
         let (nodes, edges, _s, _e) = affidavit::discovery::discover_dfg_summary(&parsed);
@@ -124,7 +142,7 @@ pub fn stats(receipt: String) -> Result<()> {
 /// process model, derived from the receipt.
 pub fn graph(receipt: String) -> Result<()> {
     affidavit::tracing::trace_graph(&receipt, || {
-        let parsed = adapt(affidavit::cli::show(&receipt))?;
+        let parsed = load_receipt(&receipt)?;
         let (nodes, edges, starts, ends) = affidavit::discovery::discover_dfg_summary(&parsed);
         eprintln!("directly-follows graph (wasm4pm):");
         eprintln!("  nodes (activities): {nodes}");
@@ -140,7 +158,7 @@ pub fn graph(receipt: String) -> Result<()> {
 /// makes the receipt's lawful event ordering visible as a step-by-step trace.
 pub fn replay(receipt: String) -> Result<()> {
     affidavit::tracing::trace_replay(&receipt, || {
-        let parsed = adapt(affidavit::cli::show(&receipt))?;
+        let parsed = load_receipt(&receipt)?;
         eprintln!("replay ({} events):", parsed.events.len());
         for event in &parsed.events {
             let objects = if event.objects.is_empty() {
@@ -163,14 +181,10 @@ pub fn replay(receipt: String) -> Result<()> {
 /// (`affidavit::discovery`): the receipt IS the event log (Shape B), mined here.
 pub fn model(receipt: String) -> Result<()> {
     affidavit::tracing::trace_model(&receipt, || {
-        let parsed = adapt(affidavit::cli::show(&receipt))?;
         // Type-gate (the central reference claim, now live in the binary): discovery
         // runs ONLY on an `AdmittedReceipt`. `admit()` runs the OCEL court + chain
         // verifier; a receipt that fails has no path to `discover_from_admitted`.
-        let admitted = adapt(
-            affidavit::admission::admit(parsed)
-                .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
-        )?;
+        let admitted = load_admitted(&receipt)?;
         let tree = affidavit::discovery::discover_from_admitted(&admitted);
         eprintln!("discovered process model (wasm4pm) on the ADMITTED receipt:");
         eprintln!("{tree}");
@@ -185,14 +199,10 @@ pub fn model(receipt: String) -> Result<()> {
 /// numbers: fitness (token replay) and simplicity (Occam).
 pub fn conformance(receipt: String) -> Result<()> {
     affidavit::tracing::trace_conformance(&receipt, || {
-        let parsed = adapt(affidavit::cli::show(&receipt))?;
         // Type-gate: metrics computed only on the ADMITTED receipt (admit() runs both
         // courts first) — same discipline as `model`. Conformance on un-adjudicated
         // bytes has no path here.
-        let admitted = adapt(
-            affidavit::admission::admit(parsed)
-                .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
-        )?;
+        let admitted = load_admitted(&receipt)?;
         let (fitness, activity_coverage, simplicity) =
             affidavit::discovery::quality_metrics_from_admitted(&admitted);
         eprintln!("conformance metrics:");
@@ -285,10 +295,10 @@ pub fn diagnose(receipt: String) -> Result<()> {
 /// with the first event's type replaced with "tampered", and shows how the
 /// chain hash diverges from the original — proving the seal binds the content.
 pub fn mutate(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
+    let parsed = load_receipt(&receipt)?;
     // Compute a determinism digest of the original chain hash.
     let original_hash = parsed.chain_hash.as_hex();
-    let short_original = &original_hash[..12];
+    let short_original = short_hash(original_hash, 12);
 
     // Show the mutation proposal (what an attacker would need to reproduce).
     eprintln!("receipt mutate (tamper-evidence demonstration):");
