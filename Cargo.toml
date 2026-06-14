@@ -47,7 +47,7 @@ tempfile = "3"
 trybuild = "1"
 criterion = { version = "0.5", features = ["html_reports"] }
 opentelemetry = { version = "0.27", features = ["trace"] }
-opentelemetry-sdk = { version = "0.27", features = ["trace"] }
+opentelemetry_sdk = { version = "0.27", features = ["trace"] }
 opentelemetry-stdout = "0.27"
 chicago-tdd-tools = { path = "../chicago-tdd-tools" }
 clnrm-core = { path = "../clnrm/crates/clnrm-core" }
