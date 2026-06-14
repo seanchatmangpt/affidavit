@@ -215,19 +215,23 @@ pub fn conformance(receipt: String) -> Result<()> {
 
 /// `affi receipt completions` — print shell completion script to stdout.
 ///
-/// Supported shells: bash, zsh, fish.
+/// Supported shells: bash, zsh, fish, powershell, nushell.
 ///
 /// Usage examples:
 ///   eval "$(affi receipt completions bash)"
 ///   affi receipt completions zsh > ~/.zsh/completions/_affi
 ///   affi receipt completions fish > ~/.config/fish/completions/affi.fish
+///   affi receipt completions powershell | Out-String | Invoke-Expression
+///   affi receipt completions nushell | save -f ~/.config/nushell/affi-completions.nu
 pub fn completions(shell: String) -> Result<()> {
     let script = match shell.to_lowercase().as_str() {
         "bash" => include_str!("../completions/affi.bash"),
         "zsh"  => include_str!("../completions/affi.zsh"),
         "fish" => include_str!("../completions/affi.fish"),
+        "powershell" | "ps1" => include_str!("../completions/affi.ps1"),
+        "nushell" | "nu" => include_str!("../completions/affi.nu"),
         other  => return Err(NounVerbError::execution_error(
-            format!("unsupported shell: {other}; supported: bash, zsh, fish")
+            format!("unsupported shell: {other}; supported: bash, zsh, fish, powershell, nushell")
         )),
     };
     // Completions go to stdout — the only verb where stdout is the product.
