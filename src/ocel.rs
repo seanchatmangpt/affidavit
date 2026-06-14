@@ -114,6 +114,8 @@ pub fn parse_object_ref(spec: &str) -> Result<ObjectRef, OcelError> {
 /// stored. The `seq` is drawn from `counter`, advancing it by one. The `id` is
 /// derived deterministically as `evt-{seq}` so a fixed call sequence is stable.
 /// The resulting event is validated before it is returned.
+///
+/// # Example: see `examples/ocel_events.rs` (run: `cargo run --example ocel_events`)
 pub fn build_event(
     event_type: impl Into<String>,
     objects: Vec<ObjectRef>,

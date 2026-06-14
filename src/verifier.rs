@@ -35,6 +35,8 @@ fn is_well_formed_hash(hex: &str) -> bool {
 /// [`Verdict`]. The verdict is `accepted` only when every prior stage passed;
 /// `reason` summarizes the first failing stage, or reports that all stages
 /// passed. The function is pure: the same receipt always yields the same verdict.
+///
+/// # Example: see `examples/verify_stages.rs` (run: `cargo run --example verify_stages`).
 pub fn verify(receipt: &Receipt) -> Verdict {
     let outcomes: Vec<CheckOutcome> = vec![
         // Stage 1: decode — receipt structurally present and version parseable.

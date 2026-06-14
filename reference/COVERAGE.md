@@ -277,9 +277,9 @@ Note: `PredictionRefusal` (the prediction *refusal* enum) remains ⚠️ GHOST (
 
 ### 2.3ab ConditionCell law-kernel bound
 
-| Type | Status | Witness (`tests/reference_condition_cell.rs`) |
+| Type | Status | Witness |
 |---|---|---|
-| `law::ConditionCell<const BITS>` | 🟢 | the 8-bit cap is a compile-time law: cells with BITS 0..=8 construct; a `ConditionCell<9>` fails the `Require<{BITS<=8}>: IsTrue` where-bound and is unconstructable. |
+| `law::ConditionCell<const BITS>` | 🟢 | the 8-bit cap is a compile-time law. POSITIVE (`tests/reference_condition_cell.rs`): cells with BITS 0..=8 (incl. the boundary 8) construct. NEGATIVE is now a **trybuild snapshot** (`tests/ui/compile_fail/condition_cell_nine.rs` + `.stderr`): `ConditionCell<9>` fails to compile with `Assert<false>: IsTrue` unsatisfied (van der Aalst re-audit hollow_rows=1 fix — previously the `<9>` claim was prose-only with no fixture, the lone surviving hollow row). Both sides of the `BITS<=8` law now falsifiable. |
 
 ### 2.3ac POWL8 wire-format operator
 

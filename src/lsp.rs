@@ -23,6 +23,11 @@ pub const DIAGNOSTIC_SOURCE: &str = "affidavit";
 /// diagnostic carrying the verdict reason. An accepted verdict yields no
 /// diagnostics (a clean receipt produces no squiggles), which is itself the
 /// editor convention for "no problems."
+///
+/// # Example: see `examples/verdict_diagnostics.rs` (run: `cargo run --example verdict_diagnostics`).
+/// It drives a REAL reject verdict (forged seq=5 receipt) through the verifier
+/// and asserts the resulting [`DIAGNOSTIC_SOURCE`] Error diagnostic names the
+/// failing `continuity` stage, then asserts an accepted verdict yields none.
 pub fn verdict_to_diagnostics(verdict: &Verdict) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 

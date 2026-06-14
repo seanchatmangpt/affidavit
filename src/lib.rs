@@ -4,6 +4,12 @@
 //! the undecidable to one auditable place. The verifier never decides whether
 //! code is honest — it checks a receipt (a witness) against a format standard,
 //! and each check is decidable.
+//!
+//! # Cross-product example
+//!
+//! For the whole provenance pipeline composing every module through one receipt
+//! (ocel -> chain -> verifier -> admission -> discovery -> lsp), see
+//! `examples/full_pipeline.rs` (run: `cargo run --example full_pipeline`).
 
 #![deny(clippy::print_stdout)]
 

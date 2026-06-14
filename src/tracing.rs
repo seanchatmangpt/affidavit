@@ -44,6 +44,8 @@ fn record_span(operation: &str, target: &str) {
 }
 
 /// Snapshot the spans recorded on the current thread (for witnessing).
+///
+/// # Example: see `examples/observable_spans.rs` (run: `cargo run --example observable_spans`).
 pub fn captured_spans() -> Vec<SpanRecord> {
     SPAN_LOG.with(|log| log.borrow().clone())
 }
@@ -72,6 +74,8 @@ where
 }
 
 /// Trace a verify operation: opens a `verify` span, then runs `f`.
+///
+/// # Example: see `examples/observable_spans.rs` (run: `cargo run --example observable_spans`).
 pub fn trace_verify<F, T>(receipt_path: &str, f: F) -> T
 where
     F: FnOnce() -> T,

@@ -27,6 +27,8 @@ use wasm4pm_compat::ocel::{
 /// Named refusal: why a receipt was denied admission. A refusal is a first-class
 /// outcome carrying a specific reason, never a bare "invalid input" (the
 /// wasm4pm-compat refusal discipline).
+///
+/// # Example: see `examples/admission_gate.rs` (run: `cargo run --example admission_gate`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AffidavitRefusal {
     /// The wasm4pm-compat OCEL structural law refused the receipt's event/object
@@ -101,6 +103,8 @@ fn project_to_ocel(receipt: &Receipt) -> OcelLog {
 /// the admitted carrier; `show`/`load` deliberately do not mint it. The witnesses
 /// in this module's tests fail if either court is removed — the green is false
 /// when the work is faked.
+///
+/// # Example: see `examples/admission_gate.rs` (run: `cargo run --example admission_gate`).
 pub fn admit(receipt: Receipt) -> Result<AdmittedReceipt, AffidavitRefusal> {
     // Court 1 — the wasm4pm-compat OCEL structural law. Runs from outside the
     // producer; a receipt with no event-object structure cannot satisfy it.

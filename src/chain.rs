@@ -63,6 +63,8 @@ fn fold_event(prev: &Blake3Hash, event: &OperationEvent) -> Result<Blake3Hash, C
 ///
 /// Used by the verifier to re-derive the chain hash from event bytes alone and
 /// compare it against the receipt's stored `chain_hash`.
+///
+/// # Example: see `examples/chain_build.rs` (run: `cargo run --example chain_build`).
 pub fn recompute_chain(events: &[OperationEvent]) -> Result<Blake3Hash, ChainError> {
     let mut acc = genesis_hash();
     for event in events {
@@ -75,6 +77,8 @@ pub fn recompute_chain(events: &[OperationEvent]) -> Result<Blake3Hash, ChainErr
 ///
 /// Mirrors a working receipt: events accumulate in order and the hash is folded
 /// incrementally so `finalize` is `O(1)` over the stored running hash.
+///
+/// # Example: see `examples/chain_build.rs` (run: `cargo run --example chain_build`).
 #[derive(Debug, Clone)]
 pub struct ChainAssembler {
     events: Vec<OperationEvent>,

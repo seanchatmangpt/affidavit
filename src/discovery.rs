@@ -81,14 +81,6 @@ pub fn conformance_metrics(receipt: &Receipt) -> (f64, f64) {
     (fitness, activity_coverage)
 }
 
-/// Discover a process model from an **admitted** receipt — the genuine Shape-B
-/// fusion (ARDPRD §4): discovery here is *type-gated on admission*. The only way
-/// to obtain an [`AdmittedReceipt`] is through [`crate::admission::admit`], which
-/// runs the OCEL court + the chain/continuity certify pipeline. So this function
-/// *cannot be called* on a receipt that did not pass conformance — admission is a
-/// compile-time precondition of discovery. The receipt that is mined IS the same
-/// value that proved conformance: the event log and the conformance certificate
-/// are one object, and discovery consumes the certificate, not raw bytes.
 /// Discover the directly-follows graph (DFG) from a receipt and return a summary:
 /// `(nodes, edges, start_activities, end_activities)`. Uses `wasm4pm`'s optimized
 /// DFG discovery (fitness/simplicity-weighted). The DFG is the most basic process
@@ -104,6 +96,16 @@ pub fn discover_dfg_summary(receipt: &Receipt) -> (usize, usize, usize, usize) {
     )
 }
 
+/// Discover a process model from an **admitted** receipt — the genuine Shape-B
+/// fusion (ARDPRD §4): discovery here is *type-gated on admission*. The only way
+/// to obtain an [`AdmittedReceipt`] is through [`crate::admission::admit`], which
+/// runs the OCEL court + the chain/continuity certify pipeline. So this function
+/// *cannot be called* on a receipt that did not pass conformance — admission is a
+/// compile-time precondition of discovery. The receipt that is mined IS the same
+/// value that proved conformance: the event log and the conformance certificate
+/// are one object, and discovery consumes the certificate, not raw bytes.
+///
+/// # Example: see `examples/discover_shapeb.rs` (run: `cargo run --example discover_shapeb`).
 pub fn discover_from_admitted(admitted: &crate::types::AdmittedReceipt) -> String {
     // `&AdmittedReceipt` in the signature is the load-bearing part: a caller with
     // only a `Receipt` (un-adjudicated) cannot reach this path.
@@ -115,6 +117,8 @@ pub fn discover_from_admitted(admitted: &crate::types::AdmittedReceipt) -> Strin
 /// be computed for a receipt that passed the OCEL court + chain verifier. This is
 /// the path the binary's `conformance` verb uses, keeping the type-gate live in
 /// production (not only in `tests/reference_pipeline.rs`).
+///
+/// # Example: see `examples/discover_shapeb.rs` (run: `cargo run --example discover_shapeb`).
 pub fn quality_metrics_from_admitted(admitted: &crate::types::AdmittedReceipt) -> (f64, f64, f64) {
     quality_metrics(&admitted.value)
 }

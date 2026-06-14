@@ -15,6 +15,8 @@ use wasm4pm_compat::state::Admitted;
 /// A BLAKE3 digest rendered as a lowercase hex string.
 ///
 /// Stored as hex so receipts serialize to canonical, human-diffable JSON.
+///
+/// # Example: see `examples/receipt_determinism.rs` (run: `cargo run --example receipt_determinism`)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Blake3Hash(pub String);
 
@@ -167,6 +169,8 @@ pub struct Receipt {
 }
 
 /// The conformance profile a verdict was evaluated under.
+///
+/// # Example: see `examples/receipt_determinism.rs` (run: `cargo run --example receipt_determinism`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProfileId {
     /// Core v1: every event has a commitment and a non-empty event_type.
@@ -211,6 +215,8 @@ pub struct Verdict {
 /// This is the canonical byte form used for content addressing and hashing:
 /// objects have their keys recursively sorted so the same logical value always
 /// yields identical bytes regardless of in-memory field order.
+///
+/// # Example: see `examples/receipt_determinism.rs` (run: `cargo run --example receipt_determinism`)
 pub fn canonical_bytes<T: Serialize>(value: &T) -> Result<Vec<u8>, serde_json::Error> {
     let v = serde_json::to_value(value)?;
     let sorted = sort_value(v);
