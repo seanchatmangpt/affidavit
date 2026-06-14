@@ -29,6 +29,7 @@ pub const ACTIVITY_KEY: &str = "concept:name";
 /// ordered events become a single trace, each event's `event_type` becoming its
 /// `concept:name` activity attribute. This is the boundary projection from the
 /// producer's receipt shape into the court's event-log shape.
+#[must_use]
 pub fn project_to_event_log(receipt: &Receipt) -> EventLog {
     let events: Vec<Event> = receipt
         .events
@@ -54,6 +55,7 @@ pub fn project_to_event_log(receipt: &Receipt) -> EventLog {
 
 /// Discover a process-tree description from a receipt, using `wasm4pm`'s real
 /// discovery engine. Returns the engine's serialized process-tree string.
+#[must_use]
 pub fn discover_process_tree(receipt: &Receipt) -> String {
     let log = project_to_event_log(receipt);
     discover_simple_process_tree_from_log(&log, ACTIVITY_KEY)
@@ -75,6 +77,7 @@ pub fn discover_process_tree(receipt: &Receipt) -> String {
 ///
 /// True van der Aalst precision (escaping edges) and generalization are NOT computed
 /// here — see `reference/COVERAGE.md §2.4`.
+#[must_use]
 pub fn conformance_metrics(receipt: &Receipt) -> (f64, f64) {
     let log = project_to_event_log(receipt);
     // ILP discovery produces a Petri net; token replay over that net yields fitness.
@@ -87,6 +90,7 @@ pub fn conformance_metrics(receipt: &Receipt) -> (f64, f64) {
 /// `(nodes, edges, start_activities, end_activities)`. Uses `wasm4pm`'s optimized
 /// DFG discovery (fitness/simplicity-weighted). The DFG is the most basic process
 /// model — activities as nodes, directly-follows relations as weighted edges.
+#[must_use]
 pub fn discover_dfg_summary(receipt: &Receipt) -> (usize, usize, usize, usize) {
     let log = project_to_event_log(receipt);
     // Fitness weight 1.0 and simplicity weight 1.0: balance both objectives equally
@@ -111,6 +115,7 @@ pub fn discover_dfg_summary(receipt: &Receipt) -> (usize, usize, usize, usize) {
 /// are one object, and discovery consumes the certificate, not raw bytes.
 ///
 /// # Example: see `examples/discover_shapeb.rs` (run: `cargo run --example discover_shapeb`).
+#[must_use]
 pub fn discover_from_admitted(admitted: &crate::types::AdmittedReceipt) -> String {
     // `&AdmittedReceipt` in the signature is the load-bearing part: a caller with
     // only a `Receipt` (un-adjudicated) cannot reach this path.
@@ -124,6 +129,7 @@ pub fn discover_from_admitted(admitted: &crate::types::AdmittedReceipt) -> Strin
 /// production (not only in `tests/reference_pipeline.rs`).
 ///
 /// # Example: see `examples/discover_shapeb.rs` (run: `cargo run --example discover_shapeb`).
+#[must_use]
 pub fn quality_metrics_from_admitted(admitted: &crate::types::AdmittedReceipt) -> (f64, f64, f64) {
     quality_metrics(&admitted.value)
 }
@@ -140,6 +146,7 @@ pub fn quality_metrics_from_admitted(admitted: &crate::types::AdmittedReceipt) -
 /// generalization are NOT computed — `wasm4pm::generalization` is wasm-handle
 /// gated, and the crate ships no escaping-edges precision callable from here.
 /// See reference/COVERAGE.md §2.4.
+#[must_use]
 pub fn quality_metrics(receipt: &Receipt) -> (f64, f64, f64) {
     let log = project_to_event_log(receipt);
     // ILP discovery: simultaneously discovers the net AND runs token replay to score fitness.

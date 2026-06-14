@@ -43,6 +43,7 @@ pub const DIAGNOSTIC_SOURCE: &str = "affidavit";
 /// };
 /// assert!(verdict_to_diagnostics(&verdict).is_empty());
 /// ```
+#[must_use]
 pub fn verdict_to_diagnostics(verdict: &Verdict) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 

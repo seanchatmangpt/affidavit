@@ -85,6 +85,7 @@ fn is_well_formed_hash(hex: &str) -> bool {
 /// let verdict = verify(&receipt);
 /// assert!(verdict.accepted);
 /// ```
+#[must_use]
 pub fn verify(receipt: &Receipt) -> Verdict {
     let outcomes: Vec<CheckOutcome> = vec![
         // Stage 1: decode — receipt structurally present and version parseable.

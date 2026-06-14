@@ -57,6 +57,8 @@ pub fn clear_spans() {
 }
 
 /// Trace an emit operation: opens an `emit` span, then runs `f`.
+#[must_use]
+#[inline]
 pub fn trace_emit<F, T>(event_type: &str, _object_count: usize, f: F) -> T
 where
     F: FnOnce() -> T,
@@ -66,6 +68,8 @@ where
 }
 
 /// Trace an assemble operation: opens an `assemble` span, then runs `f`.
+#[must_use]
+#[inline]
 pub fn trace_assemble<F, T>(event_count: usize, f: F) -> T
 where
     F: FnOnce() -> T,
@@ -77,6 +81,8 @@ where
 /// Trace a verify operation: opens a `verify` span, then runs `f`.
 ///
 /// # Example: see `examples/observable_spans.rs` (run: `cargo run --example observable_spans`).
+#[must_use]
+#[inline]
 pub fn trace_verify<F, T>(receipt_path: &str, f: F) -> T
 where
     F: FnOnce() -> T,
@@ -86,6 +92,8 @@ where
 }
 
 /// Trace a show operation: opens a `show` span, then runs `f`.
+#[must_use]
+#[inline]
 pub fn trace_show<F, T>(receipt_path: &str, f: F) -> T
 where
     F: FnOnce() -> T,

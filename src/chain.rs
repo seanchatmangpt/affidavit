@@ -65,6 +65,7 @@ fn fold_event(prev: &Blake3Hash, event: &OperationEvent) -> Result<Blake3Hash, C
 /// compare it against the receipt's stored `chain_hash`.
 ///
 /// # Example: see `examples/chain_build.rs` (run: `cargo run --example chain_build`).
+#[must_use]
 pub fn recompute_chain(events: &[OperationEvent]) -> Result<Blake3Hash, ChainError> {
     let mut acc = genesis_hash();
     for event in events {

@@ -137,6 +137,7 @@ fn first_failing_stage(verdict: &Verdict) -> String {
 /// let receipt = asm.finalize();
 /// let admitted = admit(receipt).expect("honest receipt must be admitted");
 /// ```
+#[must_use]
 pub fn admit(receipt: Receipt) -> Result<AdmittedReceipt, AffidavitRefusal> {
     // Court 1 — the wasm4pm-compat OCEL structural law. Runs from outside the
     // producer; a receipt with no event-object structure cannot satisfy it.

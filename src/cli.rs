@@ -14,7 +14,7 @@
 
 use crate::chain;
 use crate::ocel;
-use crate::types::{Blake3Hash, ObjectRef, Receipt};
+use crate::types::{ObjectRef, Receipt};
 use crate::verifier;
 use anyhow::{bail, Context, Result};
 use std::io::Read;
@@ -157,21 +157,6 @@ fn read_payload(source: &str) -> Result<Vec<u8>> {
     } else {
         std::fs::read(source).with_context(|| format!("opening payload file {source:?}"))
     }
-}
-
-/// Render an object ref for human display: `id:type` or `id:type/qualifier`.
-fn format_object(o: &ObjectRef) -> String {
-    match &o.qualifier {
-        Some(q) => format!("{}:{}/{}", o.id, o.obj_type, q),
-        None => format!("{}:{}", o.id, o.obj_type),
-    }
-}
-
-/// First 12 hex chars of a hash, for compact human display.
-fn short_hash(h: &Blake3Hash) -> String {
-    let hex = h.as_hex();
-    let end = hex.len().min(12);
-    hex[..end].to_string()
 }
 
 /// Load and parse an immutable receipt file from `path`.
