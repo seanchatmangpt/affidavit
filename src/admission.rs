@@ -18,7 +18,7 @@
 //! [`tests::forged_receipt_cannot_be_admitted`]: a structurally-invalid receipt
 //! is refused by name and never reaches `Admitted`.
 
-use crate::types::{AdmittedReceipt, AffidavitReceiptChain, Receipt};
+use crate::types::{AdmittedReceipt, AffidavitReceiptChain, Receipt, Verdict};
 use wasm4pm_compat::admission::Admission;
 use wasm4pm_compat::ocel::{
     EventObjectLink, Object, ObjectChange, ObjectObjectLink, OcelEvent, OcelLog, OcelRefusal,
@@ -66,13 +66,16 @@ impl std::error::Error for AffidavitRefusal {}
 /// projection — affidavit's receipt is OCEL-shaped, so the mapping is total.
 fn project_to_ocel(receipt: &Receipt) -> OcelLog {
     let mut objects: Vec<Object> = Vec::new();
+    // Track seen object ids to de-duplicate: OCEL objects are global, not per-event.
     let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut events: Vec<OcelEvent> = Vec::new();
+    // Event-to-object links are the structural spine the OCEL court validates.
     let mut e2o: Vec<EventObjectLink> = Vec::new();
 
     for ev in &receipt.events {
         events.push(OcelEvent::new(&ev.id, &ev.event_type));
         for o in &ev.objects {
+            // Only register each object once even if referenced by multiple events.
             if seen.insert(o.id.as_str()) {
                 objects.push(Object::new(&o.id, &o.obj_type));
             }
@@ -84,9 +87,23 @@ fn project_to_ocel(receipt: &Receipt) -> OcelLog {
         objects,
         events,
         e2o,
+        // No object-to-object links or object changes in the affidavit receipt shape.
         Vec::<ObjectObjectLink>::new(),
         Vec::<ObjectChange>::new(),
     )
+}
+
+/// Extract the name of the first failing pipeline stage from a rejected verdict.
+///
+/// Used to populate the `stage` field of [`AffidavitRefusal::StructuralLawViolation`]
+/// with a precise, named reason rather than a generic error string.
+fn first_failing_stage(verdict: &Verdict) -> String {
+    verdict
+        .outcomes
+        .iter()
+        .find(|o| !o.passed)
+        .map(|o| o.stage.clone())
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
 /// The Layer 2 transition: `Receipt` → `Evidence<Receipt, Admitted, AffidavitReceiptChain>`.
@@ -116,14 +133,11 @@ pub fn admit(receipt: Receipt) -> Result<AdmittedReceipt, AffidavitRefusal> {
     // irreproducible BLAKE3 chain rather than trusting the stored hash.
     let verdict = crate::verifier::verify(&receipt);
     if !verdict.accepted {
-        let first_fail = verdict
-            .outcomes
-            .iter()
-            .find(|o| !o.passed)
-            .map(|o| o.stage.clone())
-            .unwrap_or_else(|| "unknown".to_string());
+        // Name the specific stage that caused the refusal so callers can distinguish
+        // chain integrity failures from continuity gaps or commitment malformations.
+        let stage = first_failing_stage(&verdict);
         return Err(AffidavitRefusal::StructuralLawViolation {
-            stage: first_fail,
+            stage,
             reason: verdict.reason,
         });
     }

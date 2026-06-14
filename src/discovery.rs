@@ -77,6 +77,8 @@ pub fn discover_process_tree(receipt: &Receipt) -> String {
 /// here — see `reference/COVERAGE.md §2.4`.
 pub fn conformance_metrics(receipt: &Receipt) -> (f64, f64) {
     let log = project_to_event_log(receipt);
+    // ILP discovery produces a Petri net; token replay over that net yields fitness.
+    // The net is discarded here — only the scalar metrics are returned.
     let (_net, fitness, activity_coverage) = discover_ilp_petri_net_from_log(&log, ACTIVITY_KEY);
     (fitness, activity_coverage)
 }
@@ -87,7 +89,10 @@ pub fn conformance_metrics(receipt: &Receipt) -> (f64, f64) {
 /// model — activities as nodes, directly-follows relations as weighted edges.
 pub fn discover_dfg_summary(receipt: &Receipt) -> (usize, usize, usize, usize) {
     let log = project_to_event_log(receipt);
+    // Fitness weight 1.0 and simplicity weight 1.0: balance both objectives equally
+    // during DFG optimization (no bias toward over- or under-fitting).
     let dfg = discover_optimized_dfg_from_log(&log, ACTIVITY_KEY, 1.0, 1.0);
+    // Return structural counts: activities, directly-follows edges, start nodes, end nodes.
     (
         dfg.nodes.len(),
         dfg.edges.len(),
@@ -137,7 +142,9 @@ pub fn quality_metrics_from_admitted(admitted: &crate::types::AdmittedReceipt) -
 /// See reference/COVERAGE.md §2.4.
 pub fn quality_metrics(receipt: &Receipt) -> (f64, f64, f64) {
     let log = project_to_event_log(receipt);
+    // ILP discovery: simultaneously discovers the net AND runs token replay to score fitness.
     let (net, fitness, activity_coverage) = discover_ilp_petri_net_from_log(&log, ACTIVITY_KEY);
+    // Simplicity is an Occam measure: fewer places/transitions/arcs → closer to 1.0.
     let simplicity = compute_simplicity(net.places.len(), net.transitions.len(), net.arcs.len());
     (fitness, activity_coverage, simplicity)
 }
