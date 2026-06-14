@@ -6,8 +6,8 @@
 //! editor driven by an lsp-max server can render each failing certify stage as a
 //! red squiggle with the stage's name and detail.
 //!
-//! Genuine (not a stub): the returned values are `lsp_max::lsp_types::Diagnostic`
-//! — remove the `lsp-max` dependency and this module does not compile
+//! Genuine (not a stub): the returned values are `lsp_types::Diagnostic`
+//! — remove the `lsp-types` dependency and this module does not compile
 //! (failing-when-fake on the integration axis). Feed it a verdict whose stages
 //! failed and the diagnostics must carry those stages (failing-when-fake on the
 //! capability axis).

@@ -15,7 +15,7 @@ use affidavit::chain::{recompute_chain, FORMAT_VERSION};
 use affidavit::lsp::{verdict_to_diagnostics, DIAGNOSTIC_SOURCE};
 use affidavit::ocel::object_ref;
 use affidavit::types::{Blake3Hash, OperationEvent, Receipt};
-use lsp_max::lsp_types::DiagnosticSeverity;
+use lsp_types::DiagnosticSeverity;
 
 #[test]
 fn a_real_continuity_refusal_flows_into_error_diagnostics() {

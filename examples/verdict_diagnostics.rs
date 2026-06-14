@@ -20,7 +20,7 @@ use affidavit::ocel::object_ref;
 use affidavit::types::{
     Blake3Hash, CheckOutcome, OperationEvent, ProfileId, Receipt, Verdict,
 };
-use lsp_max::lsp_types::DiagnosticSeverity;
+use lsp_types::DiagnosticSeverity;
 
 fn main() {
     // ---- 1. REAL reject path: forged (seq=5) receipt -> verifier -> diagnostics.
