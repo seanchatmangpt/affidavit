@@ -1,0 +1,173 @@
+/* Chain Visualizer — local module styles.
+   Relies on global CSS vars (--bg --panel --border --fg --muted --green --accent --warn)
+   defined in app/globals.css. No new colors are introduced. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.intro {
+  color: var(--muted);
+  max-width: 70ch;
+}
+
+/* Controls row */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.controlGroup .label {
+  margin: 0;
+}
+.select {
+  background: #1b2130;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  font-size: 12px;
+}
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.btn {
+  background: #1b2130;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn:hover {
+  border-color: var(--accent);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.btnWarn {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.btnActive {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* SVG hosting */
+.svgScroll {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.svg {
+  display: block;
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
+  font-size: 12px;
+  color: var(--muted);
+}
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+/* Tamper banner */
+.banner {
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+  background: rgba(210, 153, 34, 0.08);
+  color: var(--fg);
+  font-size: 13px;
+}
+.bannerOk {
+  border-color: var(--border);
+  background: var(--panel);
+  color: var(--muted);
+}
+
+/* Event detail / editor table */
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 820px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.kv {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  gap: 0.25rem 0.75rem;
+  font-size: 13px;
+}
+.kv .label {
+  margin: 0;
+}
+.mono {
+  word-break: break-all;
+}
+
+.note {
+  font-size: 12px;
+  color: var(--muted);
+}
+.illu {
+  color: var(--warn);
+}
+
+/* Editable example receipt */
+.editor {
+  width: 100%;
+  min-height: 16rem;
+  resize: vertical;
+  background: #1b2130;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  tab-size: 2;
+}
+.editor:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* section headings keep a little breathing room above content */
+.wrap section > h2 {
+  margin-bottom: 0.4rem;
+}

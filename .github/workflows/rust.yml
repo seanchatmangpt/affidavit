@@ -1,0 +1,104 @@
+# rust.yml — Rust checks that are HONEST about this repo's build situation.
+#
+# DESIGN / WHY THIS WORKFLOW LOOKS UNUSUAL
+# ----------------------------------------
+# The `affidavit` crate depends on FIVE sibling PATH crates that live OUTSIDE
+# this repository (see Cargo.toml):
+#   ../clap-noun-verb  (+ ../clap-noun-verb/clap-noun-verb-macros)
+#   ../wasm4pm/wasm4pm + ../wasm4pm-compat
+#   ../lsp-max
+#   ../clnrm/crates/clnrm-core
+#   ../chicago-tdd-tools   (dev-dependency)
+# None of those are checked out in CI, so `cargo build` / `cargo test` /
+# `cargo clippy` CANNOT succeed in a clean checkout of this repo alone. We do
+# NOT pretend otherwise.
+#
+# What CAN run with zero sibling crates is `cargo fmt --check`: rustfmt only
+# parses source, it never resolves the dependency graph. So:
+#   * The `fmt` job is a REAL, BLOCKING gate — the workflow's success hinges
+#     ONLY on it.
+#   * The `build-and-test` job attempts a real build/test for signal, but is
+#     marked `continue-on-error: true` so a (fully expected) failure from the
+#     missing sibling workspace never reports the workflow as broken.
+#
+# This follows the repo's ethos: a green that is true whether or not the work
+# happened carries no information. fmt is a green that means something here.
+name: rust
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # REAL GATE: formatting needs no dependencies, so this genuinely passes/fails
+  # on the merits of the committed source. This is what the workflow's overall
+  # status reflects.
+  # ---------------------------------------------------------------------------
+  fmt:
+    name: rustfmt (cargo fmt --check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install nightly toolchain (rustfmt)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+
+      - name: cargo fmt --all -- --check
+        run: cargo fmt --all -- --check
+
+  # ---------------------------------------------------------------------------
+  # NON-BLOCKING (continue-on-error): requires the sibling PATH crates that are
+  # NOT present in this repo. Kept for signal/diagnostics only; it is EXPECTED
+  # to fail here and must never gate a merge. Clippy lives here too because it
+  # likewise needs the full dependency graph.
+  # ---------------------------------------------------------------------------
+  build-and-test:
+    name: build-and-test (requires sibling workspace)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install nightly toolchain (clippy)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+
+      - name: Explain why this job is expected to fail
+        run: |
+          echo "::warning title=Non-blocking by design::This crate depends on sibling PATH crates that are NOT checked out in CI."
+          echo "------------------------------------------------------------------"
+          echo "affidavit/Cargo.toml references these path-dependencies, all of"
+          echo "which live OUTSIDE this repository:"
+          echo "  ../clap-noun-verb (+ clap-noun-verb-macros)"
+          echo "  ../wasm4pm/wasm4pm and ../wasm4pm-compat"
+          echo "  ../lsp-max"
+          echo "  ../clnrm/crates/clnrm-core"
+          echo "  ../chicago-tdd-tools (dev-dependency)"
+          echo ""
+          echo "Because they are absent, cargo build/test/clippy CANNOT resolve"
+          echo "the dependency graph. The steps below are run for signal only and"
+          echo "this whole job is marked continue-on-error: true. Formatting is"
+          echo "the real gate (see the 'fmt' job)."
+          echo "------------------------------------------------------------------"
+
+      - name: cargo build (expected to fail without sibling crates)
+        run: cargo build --all-targets
+
+      - name: cargo test (expected to fail without sibling crates)
+        run: cargo test --all-targets
+
+      - name: cargo clippy (expected to fail without sibling crates)
+        run: cargo clippy --all-targets -- -D warnings

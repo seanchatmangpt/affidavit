@@ -1,0 +1,64 @@
+{
+  // affidavit devcontainer
+  // ----------------------------------------------------------------------
+  // Provides the two toolchains this repo needs:
+  //   - Rust NIGHTLY (rust-toolchain.toml pins `channel = "nightly"`), via the
+  //     devcontainers `rust` feature driving rustup.
+  //   - Node 22 (the self-contained Next.js app in web/ targets Node 22), via
+  //     the devcontainers `node` feature.
+  //
+  // HONEST BUILD NOTE: the `affidavit` crate depends on FIVE sibling path-crates
+  // (../clap-noun-verb, ../wasm4pm, ../wasm4pm-compat, ../lsp-max, ../clnrm) plus
+  // ../chicago-tdd-tools as a dev-dep. Those are NOT vendored in this repo, so a
+  // bare `cargo build` of a lone checkout WILL FAIL — it only succeeds inside the
+  // full sibling workspace. The reliably-installable part of this repo is web/,
+  // which is why postCreateCommand bootstraps `web/` and not `cargo build`.
+  //
+  // This file is JSON-with-comments (JSONC), the format devcontainer.json uses.
+  "name": "affidavit (Rust nightly + Node 22)",
+
+  // Debian-based universal base; the features below layer the toolchains on top.
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+
+  "features": {
+    // Rust via rustup. The pinned nightly in rust-toolchain.toml is honored
+    // automatically by cargo/rustc on first use inside the repo.
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "none",
+      "profile": "default"
+    },
+    // Node 22 for the web/ app (npm ci && npm run build).
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    }
+  },
+
+  // Install the part that reliably installs from a clean checkout: the web app.
+  // (cargo build is intentionally NOT run here — see the HONEST BUILD NOTE above.)
+  "postCreateCommand": "rustup toolchain install nightly --profile minimal --component rustfmt clippy && cd web && npm ci",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "rust-analyzer.check.command": "clippy",
+        "editor.formatOnSave": true,
+        "[rust]": {
+          "editor.defaultFormatter": "rust-lang.rust-analyzer"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        }
+      }
+    }
+  },
+
+  "remoteUser": "vscode"
+}
