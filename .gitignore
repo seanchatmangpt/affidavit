@@ -22,3 +22,6 @@ debug/
 # OS / editor cruft
 .DS_Store
 *.swp
+
+# Build/test log artifacts (from CI/agent runs)
+*.log
