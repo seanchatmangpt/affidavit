@@ -9,8 +9,9 @@
 // operation's span vanishes.
 
 use affidavit::tracing::{
-    captured_spans, clear_spans, trace_assemble, trace_conformance, trace_diagnose, trace_emit,
-    trace_graph, trace_model, trace_replay, trace_show, trace_stats, trace_verify,
+    captured_spans, clear_spans, trace_assemble, trace_bench, trace_conformance, trace_diagnose,
+    trace_emit, trace_graph, trace_inspect, trace_model, trace_mutate, trace_replay, trace_show,
+    trace_stats, trace_verify,
 };
 
 #[test]
@@ -105,7 +106,7 @@ fn diagnose_emits_an_observable_span() {
 }
 
 #[test]
-fn all_ten_operation_wrappers_emit_named_spans() {
+fn all_thirteen_operation_wrappers_emit_named_spans() {
     clear_spans();
 
     let _ = trace_emit("create", 1, || ());
@@ -118,6 +119,9 @@ fn all_ten_operation_wrappers_emit_named_spans() {
     let _ = trace_stats("r.json", || ());
     let _ = trace_replay("r.json", || ());
     let _ = trace_diagnose("r.json", || ());
+    let _ = trace_inspect("r.json", || ());
+    let _ = trace_mutate("r.json", || ());
+    let _ = trace_bench("bench-label", || ());
 
     let spans = captured_spans();
     let ops: std::collections::BTreeSet<&str> =
@@ -132,5 +136,41 @@ fn all_ten_operation_wrappers_emit_named_spans() {
     assert!(ops.contains("stats"), "stats span emitted");
     assert!(ops.contains("replay"), "replay span emitted");
     assert!(ops.contains("diagnose"), "diagnose span emitted");
-    assert_eq!(ops.len(), 10, "exactly the ten operation spans");
+    assert!(ops.contains("inspect"), "inspect span emitted");
+    assert!(ops.contains("mutate"), "mutate span emitted");
+    assert!(ops.contains("bench"), "bench span emitted");
+    assert_eq!(ops.len(), 13, "exactly the thirteen operation spans");
+}
+
+#[test]
+fn inspect_emits_an_observable_span() {
+    clear_spans();
+    let _ = trace_inspect("test-receipt.json", || ());
+    let spans = captured_spans();
+    assert!(
+        spans.iter().any(|s| s.operation == "inspect" && s.target == "test-receipt.json"),
+        "inspect must emit an observable span; got {spans:?}"
+    );
+}
+
+#[test]
+fn mutate_emits_an_observable_span() {
+    clear_spans();
+    let _ = trace_mutate("test-receipt.json", || ());
+    let spans = captured_spans();
+    assert!(
+        spans.iter().any(|s| s.operation == "mutate" && s.target == "test-receipt.json"),
+        "mutate must emit an observable span; got {spans:?}"
+    );
+}
+
+#[test]
+fn bench_emits_an_observable_span() {
+    clear_spans();
+    let _ = trace_bench("bench-label", || ());
+    let spans = captured_spans();
+    assert!(
+        spans.iter().any(|s| s.operation == "bench" && s.target == "bench-label"),
+        "bench must emit an observable span; got {spans:?}"
+    );
 }

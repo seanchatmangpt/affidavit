@@ -1,7 +1,7 @@
 //! Operation span recording for the affidavit pipeline.
 //!
 //! This is the OTel-shaped instrumentation seam. Each receipt operation
-//! (emit/assemble/verify/show/model/conformance/graph/stats/replay/diagnose)
+//! (emit/assemble/verify/show/model/conformance/graph/stats/replay/diagnose/inspect/mutate/bench)
 //! opens a span via the `trace_*` wrappers. Spans
 //! are recorded into an observable, thread-local sink so that a test can assert
 //! a span was actually emitted — the witness that this instrumentation is real
@@ -159,6 +159,39 @@ where
     F: FnOnce() -> T,
 {
     record_span("diagnose", receipt_path);
+    f()
+}
+
+/// Trace an inspect operation: opens an `inspect` span, then runs `f`.
+#[inline]
+#[must_use]
+pub fn trace_inspect<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("inspect", receipt_path);
+    f()
+}
+
+/// Trace a mutate operation: opens a `mutate` span, then runs `f`.
+#[inline]
+#[must_use]
+pub fn trace_mutate<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("mutate", receipt_path);
+    f()
+}
+
+/// Trace a bench operation: opens a `bench` span, then runs `f`.
+#[inline]
+#[must_use]
+pub fn trace_bench<F, T>(label: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("bench", label);
     f()
 }
 

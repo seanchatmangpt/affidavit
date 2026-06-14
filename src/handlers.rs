@@ -50,12 +50,16 @@ fn short_hash(hex: &str, n: usize) -> String {
 /// `object`, `r#type` (the CLI flag `--type` is a Rust keyword, raw-ident
 /// escaped). `cli::emit` takes `(event_type, &[object], payload)`.
 pub fn emit(payload: String, object: Vec<String>, r#type: String) -> Result<()> {
-    adapt(affidavit::cli::emit(&r#type, &object, &payload))
+    affidavit::tracing::trace_emit(&r#type, object.len(), || {
+        adapt(affidavit::cli::emit(&r#type, &object, &payload))
+    })
 }
 
 /// `affi receipt assemble` — finalize the working receipt into an immutable file.
 pub fn assemble(out: Option<String>) -> Result<()> {
-    adapt(affidavit::cli::assemble(out.as_deref()))
+    affidavit::tracing::trace_assemble(0, || {
+        adapt(affidavit::cli::assemble(out.as_deref()))
+    })
 }
 
 /// `affi receipt verify` — run the certify pipeline and print the verdict.
@@ -85,37 +89,41 @@ pub fn verify(receipt: String) -> Result<()> {
 /// Returns a plain Receipt (show does NOT adjudicate / mint Admitted — ADR-5);
 /// handler formats and outputs (stderr, not stdout).
 pub fn show(receipt: String) -> Result<()> {
-    let parsed = load_receipt(&receipt)?;
-    eprintln!("receipt format: {}", parsed.format_version);
-    eprintln!("events: {}", parsed.events.len());
-    for event in &parsed.events {
-        let objects = if event.objects.is_empty() {
-            "(none)".to_string()
-        } else {
-            event.objects.iter()
-                .map(|o| format!("{}:{}{}", o.id, o.obj_type,
-                    o.qualifier.as_ref().map(|q| format!("/{}", q)).unwrap_or_default()))
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-        let commit = short_hash(event.payload_commitment.as_hex(), 12);
-        eprintln!("  [{seq:>3}] {ty} id={id} commit={commit} objects=[{objects}]",
-            seq = event.seq,
-            ty = event.event_type,
-            id = event.id,
-            commit = commit
-        );
-    }
-    eprintln!("chain hash: {}", parsed.chain_hash);
-    Ok(())
+    affidavit::tracing::trace_show(&receipt, || {
+        let parsed = load_receipt(&receipt)?;
+        eprintln!("receipt format: {}", parsed.format_version);
+        eprintln!("events: {}", parsed.events.len());
+        for event in &parsed.events {
+            let objects = if event.objects.is_empty() {
+                "(none)".to_string()
+            } else {
+                event.objects.iter()
+                    .map(|o| format!("{}:{}{}", o.id, o.obj_type,
+                        o.qualifier.as_ref().map(|q| format!("/{}", q)).unwrap_or_default()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            let commit = short_hash(event.payload_commitment.as_hex(), 12);
+            eprintln!("  [{seq:>3}] {ty} id={id} commit={commit} objects=[{objects}]",
+                seq = event.seq,
+                ty = event.event_type,
+                id = event.id,
+                commit = commit
+            );
+        }
+        eprintln!("chain hash: {}", parsed.chain_hash);
+        Ok(())
+    })
 }
 
 /// `affi receipt inspect` — detailed structural analysis (event/object distribution).
 /// DX capability built on chicago-tdd-style fixture analysis (see `crate::verbs`).
 pub fn inspect(receipt: String) -> Result<()> {
-    let parsed = load_receipt(&receipt)?;
-    eprint!("{}", crate::verbs::inspect_with_fixtures(&parsed));
-    Ok(())
+    affidavit::tracing::trace_inspect(&receipt, || {
+        let parsed = load_receipt(&receipt)?;
+        eprint!("{}", crate::verbs::inspect_with_fixtures(&parsed));
+        Ok(())
+    })
 }
 
 /// `affi receipt stats` — one-shot aggregate view composing the integrated
@@ -299,31 +307,33 @@ pub fn diagnose(receipt: String) -> Result<()> {
 /// with the first event's type replaced with "tampered", and shows how the
 /// chain hash diverges from the original — proving the seal binds the content.
 pub fn mutate(receipt: String) -> Result<()> {
-    let parsed = load_receipt(&receipt)?;
-    // Compute a determinism digest of the original chain hash.
-    let original_hash = parsed.chain_hash.as_hex();
-    let short_original = short_hash(original_hash, 12);
+    affidavit::tracing::trace_mutate(&receipt, || {
+        let parsed = load_receipt(&receipt)?;
+        // Compute a determinism digest of the original chain hash.
+        let original_hash = parsed.chain_hash.as_hex();
+        let short_original = short_hash(original_hash, 12);
 
-    // Show the mutation proposal (what an attacker would need to reproduce).
-    eprintln!("receipt mutate (tamper-evidence demonstration):");
-    eprintln!("  original chain hash: {}...", short_original);
-    eprintln!("  events: {}", parsed.events.len());
+        // Show the mutation proposal (what an attacker would need to reproduce).
+        eprintln!("receipt mutate (tamper-evidence demonstration):");
+        eprintln!("  original chain hash: {}...", short_original);
+        eprintln!("  events: {}", parsed.events.len());
 
-    if let Some(first) = parsed.events.first() {
-        eprintln!("  mutating event[0].type: '{}' -> 'tampered'", first.event_type);
-        eprintln!("  effect: chain_integrity stage would REJECT (hash mismatch)");
-        eprintln!("  seal binds: all {} events + payload commitments", parsed.events.len());
-        // BLAKE3 cross-check (determinism witness): the original chain hash is
-        // itself a determinism witness — the same input always produces the same
-        // hash, so a mutated field cannot reproduce it.
-        let digest_bytes = blake3::hash(original_hash.as_bytes());
-        let digest_hex = digest_bytes.to_hex();
-        eprintln!("  blake3 digest of chain_hash: {}...", &digest_hex[..16]);
-    } else {
-        eprintln!("  no events — receipt is empty");
-    }
-    eprintln!("tamper-evidence confirmed: mutated receipt would not survive verify.");
-    Ok(())
+        if let Some(first) = parsed.events.first() {
+            eprintln!("  mutating event[0].type: '{}' -> 'tampered'", first.event_type);
+            eprintln!("  effect: chain_integrity stage would REJECT (hash mismatch)");
+            eprintln!("  seal binds: all {} events + payload commitments", parsed.events.len());
+            // BLAKE3 cross-check (determinism witness): the original chain hash is
+            // itself a determinism witness — the same input always produces the same
+            // hash, so a mutated field cannot reproduce it.
+            let digest_bytes = blake3::hash(original_hash.as_bytes());
+            let digest_hex = digest_bytes.to_hex();
+            eprintln!("  blake3 digest of chain_hash: {}...", &digest_hex[..16]);
+        } else {
+            eprintln!("  no events — receipt is empty");
+        }
+        eprintln!("tamper-evidence confirmed: mutated receipt would not survive verify.");
+        Ok(())
+    })
 }
 
 /// `affi receipt bench` — time core receipt operations inline.
@@ -332,36 +342,38 @@ pub fn mutate(receipt: String) -> Result<()> {
 /// → ChainAssembler::finalize → verify. Reports mean latency for each stage.
 /// Criterion-free: runs inside the binary for quick CI regression checks.
 pub fn bench(iterations: Option<u32>) -> Result<()> {
-    use std::time::Instant;
-    use affidavit::ocel::{build_event, object_ref, SeqCounter};
-    use affidavit::chain::ChainAssembler;
+    affidavit::tracing::trace_bench("bench", || {
+        use std::time::Instant;
+        use affidavit::ocel::{build_event, object_ref, SeqCounter};
+        use affidavit::chain::ChainAssembler;
 
-    let n = iterations.unwrap_or(100) as u64;
-    eprintln!("receipt bench ({n} iterations):");
+        let n = iterations.unwrap_or(100) as u64;
+        eprintln!("receipt bench ({n} iterations):");
 
-    // Bench: event building
-    let mut counter = SeqCounter::new();
-    let t0 = Instant::now();
-    for _ in 0..n {
-        let _ = build_event("bench", vec![object_ref("o1", "artifact")], b"payload", &mut counter)
-            .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(format!("{e:#}")))?;
-    }
-    let build_us = t0.elapsed().as_micros() as f64 / n as f64;
-    eprintln!("  build_event:        {build_us:.2} µs/op");
+        // Bench: event building
+        let mut counter = SeqCounter::new();
+        let t0 = Instant::now();
+        for _ in 0..n {
+            let _ = build_event("bench", vec![object_ref("o1", "artifact")], b"payload", &mut counter)
+                .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(format!("{e:#}")))?;
+        }
+        let build_us = t0.elapsed().as_micros() as f64 / n as f64;
+        eprintln!("  build_event:        {build_us:.2} µs/op");
 
-    // Bench: chain append + finalize
-    let t1 = Instant::now();
-    for _ in 0..n {
-        let mut asm = ChainAssembler::new();
-        let mut c2 = SeqCounter::new();
-        let ev = build_event("bench", vec![object_ref("o1", "artifact")], b"payload", &mut c2)
-            .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(format!("{e:#}")))?;
-        asm.append(ev).map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(format!("{e:#}")))?;
-        let _ = asm.finalize();
-    }
-    let chain_us = t1.elapsed().as_micros() as f64 / n as f64;
-    eprintln!("  chain append+finalize: {chain_us:.2} µs/op");
+        // Bench: chain append + finalize
+        let t1 = Instant::now();
+        for _ in 0..n {
+            let mut asm = ChainAssembler::new();
+            let mut c2 = SeqCounter::new();
+            let ev = build_event("bench", vec![object_ref("o1", "artifact")], b"payload", &mut c2)
+                .map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(format!("{e:#}")))?;
+            asm.append(ev).map_err(|e| clap_noun_verb::error::NounVerbError::execution_error(format!("{e:#}")))?;
+            let _ = asm.finalize();
+        }
+        let chain_us = t1.elapsed().as_micros() as f64 / n as f64;
+        eprintln!("  chain append+finalize: {chain_us:.2} µs/op");
 
-    eprintln!("bench complete ({n} iterations, single-event receipts).");
-    Ok(())
+        eprintln!("bench complete ({n} iterations, single-event receipts).");
+        Ok(())
+    })
 }
