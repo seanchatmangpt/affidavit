@@ -270,6 +270,9 @@ pub fn help_refs() -> Result<()> {
     ];
     eprintln!("ARDPRD cross-reference map (affidavit v26.6.14+):");
     eprintln!("  Spec: ARDPRD.md — https://github.com/seanchatmangpt/affidavit/blob/main/ARDPRD.md");
+    eprintln!("  Certify pipeline: 7-stage decidable verdict (decode → check_format → chain_integrity");
+    eprintln!("    → continuity → verify_commitments → evaluate_profile → emit_verdict).");
+    eprintln!("  Each stage produces a per-stage CheckOutcome (PASS/FAIL) + detail in the Verdict.");
     eprintln!();
     for (verb, ardprd_ref) in &refs {
         eprintln!("  affi receipt {verb:<14} → {ardprd_ref}");

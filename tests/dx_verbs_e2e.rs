@@ -2,6 +2,7 @@
 //   affi receipt inspect   — structural analysis (chicago-tdd-style)
 //   affi receipt model     — process discovery (wasm4pm)
 //   affi receipt diagnose  — LSP-shaped diagnostics (lsp-max)
+//   affi receipt completions <shell> — shell completion scripts (bash/zsh/fish/powershell/nushell)
 //
 // Each runs the REAL binary against a REAL assembled receipt and asserts the
 // command produced its capability's output. Failing-when-fake: if a verb were
@@ -162,4 +163,61 @@ fn help_refs_verb_prints_ardprd_map() {
         .stderr(predicate::str::contains("FR-1"))
         .stderr(predicate::str::contains("ADR-5"))
         .stderr(predicate::str::contains("Acceptance criterion"));
+}
+
+// ---------------------------------------------------------------------------
+// `affi receipt completions <shell>` — shell completion script generation.
+// Failing-when-fake: if the completions verb were unregistered or the backing
+// script files were removed, the expected non-empty stdout would be absent.
+// Tests cover all five supported shells: bash, zsh, fish, powershell, nushell.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn completions_bash_outputs_script() {
+    let dir = TempDir::new().expect("tempdir");
+    affi(&dir)
+        .args(["receipt", "completions", "bash"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn completions_zsh_outputs_script() {
+    let dir = TempDir::new().expect("tempdir");
+    affi(&dir)
+        .args(["receipt", "completions", "zsh"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn completions_fish_outputs_script() {
+    let dir = TempDir::new().expect("tempdir");
+    affi(&dir)
+        .args(["receipt", "completions", "fish"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn completions_powershell_outputs_script() {
+    let dir = TempDir::new().expect("tempdir");
+    affi(&dir)
+        .args(["receipt", "completions", "powershell"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
+}
+
+#[test]
+fn completions_nushell_outputs_script() {
+    let dir = TempDir::new().expect("tempdir");
+    affi(&dir)
+        .args(["receipt", "completions", "nushell"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty().not());
 }
