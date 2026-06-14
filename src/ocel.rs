@@ -116,6 +116,22 @@ pub fn parse_object_ref(spec: &str) -> Result<ObjectRef, OcelError> {
 /// The resulting event is validated before it is returned.
 ///
 /// # Example: see `examples/ocel_events.rs` (run: `cargo run --example ocel_events`)
+///
+/// # Examples
+///
+/// ```
+/// use affidavit::ocel::{build_event, object_ref, SeqCounter};
+///
+/// let mut counter = SeqCounter::new();
+/// let ev = build_event(
+///     "create",
+///     vec![object_ref("file.txt", "artifact")],
+///     b"file contents",
+///     &mut counter,
+/// ).expect("build event");
+/// assert_eq!(ev.event_type, "create");
+/// assert_eq!(ev.seq, 0);
+/// ```
 pub fn build_event(
     event_type: impl Into<String>,
     objects: Vec<ObjectRef>,

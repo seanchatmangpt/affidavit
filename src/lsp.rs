@@ -28,6 +28,21 @@ pub const DIAGNOSTIC_SOURCE: &str = "affidavit";
 /// It drives a REAL reject verdict (forged seq=5 receipt) through the verifier
 /// and asserts the resulting [`DIAGNOSTIC_SOURCE`] Error diagnostic names the
 /// failing `continuity` stage, then asserts an accepted verdict yields none.
+///
+/// # Examples
+///
+/// ```
+/// use affidavit::lsp::verdict_to_diagnostics;
+/// use affidavit::types::{CheckOutcome, ProfileId, Verdict};
+///
+/// let verdict = Verdict {
+///     accepted: true,
+///     profile: ProfileId::CoreV1,
+///     outcomes: vec![],
+///     reason: "ok".to_string(),
+/// };
+/// assert!(verdict_to_diagnostics(&verdict).is_empty());
+/// ```
 pub fn verdict_to_diagnostics(verdict: &Verdict) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 

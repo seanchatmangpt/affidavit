@@ -37,6 +37,22 @@ fn is_well_formed_hash(hex: &str) -> bool {
 /// passed. The function is pure: the same receipt always yields the same verdict.
 ///
 /// # Example: see `examples/verify_stages.rs` (run: `cargo run --example verify_stages`).
+///
+/// # Examples
+///
+/// ```
+/// use affidavit::chain::ChainAssembler;
+/// use affidavit::ocel::{build_event, object_ref, SeqCounter};
+/// use affidavit::verifier::verify;
+///
+/// let mut asm = ChainAssembler::new();
+/// let mut c = SeqCounter::new();
+/// let ev = build_event("create", vec![object_ref("o", "artifact")], b"p", &mut c).unwrap();
+/// asm.append(ev).unwrap();
+/// let receipt = asm.finalize();
+/// let verdict = verify(&receipt);
+/// assert!(verdict.accepted);
+/// ```
 pub fn verify(receipt: &Receipt) -> Verdict {
     let outcomes: Vec<CheckOutcome> = vec![
         // Stage 1: decode — receipt structurally present and version parseable.
