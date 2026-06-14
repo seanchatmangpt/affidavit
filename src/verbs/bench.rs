@@ -11,7 +11,6 @@ use clap_noun_verb_macros::verb;
 /// (ARDPRD §3 NFR-1, NFR-2)
 #[verb("bench", "receipt")]
 pub fn bench(
-    #[arg(index = 1)]
     iterations: Option<u32>,
 ) -> Result<()> {
     crate::handlers::bench(iterations)

@@ -299,11 +299,12 @@ pub fn mutate(receipt: String) -> Result<()> {
         eprintln!("  mutating event[0].type: '{}' -> 'tampered'", first.event_type);
         eprintln!("  effect: chain_integrity stage would REJECT (hash mismatch)");
         eprintln!("  seal binds: all {} events + payload commitments", parsed.events.len());
-        // The SHA-256 cross-check (clnrm-core determinism digest): the original
-        // chain hash is itself a determinism witness — the same input always
-        // produces the same hash, so a mutated field cannot reproduce it.
-        let digest = clnrm_core::determinism::digest::generate_digest(original_hash.as_bytes());
-        eprintln!("  clnrm digest of chain_hash: {}...", &digest[..16]);
+        // BLAKE3 cross-check (determinism witness): the original chain hash is
+        // itself a determinism witness — the same input always produces the same
+        // hash, so a mutated field cannot reproduce it.
+        let digest_bytes = blake3::hash(original_hash.as_bytes());
+        let digest_hex = digest_bytes.to_hex();
+        eprintln!("  blake3 digest of chain_hash: {}...", &digest_hex[..16]);
     } else {
         eprintln!("  no events — receipt is empty");
     }
