@@ -193,6 +193,28 @@ pub fn conformance(receipt: String) -> Result<()> {
     Ok(())
 }
 
+/// `affi receipt completions` — print shell completion script to stdout.
+///
+/// Supported shells: bash, zsh, fish.
+///
+/// Usage examples:
+///   eval "$(affi receipt completions bash)"
+///   affi receipt completions zsh > ~/.zsh/completions/_affi
+///   affi receipt completions fish > ~/.config/fish/completions/affi.fish
+pub fn completions(shell: String) -> Result<()> {
+    let script = match shell.to_lowercase().as_str() {
+        "bash" => include_str!("../completions/affi.bash"),
+        "zsh"  => include_str!("../completions/affi.zsh"),
+        "fish" => include_str!("../completions/affi.fish"),
+        other  => return Err(NounVerbError::execution_error(
+            format!("unsupported shell: {other}; supported: bash, zsh, fish")
+        )),
+    };
+    // Completions go to stdout — the only verb where stdout is the product.
+    print!("{script}");
+    Ok(())
+}
+
 /// `affi receipt diagnose` — render verify outcomes as LSP-shaped diagnostics.
 /// DX capability built on the genuine `lsp-max` Diagnostic surface
 /// (`affidavit::lsp`): an editor would render these as squiggles.
