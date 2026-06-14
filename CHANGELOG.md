@@ -2,6 +2,27 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.6.14+] — 2026-06-14 (Session: Gap Closure)
+
+### Added
+- `affi receipt mutate` — tamper-evidence demonstration using clnrm-core SHA-256 digest
+- `affi receipt bench` — inline performance benchmark (µs/op for build_event + chain)
+- `affi receipt completions` — shell completion scripts (bash/zsh/fish)
+- `affi receipt help-refs` — ARDPRD cross-reference map for all verbs
+- OTel span tracing for model/conformance/graph/stats/replay/diagnose verbs
+- `completions/` directory with static bash/zsh/fish completion scripts
+- lsp-max stub crate (unblocks build in clean environments)
+
+### Closed
+- STATUS.md "Next Steps" items: mutate verb, bench verb, shell completion, ARDPRD cross-refs
+- All DX/QOL verbs now implemented: replay, model, conformance, diagnose, graph, stats
+- All Phase 2 Continuation items except reasoning provenance (standing condition)
+
+### Integration Status
+- All 10 integrations now actively witnessed with failing-when-fake tests
+
+---
+
 ## [26.6.14] — 2026-06-14
 
 ### Added
