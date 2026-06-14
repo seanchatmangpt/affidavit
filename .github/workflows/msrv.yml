@@ -1,0 +1,34 @@
+name: MSRV
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  msrv:
+    name: Minimum Supported Rust Version (1.75)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout affidavit
+        uses: actions/checkout@v4
+        with:
+          path: affidavit
+
+      - name: Clone companion repos
+        run: |
+          cd ..
+          git clone --depth 1 https://github.com/seanchatmangpt/clap-noun-verb.git
+          git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm-compat.git
+          git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm.git
+          git clone --depth 1 https://github.com/seanchatmangpt/chicago-tdd-tools.git
+          git clone --depth 1 https://github.com/seanchatmangpt/clnrm.git
+          git clone --depth 1 https://github.com/seanchatmangpt/lsp-max.git
+
+      - name: Install Rust 1.75 (MSRV)
+        uses: dtolnay/rust-toolchain@1.75
+
+      - name: Build on MSRV
+        working-directory: affidavit
+        run: cargo build --lib
