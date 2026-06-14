@@ -13,7 +13,7 @@
 //! capability axis).
 
 use crate::types::Verdict;
-use lsp_max::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
+use lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 
 /// The diagnostic `source` string affidavit stamps on every receipt diagnostic.
 pub const DIAGNOSTIC_SOURCE: &str = "affidavit";
@@ -38,21 +38,34 @@ pub fn verdict_to_diagnostics(verdict: &Verdict) -> Vec<Diagnostic> {
             // index is the canonical anchor).
             let line = index as u32;
             let range = Range::new(Position::new(line, 0), Position::new(line, 1));
-            let mut diag = Diagnostic::new_simple(
+            let diag = Diagnostic {
                 range,
-                format!("{}: {}", outcome.stage, outcome.detail),
-            );
-            diag.severity = Some(DiagnosticSeverity::ERROR);
-            diag.source = Some(DIAGNOSTIC_SOURCE.to_string());
+                severity: Some(DiagnosticSeverity::ERROR),
+                source: Some(DIAGNOSTIC_SOURCE.to_string()),
+                message: format!("{}: {}", outcome.stage, outcome.detail),
+                code: None,
+                code_description: None,
+                related_information: None,
+                tags: None,
+                data: None,
+            };
             diagnostics.push(diag);
         }
     }
 
     if !verdict.accepted {
         let range = Range::new(Position::new(0, 0), Position::new(0, 1));
-        let mut summary = Diagnostic::new_simple(range, format!("REJECT — {}", verdict.reason));
-        summary.severity = Some(DiagnosticSeverity::ERROR);
-        summary.source = Some(DIAGNOSTIC_SOURCE.to_string());
+        let summary = Diagnostic {
+            range,
+            severity: Some(DiagnosticSeverity::ERROR),
+            source: Some(DIAGNOSTIC_SOURCE.to_string()),
+            message: format!("REJECT — {}", verdict.reason),
+            code: None,
+            code_description: None,
+            related_information: None,
+            tags: None,
+            data: None,
+        };
         diagnostics.push(summary);
     }
 
