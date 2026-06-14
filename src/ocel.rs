@@ -43,22 +43,27 @@ impl SeqCounter {
     pub fn peek(&self) -> u64 {
         self.value
     }
+
+    /// Return the current count without incrementing (useful for diagnostic output).
+    pub fn current(&self) -> u64 {
+        self.value
+    }
 }
 
 /// Errors raised while building or validating OCEL events.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum OcelError {
     /// The event_type was empty or whitespace-only.
-    #[error("event_type must be non-empty")]
+    #[error("event_type must not be empty (got empty string)")]
     EmptyEventType,
     /// The event id was empty or whitespace-only.
-    #[error("event id must be non-empty")]
+    #[error("event id must not be empty (got empty string)")]
     EmptyEventId,
     /// An object reference had an empty id.
-    #[error("object ref at index {0} has an empty id")]
+    #[error("object ref at index {0} has an empty id (got empty string)")]
     EmptyObjectId(usize),
     /// An object reference had an empty obj_type.
-    #[error("object ref at index {0} has an empty obj_type")]
+    #[error("object ref at index {0} has an empty obj_type (got empty string)")]
     EmptyObjectType(usize),
     /// An object reference string could not be parsed as `id:type`.
     #[error("object ref '{0}' is not in 'id:type' or 'id:type:qualifier' form")]
@@ -108,6 +113,17 @@ pub fn parse_object_ref(spec: &str) -> Result<ObjectRef, OcelError> {
     }
 }
 
+/// Validate a single [`ObjectRef`], returning the index-tagged error on failure.
+fn validate_object_ref(obj: &ObjectRef, index: usize) -> Result<(), OcelError> {
+    if obj.id.trim().is_empty() {
+        return Err(OcelError::EmptyObjectId(index));
+    }
+    if obj.obj_type.trim().is_empty() {
+        return Err(OcelError::EmptyObjectType(index));
+    }
+    Ok(())
+}
+
 /// Construct an [`OperationEvent`] from its parts, committing to payload bytes.
 ///
 /// The `payload_commitment` is `BLAKE3(payload)` — the raw payload is never
@@ -147,12 +163,7 @@ pub fn validate_event(event: &OperationEvent) -> Result<(), OcelError> {
         return Err(OcelError::EmptyEventType);
     }
     for (i, obj) in event.objects.iter().enumerate() {
-        if obj.id.trim().is_empty() {
-            return Err(OcelError::EmptyObjectId(i));
-        }
-        if obj.obj_type.trim().is_empty() {
-            return Err(OcelError::EmptyObjectType(i));
-        }
+        validate_object_ref(obj, i)?;
     }
     Ok(())
 }
@@ -226,5 +237,14 @@ mod tests {
             parse_object_ref(":file").unwrap_err(),
             OcelError::MalformedObjectRef(":file".to_string())
         );
+    }
+
+    #[test]
+    fn seq_counter_current_does_not_advance() {
+        let mut c = SeqCounter::new();
+        assert_eq!(c.current(), 0);
+        assert_eq!(c.current(), 0); // repeated reads do not advance
+        c.next_seq();
+        assert_eq!(c.current(), 1);
     }
 }

@@ -24,6 +24,38 @@ const STANDARD_VERSION: &str = FORMAT_VERSION;
 /// Expected hex length of a BLAKE3-256 digest (32 bytes → 64 hex chars).
 const BLAKE3_HEX_LEN: usize = 64;
 
+// ── Stage name constants ──────────────────────────────────────────────────────
+
+const STAGE_DECODE: &str = "decode";
+const STAGE_CHECK_FORMAT: &str = "check_format";
+const STAGE_CHAIN_INTEGRITY: &str = "chain_integrity";
+const STAGE_CONTINUITY: &str = "continuity";
+const STAGE_VERIFY_COMMITMENTS: &str = "verify_commitments";
+const STAGE_EVALUATE_PROFILE: &str = "evaluate_profile";
+const STAGE_EMIT_VERDICT: &str = "emit_verdict";
+
+// ── Stage outcome helpers ─────────────────────────────────────────────────────
+
+/// Build a passing [`CheckOutcome`] for the given stage.
+fn passed(stage: &str, detail: impl Into<String>) -> CheckOutcome {
+    CheckOutcome {
+        stage: stage.to_string(),
+        passed: true,
+        detail: detail.into(),
+    }
+}
+
+/// Build a failing [`CheckOutcome`] for the given stage.
+fn failed(stage: &str, detail: impl Into<String>) -> CheckOutcome {
+    CheckOutcome {
+        stage: stage.to_string(),
+        passed: false,
+        detail: detail.into(),
+    }
+}
+
+// ── Public entry point ────────────────────────────────────────────────────────
+
 /// Whether a hex string is a well-formed lowercase BLAKE3-256 digest.
 fn is_well_formed_hash(hex: &str) -> bool {
     hex.len() == BLAKE3_HEX_LEN && hex.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
@@ -54,6 +86,7 @@ pub fn verify(receipt: &Receipt) -> Verdict {
     ];
 
     // Stage 7: emit_verdict — accepted iff all prior stages passed.
+    let _ = STAGE_EMIT_VERDICT; // constant used symbolically; verdict has no CheckOutcome row
     let first_failure = outcomes.iter().find(|o| !o.passed);
     let accepted = first_failure.is_none();
     let reason = match first_failure {
@@ -71,34 +104,29 @@ pub fn verify(receipt: &Receipt) -> Verdict {
 
 /// Stage 1: the receipt is structurally present and its version is parseable.
 fn stage_decode(receipt: &Receipt) -> CheckOutcome {
-    let passed = !receipt.format_version.trim().is_empty();
-    let detail = if passed {
-        format!("{} event(s), format_version present", receipt.events.len())
+    let ok = !receipt.format_version.trim().is_empty();
+    if ok {
+        passed(
+            STAGE_DECODE,
+            format!("{} event(s), format_version present", receipt.events.len()),
+        )
     } else {
-        "format_version is empty or unparseable".to_string()
-    };
-    CheckOutcome {
-        stage: "decode".to_string(),
-        passed,
-        detail,
+        failed(STAGE_DECODE, "format_version is empty or unparseable")
     }
 }
 
 /// Stage 2: the receipt's format version matches the verifier's standard.
 fn stage_check_format(receipt: &Receipt) -> CheckOutcome {
-    let passed = receipt.format_version == STANDARD_VERSION;
-    let detail = if passed {
-        format!("format_version == {STANDARD_VERSION}")
+    if receipt.format_version == STANDARD_VERSION {
+        passed(STAGE_CHECK_FORMAT, format!("format_version == {STANDARD_VERSION}"))
     } else {
-        format!(
-            "expected format_version {STANDARD_VERSION}, found {}",
-            receipt.format_version
+        failed(
+            STAGE_CHECK_FORMAT,
+            format!(
+                "expected format_version {STANDARD_VERSION}, found {}",
+                receipt.format_version
+            ),
         )
-    };
-    CheckOutcome {
-        stage: "check_format".to_string(),
-        passed,
-        detail,
     }
 }
 
@@ -106,26 +134,22 @@ fn stage_check_format(receipt: &Receipt) -> CheckOutcome {
 fn stage_chain_integrity(receipt: &Receipt) -> CheckOutcome {
     match recompute_chain(&receipt.events) {
         Ok(computed) => {
-            let passed = computed == receipt.chain_hash;
-            let detail = if passed {
-                "recomputed chain hash matches stored chain_hash".to_string()
+            if computed == receipt.chain_hash {
+                passed(STAGE_CHAIN_INTEGRITY, "recomputed chain hash matches stored chain_hash")
             } else {
-                format!(
-                    "chain hash mismatch: stored {}, recomputed {}",
-                    receipt.chain_hash, computed
+                failed(
+                    STAGE_CHAIN_INTEGRITY,
+                    format!(
+                        "chain hash mismatch: stored {}, recomputed {}",
+                        receipt.chain_hash, computed
+                    ),
                 )
-            };
-            CheckOutcome {
-                stage: "chain_integrity".to_string(),
-                passed,
-                detail,
             }
         }
-        Err(e) => CheckOutcome {
-            stage: "chain_integrity".to_string(),
-            passed: false,
-            detail: format!("could not canonicalize an event: {e}"),
-        },
+        Err(e) => failed(
+            STAGE_CHAIN_INTEGRITY,
+            format!("could not canonicalize an event: {e}"),
+        ),
     }
 }
 
@@ -135,28 +159,25 @@ fn stage_continuity(receipt: &Receipt) -> CheckOutcome {
     for (index, event) in receipt.events.iter().enumerate() {
         let expected_seq = index as u64;
         if event.seq != expected_seq {
-            return CheckOutcome {
-                stage: "continuity".to_string(),
-                passed: false,
-                detail: format!(
-                    "seq gap at position {index}: expected {expected_seq}, found {}",
-                    event.seq
+            return failed(
+                STAGE_CONTINUITY,
+                format!(
+                    "seq gap at position {index}: expected {expected_seq}, found {} (seq {})",
+                    event.seq, event.seq
                 ),
-            };
+            );
         }
         if !seen_ids.insert(event.id.as_str()) {
-            return CheckOutcome {
-                stage: "continuity".to_string(),
-                passed: false,
-                detail: format!("duplicate event id: {}", event.id),
-            };
+            return failed(
+                STAGE_CONTINUITY,
+                format!("duplicate event id '{}' at seq {}", event.id, event.seq),
+            );
         }
     }
-    CheckOutcome {
-        stage: "continuity".to_string(),
-        passed: true,
-        detail: format!("{} event(s) with contiguous seq and unique ids", receipt.events.len()),
-    }
+    passed(
+        STAGE_CONTINUITY,
+        format!("{} event(s) with contiguous seq and unique ids", receipt.events.len()),
+    )
 }
 
 /// Stage 5: every event carries a well-formed (non-empty, correct-length) commitment.
@@ -164,46 +185,38 @@ fn stage_verify_commitments(receipt: &Receipt) -> CheckOutcome {
     for event in &receipt.events {
         let hex = event.payload_commitment.as_hex();
         if !is_well_formed_hash(hex) {
-            return CheckOutcome {
-                stage: "verify_commitments".to_string(),
-                passed: false,
-                detail: format!(
+            return failed(
+                STAGE_VERIFY_COMMITMENTS,
+                format!(
                     "event {} has a malformed commitment (expected {BLAKE3_HEX_LEN} lowercase hex chars)",
                     event.id
                 ),
-            };
+            );
         }
     }
-    CheckOutcome {
-        stage: "verify_commitments".to_string(),
-        passed: true,
-        detail: "all commitments are well-formed BLAKE3 digests".to_string(),
-    }
+    passed(STAGE_VERIFY_COMMITMENTS, "all commitments are well-formed BLAKE3 digests")
 }
 
 /// Stage 6 (CoreV1 profile): each event has a non-empty event_type and commitment.
 fn stage_evaluate_profile(receipt: &Receipt) -> CheckOutcome {
     for event in &receipt.events {
         if event.event_type.trim().is_empty() {
-            return CheckOutcome {
-                stage: "evaluate_profile".to_string(),
-                passed: false,
-                detail: format!("event {} has an empty event_type", event.id),
-            };
+            return failed(
+                STAGE_EVALUATE_PROFILE,
+                format!("event {} has an empty event_type", event.id),
+            );
         }
         if event.payload_commitment.as_hex().is_empty() {
-            return CheckOutcome {
-                stage: "evaluate_profile".to_string(),
-                passed: false,
-                detail: format!("event {} is missing a commitment", event.id),
-            };
+            return failed(
+                STAGE_EVALUATE_PROFILE,
+                format!("event {} is missing a commitment", event.id),
+            );
         }
     }
-    CheckOutcome {
-        stage: "evaluate_profile".to_string(),
-        passed: true,
-        detail: format!("profile {} satisfied", ProfileId::CoreV1.as_str()),
-    }
+    passed(
+        STAGE_EVALUATE_PROFILE,
+        format!("profile {} satisfied", ProfileId::CoreV1.as_str()),
+    )
 }
 
 #[cfg(test)]
