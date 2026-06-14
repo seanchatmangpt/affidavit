@@ -21,6 +21,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
+use std::process::Command as StdCommand;
 use tempfile::TempDir;
 
 fn affi(dir: &TempDir) -> Command {
@@ -139,4 +140,183 @@ fn dispatch_verify_tampered_reject() {
         .failure() // non-zero exit
         // Tampered receipt fails at deserialization (chain hash mismatch)—stronger than verify rejection
         .stderr(predicate::str::contains("chain hash mismatch")); // deserialization gate closed (ADR-3)
+}
+
+// ============================================================================
+// --help dispatch tests: verify each verb routes to its own help text.
+//
+// All verbs live under `affi receipt <verb>` (noun-verb CLI structure).
+// Each test asserts: exit 0, and the output contains the verb name or usage info.
+// ============================================================================
+
+fn affi_help(verb: &str) -> std::process::Output {
+    StdCommand::new(env!("CARGO_BIN_EXE_affi"))
+        .args(["receipt", verb, "--help"])
+        .output()
+        .expect("run affi")
+}
+
+#[test]
+fn dispatch_emit_help() {
+    let out = affi_help("emit");
+    assert!(
+        out.status.success(),
+        "emit --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("emit") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "emit --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_assemble_help() {
+    let out = affi_help("assemble");
+    assert!(
+        out.status.success(),
+        "assemble --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("assemble") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "assemble --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_verify_help() {
+    let out = affi_help("verify");
+    assert!(
+        out.status.success(),
+        "verify --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("verify") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "verify --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_show_help() {
+    let out = affi_help("show");
+    assert!(
+        out.status.success(),
+        "show --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("show") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "show --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_inspect_help() {
+    let out = affi_help("inspect");
+    assert!(
+        out.status.success(),
+        "inspect --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("inspect") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "inspect --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_stats_help() {
+    let out = affi_help("stats");
+    assert!(
+        out.status.success(),
+        "stats --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("stats") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "stats --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_graph_help() {
+    let out = affi_help("graph");
+    assert!(
+        out.status.success(),
+        "graph --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("graph") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "graph --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_replay_help() {
+    let out = affi_help("replay");
+    assert!(
+        out.status.success(),
+        "replay --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("replay") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "replay --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_model_help() {
+    let out = affi_help("model");
+    assert!(
+        out.status.success(),
+        "model --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("model") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "model --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_conformance_help() {
+    let out = affi_help("conformance");
+    assert!(
+        out.status.success(),
+        "conformance --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("conformance") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "conformance --help must describe itself; got {stdout}"
+    );
+}
+
+#[test]
+fn dispatch_diagnose_help() {
+    let out = affi_help("diagnose");
+    assert!(
+        out.status.success(),
+        "diagnose --help must exit 0; stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("diagnose") || stdout.contains("USAGE") || stdout.contains("Usage"),
+        "diagnose --help must describe itself; got {stdout}"
+    );
 }
