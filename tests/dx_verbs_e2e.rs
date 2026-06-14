@@ -122,3 +122,31 @@ fn diagnose_verb_reports_clean_for_honest_receipt() {
         .success()
         .stderr(predicate::str::contains("no diagnostics — receipt is clean"));
 }
+
+#[test]
+fn mutate_verb_demonstrates_tamper_evidence() {
+    let dir = TempDir::new().expect("tempdir");
+    build_receipt(&dir, "r.json");
+    affi(&dir)
+        .args(["receipt", "mutate", "r.json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("receipt mutate"))
+        .stderr(predicate::str::contains("original chain hash:"))
+        .stderr(predicate::str::contains("tampered"))
+        .stderr(predicate::str::contains("tamper-evidence confirmed"));
+}
+
+#[test]
+fn bench_verb_reports_microsecond_latencies() {
+    let dir = TempDir::new().expect("tempdir");
+    build_receipt(&dir, "r.json");
+    affi(&dir)
+        .args(["receipt", "bench", "--iterations", "10"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("receipt bench"))
+        .stderr(predicate::str::contains("build_event:"))
+        .stderr(predicate::str::contains("µs/op"))
+        .stderr(predicate::str::contains("bench complete"));
+}

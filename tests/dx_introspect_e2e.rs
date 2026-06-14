@@ -26,7 +26,8 @@ fn introspect_emits_valid_schema_for_all_verbs() {
     let names: Vec<&str> = arr.iter().filter_map(|t| t.get("name").and_then(|n| n.as_str())).collect();
     for verb in ["receipt_emit", "receipt_assemble", "receipt_verify", "receipt_show",
                  "receipt_inspect", "receipt_model", "receipt_conformance", "receipt_diagnose",
-                 "receipt_replay", "receipt_graph", "receipt_stats"] {
+                 "receipt_replay", "receipt_graph", "receipt_stats",
+                 "receipt_mutate", "receipt_bench"] {
         assert!(names.contains(&verb), "introspect schema must expose {verb}; got {names:?}");
     }
     // Each tool carries a parameters object (so an LLM can construct the call).
