@@ -17,6 +17,7 @@ pub mod admission;
 pub mod chain;
 pub mod cli;
 pub mod discovery;
+pub mod event_builder;
 pub mod lsp;
 pub mod ocel;
 pub mod otel_sdk;
