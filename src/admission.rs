@@ -122,6 +122,21 @@ fn first_failing_stage(verdict: &Verdict) -> String {
 /// when the work is faked.
 ///
 /// # Example: see `examples/admission_gate.rs` (run: `cargo run --example admission_gate`).
+///
+/// # Examples
+///
+/// ```
+/// use affidavit::admission::admit;
+/// use affidavit::chain::ChainAssembler;
+/// use affidavit::ocel::{build_event, object_ref, SeqCounter};
+///
+/// let mut asm = ChainAssembler::new();
+/// let mut c = SeqCounter::new();
+/// let ev = build_event("create", vec![object_ref("o", "artifact")], b"p", &mut c).unwrap();
+/// asm.append(ev).unwrap();
+/// let receipt = asm.finalize();
+/// let admitted = admit(receipt).expect("honest receipt must be admitted");
+/// ```
 pub fn admit(receipt: Receipt) -> Result<AdmittedReceipt, AffidavitRefusal> {
     // Court 1 — the wasm4pm-compat OCEL structural law. Runs from outside the
     // producer; a receipt with no event-object structure cannot satisfy it.

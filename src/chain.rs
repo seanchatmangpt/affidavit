@@ -110,6 +110,21 @@ impl ChainAssembler {
     }
 
     /// Append one operation-event, folding it into the running chain hash.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use affidavit::chain::ChainAssembler;
+    /// use affidavit::ocel::{build_event, object_ref, SeqCounter};
+    ///
+    /// let mut asm = ChainAssembler::new();
+    /// let mut counter = SeqCounter::new();
+    /// let ev = build_event("create", vec![object_ref("f", "artifact")], b"data", &mut counter)
+    ///     .expect("build");
+    /// asm.append(ev).expect("append");
+    /// let receipt = asm.finalize();
+    /// assert_eq!(receipt.events.len(), 1);
+    /// ```
     pub fn append(&mut self, event: OperationEvent) -> Result<(), ChainError> {
         self.running = fold_event(&self.running, &event)?;
         self.events.push(event);
@@ -132,6 +147,22 @@ impl ChainAssembler {
     }
 
     /// Finalize into an immutable `Receipt` carrying the final chain hash.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use affidavit::chain::ChainAssembler;
+    /// use affidavit::ocel::{build_event, object_ref, SeqCounter};
+    ///
+    /// let mut asm = ChainAssembler::new();
+    /// let mut counter = SeqCounter::new();
+    /// let ev = build_event("create", vec![object_ref("f", "artifact")], b"data", &mut counter)
+    ///     .expect("build");
+    /// asm.append(ev).expect("append");
+    /// let receipt = asm.finalize();
+    /// assert_eq!(receipt.events.len(), 1);
+    /// assert!(!receipt.chain_hash.as_hex().is_empty());
+    /// ```
     pub fn finalize(self) -> Receipt {
         Receipt::sealed(
             FORMAT_VERSION.to_string(),
