@@ -104,70 +104,78 @@ pub fn inspect(receipt: String) -> Result<()> {
 /// surfaces: event/object counts (affidavit), DFG size (wasm4pm discovery), and
 /// fitness/simplicity (wasm4pm token replay). A single DX summary of a receipt.
 pub fn stats(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
-    let event_count = parsed.events.len();
-    let object_count: usize = parsed.events.iter().map(|e| e.objects.len()).sum();
-    let (nodes, edges, _s, _e) = affidavit::discovery::discover_dfg_summary(&parsed);
-    let (fitness, activity_coverage, simplicity) = affidavit::discovery::quality_metrics(&parsed);
-    eprintln!("receipt stats:");
-    eprintln!("  events: {event_count}");
-    eprintln!("  object refs: {object_count}");
-    eprintln!("  dfg: {nodes} nodes / {edges} edges");
-    eprintln!("  fitness: {fitness:.4}  activity_coverage: {activity_coverage:.4}  simplicity: {simplicity:.4}");
-    Ok(())
+    affidavit::tracing::trace_stats(&receipt, || {
+        let parsed = adapt(affidavit::cli::show(&receipt))?;
+        let event_count = parsed.events.len();
+        let object_count: usize = parsed.events.iter().map(|e| e.objects.len()).sum();
+        let (nodes, edges, _s, _e) = affidavit::discovery::discover_dfg_summary(&parsed);
+        let (fitness, activity_coverage, simplicity) = affidavit::discovery::quality_metrics(&parsed);
+        eprintln!("receipt stats:");
+        eprintln!("  events: {event_count}");
+        eprintln!("  object refs: {object_count}");
+        eprintln!("  dfg: {nodes} nodes / {edges} edges");
+        eprintln!("  fitness: {fitness:.4}  activity_coverage: {activity_coverage:.4}  simplicity: {simplicity:.4}");
+        Ok(())
+    })
 }
 
 /// `affi receipt graph` — discover the directly-follows graph (wasm4pm) and
 /// summarise it (nodes/edges/start/end activities). DX capability: the most basic
 /// process model, derived from the receipt.
 pub fn graph(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
-    let (nodes, edges, starts, ends) = affidavit::discovery::discover_dfg_summary(&parsed);
-    eprintln!("directly-follows graph (wasm4pm):");
-    eprintln!("  nodes (activities): {nodes}");
-    eprintln!("  edges (df-relations): {edges}");
-    eprintln!("  start activities: {starts}");
-    eprintln!("  end activities: {ends}");
-    Ok(())
+    affidavit::tracing::trace_graph(&receipt, || {
+        let parsed = adapt(affidavit::cli::show(&receipt))?;
+        let (nodes, edges, starts, ends) = affidavit::discovery::discover_dfg_summary(&parsed);
+        eprintln!("directly-follows graph (wasm4pm):");
+        eprintln!("  nodes (activities): {nodes}");
+        eprintln!("  edges (df-relations): {edges}");
+        eprintln!("  start activities: {starts}");
+        eprintln!("  end activities: {ends}");
+        Ok(())
+    })
 }
 
 /// `affi receipt replay` — replay the receipt's event sequence in order, showing
 /// each step's seq/type/objects (the trace as it would re-execute). DX capability:
 /// makes the receipt's lawful event ordering visible as a step-by-step trace.
 pub fn replay(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
-    eprintln!("replay ({} events):", parsed.events.len());
-    for event in &parsed.events {
-        let objects = if event.objects.is_empty() {
-            "(none)".to_string()
-        } else {
-            event.objects.iter()
-                .map(|o| format!("{}:{}", o.id, o.obj_type))
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-        eprintln!("  step {seq}: {ty} → [{objects}]", seq = event.seq, ty = event.event_type);
-    }
-    eprintln!("replay complete — {} steps in lawful seq order", parsed.events.len());
-    Ok(())
+    affidavit::tracing::trace_replay(&receipt, || {
+        let parsed = adapt(affidavit::cli::show(&receipt))?;
+        eprintln!("replay ({} events):", parsed.events.len());
+        for event in &parsed.events {
+            let objects = if event.objects.is_empty() {
+                "(none)".to_string()
+            } else {
+                event.objects.iter()
+                    .map(|o| format!("{}:{}", o.id, o.obj_type))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            eprintln!("  step {seq}: {ty} → [{objects}]", seq = event.seq, ty = event.event_type);
+        }
+        eprintln!("replay complete — {} steps in lawful seq order", parsed.events.len());
+        Ok(())
+    })
 }
 
 /// `affi receipt model` — discover a process model from the receipt's events.
 /// DX capability built on the genuine `wasm4pm` discovery engine
 /// (`affidavit::discovery`): the receipt IS the event log (Shape B), mined here.
 pub fn model(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
-    // Type-gate (the central reference claim, now live in the binary): discovery
-    // runs ONLY on an `AdmittedReceipt`. `admit()` runs the OCEL court + chain
-    // verifier; a receipt that fails has no path to `discover_from_admitted`.
-    let admitted = adapt(
-        affidavit::admission::admit(parsed)
-            .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
-    )?;
-    let tree = affidavit::discovery::discover_from_admitted(&admitted);
-    eprintln!("discovered process model (wasm4pm) on the ADMITTED receipt:");
-    eprintln!("{tree}");
-    Ok(())
+    affidavit::tracing::trace_model(&receipt, || {
+        let parsed = adapt(affidavit::cli::show(&receipt))?;
+        // Type-gate (the central reference claim, now live in the binary): discovery
+        // runs ONLY on an `AdmittedReceipt`. `admit()` runs the OCEL court + chain
+        // verifier; a receipt that fails has no path to `discover_from_admitted`.
+        let admitted = adapt(
+            affidavit::admission::admit(parsed)
+                .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
+        )?;
+        let tree = affidavit::discovery::discover_from_admitted(&admitted);
+        eprintln!("discovered process model (wasm4pm) on the ADMITTED receipt:");
+        eprintln!("{tree}");
+        Ok(())
+    })
 }
 
 /// `affi receipt conformance` — compute fitness (token replay) + activity_coverage
@@ -176,21 +184,23 @@ pub fn model(receipt: String) -> Result<()> {
 /// conform pipeline on a receipt yields exactly two genuine van der Aalst quality
 /// numbers: fitness (token replay) and simplicity (Occam).
 pub fn conformance(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
-    // Type-gate: metrics computed only on the ADMITTED receipt (admit() runs both
-    // courts first) — same discipline as `model`. Conformance on un-adjudicated
-    // bytes has no path here.
-    let admitted = adapt(
-        affidavit::admission::admit(parsed)
-            .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
-    )?;
-    let (fitness, activity_coverage, simplicity) =
-        affidavit::discovery::quality_metrics_from_admitted(&admitted);
-    eprintln!("conformance metrics:");
-    eprintln!("  fitness (token replay):  {fitness:.4}");
-    eprintln!("  activity_coverage:       {activity_coverage:.4}  (NOT van der Aalst precision)");
-    eprintln!("  simplicity (Occam):      {simplicity:.4}");
-    Ok(())
+    affidavit::tracing::trace_conformance(&receipt, || {
+        let parsed = adapt(affidavit::cli::show(&receipt))?;
+        // Type-gate: metrics computed only on the ADMITTED receipt (admit() runs both
+        // courts first) — same discipline as `model`. Conformance on un-adjudicated
+        // bytes has no path here.
+        let admitted = adapt(
+            affidavit::admission::admit(parsed)
+                .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
+        )?;
+        let (fitness, activity_coverage, simplicity) =
+            affidavit::discovery::quality_metrics_from_admitted(&admitted);
+        eprintln!("conformance metrics:");
+        eprintln!("  fitness (token replay):  {fitness:.4}");
+        eprintln!("  activity_coverage:       {activity_coverage:.4}  (NOT van der Aalst precision)");
+        eprintln!("  simplicity (Occam):      {simplicity:.4}");
+        Ok(())
+    })
 }
 
 /// `affi receipt completions` — print shell completion script to stdout.
@@ -219,20 +229,22 @@ pub fn completions(shell: String) -> Result<()> {
 /// DX capability built on the genuine `lsp-max` Diagnostic surface
 /// (`affidavit::lsp`): an editor would render these as squiggles.
 pub fn diagnose(receipt: String) -> Result<()> {
-    let (_code, verdict) = adapt(affidavit::cli::verify(&receipt))?;
-    let diagnostics = affidavit::lsp::verdict_to_diagnostics(&verdict);
-    if diagnostics.is_empty() {
-        eprintln!("no diagnostics — receipt is clean (ACCEPT)");
-    } else {
-        eprintln!("{} diagnostic(s):", diagnostics.len());
-        for d in &diagnostics {
-            eprintln!(
-                "  [{}:{}] {}",
-                d.range.start.line, d.range.start.character, d.message
-            );
+    affidavit::tracing::trace_diagnose(&receipt, || {
+        let (_code, verdict) = adapt(affidavit::cli::verify(&receipt))?;
+        let diagnostics = affidavit::lsp::verdict_to_diagnostics(&verdict);
+        if diagnostics.is_empty() {
+            eprintln!("no diagnostics — receipt is clean (ACCEPT)");
+        } else {
+            eprintln!("{} diagnostic(s):", diagnostics.len());
+            for d in &diagnostics {
+                eprintln!(
+                    "  [{}:{}] {}",
+                    d.range.start.line, d.range.start.character, d.message
+                );
+            }
         }
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 /// `affi receipt mutate` — demonstrate tamper-evidence by showing what a
