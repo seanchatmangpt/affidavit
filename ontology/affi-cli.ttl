@@ -1,0 +1,116 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix cnv:  <http://clap-noun-verb.io/ontology#> .
+@prefix affi: <http://affidavit.io/cli#> .
+
+# =============================================================================
+# The affi CLI surface, described once in the authoritative clap-noun-verb (cnv)
+# noun-verb vocabulary. This ontology is the ONLY affidavit-supplied input to
+# `ggen sync`; the pack supplies the queries + templates that render thin #[verb]
+# wrappers under src/verbs/, each delegating to crate::handlers::<verb>.
+#
+# Surface: `affi receipt <emit|assemble|verify|show>`.
+#
+# Conventions adopted from the pack (verb-signatures.rq + verb.rs.tera):
+#   - Direct triples (NOT RDF lists): the pack SELECT matches `?verb cnv:hasArguments ?arg`
+#     and `?noun cnv:hasVerbs ?verb`, so verbs and arguments are linked directly.
+#   - Plain-string literals (no @en language tags): the SELECT projects
+#     ?verb_name/?flag verbatim into the template, so a langString would corrupt
+#     the rendered Rust identifier.
+#   - cnv:fieldName overrides the kebab->snake field for Rust-keyword / renamed
+#     flags: `--type` -> field `event_type` (matches src/cli.rs::emit's signature),
+#     avoiding the Rust keyword `type`.
+# =============================================================================
+
+affi: a owl:Ontology ;
+    rdfs:label "affidavit CLI"@en ;
+    rdfs:comment "Provenance Layer CLI — emit, assemble, verify, show."@en ;
+    dcterms:creator "Sean Chatman" ;
+    owl:imports cnv: ;
+    owl:versionInfo "26.6.14" .
+
+# ============================================================================
+# RECEIPT NOUN — surface `affi receipt <verb>`.
+# ============================================================================
+
+affi:ReceiptNoun a cnv:Noun ;
+    cnv:hasNounName "receipt" ;
+    cnv:nounAbout "Assemble and certify provenance receipts" ;
+    cnv:hasVerbs affi:EmitVerb , affi:AssembleVerb , affi:VerifyVerb , affi:ShowVerb ;
+    rdfs:comment "The receipt noun: affi receipt <emit|assemble|verify|show>"@en .
+
+# --- Verb: emit -------------------------------------------------------------
+affi:EmitVerb a cnv:Verb ;
+    cnv:hasVerbName "emit" ;
+    cnv:verbAbout "Append one operation-event to the working receipt" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:TypeArg , affi:ObjectArg , affi:PayloadArg .
+
+# CLI flag `--type`. `type` is a Rust keyword, so the pack template raw-ident-
+# escapes the field to `r#type` (handler param), while the macro strips the `r#`
+# so the surfaced flag is `--type` (matches the R7 held convention).
+affi:TypeArg a cnv:Argument ;
+    cnv:hasArgumentName "type" ;
+    cnv:argumentAbout "The operation-event type" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:ObjectArg a cnv:Argument ;
+    cnv:hasArgumentName "object" ;
+    cnv:argumentAbout "A related object as `id:type` (repeatable)" ;
+    cnv:valueType "Vec<String>" ;
+    cnv:required "true" .
+
+affi:PayloadArg a cnv:Argument ;
+    cnv:hasArgumentName "payload" ;
+    cnv:argumentAbout "Payload source: a file path, or `-` for stdin" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+# --- Verb: assemble ---------------------------------------------------------
+affi:AssembleVerb a cnv:Verb ;
+    cnv:hasVerbName "assemble" ;
+    cnv:verbAbout "Finalize the working receipt into an immutable receipt file" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:OutArg .
+
+affi:OutArg a cnv:Argument ;
+    cnv:hasArgumentName "out" ;
+    cnv:argumentAbout "Optional output path; defaults to a content-addressed file name" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+# --- Verb: verify -----------------------------------------------------------
+affi:VerifyVerb a cnv:Verb ;
+    cnv:hasVerbName "verify" ;
+    cnv:verbAbout "Run the certify pipeline over a receipt and print the verdict" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:VerifyReceiptArg .
+
+affi:VerifyReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to verify" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: show -------------------------------------------------------------
+affi:ShowVerb a cnv:Verb ;
+    cnv:hasVerbName "show" ;
+    cnv:verbAbout "Print a human-readable dump of a receipt chain" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:ShowReceiptArg .
+
+affi:ShowReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to display" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .

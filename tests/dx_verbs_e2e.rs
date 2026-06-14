@@ -1,0 +1,124 @@
+// E2E witness for the DX/QOL capability verbs surfaced this session:
+//   affi receipt inspect   — structural analysis (chicago-tdd-style)
+//   affi receipt model     — process discovery (wasm4pm)
+//   affi receipt diagnose  — LSP-shaped diagnostics (lsp-max)
+//
+// Each runs the REAL binary against a REAL assembled receipt and asserts the
+// command produced its capability's output. Failing-when-fake: if a verb were
+// unregistered or its handler stubbed, the expected output would be absent.
+
+use assert_cmd::Command;
+use predicates::prelude::*;
+use tempfile::TempDir;
+
+fn affi(dir: &TempDir) -> Command {
+    let mut cmd = Command::cargo_bin("affi").expect("affi binary");
+    cmd.current_dir(dir.path());
+    cmd
+}
+
+fn build_receipt(dir: &TempDir, out: &str) {
+    for (ty, obj) in [("create", "f:artifact"), ("transform", "d:artifact"), ("release", "f:artifact")] {
+        affi(dir)
+            .args(["receipt", "emit", "--type", ty, "--object", obj, "--payload", "-"])
+            .write_stdin(ty)
+            .assert()
+            .success();
+    }
+    affi(dir).args(["receipt", "assemble", "--out", out]).assert().success();
+}
+
+#[test]
+fn inspect_verb_reports_event_distribution() {
+    let dir = TempDir::new().expect("tempdir");
+    build_receipt(&dir, "r.json");
+    affi(&dir)
+        .args(["receipt", "inspect", "r.json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("RECEIPT INSPECTION REPORT"))
+        .stderr(predicate::str::contains("create: 1 events"))
+        .stderr(predicate::str::contains("artifact:"));
+}
+
+#[test]
+fn model_verb_discovers_a_process_model() {
+    let dir = TempDir::new().expect("tempdir");
+    build_receipt(&dir, "r.json");
+    affi(&dir)
+        .args(["receipt", "model", "r.json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("discovered process model (wasm4pm)"))
+        // the discovery output must name the receipt's activities
+        .stderr(predicate::str::contains("create"))
+        .stderr(predicate::str::contains("release"));
+}
+
+#[test]
+fn stats_verb_aggregates_all_surfaces() {
+    let dir = TempDir::new().expect("tempdir");
+    build_receipt(&dir, "r.json");
+    affi(&dir)
+        .args(["receipt", "stats", "r.json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("receipt stats:"))
+        .stderr(predicate::str::contains("events: 3"))
+        .stderr(predicate::str::contains("dfg:"))
+        .stderr(predicate::str::contains("fitness:"));
+}
+
+#[test]
+fn graph_verb_discovers_directly_follows_graph() {
+    let dir = TempDir::new().expect("tempdir");
+    build_receipt(&dir, "r.json");
+    affi(&dir)
+        .args(["receipt", "graph", "r.json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("directly-follows graph (wasm4pm)"))
+        .stderr(predicate::str::contains("nodes (activities):"))
+        .stderr(predicate::str::contains("edges (df-relations):"));
+}
+
+#[test]
+fn replay_verb_shows_steps_in_seq_order() {
+    let dir = TempDir::new().expect("tempdir");
+    build_receipt(&dir, "r.json");
+    affi(&dir)
+        .args(["receipt", "replay", "r.json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("replay (3 events)"))
+        .stderr(predicate::str::contains("step 0: create"))
+        .stderr(predicate::str::contains("step 2: release"))
+        .stderr(predicate::str::contains("replay complete"));
+}
+
+#[test]
+fn conformance_verb_reports_fitness_and_metrics() {
+    let dir = TempDir::new().expect("tempdir");
+    build_receipt(&dir, "r.json");
+    affi(&dir)
+        .args(["receipt", "conformance", "r.json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("conformance metrics:"))
+        .stderr(predicate::str::contains("fitness (token replay):"))
+        // honest label — activity coverage, NOT van der Aalst precision
+        .stderr(predicate::str::contains("activity_coverage:"))
+        .stderr(predicate::str::contains("NOT van der Aalst precision"))
+        .stderr(predicate::str::contains("simplicity (Occam):"));
+}
+
+#[test]
+fn diagnose_verb_reports_clean_for_honest_receipt() {
+    let dir = TempDir::new().expect("tempdir");
+    build_receipt(&dir, "r.json");
+    affi(&dir)
+        .args(["receipt", "diagnose", "r.json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("no diagnostics — receipt is clean"));
+}

@@ -1,0 +1,50 @@
+# Semantic-convention group for the affidavit receipt-pipeline operation span.
+#
+# These attributes pin EXACTLY what src/tracing.rs records into each SpanRecord:
+#   SpanRecord { operation: String, target: String }
+# emitted by trace_emit / trace_assemble / trace_verify / trace_show.
+#
+# `operation` is the operation that opened the span (enum: emit/assemble/verify/show).
+# `target` is the span's primary target attribute (receipt path, event type, count).
+groups:
+  - id: affidavit.operation
+    type: span
+    span_kind: internal
+    stability: development
+    brief: "An affidavit receipt-pipeline operation span."
+    note: |
+      Opened by the trace_* wrappers in src/tracing.rs. Each operation
+      (emit/assemble/verify/show) records an observable SpanRecord with the
+      operation name and its target. This group pins those two attributes so
+      that the emitted shape is validated against a real OTel semantic-convention
+      registry via `weaver registry check`.
+    attributes:
+      - id: operation
+        type:
+          members:
+            - id: emit
+              value: "emit"
+              brief: "Emit a receipt event."
+              stability: development
+            - id: assemble
+              value: "assemble"
+              brief: "Assemble events into a receipt."
+              stability: development
+            - id: verify
+              value: "verify"
+              brief: "Verify a receipt against the format standard."
+              stability: development
+            - id: show
+              value: "show"
+              brief: "Show a receipt."
+              stability: development
+        stability: development
+        requirement_level: required
+        brief: "The operation that opened the span."
+        examples: ["verify", "emit"]
+      - id: target
+        type: string
+        stability: development
+        requirement_level: required
+        brief: "The span's primary target attribute (receipt path, event type, or count)."
+        examples: ["honest.json", "create", "3"]

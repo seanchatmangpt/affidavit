@@ -1,0 +1,52 @@
+[package]
+name = "affidavit"
+version = "26.6.14"
+edition = "2021"
+description = "Provenance Layer — receipt assembly and certification (verify a witness against a format standard; never decide honesty)."
+license = "MIT OR Apache-2.0"
+authors = ["Sean Chatman <xpointsh@gmail.com>"]
+repository = "https://github.com/anthropics/affidavit"
+documentation = "https://docs.rs/affidavit"
+readme = "README.md"
+keywords = ["provenance", "receipt", "blake3", "verification", "sealed"]
+categories = ["security", "development-tools"]
+
+[[bin]]
+name = "affi"
+path = "src/bin/affi.rs"
+
+[lib]
+name = "affidavit"
+path = "src/lib.rs"
+
+[[bench]]
+name = "receipt_operations"
+harness = false
+
+[dependencies]
+clap-noun-verb = { path = "../clap-noun-verb" }
+clap-noun-verb-macros = { path = "../clap-noun-verb/clap-noun-verb-macros" }
+wasm4pm-compat = { path = "../wasm4pm-compat" }
+wasm4pm = { path = "../wasm4pm/wasm4pm" }
+lsp-max = { path = "../lsp-max" }
+clnrm-core = { path = "../clnrm/crates/clnrm-core" }
+linkme = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+blake3 = "1"
+anyhow = "1"
+thiserror = "2"
+
+[features]
+default = []
+otel = []
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+trybuild = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
+opentelemetry = { version = "0.20", features = ["trace"] }
+opentelemetry-jaeger = { version = "0.19" }
+chicago-tdd-tools = { path = "../chicago-tdd-tools" }

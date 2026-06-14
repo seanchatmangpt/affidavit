@@ -1,0 +1,20 @@
+# NEGATIVE CONTROL — this group is INTENTIONALLY INVALID.
+# `target` declares an unknown attribute type (`stringg`), which is not a valid
+# semantic-convention primitive type. `weaver registry check` must reject this.
+groups:
+  - id: affidavit.operation
+    type: span
+    span_kind: internal
+    stability: development
+    brief: "Broken operation span (invalid attribute type)."
+    attributes:
+      - id: operation
+        type: string
+        stability: development
+        requirement_level: required
+        brief: "The operation that opened the span."
+      - id: target
+        type: stringg
+        stability: development
+        requirement_level: required
+        brief: "Invalid type on purpose — not a valid semconv primitive."

@@ -1,0 +1,343 @@
+================================================================================
+AFFIDAVIT DX/QOL 1000x FEATURE EXPANSION — EXECUTIVE SUMMARY
+================================================================================
+
+DATE: 2026-06-14
+TARGET: Transform receipt workflows from manual/cryptic to intuitive/self-documenting
+SCOPE: 22 features across 6 library areas using 80% existing code + 20% glue
+
+================================================================================
+THE VISION
+================================================================================
+
+TODAY:
+  - Hand-write 100-line tests for each receipt pattern
+  - Blind mutation testing; no feedback on verifier sensitivity
+  - No visual dashboards; cryptic CLI help
+  - IDEs can't navigate receipt structures
+  - Performance regressions go undetected until production
+
+AFTER 5 WEEKS:
+  - Fixture-based tests: 10 lines (10x reduction)
+  - Instant mutation feedback: <1 second (mutation score: ≥90% killed)
+  - Visual dashboards: Prometheus + Grafana metrics, Criterion HTML
+  - IDE integration: LSP hover on receipts, go-to-definition support
+  - Automated regressions: Criterion blocks merge on >10% slowdown
+  - Self-documenting: Completion + help + auto-generated examples
+
+EXPERIENCE MULTIPLIER: 10 × 10 × 10 × 10 = 10,000x better DX/QOL
+
+================================================================================
+FEATURES AT A GLANCE (22 Total)
+================================================================================
+
+CATEGORY 1: RECEIPT INSPECTION (5 features)
+  ✓ affi receipt inspect   — Detailed analysis report (already implemented)
+  → affi receipt diff      — Compare two receipts (2h)
+  → affi receipt visualize — Process graph (JSON/DOT) (2.5h)
+  → affi receipt catalog   — Search fixtures (1.5h)
+  → Shell completion       — bash/zsh/fish (1h)
+  
+  EFFORT: 12 hours | LIBRARY: chicago-tdd-tools + ggen
+
+CATEGORY 2: PROCESS DISCOVERY (5 features)
+  → affi receipt model     — Auto-discover Petri net (4h)
+  → affi receipt conform   — Fitness scoring (3h)
+  → affi receipt predict   — Next-activity forecast (3h)
+  → LSP hover on receipts  — Show event details in IDE (5h)
+  → LSP go-to-definition   — Jump to handler source (3h)
+  
+  EFFORT: 18 hours | LIBRARY: wasm4pm + lsp-max
+
+CATEGORY 3: BENCHMARKING (5 features)
+  → Criterion throughput   — Event-count scaling benchmarks (3h)
+  → Process variance       — Anomaly detection metrics (3h)
+  → HTML dashboard         — Regression visualization (2h)
+  → Profiling harness      — Flame graph integration (3h)
+  → Baseline comparisons   — Before/after analysis (2h)
+  
+  EFFORT: 13 hours | LIBRARY: Criterion + wasm4pm
+
+CATEGORY 4: MUTATION TESTING (5 features)
+  → affi mutate receipt    — Kill testing (<1s feedback) (5h)
+  → affi generate test     — Auto-generate Rust code (3h)
+  → Property-based testing — quickcheck (100 random receipts) (4h)
+  → Fixture DB             — Persistent storage + index (4h)
+  → affi generate snippet  — Code patterns library (2h)
+  
+  EFFORT: 18 hours | LIBRARY: clnrm + chicago-tdd + quickcheck
+
+CATEGORY 5: OBSERVABILITY (5 features)
+  → affi receipt trace     — Distributed tracing (Jaeger) (3h)
+  → OTel metrics dashboard — Prometheus + Grafana (4h)
+  → OTel baggage           — Cross-cutting context (2h)
+  → Span events            — Detailed activity log (2h)
+  → SLO monitoring         — Error budget + SLI (3h)
+  
+  EFFORT: 14 hours | LIBRARY: OpenTelemetry + Prometheus
+
+CATEGORY 6: CLI ERGONOMICS (5 features)
+  → Help formatter         — Ontology-driven docs (2h)
+  → Auto-generated examples — Runnable shell scripts (3h)
+  → Command aliases        — affi r = affi receipt (1h)
+  → JSON output            — Structured data for all verbs (3h)
+  → Interactive shell REPL — rustyline (4h)
+  
+  EFFORT: 13 hours | LIBRARY: ggen + clap-noun-verb + rustyline
+
+================================================================================
+THE 80/20 RULE IN ACTION
+================================================================================
+
+CATEGORY 1 (INSPECTION):
+  80%: chicago-tdd-tools fixture templates + test builders
+  20%: Handler functions aggregating + formatting data (150 lines)
+
+CATEGORY 2 (DISCOVERY):
+  80%: wasm4pm mining + conformance engines (3000+ lines)
+  20%: OCEL conversion glue + handler wrappers (300 lines)
+
+CATEGORY 3 (BENCHMARKING):
+  80%: Criterion regression framework + wasm4pm variance
+  20%: Custom benchmark scenarios (200 lines)
+
+CATEGORY 4 (MUTATION):
+  80%: clnrm mutation operators + chicago-tdd fixtures
+  20%: Mutation driver + test generators (250 lines)
+
+CATEGORY 5 (OBSERVABILITY):
+  80%: OTel spans, metrics, baggage + Prometheus/Grafana
+  20%: Custom metrics + SLO calculators (225 lines)
+
+CATEGORY 6 (CLI):
+  80%: ggen rendering + clap-noun-verb dispatch
+  20%: Output formatters + help templates (205 lines)
+
+TOTAL CODE: ~2,000 lines of new glue code across 6 categories
+
+================================================================================
+E2E TEST STRATEGY (6 Suites)
+================================================================================
+
+Suite 1: Receipt Inspection Pipeline
+  - Features: inspect, diff, visualize, catalog, shell completion
+  - Tests: 5 receipts (linear, branching, loop, hybrid, adversarial)
+  - Assertions: Report structure + graph validity + search results
+  - Lines: 150
+
+Suite 2: Process Discovery & IDE Integration
+  - Features: model, conform, predict, LSP hover, LSP goto-def
+  - Tests: Linear 4-event receipt, prediction at each step
+  - Assertions: Model validity, fitness ≥0.9, confidence in [0,1], IDE responses
+  - Lines: 180
+
+Suite 3: Benchmarking & Regression Detection
+  - Features: throughput, variance, dashboard, profile, baselines
+  - Tests: 5 receipts (1/5/10/50/100 events), regression analysis
+  - Assertions: Latency > 0, variance ∈ [0,1], dashboard JSON, profile has hottest_fn
+  - Lines: 160
+
+Suite 4: Mutation Testing & Fixtures
+  - Features: mutate, generate test, property-based, fixture DB, snippets
+  - Tests: 10 mutations per receipt, 100 random receipts, DB insert/search
+  - Assertions: 100% unique mutations, ≥90% killed, 100 verdicts decidable, DB searchable
+  - Lines: 190
+
+Suite 5: Observability & Tracing
+  - Features: trace, metrics, baggage, span events, SLO
+  - Tests: Full receipt verification with OTel instrumentation
+  - Assertions: Spans have parent_id, metrics valid, SLI within thresholds
+  - Lines: 170
+
+Suite 6: CLI Ergonomics
+  - Features: help, examples, aliases, JSON output, shell REPL
+  - Tests: All verbs support JSON output, examples runnable, aliases route correctly
+  - Assertions: Help has no markdown, examples pass exit code 0, shell accepts all commands
+  - Lines: 200
+
+TOTAL E2E: ~850 lines, all integrated with existing tests
+
+================================================================================
+PHASED ROLLOUT (5 Weeks, 88 Hours)
+================================================================================
+
+WEEK 1: FOUNDATION (Receipt Inspection)
+  Mon-Fri: implement inspect, diff, visualize, catalog, completion
+  Exit: affi receipt {inspect,diff,visualize,catalog} works
+  E2E: test_e2e_inspection_workflow passes
+  
+WEEK 2: PROCESS INTELLIGENCE (Discovery & IDE)
+  Mon-Fri: implement model, conform, predict, LSP hover/goto
+  Exit: affi receipt {model,conform,predict} discovers processes
+  E2E: test_e2e_discovery_workflow passes
+  
+WEEK 3: QUALITY ASSURANCE (Mutation & Fixtures)
+  Mon-Fri: implement mutate, generate test, property-based, fixture DB
+  Exit: Mutation testing shows ≥90% kill rate; test generation works
+  E2E: test_e2e_mutation_testing_workflow passes
+  
+WEEK 4: OBSERVABILITY (OTel & Metrics)
+  Mon-Fri: implement trace, metrics, baggage, events, SLO
+  Exit: Spans in Jaeger, metrics in Prometheus, Grafana dashboard live
+  E2E: test_e2e_observability_workflow passes
+  
+WEEK 5: CLI ERGONOMICS (Help, Examples, Shell)
+  Mon-Fri: implement help, examples, aliases, JSON, shell REPL
+  Exit: All examples runnable, shell REPL interactive, JSON for all verbs
+  E2E: test_e2e_cli_ergonomics_workflow passes
+
+DELIVERABLE EACH WEEK: Working feature set, passing E2E test, zero broken tests
+
+================================================================================
+SUCCESS METRICS
+================================================================================
+
+EXPERIENCE METRICS:
+  ✓ 10x fewer lines of test code (fixtures vs hand-written)
+  ✓ 10x faster feedback (mutations detected <1s)
+  ✓ 10x easier adoption (completion + help + examples)
+  ✓ 10x more confidence (conformance + benchmarks)
+
+FEATURE METRICS:
+  ✓ 22/22 features implemented
+  ✓ 6/6 E2E test suites passing
+  ✓ 100% example pass rate
+  ✓ ≥90% mutation kill rate
+  ✓ Criterion regressions block merge
+  ✓ All verbs support JSON output
+
+QUALITY METRICS:
+  ✓ ≥80% test coverage (via tarpaulin)
+  ✓ 0 clippy warnings
+  ✓ 0 panic paths in handlers
+  ✓ All generated code compiles
+
+================================================================================
+DEPENDENCIES & FEATURE GATES
+================================================================================
+
+REQUIRED (Already Integrated):
+  ✓ chicago-tdd-tools (fixtures)
+  ✓ wasm4pm-compat (typestate)
+  ✓ ggen (ontology rendering)
+  ✓ clap-noun-verb (CLI framework)
+  ✓ Criterion (benchmarking)
+  ✓ OpenTelemetry (tracing)
+  ✓ serde (serialization)
+
+TO ADD:
+  ⚠️ quickcheck (property-based testing) → Cargo.toml [dev-dependencies]
+  ⚠️ rustyline (shell REPL) → Cargo.toml [optional, feature "shell"]
+  ⚠️ clnrm (mutation operators) → Cargo.toml [optional, feature "mutation"]
+
+FEATURE GATES IN Cargo.toml:
+  [features]
+  discovery = ["wasm4pm-compat"]
+  conformance = ["discovery"]
+  predictive = ["conformance"]
+  mutation = []
+  lsp = ["lsp-max"]
+  otel = ["opentelemetry", "opentelemetry-jaeger"]
+  metrics = ["otel", "prometheus"]
+  shell = ["rustyline"]
+  json-output = [] (always on)
+  profiling = []
+
+================================================================================
+DOCUMENTATION DELIVERABLES
+================================================================================
+
+NEW FILES CREATED:
+  1. DX_QOL_1000X_DESIGN.md — Full technical design (60 pages, 1000s of detail)
+  2. DX_QOL_IMPLEMENTATION_CHECKLIST.md — Per-feature checklist + dependencies
+  3. DX_QOL_CODE_TEMPLATES.md — Copy-paste-ready code for Phase 1
+  4. DX_QOL_EXECUTIVE_SUMMARY.txt — This file
+
+DOCUMENTATION TO WRITE DURING IMPLEMENTATION:
+  → 22 feature docs (50 lines each)
+  → 5 auto-generated examples (runnable shell scripts)
+  → 22 public function doc comments (Rust docs)
+  → Grafana dashboard JSON
+  → CI/CD integration guide
+
+================================================================================
+RISK MITIGATION
+================================================================================
+
+RISK: wasm4pm-compat nightly breakage
+  MITIGATION: Feature gate discovery; fallback to linear discovery
+
+RISK: LSP symbol resolution fails
+  MITIGATION: Phase in LSP features; fall back to CLI-only
+
+RISK: OTel exporter unavailable
+  MITIGATION: Graceful degradation; warn if Jaeger down
+
+RISK: Generated test code doesn't compile
+  MITIGATION: Sandbox test generation; validate before output
+
+RISK: Performance regression in benchmarks
+  MITIGATION: Set baseline; Criterion flags >10% regression
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+IMMEDIATE (Today):
+  1. Review all three design documents
+  2. Identify gaps or concerns
+  3. Approve Phase 1 scope
+  4. Create git branch: feature/dx-qol-1000x
+
+WEEK 1:
+  1. Add quickcheck, rustyline, clnrm to Cargo.toml
+  2. Implement Phase 1 (inspection) using code templates
+  3. Run E2E inspection test suite
+  4. All tests passing, merge to main
+
+ONGOING:
+  1. Execute Phases 2-5 in sequence
+  2. Quality gate at end of each week
+  3. Zero broken tests policy
+  4. Update FEATURES_DX_QOL.md with implementation evidence
+
+================================================================================
+ESTIMATED ROI
+================================================================================
+
+TIME INVESTMENT: 88 hours (5 weeks)
+
+VALUE DELIVERED:
+  → 10x fewer lines of test code per feature = 50 hours saved per release
+  → 10x faster mutation feedback = 20 hours saved per iteration
+  → 10x easier adoption = 30 hours saved per new team member
+  → 10x more confidence = 40 hours saved per bug prevention
+
+CONSERVATIVE ESTIMATE: 140 hours saved in Year 1 (break-even in ~7 weeks)
+
+AGGRESSIVE ESTIMATE: 400 hours saved in Year 1 (10,000x multiplier)
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Receipt workflows can feel 10,000x better by reusing 6 mature libraries
+(chicago-tdd, wasm4pm, Criterion, OTel, clap-noun-verb, lsp-max) with
+~2,000 lines of integration glue.
+
+The design is modular: each feature is independent and can be delivered
+in production-ready state. The 80/20 rule ensures minimal new code while
+achieving maximum impact.
+
+5 weeks from approval → receipt developers have:
+  ✓ Fixtures instead of hand-written tests
+  ✓ Instant mutation feedback
+  ✓ Visual dashboards and metrics
+  ✓ IDE integration (hover, go-to-def)
+  ✓ Self-documenting CLI (completion, examples, help)
+  ✓ Automated regression detection
+  ✓ Distributed tracing with Jaeger
+
+Ready to build.
+
+================================================================================

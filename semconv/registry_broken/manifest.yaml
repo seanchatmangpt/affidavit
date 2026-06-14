@@ -1,0 +1,16 @@
+# NEGATIVE CONTROL — deliberately broken registry.
+# This manifest is valid; the broken-ness lives in affidavit.yaml (invalid
+# attribute type). `weaver registry check` MUST exit non-zero here, proving the
+# witnessing test's success assertion is not constant-true.
+name: affidavit_broken
+registry_uri: urn:affidavit:registry:broken
+version: 26.6.14
+semconv_version: 1.27.0
+schema_url: https://affidavit.dev/schemas/broken
+schema_base_url: https://affidavit.dev/schemas/
+description: Deliberately-broken negative-control registry.
+
+groups:
+  - id: affidavit.operation
+    type: span
+    brief: "Broken negative control."

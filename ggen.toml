@@ -1,0 +1,134 @@
+# ggen.toml — affidavit consumes the authoritative clap-noun-verb pack.
+#
+# A = mu(O*): the affi CLI WIRING is a pure function of ontology/affi-cli.ttl.
+# affidavit supplies ONLY its ontology; the SELECT queries and Tera templates
+# come from the clap-noun-verb pack (declared in [[packs]], referenced per rule
+# via { pack = "clap-noun-verb", output = ..., file = ... }). The rendered thin
+# #[verb] wrappers under src/verbs/ delegate to crate::handlers::*, which adapt
+# the uniform params to src/cli.rs's hand-written BLAKE3/verifier logic.
+
+[project]
+name = "affidavit"
+version = "26.6.14"
+description = "Provenance Layer CLI — affi receipt {emit,assemble,verify,show} wiring rendered from the cnv ontology via the authoritative clap-noun-verb pack."
+
+# --- pack declaration --------------------------------------------------------
+# The authoritative pack. Its package.toml exposes named outputs queries=queries
+# and templates=templates, referenced below.
+[[packs]]
+name = "clap-noun-verb"
+registry = "local"
+path = "../clap-noun-verb"
+
+[ontology]
+source = "ontology/affi-cli.ttl"
+
+[ontology.prefixes]
+cnv  = "http://clap-noun-verb.io/ontology#"
+affi = "http://affidavit.io/cli#"
+rdf  = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+rdfs = "http://www.w3.org/2000/01/rdf-schema#"
+xsd  = "http://www.w3.org/2001/XMLSchema#"
+
+# --- mu1 inference (DMAIC-2 Measure requires >=1 CONSTRUCT) ------------------
+# Normalizes the noun<->verb edge so every verb carries an explicit
+# cnv:belongsToNoun back-link, which the pack's verb-signatures SELECT relies on
+# to project ?noun_name. Idempotent. CONSTRUCT belongs in mu1 (E0003 rejects it
+# in a generation rule).
+[inference]
+[[inference.rules]]
+name = "attach-noun-name-to-verb"
+construct = """
+PREFIX cnv: <http://clap-noun-verb.io/ontology#>
+CONSTRUCT {
+  ?verb cnv:belongsToNoun ?noun .
+} WHERE {
+  ?noun a cnv:Noun ; cnv:hasVerbs ?verb .
+}
+"""
+
+# --- mu3 generation ----------------------------------------------------------
+[generation]
+output_dir = "."
+
+# One thin #[verb] wrapper per verb (path templating fans out one row -> one file).
+# Query + template both come from the pack.
+[[generation.rules]]
+name = "verb-wrappers"
+query    = { pack = "clap-noun-verb", output = "queries", file = "verb-signatures.rq" }
+template = { pack = "clap-noun-verb", output = "templates", file = "verb.rs.tera" }
+output_file = "src/verbs/{{ verb_name }}.rs"
+mode = "Overwrite"
+skip_empty = true
+
+# Aggregate module list (single-row).
+[[generation.rules]]
+name = "verbs-mod"
+query    = { pack = "clap-noun-verb", output = "queries", file = "verbs-mod.rq" }
+template = { pack = "clap-noun-verb", output = "templates", file = "verbs-mod.rs.tera" }
+output_file = "src/verbs/mod.rs"
+mode = "Overwrite"
+skip_empty = true
+
+# NOTE: src/bin/affi.rs is NOT generated — zero ontology input
+# (`fn main() { clap_noun_verb::run() }`). Generating it would fake a mu output.
+
+# --- validation (every verb must declare a name) -----------------------------
+[[validation.rules]]
+name = "every-verb-has-name"
+description = "Every cnv:Verb must declare a cnv:hasVerbName, else the rendered wrapper has no #[verb] name and dispatch is undefined."
+severity = "Error"
+# Engine ASK semantics (witnessed in ggen-core sparql_rules.rs): TRUE = invariant
+# satisfied; FALSE = violation, generation aborts. So assert "no nameless verb
+# exists" with an outer FILTER NOT EXISTS over the bad pattern.
+ask = """
+ASK {
+  FILTER NOT EXISTS {
+    ?v <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://clap-noun-verb.io/ontology#Verb> .
+    FILTER NOT EXISTS { ?v <http://clap-noun-verb.io/ontology#hasVerbName> ?n }
+  }
+}
+"""
+
+# Authoritative ontology-shape invariants, enforced on every sync (engine executes
+# these ASKs; Error => abort before writing). Each is witnessed in ggen-core's
+# validation_ask_enforcement_test.rs with blocks/passes teeth. TRUE = satisfied.
+
+# No two flags on one verb may sanitize (kebab->snake) to the same Rust field.
+[[validation.rules]]
+name = "no-flag-field-collision"
+description = "Two CLI flags on one verb must not sanitize to the same Rust field (would shadow)."
+severity = "Error"
+ask = """
+ASK { FILTER NOT EXISTS {
+  ?v <http://clap-noun-verb.io/ontology#hasArguments> ?a1, ?a2 .
+  ?a1 <http://clap-noun-verb.io/ontology#hasArgumentName> ?f1 .
+  ?a2 <http://clap-noun-verb.io/ontology#hasArgumentName> ?f2 .
+  FILTER(?a1 != ?a2)
+  FILTER(REPLACE(?f1, "-", "_") = REPLACE(?f2, "-", "_"))
+} }
+"""
+
+# Every verb must be reachable from a noun via hasVerbs (no dangling verb).
+[[validation.rules]]
+name = "no-orphan-verb"
+description = "Every cnv:Verb must be referenced by a noun via cnv:hasVerbs."
+severity = "Error"
+ask = """
+ASK { FILTER NOT EXISTS {
+  ?v <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://clap-noun-verb.io/ontology#Verb> .
+  FILTER NOT EXISTS { ?n <http://clap-noun-verb.io/ontology#hasVerbs> ?v }
+} }
+"""
+
+# Every argument must be referenced by a verb via hasArguments (no dangling arg).
+[[validation.rules]]
+name = "no-orphan-argument"
+description = "Every cnv:Argument must be referenced by a verb via cnv:hasArguments."
+severity = "Error"
+ask = """
+ASK { FILTER NOT EXISTS {
+  ?a <http://clap-noun-verb.io/ontology#hasArgumentName> ?n .
+  FILTER NOT EXISTS { ?v <http://clap-noun-verb.io/ontology#hasArguments> ?a }
+} }
+"""

@@ -1,0 +1,18 @@
+# Weaver Registry Manifest for the affidavit provenance layer.
+#
+# Declares the semantic-convention registry that pins the OTel-shaped span
+# attributes emitted by src/tracing.rs (operation + target). `weaver registry
+# check -r semconv/registry` validates this registry; the witnessing test in
+# tests/otel_weaver_registry.rs asserts that check exits 0.
+name: affidavit
+registry_uri: urn:affidavit:registry
+version: 26.6.14
+semconv_version: 1.27.0
+schema_url: https://affidavit.dev/schemas/26.6.14
+schema_base_url: https://affidavit.dev/schemas/
+description: OpenTelemetry semantic-convention registry for the affidavit receipt pipeline.
+
+groups:
+  - id: affidavit.operation
+    type: span
+    brief: "Affidavit receipt operation span (emit/assemble/verify/show)."

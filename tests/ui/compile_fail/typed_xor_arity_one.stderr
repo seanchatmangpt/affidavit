@@ -1,0 +1,33 @@
+error[E0277]: the trait bound `Assert<false>: IsTrue` is not satisfied
+  --> tests/ui/compile_fail/typed_xor_arity_one.rs:10:16
+   |
+10 |     let _bad = TypedXorNode::<(&str,), 1>::new(("only",));
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `IsTrue` is not implemented for `Assert<false>`
+   |
+help: the trait `IsTrue` is implemented for `Assert<true>`
+  --> $WASM4PM_COMPAT/src/law.rs
+   |
+   | impl IsTrue for Assert<true> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `TypedXorNode`
+  --> $WASM4PM_COMPAT/src/process_tree.rs
+   |
+   | pub struct TypedXorNode<Children, const ARITY: usize>
+   |            ------------ required by a bound in this struct
+   | where
+   |     Require<{ ARITY >= 2 }>: IsTrue,
+   |                              ^^^^^^ required by this bound in `TypedXorNode`
+
+error[E0599]: the associated function or constant `new` exists for struct `TypedXorNode<(&str,), 1>`, but its trait bounds were not satisfied
+  --> tests/ui/compile_fail/typed_xor_arity_one.rs:10:44
+   |
+10 |     let _bad = TypedXorNode::<(&str,), 1>::new(("only",));
+   |                                            ^^^ associated function or constant cannot be called on `TypedXorNode<(&str,), 1>` due to unsatisfied trait bounds
+   |
+  ::: $WASM4PM_COMPAT/src/law.rs
+   |
+   | pub struct Assert<const OK: bool>;
+   | --------------------------------- doesn't satisfy `Assert<false>: IsTrue`
+   |
+   = note: the following trait bounds were not satisfied:
+           `Assert<false>: IsTrue`

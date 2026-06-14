@@ -1,0 +1,18 @@
+{
+  "operation_id": "1b31bd17-59e8-4bb3-a7b5-9835b29080a0",
+  "timestamp": "2026-06-14T06:15:06.296787Z",
+  "input_hashes": [
+    "actuator:ggen-sync@26.6.11",
+    "ggen.toml:afc92ba34b522032f9e8842b99a6b6f9b634cc39def8110a31fbe7614925385c",
+    "ontology/affi-cli.ttl:74d74d5ada4eca5deea9fdd1101c252037158baf6617c2a1a585a2cfc85e023d"
+  ],
+  "output_hashes": [
+    "./src/verbs/assemble.rs:8a3bf217d517d6fc19e77e5628860e573cb7a2ccec5ed4fe71a372213f0ca067",
+    "./src/verbs/emit.rs:d4b553deb9c136e9862622ad711a972957f6a6e5e0c347ac906db19c6a62bb85",
+    "./src/verbs/show.rs:461769cc1f6721cbcecc1e16ae7f07f2b7cff54249af00526f90d08712c1e297",
+    "./src/verbs/verify.rs:0cd19eafaf65c518c8402564670974391bf69a356188d66911504370c15a42f1",
+    "./src/verbs/mod.rs:602ef45f463ec29d3728fcf8efa6d26306170c293f9e34cd503cd6507c2567d4"
+  ],
+  "signature": "e6b0ef175e6828706c99f9358c426a250e7e080427f772fbc02e8178cba5e3c1a070468428d69c90f5ccf97bf85eb8b0ec7b71e0fab5f64354be0a4bcb5b0207",
+  "previous_receipt_hash": "4d06cf028655116967b79927feb79e39aaeed8be4c28ab1e0711ade5fcc5c755"
+}

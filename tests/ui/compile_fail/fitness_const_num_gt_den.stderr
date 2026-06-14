@@ -1,0 +1,33 @@
+error[E0277]: the trait bound `Assert<false>: IsTrue` is not satisfied
+ --> tests/ui/compile_fail/fitness_const_num_gt_den.rs:8:16
+  |
+8 |     let _bad = FitnessConst::<4, 3>::new();
+  |                ^^^^^^^^^^^^^^^^^^^^ the trait `IsTrue` is not implemented for `Assert<false>`
+  |
+help: the trait `IsTrue` is implemented for `Assert<true>`
+ --> $WASM4PM_COMPAT/src/law.rs
+  |
+  | impl IsTrue for Assert<true> {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `Metric`
+ --> $WASM4PM_COMPAT/src/conformance.rs
+  |
+  | pub struct Metric<const KIND: QualityMetricKind, const NUM: u64, const DEN: u64>
+  |            ------ required by a bound in this struct
+...
+  |     Require<{ NUM <= DEN }>: IsTrue,
+  |                              ^^^^^^ required by this bound in `Metric`
+
+error[E0599]: the associated function or constant `new` exists for struct `Metric<wasm4pm_compat::law::QualityMetricKind::Fitness, 4, 3>`, but its trait bounds were not satisfied
+ --> tests/ui/compile_fail/fitness_const_num_gt_den.rs:8:38
+  |
+8 |     let _bad = FitnessConst::<4, 3>::new();
+  |                                      ^^^ associated function or constant cannot be called due to unsatisfied trait bounds
+  |
+ ::: $WASM4PM_COMPAT/src/law.rs
+  |
+  | pub struct Assert<const OK: bool>;
+  | --------------------------------- doesn't satisfy `Assert<false>: IsTrue`
+  |
+  = note: the following trait bounds were not satisfied:
+          `Assert<false>: IsTrue`

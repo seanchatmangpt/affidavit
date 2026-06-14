@@ -1,0 +1,33 @@
+error[E0277]: the trait bound `Assert<false>: IsTrue` is not satisfied
+ --> tests/ui/compile_fail/powl_loop_arity_three.rs:9:16
+  |
+9 |     let _bad = TypedPowlLoopNode::<(PowlNodeId, PowlNodeId, PowlNodeId), 3>::new((
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `IsTrue` is not implemented for `Assert<false>`
+  |
+help: the trait `IsTrue` is implemented for `Assert<true>`
+ --> $WASM4PM_COMPAT/src/law.rs
+  |
+  | impl IsTrue for Assert<true> {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `TypedPowlLoopNode`
+ --> $WASM4PM_COMPAT/src/powl.rs
+  |
+  | pub struct TypedPowlLoopNode<Children, const ARITY: usize>
+  |            ----------------- required by a bound in this struct
+  | where
+  |     Require<{ ARITY == 2 }>: IsTrue,
+  |                              ^^^^^^ required by this bound in `TypedPowlLoopNode`
+
+error[E0599]: the associated function or constant `new` exists for struct `TypedPowlLoopNode<(PowlNodeId, PowlNodeId, PowlNodeId), 3>`, but its trait bounds were not satisfied
+ --> tests/ui/compile_fail/powl_loop_arity_three.rs:9:78
+  |
+9 |     let _bad = TypedPowlLoopNode::<(PowlNodeId, PowlNodeId, PowlNodeId), 3>::new((
+  |                                                                              ^^^ associated function or constant cannot be called due to unsatisfied trait bounds
+  |
+ ::: $WASM4PM_COMPAT/src/law.rs
+  |
+  | pub struct Assert<const OK: bool>;
+  | --------------------------------- doesn't satisfy `Assert<false>: IsTrue`
+  |
+  = note: the following trait bounds were not satisfied:
+          `Assert<false>: IsTrue`

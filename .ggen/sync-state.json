@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "created_at": "2026-06-14T06:15:06.293349+00:00",
+  "ontology": {
+    "hash": "74d74d5ada4eca5deea9fdd1101c252037158baf6617c2a1a585a2cfc85e023d",
+    "timestamp": "2026-06-14T06:15:06.293342+00:00",
+    "size_bytes": 5027
+  },
+  "manifest": {
+    "hash": "afc92ba34b522032f9e8842b99a6b6f9b634cc39def8110a31fbe7614925385c",
+    "timestamp": "2026-06-14T06:15:06.293342+00:00",
+    "size_bytes": 5317
+  },
+  "inference_rules": {
+    "attach-noun-name-to-verb": "9c6f4818ceee7e82db6207d2a0db8092fc296f25929f6e5dda3d74de115d390f"
+  },
+  "imports": {},
+  "files_synced": 5,
+  "sync_duration_ms": 76
+}

@@ -1,0 +1,8 @@
+error[E0451]: field `_seal` of struct `Receipt` is private
+  --> tests/ui/compile_fail/receipt_private_seal.rs:11:9
+   |
+ 7 |     let _receipt = Receipt {
+   |                    ------- in this type
+...
+11 |         _seal: (),  // ERROR: field `_seal` is private
+   |         ^^^^^ private field
