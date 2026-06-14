@@ -19,6 +19,7 @@ pub mod cli;
 pub mod discovery;
 pub mod lsp;
 pub mod ocel;
+pub mod otel_sdk;
 pub mod types;
 pub mod verifier;
 pub mod tracing;
