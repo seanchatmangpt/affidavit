@@ -14,15 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// List and search available receipt fixtures
 #[verb("catalog", "receipt")]
-pub fn catalog(
-    filter_events: Option<usize>,
-    filter_name: Option<String>,
-) -> Result<()> {
-    crate::handlers::catalog(
-        filter_events,
-        filter_name,
-    )
+pub fn catalog(filter_events: Option<usize>, filter_name: Option<String>) -> Result<()> {
+    crate::handlers::catalog(filter_events, filter_name)
 }

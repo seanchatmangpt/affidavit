@@ -16,12 +16,25 @@ use wasm4pm_compat::state::Admitted;
 ///
 /// Stored as hex so receipts serialize to canonical, human-diffable JSON.
 ///
-/// # Example: see `examples/receipt_determinism.rs` (run: `cargo run --example receipt_determinism`)
+/// # Examples
+///
+/// ```rust
+/// use affidavit::Blake3Hash;
+/// let hash = Blake3Hash::from_bytes(b"hello world");
+/// assert_eq!(hash.as_hex().len(), 64);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Blake3Hash(pub String);
 
 impl Blake3Hash {
     /// Construct a hash from raw bytes by computing their BLAKE3 digest.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use affidavit::Blake3Hash;
+    /// let hash = Blake3Hash::from_bytes(b"data");
+    /// ```
     pub fn from_bytes(bytes: &[u8]) -> Self {
         Blake3Hash(blake3::hash(bytes).to_hex().to_string())
     }
@@ -29,11 +42,26 @@ impl Blake3Hash {
     /// Construct a hash from an already-computed lowercase hex string.
     ///
     /// Used during deserialization round-trips where the digest is known.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use affidavit::Blake3Hash;
+    /// let hash = Blake3Hash::from_hex("d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592");
+    /// ```
     pub fn from_hex(hex: impl Into<String>) -> Self {
         Blake3Hash(hex.into())
     }
 
     /// Borrow the hex representation of this hash.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use affidavit::Blake3Hash;
+    /// let hash = Blake3Hash::from_bytes(b"data");
+    /// let hex = hash.as_hex();
+    /// ```
     pub fn as_hex(&self) -> &str {
         &self.0
     }
@@ -51,7 +79,7 @@ impl std::fmt::Display for Blake3Hash {
 /// both wasm4pm-compat's OCEL admission and Affidavit's BLAKE3 chain-seal atomically (Layer 2 seam).
 ///
 /// This is a zero-sized witness type used at the type level; it carries no runtime value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AffidavitReceiptChain;
 
 /// Zero-cost type alias for the admitted receipt carrier.
@@ -116,6 +144,17 @@ impl<'de> Deserialize<'de> for Receipt {
 }
 
 /// A qualified reference from an operation-event to an OCEL object.
+///
+/// # Examples
+///
+/// ```rust
+/// use affidavit::ObjectRef;
+/// let obj = ObjectRef {
+///     id: "artifact-1".to_string(),
+///     obj_type: "artifact".to_string(),
+///     qualifier: Some("input".to_string()),
+/// };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObjectRef {
     /// Stable identifier of the referenced object.
@@ -130,6 +169,19 @@ pub struct ObjectRef {
 ///
 /// Carries a logical sequence number (never wall-clock) and a commitment to
 /// its payload bytes — the verifier checks commitments without seeing payloads.
+///
+/// # Examples
+///
+/// ```rust
+/// use affidavit::{OperationEvent, Blake3Hash};
+/// let event = OperationEvent {
+///     id: "evt-0".to_string(),
+///     seq: 0,
+///     event_type: "compile".to_string(),
+///     objects: vec![],
+///     payload_commitment: Blake3Hash::from_bytes(b"some payload"),
+/// };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperationEvent {
     /// Identifier of this event, unique within the receipt.
@@ -153,6 +205,11 @@ pub struct OperationEvent {
 /// (ADR-2: the seal is value-level; ADR-3: the carrier is non-forgeable).
 ///
 /// Deserialization re-verifies the chain hash to block forged receipts from JSON.
+///
+/// # Panics
+///
+/// This struct does not panic during normal operation. Deserialization
+/// errors are returned as `Result::Err`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Receipt {
     /// Format version string used by the verifier's format check.
@@ -168,7 +225,13 @@ pub struct Receipt {
 
 /// The conformance profile a verdict was evaluated under.
 ///
-/// # Example: see `examples/receipt_determinism.rs` (run: `cargo run --example receipt_determinism`)
+/// # Examples
+///
+/// ```rust
+/// use affidavit::ProfileId;
+/// let profile = ProfileId::CoreV1;
+/// assert_eq!(profile.as_str(), "core/v1");
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProfileId {
     /// Core v1: every event has a commitment and a non-empty event_type.
@@ -177,6 +240,13 @@ pub enum ProfileId {
 
 impl ProfileId {
     /// Stable string identifier for this profile.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use affidavit::ProfileId;
+    /// assert_eq!(ProfileId::CoreV1.as_str(), "core/v1");
+    /// ```
     pub fn as_str(&self) -> &'static str {
         match self {
             ProfileId::CoreV1 => "core/v1",
@@ -185,6 +255,17 @@ impl ProfileId {
 }
 
 /// The result of a single decidable pipeline stage.
+///
+/// # Examples
+///
+/// ```rust
+/// use affidavit::CheckOutcome;
+/// let outcome = CheckOutcome {
+///     stage: "decode".to_string(),
+///     passed: true,
+///     detail: "Receipt decoded successfully".to_string(),
+/// };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckOutcome {
     /// Name of the pipeline stage that produced this outcome.
@@ -196,6 +277,18 @@ pub struct CheckOutcome {
 }
 
 /// The final verdict of the certify pipeline over a receipt.
+///
+/// # Examples
+///
+/// ```rust
+/// use affidavit::{Verdict, ProfileId};
+/// let verdict = Verdict {
+///     accepted: true,
+///     profile: ProfileId::CoreV1,
+///     outcomes: vec![],
+///     reason: "All checks passed".to_string(),
+/// };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Verdict {
     /// True when every required stage passed (ACCEPT), false otherwise (REJECT).
@@ -208,19 +301,106 @@ pub struct Verdict {
     pub reason: String,
 }
 
+/// Detailed structural analysis of a receipt (inspect --format=json).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InspectionReport {
+    /// Total number of events in the receipt.
+    pub event_count: usize,
+    /// Format version of the receipt.
+    pub format_version: String,
+    /// Hex-encoded chain hash.
+    pub chain_hash: String,
+    /// Whether the chain hash correctly recomputes from events.
+    pub chain_integrity_valid: bool,
+    /// Histogram of event types.
+    pub event_types: std::collections::BTreeMap<String, usize>,
+    /// Histogram of object types.
+    pub object_types: std::collections::BTreeMap<String, usize>,
+    /// Summaries of individual events.
+    pub events: Vec<EventSummary>,
+}
+
+/// A summary row for an event in an inspection report.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EventSummary {
+    /// Logical sequence number.
+    pub seq: u64,
+    /// Event identifier.
+    pub id: String,
+    /// Type of operation.
+    pub event_type: String,
+    /// Number of objects referenced by this event.
+    pub object_count: usize,
+    /// Hex-encoded payload commitment.
+    pub commitment: String,
+}
+
+/// Output of a successful emit operation (emit --format=json).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EmitOutput {
+    /// Unique identifier of the emitted event.
+    pub event_id: String,
+    /// Logical sequence number assigned to the event.
+    pub seq: u64,
+    /// Operation type recorded in the event.
+    pub event_type: String,
+    /// Hex-encoded commitment to the payload.
+    pub commitment: String,
+}
+
+/// Output of a successful assemble operation (assemble --format=json).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AssembleOutput {
+    /// Path to the finalized receipt file.
+    pub receipt_path: String,
+    /// Content-addressed BLAKE3 hash of the entire receipt.
+    pub content_address: String,
+    /// Number of events included in the receipt.
+    pub event_count: usize,
+}
+
+/// Aggregate metrics for a receipt (stats --format=json).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StatsOutput {
+    /// Total number of events.
+    pub event_count: usize,
+    /// Total depth of the hash chain.
+    pub chain_depth: usize,
+    /// Final rolling chain hash.
+    pub chain_hash: String,
+    /// Histogram of event types.
+    pub event_type_histogram: std::collections::BTreeMap<String, usize>,
+    /// Histogram of object types.
+    pub object_type_histogram: std::collections::BTreeMap<String, usize>,
+}
+
 /// Produce deterministic, sorted-key JSON bytes for any serializable value.
 ///
 /// This is the canonical byte form used for content addressing and hashing:
 /// objects have their keys recursively sorted so the same logical value always
 /// yields identical bytes regardless of in-memory field order.
 ///
-/// # Example: see `examples/receipt_determinism.rs` (run: `cargo run --example receipt_determinism`)
+/// # Errors
+///
+/// Returns `serde_json::Error` if serialization fails.
+///
+/// # Examples
+///
+/// ```rust
+/// use affidavit::canonical_bytes;
+/// use serde::Serialize;
+///
+/// #[derive(Serialize)]
+/// struct Data { b: i32, a: i32 }
+/// let data = Data { b: 2, a: 1 };
+/// let bytes = canonical_bytes(&data).unwrap();
+/// // bytes is canonical {"a":1,"b":2}
+/// ```
 pub fn canonical_bytes<T: Serialize>(value: &T) -> Result<Vec<u8>, serde_json::Error> {
     let v = serde_json::to_value(value)?;
     let sorted = sort_value(v);
     serde_json::to_vec(&sorted)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

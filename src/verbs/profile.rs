@@ -14,15 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Run a sustained workload for flamegraph profiling
 #[verb("profile", "bench")]
-pub fn profile(
-    duration: Option<u64>,
-    receipt: Option<String>,
-) -> Result<()> {
-    crate::handlers::profile(
-        duration,
-        receipt,
-    )
+pub fn profile(duration: Option<u64>, receipt: Option<String>) -> Result<()> {
+    crate::handlers::profile(duration, receipt)
 }

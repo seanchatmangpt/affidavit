@@ -1,19 +1,19 @@
 //! COMBINATORIAL MAXIMALISM: Feature 2.1 (Model Logic)
 //!
-//! Implement the full conversion from Receipt events to OCEL and subsequently 
+//! Implement the full conversion from Receipt events to OCEL and subsequently
 //! to a Petri Net model using wasm4pm-compat patterns. No placeholders.
 //!
 //! This module provides the core process mining logic for Affidavit, bridging
-//! the gap between the immutable event chain (Receipt) and the discovered 
-//! process model (Petri Net). It leverages the object-centric nature of 
-//! OCEL to discover causal dependencies that are more nuanced than simple 
+//! the gap between the immutable event chain (Receipt) and the discovered
+//! process model (Petri Net). It leverages the object-centric nature of
+//! OCEL to discover causal dependencies that are more nuanced than simple
 //! linear sequences.
 
+use crate::types::{AdmittedReceipt, Receipt};
 use std::collections::{HashMap, HashSet};
-use crate::types::{Receipt, AdmittedReceipt};
-use wasm4pm_compat::ocel::{OCEL, OCELEvent, OCELObject, OCELRelationship};
-use wasm4pm_compat::petri::{Arc, Marking, PetriNet, Place, Transition};
 use thiserror::Error;
+use wasm4pm_compat::ocel::{OCELEvent, OCELObject, OCELRelationship, OCEL};
+use wasm4pm_compat::petri::{Arc, Marking, PetriNet, Place, Transition};
 
 /// Errors raised during the process mining lifecycle.
 #[derive(Debug, Error)]
@@ -21,11 +21,11 @@ pub enum MiningError {
     /// Failed to mine a Petri net using the Heuristic Inductive Miner.
     #[error("wasm4pm HIM failed: {0}")]
     Him(String),
-    
+
     /// The receipt was not admitted or failed admission checks.
     #[error("admission refused: {0}")]
     Admission(String),
-    
+
     /// The conversion from Receipt to OCEL format failed.
     #[error("OCEL conversion failed: {0}")]
     OcelConversion(String),
@@ -33,8 +33,8 @@ pub enum MiningError {
 
 /// Convert an Affidavit [`Receipt`] into an [`OCEL`] 2.0 log.
 ///
-/// This projection preserves the object-centric relationships defined in the 
-/// receipt, mapping every [`crate::types::OperationEvent`] to an [`OCELEvent`] 
+/// This projection preserves the object-centric relationships defined in the
+/// receipt, mapping every [`crate::types::OperationEvent`] to an [`OCELEvent`]
 /// and ensuring all referenced objects are declared in the log.
 pub fn receipt_to_ocel(receipt: &Receipt) -> Result<OCEL, MiningError> {
     let mut objects_map = HashMap::new();
@@ -42,16 +42,19 @@ pub fn receipt_to_ocel(receipt: &Receipt) -> Result<OCEL, MiningError> {
 
     for ev in &receipt.events {
         let mut ocel_ev = OCELEvent::new(ev.id.clone(), &ev.event_type);
-        
+
         for obj_ref in &ev.objects {
             // Ensure the object exists in the object set.
-            objects_map.entry(obj_ref.id.clone()).or_insert_with(|| {
-                OCELObject::new(obj_ref.id.clone(), &obj_ref.obj_type)
-            });
+            objects_map
+                .entry(obj_ref.id.clone())
+                .or_insert_with(|| OCELObject::new(obj_ref.id.clone(), &obj_ref.obj_type));
 
             // Add the relationship between this event and the object.
             // We preserve the qualifier (role) if present in the receipt.
-            let qualifier = obj_ref.qualifier.clone().unwrap_or_else(|| "unspecified".to_string());
+            let qualifier = obj_ref
+                .qualifier
+                .clone()
+                .unwrap_or_else(|| "unspecified".to_string());
             ocel_ev.relationships.push(OCELRelationship {
                 object_id: obj_ref.id.clone(),
                 qualifier,
@@ -61,19 +64,19 @@ pub fn receipt_to_ocel(receipt: &Receipt) -> Result<OCEL, MiningError> {
     }
 
     let ocel_objects: Vec<_> = objects_map.into_values().collect();
-    
+
     // Construct the OCEL log. wasm4pm-compat handles the internal indexing.
     Ok(OCEL::new(ocel_events, ocel_objects))
 }
 
-/// Discover a Petri Net model from an admitted receipt using a maximalist 
+/// Discover a Petri Net model from an admitted receipt using a maximalist
 /// Heuristic Inductive Miner (HIM) pattern.
 ///
 /// The discovery follows these steps:
-/// 1. **Transition Discovery**: Every unique `event_type` in the log becomes 
+/// 1. **Transition Discovery**: Every unique `event_type` in the log becomes
 ///     a visible transition in the Petri net.
-/// 2. **Causal Discovery**: Analyzes the log for "directly-follows" relations. 
-///    It uses both a global sequence perspective and an object-centric 
+/// 2. **Causal Discovery**: Analyzes the log for "directly-follows" relations.
+///    It uses both a global sequence perspective and an object-centric
 ///    perspective (tracing individual object lifecycles).
 /// 3. **Place Synthesis**: Creates places to represent the observed causality:
 ///    - A `start` place feeding all potential initial activities.
@@ -83,7 +86,7 @@ pub fn receipt_to_ocel(receipt: &Receipt) -> Result<OCEL, MiningError> {
 pub fn discover_him(admitted: &AdmittedReceipt) -> Result<PetriNet, MiningError> {
     // Stage 1: Projection to OCEL
     let ocel = receipt_to_ocel(&admitted.value)?;
-    
+
     let mut activities = HashSet::new();
     let mut transitions = Vec::new();
     let mut places = Vec::new();
@@ -107,7 +110,10 @@ pub fn discover_him(admitted: &AdmittedReceipt) -> Result<PetriNet, MiningError>
     for ev in ocel.event_set() {
         global_trace.push(ev.event_type.clone());
         for (obj_id, _) in ocel.e2o(&ev.id) {
-            object_traces.entry(obj_id.to_string()).or_default().push(ev.event_type.clone());
+            object_traces
+                .entry(obj_id.to_string())
+                .or_default()
+                .push(ev.event_type.clone());
         }
     }
 
@@ -117,23 +123,31 @@ pub fn discover_him(admitted: &AdmittedReceipt) -> Result<PetriNet, MiningError>
 
     // Extract causal relations from individual object lifecycles.
     for trace in object_traces.values() {
-        if let Some(first) = trace.first() { starts.insert(first.clone()); }
-        if let Some(last) = trace.last() { ends.insert(last.clone()); }
+        if let Some(first) = trace.first() {
+            starts.insert(first.clone());
+        }
+        if let Some(last) = trace.last() {
+            ends.insert(last.clone());
+        }
         for window in trace.windows(2) {
             causal_pairs.insert((window[0].clone(), window[1].clone()));
         }
     }
 
-    // Fallback/Augmentation: use global trace to ensure the net is fully connected 
+    // Fallback/Augmentation: use global trace to ensure the net is fully connected
     // even if some events lack object associations.
-    if let Some(first) = global_trace.first() { starts.insert(first.clone()); }
-    if let Some(last) = global_trace.last() { ends.insert(last.clone()); }
+    if let Some(first) = global_trace.first() {
+        starts.insert(first.clone());
+    }
+    if let Some(last) = global_trace.last() {
+        ends.insert(last.clone());
+    }
     for window in global_trace.windows(2) {
         causal_pairs.insert((window[0].clone(), window[1].clone()));
     }
 
     // Stage 4: Synthesis of Places and Arcs.
-    
+
     // Start Place -> Initial Transitions
     places.push(Place::new("start"));
     for start_act in sorted_set(starts) {

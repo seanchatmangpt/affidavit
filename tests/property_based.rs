@@ -6,11 +6,11 @@
 //! This file is a self-contained property testing suite designed to be moved
 //! to `tests/property_based.rs` once validated.
 
+use affidavit::chain::{recompute_chain, ChainAssembler, FORMAT_VERSION};
+use affidavit::types::{Blake3Hash, ObjectRef, OperationEvent, Receipt, Verdict};
+use affidavit::verifier::verify;
 use quickcheck::{Arbitrary, Gen, QuickCheck, TestResult};
 use quickcheck_macros::quickcheck;
-use affidavit::types::{Blake3Hash, ObjectRef, OperationEvent, Receipt, Verdict};
-use affidavit::chain::{ChainAssembler, FORMAT_VERSION, recompute_chain};
-use affidavit::verifier::verify;
 
 // --- Arbitrary Implementations ---
 
@@ -34,7 +34,11 @@ impl Arbitrary for ArbitraryOperationEvent {
             objects.push(ObjectRef {
                 id: format!("obj-{}", i),
                 obj_type: "blob".to_string(),
-                qualifier: if bool::arbitrary(g) { Some("input".to_string()) } else { None },
+                qualifier: if bool::arbitrary(g) {
+                    Some("input".to_string())
+                } else {
+                    None
+                },
             });
         }
 
@@ -61,15 +65,16 @@ impl Arbitrary for ArbitraryReceipt {
         let mut asm = ChainAssembler::new();
         // Generate a chain of 1 to 15 events to keep test time reasonable.
         let num_events = (u32::arbitrary(g) % 15) + 1;
-        
+
         for i in 0..num_events {
             let mut ev = ArbitraryOperationEvent::arbitrary(g).0;
             // Force seq continuity and unique IDs for the "valid" base case
             ev.seq = i as u64;
             ev.id = format!("event-{}", i);
-            asm.append(ev).expect("ChainAssembler append must succeed for arbitrary events");
+            asm.append(ev)
+                .expect("ChainAssembler append must succeed for arbitrary events");
         }
-        
+
         ArbitraryReceipt(asm.finalize())
     }
 }
@@ -83,23 +88,30 @@ impl Arbitrary for ArbitraryReceipt {
 fn prop_decidability_valid_receipts_always_accepted(arb: ArbitraryReceipt) -> bool {
     let receipt = arb.0;
     let verdict = verify(&receipt);
-    
+
     if !verdict.accepted {
-        eprintln!("FAILURE: Valid receipt rejected! Reason: {}", verdict.reason);
+        eprintln!(
+            "FAILURE: Valid receipt rejected! Reason: {}",
+            verdict.reason
+        );
         for outcome in &verdict.outcomes {
             if !outcome.passed {
                 eprintln!("  Stage {} failed: {}", outcome.stage, outcome.detail);
             }
         }
     }
-    
+
     verdict.accepted
 }
 
 /// Property: Tamper-Detection (Payload Commitment)
 /// Mutating any payload commitment in an otherwise valid receipt MUST break chain integrity.
 #[quickcheck]
-fn prop_tamper_detection_commitment_flip_breaks_chain(arb: ArbitraryReceipt, event_idx: usize, seed: u64) -> TestResult {
+fn prop_tamper_detection_commitment_flip_breaks_chain(
+    arb: ArbitraryReceipt,
+    event_idx: usize,
+    seed: u64,
+) -> TestResult {
     let mut receipt = arb.0;
     if receipt.events.is_empty() {
         return TestResult::discard();
@@ -110,16 +122,23 @@ fn prop_tamper_detection_commitment_flip_breaks_chain(arb: ArbitraryReceipt, eve
     receipt.events[idx].payload_commitment = Blake3Hash::from_bytes(&seed.to_le_bytes());
 
     let verdict = verify(&receipt);
-    
+
     // We expect REJECT due to chain_integrity
-    let chain_stage = verdict.outcomes.iter().find(|o| o.stage == "chain_integrity").unwrap();
+    let chain_stage = verdict
+        .outcomes
+        .iter()
+        .find(|o| o.stage == "chain_integrity")
+        .unwrap();
     TestResult::from_bool(!verdict.accepted && !chain_stage.passed)
 }
 
 /// Property: Tamper-Detection (Event Type)
 /// Mutating an event_type MUST break chain integrity because event_type is part of the canonical bytes.
 #[quickcheck]
-fn prop_tamper_detection_event_type_mutation_breaks_chain(arb: ArbitraryReceipt, event_idx: usize) -> TestResult {
+fn prop_tamper_detection_event_type_mutation_breaks_chain(
+    arb: ArbitraryReceipt,
+    event_idx: usize,
+) -> TestResult {
     let mut receipt = arb.0;
     if receipt.events.is_empty() {
         return TestResult::discard();
@@ -129,7 +148,11 @@ fn prop_tamper_detection_event_type_mutation_breaks_chain(arb: ArbitraryReceipt,
     receipt.events[idx].event_type += "_mutated";
 
     let verdict = verify(&receipt);
-    let chain_stage = verdict.outcomes.iter().find(|o| o.stage == "chain_integrity").unwrap();
+    let chain_stage = verdict
+        .outcomes
+        .iter()
+        .find(|o| o.stage == "chain_integrity")
+        .unwrap();
     TestResult::from_bool(!verdict.accepted && !chain_stage.passed)
 }
 
@@ -150,8 +173,12 @@ fn prop_continuity_gap_is_rejected(arb: ArbitraryReceipt, event_idx: usize) -> T
     receipt.chain_hash = recompute_chain(&receipt.events).unwrap();
 
     let verdict = verify(&receipt);
-    let continuity_stage = verdict.outcomes.iter().find(|o| o.stage == "continuity").unwrap();
-    
+    let continuity_stage = verdict
+        .outcomes
+        .iter()
+        .find(|o| o.stage == "continuity")
+        .unwrap();
+
     TestResult::from_bool(!verdict.accepted && !continuity_stage.passed)
 }
 
@@ -163,11 +190,15 @@ fn prop_format_version_enforcement(arb: ArbitraryReceipt, mut version: String) -
     if version == FORMAT_VERSION || version.trim().is_empty() {
         version = "unsupported/v99".to_string();
     }
-    
+
     receipt.format_version = version;
     let verdict = verify(&receipt);
-    let format_stage = verdict.outcomes.iter().find(|o| o.stage == "check_format").unwrap();
-    
+    let format_stage = verdict
+        .outcomes
+        .iter()
+        .find(|o| o.stage == "check_format")
+        .unwrap();
+
     TestResult::from_bool(!verdict.accepted && !format_stage.passed)
 }
 
@@ -182,13 +213,17 @@ fn prop_duplicate_ids_are_rejected(arb: ArbitraryReceipt) -> TestResult {
 
     // Copy ID from event 0 to event 1
     receipt.events[1].id = receipt.events[0].id.clone();
-    
+
     // Recompute chain hash so ONLY continuity fails
     receipt.chain_hash = recompute_chain(&receipt.events).unwrap();
 
     let verdict = verify(&receipt);
-    let continuity_stage = verdict.outcomes.iter().find(|o| o.stage == "continuity").unwrap();
-    
+    let continuity_stage = verdict
+        .outcomes
+        .iter()
+        .find(|o| o.stage == "continuity")
+        .unwrap();
+
     TestResult::from_bool(!verdict.accepted && !continuity_stage.passed)
 }
 
@@ -203,13 +238,17 @@ fn prop_empty_event_type_rejected(arb: ArbitraryReceipt, event_idx: usize) -> Te
 
     let idx = event_idx % receipt.events.len();
     receipt.events[idx].event_type = "  ".to_string();
-    
+
     // Recompute chain hash so ONLY profile evaluation fails
     receipt.chain_hash = recompute_chain(&receipt.events).unwrap();
 
     let verdict = verify(&receipt);
-    let profile_stage = verdict.outcomes.iter().find(|o| o.stage == "evaluate_profile").unwrap();
-    
+    let profile_stage = verdict
+        .outcomes
+        .iter()
+        .find(|o| o.stage == "evaluate_profile")
+        .unwrap();
+
     TestResult::from_bool(!verdict.accepted && !profile_stage.passed)
 }
 

@@ -13,12 +13,12 @@
 //! 5. Calculate confidence scores based on the relative frequencies of these transitions.
 //! 6. Return a ranked report of top-K predictions.
 
-use crate::types::AdmittedReceipt;
 use crate::discovery::{project_to_event_log, ACTIVITY_KEY};
+use crate::types::AdmittedReceipt;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use wasm4pm::ilp_discovery::discover_optimized_dfg_from_log;
 use wasm4pm::models::DFG;
-use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 
 /// A single predicted next activity with its associated confidence score.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -79,7 +79,8 @@ pub fn predict_next_with_model(
     let candidates = if trace_receipt.events.is_empty() {
         let total_starts: usize = dfg.start_activities.values().sum();
         if total_starts > 0 {
-            dfg.start_activities.iter()
+            dfg.start_activities
+                .iter()
                 .map(|(id, &freq)| {
                     let label = find_label(&dfg, id);
                     (label, freq as f64 / total_starts as f64)
@@ -89,8 +90,12 @@ pub fn predict_next_with_model(
             vec![]
         }
     } else {
-        let last_activity = &trace_receipt.events.last().unwrap().event_type;
-        let node_ids: Vec<&String> = dfg.nodes.iter()
+        let last_event = trace_receipt.events.last()
+            .ok_or_else(|| PredictionError::Wasm4pm("Unexpected empty event list".to_string()))?;
+        let last_activity = &last_event.event_type;
+        let node_ids: Vec<&String> = dfg
+            .nodes
+            .iter()
             .filter(|n| &n.label == last_activity)
             .map(|n| &n.id)
             .collect();
@@ -111,7 +116,8 @@ pub fn predict_next_with_model(
         }
 
         if total_node_freq > 0.0 {
-            next_freqs.into_iter()
+            next_freqs
+                .into_iter()
                 .map(|(label, freq)| (label, freq / total_node_freq))
                 .collect()
         } else {
@@ -120,12 +126,17 @@ pub fn predict_next_with_model(
     };
 
     // 3. Assemble and rank
-    let mut predictions: Vec<ActivityPrediction> = candidates.into_iter()
-        .map(|(activity, confidence)| ActivityPrediction { activity, confidence })
+    let mut predictions: Vec<ActivityPrediction> = candidates
+        .into_iter()
+        .map(|(activity, confidence)| ActivityPrediction {
+            activity,
+            confidence,
+        })
         .collect();
 
     predictions.sort_by(|a, b| {
-        b.confidence.partial_cmp(&a.confidence)
+        b.confidence
+            .partial_cmp(&a.confidence)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| a.activity.cmp(&b.activity))
     });
@@ -151,7 +162,8 @@ pub fn predict_next(
 
 /// Helper to map a DFG node ID back to its activity label.
 fn find_label(dfg: &DFG, id: &str) -> String {
-    dfg.nodes.iter()
+    dfg.nodes
+        .iter()
         .find(|n| n.id == id)
         .map(|n| n.label.clone())
         .unwrap_or_else(|| "unknown".to_string())
@@ -160,8 +172,8 @@ fn find_label(dfg: &DFG, id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ocel::{build_event, object_ref, SeqCounter};
     use crate::admission::admit;
+    use crate::ocel::{build_event, object_ref, SeqCounter};
 
     fn test_receipt(activities: &[&str]) -> AdmittedReceipt {
         let mut asm = crate::chain::ChainAssembler::new();
@@ -172,61 +184,74 @@ mod tests {
                 vec![object_ref(&format!("obj-{}", i), "artifact")],
                 act.as_bytes(),
                 &mut counter,
-            ).unwrap();
-            asm.append(ev).unwrap();
+            )
+            .expect("build_event failure in test");
+            asm.append(ev).expect("append failure in test");
         }
         admit(asm.finalize()).expect("test receipt must be admittable")
     }
 
     #[test]
-    fn predicts_sequential_activity_with_full_confidence() {
+    fn predicts_sequential_activity_with_full_confidence() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_receipt(&["A", "B", "C"]);
         let prefix = test_receipt(&["A"]);
-        
-        let report = predict_next_with_model(&model, &prefix, 5).unwrap();
+
+        let report = predict_next_with_model(&model, &prefix, 5)?;
         assert_eq!(report.predictions.len(), 1);
         assert_eq!(report.predictions[0].activity, "B");
         assert_eq!(report.predictions[0].confidence, 1.0);
+        Ok(())
     }
 
     #[test]
-    fn handles_multiple_branches_with_weighting() {
+    fn handles_multiple_branches_with_weighting() -> Result<(), Box<dyn std::error::Error>> {
         // Trace: A, B, A, C, A, B.
         // A is followed by B twice and C once.
         // Total occurrences of A = 3.
         let model = test_receipt(&["A", "B", "A", "C", "A", "B"]);
         let prefix = test_receipt(&["A", "B", "A", "C", "A"]); // ends in A
-        
-        let report = predict_next_with_model(&model, &prefix, 5).unwrap();
-        
+
+        let report = predict_next_with_model(&model, &prefix, 5)?;
+
         // Expected: B with 2/3, C with 1/3
         assert_eq!(report.predictions.len(), 2);
-        
-        let b = report.predictions.iter().find(|p| p.activity == "B").unwrap();
-        let c = report.predictions.iter().find(|p| p.activity == "C").unwrap();
-        
+
+        let b = report
+            .predictions
+            .iter()
+            .find(|p| p.activity == "B")
+            .ok_or("B not found")?;
+        let c = report
+            .predictions
+            .iter()
+            .find(|p| p.activity == "C")
+            .ok_or("C not found")?;
+
         assert!((b.confidence - 0.6666).abs() < 0.001);
         assert!((c.confidence - 0.3333).abs() < 0.001);
-        
+
         // Ranking: B should be first
         assert_eq!(report.predictions[0].activity, "B");
+        Ok(())
     }
 
     #[test]
-    fn returns_empty_predictions_for_unknown_state() {
+    fn returns_empty_predictions_for_unknown_state() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_receipt(&["A", "B"]);
         let prefix = test_receipt(&["C"]); // C is not in model
-        
-        let report = predict_next_with_model(&model, &prefix, 5).unwrap();
+
+        let report = predict_next_with_model(&model, &prefix, 5)?;
         assert!(report.predictions.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn respects_top_k_limit() {
+    fn respects_top_k_limit() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_receipt(&["A", "B", "A", "C", "A", "D"]);
         let prefix = test_receipt(&["A"]);
-        
-        let report = predict_next_with_model(&model, &prefix, 2).unwrap();
+
+        let report = predict_next_with_model(&model, &prefix, 2)?;
         assert_eq!(report.predictions.len(), 2);
+        Ok(())
     }
 }

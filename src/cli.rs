@@ -25,9 +25,8 @@ use std::path::PathBuf;
 /// `objects` are `id:type` pairs (optionally `id:type:qualifier`). The payload
 /// is read from `payload` (a file path, or `-` for stdin) and its BLAKE3 digest
 /// becomes the commitment — the raw payload is never stored in the receipt.
-/// Prints the new event's id and seq.
-#[allow(clippy::print_stdout)]
-pub fn emit(event_type: &str, objects: &[String], payload: &str) -> Result<()> {
+/// Returns the new event's details.
+pub fn emit(event_type: &str, objects: &[String], payload: &str) -> Result<crate::types::EmitOutput> {
     if event_type.trim().is_empty() {
         bail!("--type must be a non-empty event_type");
     }
@@ -53,11 +52,17 @@ pub fn emit(event_type: &str, objects: &[String], payload: &str) -> Result<()> {
 
     let id = event.id.clone();
     let seq = event.seq;
+    let commitment = event.payload_commitment.as_hex().to_string();
+
     events.push(event);
     chain::save_working(&events).context("saving working receipt")?;
 
-    println!("emitted event {id} (seq {seq})");
-    Ok(())
+    Ok(crate::types::EmitOutput {
+        event_id: id,
+        seq,
+        event_type: event_type.to_string(),
+        commitment,
+    })
 }
 
 /// Finalize the working receipt into an immutable, content-addressed receipt
@@ -65,10 +70,10 @@ pub fn emit(event_type: &str, objects: &[String], payload: &str) -> Result<()> {
 ///
 /// Builds the receipt through [`chain::ChainAssembler`] so the rolling chain
 /// hash and format version match exactly what [`crate::verifier`] expects, then
-/// content-addresses it. Prints the receipt path and content address.
-#[allow(clippy::print_stdout)]
-pub fn assemble(out: Option<&str>) -> Result<()> {
+/// content-addresses it. Returns the receipt path and content address.
+pub fn assemble(out: Option<&str>) -> Result<crate::types::AssembleOutput> {
     let events = chain::load_working().context("loading working receipt")?;
+    let event_count = events.len();
     if events.is_empty() {
         bail!(
             "nothing to assemble: working receipt {} has no events (run `affi emit` first)",
@@ -89,10 +94,13 @@ pub fn assemble(out: Option<&str>) -> Result<()> {
 
     chain::save_receipt(&receipt, &path).with_context(|| format!("writing receipt to {path:?}"))?;
 
-    println!("assembled receipt -> {}", path.display());
-    println!("content address: {address}");
-    Ok(())
+    Ok(crate::types::AssembleOutput {
+        receipt_path: path.display().to_string(),
+        content_address: address.as_hex().to_string(),
+        event_count,
+    })
 }
+
 
 /// Run the certify pipeline over `receipt` and print per-stage outcomes plus
 /// the final verdict. Returns the process exit code (0 ACCEPT, non-zero REJECT).

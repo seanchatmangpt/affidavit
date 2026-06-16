@@ -12,14 +12,14 @@
 //! Run with:
 //!   cargo test --test global_e2e_maximalist
 
+use affidavit::chain::{deserialize_receipt, serialize_receipt, ChainAssembler};
+use affidavit::ocel::{build_event, object_ref, SeqCounter};
+use affidavit::verifier::verify;
 use assert_cmd::Command;
+use chicago_tdd_tools::{assert_err, assert_in_range, assert_ok};
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
-use chicago_tdd_tools::{assert_ok, assert_err, assert_in_range};
-use affidavit::chain::{ChainAssembler, deserialize_receipt, serialize_receipt};
-use affidavit::ocel::{build_event, object_ref, SeqCounter};
-use affidavit::verifier::verify;
 
 // ─── Shared Helpers ─────────────────────────────────────────────────────────
 
@@ -38,7 +38,16 @@ fn build_standard_receipt(dir: &TempDir, name: &str) -> std::path::PathBuf {
     ];
     for (ty, obj) in steps {
         affi(dir)
-            .args(["receipt", "emit", "--type", ty, "--object", obj, "--payload", "-"])
+            .args([
+                "receipt",
+                "emit",
+                "--type",
+                ty,
+                "--object",
+                obj,
+                "--payload",
+                "-",
+            ])
             .write_stdin(ty)
             .assert()
             .success();
@@ -101,7 +110,7 @@ mod suite_2_discovery {
             .success()
             .stderr(predicate::str::contains("directly-follows graph"))
             .stderr(predicate::str::contains("nodes (activities):"));
-            
+
         // 2.5: affi receipt replay (step-by-step trace)
         affi(&dir)
             .args(["receipt", "replay", "discovery.json"])
@@ -134,7 +143,7 @@ mod suite_4_mutation {
         cmd.args(["receipt", "--help"]);
         let output = cmd.output().expect("help output");
         let help_text = String::from_utf8_lossy(&output.stdout);
-        
+
         // If 'mutate' isn't there, we don't fail yet, but we log the absence.
         if help_text.contains("mutate") {
             affi(&dir)
@@ -154,7 +163,7 @@ mod suite_4_mutation {
         let ev = build_event("test", vec![object_ref("o", "t")], b"p", &mut counter).unwrap();
         asm.append(ev).unwrap();
         let receipt = asm.finalize();
-        
+
         let verdict = verify(&receipt);
         assert_ok!(Ok::<(), &str>(()), "fixture receipt must ACCEPT");
         assert!(verdict.accepted);
@@ -174,24 +183,29 @@ mod suite_5_observability {
         let r_path = build_standard_receipt(&dir, "observability.json");
 
         // Feature 4.1: affi receipt diagnose (LSP diagnostics witness)
-        // This exercises the verdict -> diagnostic mapping which is part of 
+        // This exercises the verdict -> diagnostic mapping which is part of
         // the observability/LSP phase.
         affi(&dir)
             .args(["receipt", "diagnose", "observability.json"])
             .assert()
             .success()
-            .stderr(predicate::str::contains("no diagnostics — receipt is clean"));
+            .stderr(predicate::str::contains(
+                "no diagnostics — receipt is clean",
+            ));
 
         // Feature 4.1/4.4: Span emission (Internal check)
         // We assert that verify calls produce spans in the captured_spans buffer.
-        use affidavit::tracing::{clear_spans, captured_spans};
+        use affidavit::tracing::{captured_spans, clear_spans};
         clear_spans();
         let bytes = fs::read(r_path).unwrap();
         let receipt = deserialize_receipt(&bytes).unwrap();
         let _ = verify(&receipt);
-        
+
         let spans = captured_spans();
-        assert!(!spans.is_empty(), "verification must emit at least one span");
+        assert!(
+            !spans.is_empty(),
+            "verification must emit at least one span"
+        );
         assert!(spans.iter().any(|s| s.operation == "verify"));
     }
 }
@@ -235,13 +249,19 @@ mod suite_6_cli {
         let output_json = cmd_json.output().expect("json format call");
         if output_json.status.success() {
             let stdout = String::from_utf8_lossy(&output_json.stdout);
-            assert!(stdout.trim().starts_with('{'), "output should be JSON object");
-            assert!(stdout.contains("format_version"), "JSON must have format_version");
+            assert!(
+                stdout.trim().starts_with('{'),
+                "output should be JSON object"
+            );
+            assert!(
+                stdout.contains("format_version"),
+                "JSON must have format_version"
+            );
         } else {
-             eprintln!("SKIP: --format=json not yet implemented for all verbs");
+            eprintln!("SKIP: --format=json not yet implemented for all verbs");
         }
     }
-    
+
     #[test]
     fn shell_presence_witness() {
         let dir = TempDir::new().expect("tempdir");

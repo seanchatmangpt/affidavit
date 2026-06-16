@@ -16,11 +16,11 @@
 //!      and using direct memory access in the WASM linear memory.
 //!    - Zero-dependency: The resulting WASM binary requires no imports.
 
+use crate::types::{Blake3Hash, OperationEvent, Receipt};
 use wasm_encoder::{
-    CodeSection, ConstExpr, DataSection, ExportSection, Function, FunctionSection, 
-    Instruction, MemorySection, MemoryType, Module, TypeSection, ValType,
+    CodeSection, ConstExpr, DataSection, ExportSection, Function, FunctionSection, Instruction,
+    MemorySection, MemoryType, Module, TypeSection, ValType,
 };
-use crate::types::{Receipt, OperationEvent, Blake3Hash};
 
 /// The compiler engine that transforms a Receipt into a standalone WASM binary.
 pub struct ReceiptWasmCompiler {
@@ -80,11 +80,11 @@ impl ReceiptWasmCompiler {
 
         // 6. Define Code Section
         let mut code = CodeSection::new();
-        
+
         // --- verify() function ---
         let mut verify_func = Function::new(vec![]); // No locals for now
-        // Simple loop implementation (pseudo-bytecode)
-        // [Logic: iterate events, check seq, check hash, compute chain]
+                                                     // Simple loop implementation (pseudo-bytecode)
+                                                     // [Logic: iterate events, check seq, check hash, compute chain]
         self.emit_verify_logic(&mut verify_func);
         code.function(&verify_func);
 
@@ -117,13 +117,13 @@ impl ReceiptWasmCompiler {
     ///   - id_hash: 32 bytes
     fn encode_receipt_binary(&self) -> Vec<u8> {
         let mut buf = Vec::new();
-        
+
         // Expected Chain Hash
         buf.extend_from_slice(&self.hash_to_bytes(self.receipt.chain_hash.as_hex()));
-        
+
         // Event Count
         buf.extend_from_slice(&(self.receipt.events.len() as u32).to_le_bytes());
-        
+
         // Format Version Hash (truncated to 4 bytes for O(1) check)
         let fmt_hash = blake3::hash(self.receipt.format_version.as_bytes());
         buf.extend_from_slice(&fmt_hash.as_bytes()[0..4]);
@@ -131,9 +131,13 @@ impl ReceiptWasmCompiler {
         // Events
         for ev in &self.receipt.events {
             buf.extend_from_slice(&ev.seq.to_le_bytes());
-            buf.extend_from_slice(&self.hash_to_bytes(blake3::hash(ev.event_type.as_bytes()).to_hex().as_str()));
+            buf.extend_from_slice(
+                &self.hash_to_bytes(blake3::hash(ev.event_type.as_bytes()).to_hex().as_str()),
+            );
             buf.extend_from_slice(&self.hash_to_bytes(ev.payload_commitment.as_hex()));
-            buf.extend_from_slice(&self.hash_to_bytes(blake3::hash(ev.id.as_bytes()).to_hex().as_str()));
+            buf.extend_from_slice(
+                &self.hash_to_bytes(blake3::hash(ev.id.as_bytes()).to_hex().as_str()),
+            );
         }
 
         buf
@@ -142,7 +146,7 @@ impl ReceiptWasmCompiler {
     fn hash_to_bytes(&self, hex: &str) -> [u8; 32] {
         let mut bytes = [0u8; 32];
         for i in 0..32 {
-            bytes[i] = u8::from_str_radix(&hex[i*2..i*2+2], 16).unwrap_or(0);
+            bytes[i] = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).unwrap_or(0);
         }
         bytes
     }
@@ -168,20 +172,24 @@ impl ReceiptWasmCompiler {
         f.instruction(&Instruction::LocalSet(1));
 
         f.instruction(&Instruction::Loop(wasm_encoder::BlockType::Empty));
-        
+
         // Check if current_event_index < event_count
         f.instruction(&Instruction::LocalGet(0));
         f.instruction(&Instruction::I32Const(self.receipt.events.len() as i32));
         f.instruction(&Instruction::I32LtS);
-        
+
         f.instruction(&Instruction::If(wasm_encoder::BlockType::Empty));
-        
+
         // --- Loop Body ---
-        
+
         // 1. Verify seq matches index (Stage 4)
         // load u64 from data_pointer
         f.instruction(&Instruction::LocalGet(1));
-        f.instruction(&Instruction::I64Load(wasm_encoder::MemArg { offset: 0, align: 3, memory_index: 0 }));
+        f.instruction(&Instruction::I64Load(wasm_encoder::MemArg {
+            offset: 0,
+            align: 3,
+            memory_index: 0,
+        }));
         f.instruction(&Instruction::LocalGet(0));
         f.instruction(&Instruction::I64ExtendI32S);
         f.instruction(&Instruction::I64Eq);
@@ -195,9 +203,9 @@ impl ReceiptWasmCompiler {
 
         // 2. BLAKE3 Chain (Stage 3)
         // [In a real implementation, we would call a blake3_compress function here]
-        // For the 1000x prototype, we emit a structural placeholder for the 
+        // For the 1000x prototype, we emit a structural placeholder for the
         // high-speed compression rounds.
-        
+
         // Increment pointers
         f.instruction(&Instruction::LocalGet(0));
         f.instruction(&Instruction::I32Const(1));
@@ -222,26 +230,34 @@ impl ReceiptWasmCompiler {
         // Param 0: destination pointer
         // Local 1: loop counter
         f.local_declaration(1, ValType::I32);
-        
+
         f.instruction(&Instruction::I32Const(0));
         f.instruction(&Instruction::LocalSet(1));
-        
+
         f.instruction(&Instruction::Loop(wasm_encoder::BlockType::Empty));
         f.instruction(&Instruction::LocalGet(1));
         f.instruction(&Instruction::I32Const(32));
         f.instruction(&Instruction::I32LtS);
-        
+
         f.instruction(&Instruction::If(wasm_encoder::BlockType::Empty));
         // memory[dest + i] = memory[i]
         f.instruction(&Instruction::LocalGet(0));
         f.instruction(&Instruction::LocalGet(1));
         f.instruction(&Instruction::I32Add);
-        
+
         f.instruction(&Instruction::LocalGet(1));
-        f.instruction(&Instruction::I32Load8U(wasm_encoder::MemArg { offset: 0, align: 0, memory_index: 0 }));
-        
-        f.instruction(&Instruction::I32Store8(wasm_encoder::MemArg { offset: 0, align: 0, memory_index: 0 }));
-        
+        f.instruction(&Instruction::I32Load8U(wasm_encoder::MemArg {
+            offset: 0,
+            align: 0,
+            memory_index: 0,
+        }));
+
+        f.instruction(&Instruction::I32Store8(wasm_encoder::MemArg {
+            offset: 0,
+            align: 0,
+            memory_index: 0,
+        }));
+
         f.instruction(&Instruction::LocalGet(1));
         f.instruction(&Instruction::I32Const(1));
         f.instruction(&Instruction::I32Add);
@@ -249,7 +265,7 @@ impl ReceiptWasmCompiler {
         f.instruction(&Instruction::Br(1));
         f.instruction(&Instruction::End);
         f.instruction(&Instruction::End);
-        
+
         f.instruction(&Instruction::End);
     }
 }
@@ -257,18 +273,20 @@ impl ReceiptWasmCompiler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Receipt, OperationEvent, Blake3Hash};
+    use crate::types::{Blake3Hash, OperationEvent, Receipt};
 
     #[test]
     fn test_compile_empty_receipt() {
         let receipt = Receipt::sealed(
             "core/v1".to_string(),
             vec![],
-            Blake3Hash::from_hex("0000000000000000000000000000000000000000000000000000000000000000"),
+            Blake3Hash::from_hex(
+                "0000000000000000000000000000000000000000000000000000000000000000",
+            ),
         );
         let compiler = ReceiptWasmCompiler::new(receipt);
         let wasm = compiler.compile();
-        
+
         assert!(!wasm.is_empty());
         assert_eq!(&wasm[0..4], b"\0asm");
         println!("Compiled WASM size: {} bytes", wasm.len());
@@ -283,19 +301,23 @@ mod tests {
                 seq: i as u64,
                 event_type: "test".to_string(),
                 objects: vec![],
-                payload_commitment: Blake3Hash::from_hex("1111111111111111111111111111111111111111111111111111111111111111"),
+                payload_commitment: Blake3Hash::from_hex(
+                    "1111111111111111111111111111111111111111111111111111111111111111",
+                ),
             });
         }
-        
+
         let receipt = Receipt::sealed(
             "core/v1".to_string(),
             events,
-            Blake3Hash::from_hex("2222222222222222222222222222222222222222222222222222222222222222"),
+            Blake3Hash::from_hex(
+                "2222222222222222222222222222222222222222222222222222222222222222",
+            ),
         );
-        
+
         let compiler = ReceiptWasmCompiler::new(receipt);
         let wasm = compiler.compile();
-        
+
         println!("10,000 event WASM size: {} bytes", wasm.len());
         // Should be ~1MB data + headers
         assert!(wasm.len() > 1_000_000);

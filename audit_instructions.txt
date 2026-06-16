@@ -1,0 +1,20 @@
+Audit and harden the following files to follow Rust Core Team standards:
+- src/1000x_autonomous_governance.rs
+- src/1000x_chaos_e2e.rs
+- src/1000x_cli_telepathy_qol.rs
+- src/1000x_distributed_sharding.rs
+- src/1000x_formal_verification_spec.rs
+- src/1000x_holographic_lsp_dx.rs
+- src/1000x_nlp_query_qol.rs
+- src/1000x_otel_hyper_spec.rs
+- src/1000x_receipt_to_wasm_qol.rs
+- src/1000x_semantic_isomorphism_e2e.rs
+- src/1000x_swarm_e2e.rs
+- src/1000x_tdd_synthesizer_dx.rs
+- src/1000x_time_travel_dx.rs
+
+Harden means:
+1. Replace println!/eprintln! with tracing::info!/warn!/error! unless it's a CLI tool or REPL intended for direct user interaction (like time_travel_dx.rs).
+2. Ensure every file has module-level documentation (//!) and public items have (///) documentation.
+3. Ensure they use anyhow or crate error types where appropriate.
+4. Confirm no 'unsafe' code is present.

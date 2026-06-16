@@ -9,7 +9,7 @@
 //! wall-clock — preserving determinism.
 
 use crate::types::{Blake3Hash, ObjectRef, OperationEvent};
-use thiserror::Error;
+use crate::error::OcelError;
 
 /// A monotonic logical sequence counter for assigning event `seq` values.
 ///
@@ -43,26 +43,6 @@ impl SeqCounter {
     pub fn peek(&self) -> u64 {
         self.value
     }
-}
-
-/// Errors raised while building or validating OCEL events.
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum OcelError {
-    /// The event_type was empty or whitespace-only.
-    #[error("event_type must be non-empty")]
-    EmptyEventType,
-    /// The event id was empty or whitespace-only.
-    #[error("event id must be non-empty")]
-    EmptyEventId,
-    /// An object reference had an empty id.
-    #[error("object ref at index {0} has an empty id")]
-    EmptyObjectId(usize),
-    /// An object reference had an empty obj_type.
-    #[error("object ref at index {0} has an empty obj_type")]
-    EmptyObjectType(usize),
-    /// An object reference string could not be parsed as `id:type`.
-    #[error("object ref '{0}' is not in 'id:type' or 'id:type:qualifier' form")]
-    MalformedObjectRef(String),
 }
 
 /// High-level macro for recording process events with stable sequence numbers.
@@ -112,7 +92,7 @@ pub fn qualified_object_ref(
 ///
 /// The first colon separates id from type; an optional third colon-delimited
 /// segment is treated as the qualifier. Empty id or type yields an error.
-pub fn parse_object_ref(spec: &str) -> Result<ObjectRef, OcelError> {
+pub fn parse_object_ref(spec: &str) -> std::result::Result<ObjectRef, OcelError> {
     let mut parts = spec.splitn(3, ':');
     let id = parts.next().unwrap_or("");
     let obj_type = parts.next();
@@ -140,7 +120,7 @@ pub fn build_event(
     objects: Vec<ObjectRef>,
     payload: &[u8],
     counter: &mut SeqCounter,
-) -> Result<OperationEvent, OcelError> {
+) -> std::result::Result<OperationEvent, OcelError> {
     let event_type = event_type.into();
     let seq = counter.next_seq();
     let event = OperationEvent {
@@ -158,7 +138,7 @@ pub fn build_event(
 ///
 /// Checks: non-empty id, non-empty event_type, and that every object reference
 /// carries a non-empty id and obj_type. Returns the first violation found.
-pub fn validate_event(event: &OperationEvent) -> Result<(), OcelError> {
+pub fn validate_event(event: &OperationEvent) -> std::result::Result<(), OcelError> {
     if event.id.trim().is_empty() {
         return Err(OcelError::EmptyEventId);
     }

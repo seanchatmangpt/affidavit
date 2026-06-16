@@ -24,7 +24,10 @@ const BLAKE3_HEX_LEN: usize = 64;
 
 /// Whether a hex string is a well-formed lowercase BLAKE3-256 digest.
 fn is_well_formed_hash(hex: &str) -> bool {
-    hex.len() == BLAKE3_HEX_LEN && hex.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
+    hex.len() == BLAKE3_HEX_LEN
+        && hex
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
 }
 
 /// Certify a receipt with full OTel instrumentation and baggage propagation.
@@ -32,11 +35,10 @@ fn is_well_formed_hash(hex: &str) -> bool {
 /// This is the "maximalist" version of `affidavit::verifier::verify`.
 pub fn verify_maximalist<T: Tracer>(receipt: &Receipt, tracer: &T) -> Verdict {
     // 1. Setup Baggage: Propagate receipt identity and version.
-    let cx = Context::current()
-        .with_baggage(vec![
-            KeyValue::new("receipt.id", receipt.chain_hash.to_string()),
-            KeyValue::new("receipt.version", receipt.format_version.clone()),
-        ]);
+    let cx = Context::current().with_baggage(vec![
+        KeyValue::new("receipt.id", receipt.chain_hash.to_string()),
+        KeyValue::new("receipt.version", receipt.format_version.clone()),
+    ]);
 
     // 2. Open parent verify span.
     let mut parent_span = tracer.start_with_context("verify", &cx);
@@ -50,19 +52,29 @@ pub fn verify_maximalist<T: Tracer>(receipt: &Receipt, tracer: &T) -> Verdict {
     outcomes.push(trace_stage(tracer, &cx, "decode", || stage_decode(receipt)));
 
     // Stage 2: check_format
-    outcomes.push(trace_stage(tracer, &cx, "check_format", || stage_check_format(receipt)));
+    outcomes.push(trace_stage(tracer, &cx, "check_format", || {
+        stage_check_format(receipt)
+    }));
 
     // Stage 3: chain_integrity
-    outcomes.push(trace_stage(tracer, &cx, "chain_integrity", || stage_chain_integrity(receipt)));
+    outcomes.push(trace_stage(tracer, &cx, "chain_integrity", || {
+        stage_chain_integrity(receipt)
+    }));
 
     // Stage 4: continuity
-    outcomes.push(trace_stage(tracer, &cx, "continuity", || stage_continuity(receipt)));
+    outcomes.push(trace_stage(tracer, &cx, "continuity", || {
+        stage_continuity(receipt)
+    }));
 
     // Stage 5: verify_commitments
-    outcomes.push(trace_stage(tracer, &cx, "verify_commitments", || stage_verify_commitments(receipt)));
+    outcomes.push(trace_stage(tracer, &cx, "verify_commitments", || {
+        stage_verify_commitments(receipt)
+    }));
 
     // Stage 6: evaluate_profile
-    outcomes.push(trace_stage(tracer, &cx, "evaluate_profile", || stage_evaluate_profile(receipt)));
+    outcomes.push(trace_stage(tracer, &cx, "evaluate_profile", || {
+        stage_evaluate_profile(receipt)
+    }));
 
     // Stage 7: emit_verdict
     let verdict = trace_stage(tracer, &cx, "emit_verdict", || {
@@ -83,7 +95,10 @@ pub fn verify_maximalist<T: Tracer>(receipt: &Receipt, tracer: &T) -> Verdict {
 
     let mut parent_span = cx.span();
     parent_span.set_attribute(KeyValue::new("accepted", verdict.accepted));
-    parent_span.add_event("verdict_emitted", vec![KeyValue::new("reason", verdict.reason.clone())]);
+    parent_span.add_event(
+        "verdict_emitted",
+        vec![KeyValue::new("reason", verdict.reason.clone())],
+    );
     parent_span.end();
 
     verdict
@@ -210,7 +225,10 @@ fn stage_continuity(receipt: &Receipt) -> CheckOutcome {
     CheckOutcome {
         stage: "continuity".to_string(),
         passed: true,
-        detail: format!("{} event(s) with contiguous seq and unique ids", receipt.events.len()),
+        detail: format!(
+            "{} event(s) with contiguous seq and unique ids",
+            receipt.events.len()
+        ),
     }
 }
 

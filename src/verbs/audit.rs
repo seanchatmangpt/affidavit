@@ -14,11 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Run the Autonomous Governance Agent over the workspace
 #[verb("audit", "governance")]
-pub fn audit(
-) -> Result<()> {
-    crate::handlers::audit(
-    )
+pub fn audit() -> Result<()> {
+    crate::handlers::audit()
 }

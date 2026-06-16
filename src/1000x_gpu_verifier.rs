@@ -17,9 +17,9 @@
 //! 3. Performance: Uses workgroup-local memory for chain-hash state and
 //!    SIMD-across-lanes for independent receipt verification.
 
+use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
-use bytemuck::{Pod, Zeroable};
 
 /// Fixed-size event representation for GPU buffers.
 #[repr(C)]
@@ -202,10 +202,14 @@ pub struct GpuVerifier {
 impl GpuVerifier {
     pub async fn new() -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
-        let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions::default()).await
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions::default())
+            .await
             .ok_or_else(|| anyhow::anyhow!("No GPU adapter found"))?;
-        
-        let (device, queue) = adapter.request_device(&wgpu::DeviceDescriptor::default(), None).await?;
+
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor::default(), None)
+            .await?;
         let device = Arc::new(device);
         let queue = Arc::new(queue);
 
@@ -263,11 +267,18 @@ impl GpuVerifier {
             entry_point: "main",
         });
 
-        Ok(Self { device, queue, pipeline, bind_group_layout })
+        Ok(Self {
+            device,
+            queue,
+            pipeline,
+            bind_group_layout,
+        })
     }
 
     /// Convert a batch of Receipts into GPU-compatible buffers.
-    pub fn prepare_batch(receipts: &[crate::types::Receipt]) -> (Vec<GpuEvent>, Vec<GpuReceiptMetadata>) {
+    pub fn prepare_batch(
+        receipts: &[crate::types::Receipt],
+    ) -> (Vec<GpuEvent>, Vec<GpuReceiptMetadata>) {
         let mut all_events = Vec::new();
         let mut all_meta = Vec::new();
 
@@ -300,17 +311,21 @@ impl GpuVerifier {
         events: &[GpuEvent],
         metadata: &[GpuReceiptMetadata],
     ) -> anyhow::Result<Vec<GpuVerdict>> {
-        let event_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Event Buffer"),
-            contents: bytemuck::cast_slice(events),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+        let event_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Event Buffer"),
+                contents: bytemuck::cast_slice(events),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
 
-        let meta_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Metadata Buffer"),
-            contents: bytemuck::cast_slice(metadata),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+        let meta_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Metadata Buffer"),
+                contents: bytemuck::cast_slice(metadata),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
 
         let result_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Verdict Buffer"),
@@ -323,15 +338,29 @@ impl GpuVerifier {
             label: Some("Verifier Bind Group"),
             layout: &self.bind_group_layout,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: event_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: meta_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: result_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: event_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: meta_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: result_buffer.as_entire_binding(),
+                },
             ],
         });
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: None,
+                timestamp_writes: None,
+            });
             cpass.set_pipeline(&self.pipeline);
             cpass.set_bind_group(0, &bind_group, &[]);
             let workgroups = (metadata.len() as u32 + 255) / 256;
@@ -371,7 +400,12 @@ fn hash_to_u32_8(s: &str) -> [u32; 8] {
     let bytes = hash.as_bytes();
     let mut res = [0u32; 8];
     for i in 0..8 {
-        res[i] = u32::from_le_bytes([bytes[i*4], bytes[i*4+1], bytes[i*4+2], bytes[i*4+3]]);
+        res[i] = u32::from_le_bytes([
+            bytes[i * 4],
+            bytes[i * 4 + 1],
+            bytes[i * 4 + 2],
+            bytes[i * 4 + 3],
+        ]);
     }
     res
 }
@@ -379,7 +413,7 @@ fn hash_to_u32_8(s: &str) -> [u32; 8] {
 fn hash_hex_to_u32_8(hex: &str) -> [u32; 8] {
     let mut res = [0u32; 8];
     for i in 0..8 {
-        if let Ok(val) = u32::from_str_radix(&hex[i*8..(i+1)*8], 16) {
+        if let Ok(val) = u32::from_str_radix(&hex[i * 8..(i + 1) * 8], 16) {
             res[i] = val.swap_bytes(); // Convert to little-endian u32
         }
     }
@@ -395,10 +429,12 @@ mod tests {
         pollster::block_on(async {
             let verifier = GpuVerifier::new().await;
             match verifier {
-                Ok(_) => println!("GPU Verifier initialized successfully"),
-                Err(e) => println!("GPU Verifier init failed (expected in non-GPU environments): {}", e),
+                Ok(_) => tracing::info!("GPU Verifier initialized successfully"),
+                Err(e) => tracing::warn!(
+                    "GPU Verifier init failed (expected in non-GPU environments): {}",
+                    e
+                ),
             }
         });
     }
 }
-

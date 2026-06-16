@@ -2,6 +2,7 @@
 name = "affidavit"
 version = "26.6.14"
 edition = "2021"
+rust-version = "1.78"
 description = "Provenance Layer — receipt assembly and certification (verify a witness against a format standard; never decide honesty)."
 license = "MIT OR Apache-2.0"
 authors = ["Sean Chatman <xpointsh@gmail.com>"]
@@ -27,18 +28,6 @@ path = "src/lib.rs"
 [[bench]]
 name = "receipt_operations"
 harness = false
-
-[[bench]]
-name = "throughput"
-path = "benches/throughput.rs"
-harness = false
-required-features = ["benchmarking"]
-
-[[bench]]
-name = "variance"
-path = "benches/variance.rs"
-harness = false
-required-features = ["benchmarking"]
 
 [dependencies]
 # --- CORE INFRASTRUCTURE (Always Mandatory) ---
@@ -78,7 +67,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = tr
 
 # Phase 5: CLI Ergonomics & REPL
 rustyline = { version = "12", features = ["derive"], optional = true }
-shlex = "1"
+shlex = { version = "1", optional = true }
 tokio = { version = "1", features = ["full"], optional = true }
 colored = { version = "2", optional = true }
 indicatif = { version = "0.17", optional = true }
@@ -88,7 +77,19 @@ chrono = { version = "0.4", features = ["serde"], optional = true }
 hex = { version = "0.4", optional = true }
 rayon = { version = "1", optional = true }
 criterion = { version = "0.5", optional = true }
-rand = "0.8"
+rand = { version = "0.8", optional = true }
+
+# GPU Acceleration (1000X)
+wgpu = { version = "0.19", optional = true }
+bytemuck = { version = "1", features = ["derive"], optional = true }
+pollster = { version = "0.3", optional = true }
+
+# 1000X Innovation Hardening
+syn = { version = "2", features = ["full", "visit", "extra-traits", "parsing"], optional = true }
+quote = { version = "1", optional = true }
+proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
+tempfile = { version = "3", optional = true }
+wasm-encoder = "0.252.0"
 
 [dev-dependencies]
 assert_cmd = "2"
@@ -102,41 +103,82 @@ tokio = { version = "1", features = ["full"] }
 chicago-tdd-tools = { path = "../chicago-tdd-tools" }
 
 [features]
+# Default feature set
 default = ["core"]
 
-# Core Provenance (emit, assemble, verify, show, inspect)
-# Note: wasm4pm-compat is currently required for admission typestate.
+# Core Provenance: emit, assemble, verify, show, inspect.
 core = ["wasm4pm-compat"]
 
-# Phase 1: Inspection (diff, visualize, catalog)
+# Phase 1: Inspection tools (diff, visualize, catalog).
 inspection = ["chicago-tdd-tools", "walkdir", "glob", "colored"]
 
-# Phase 2: Process Discovery (model, conform, predict)
+# Phase 2: Process Discovery (model, conform, predict).
 discovery = ["wasm4pm", "chrono", "hex", "core"]
+# Validates receipts against discovered process models.
 conformance = ["discovery"]
+# Predicts future events based on current receipt state.
 predictive = ["conformance"]
+# Enables the Language Server Protocol (LSP) for receipt editing.
 lsp = ["lsp-max", "tokio"]
 
-# Phase 3: Mutation Testing (mutate, generate)
-mutation = ["clnrm-core", "tera", "quickcheck", "uuid"]
+# Phase 3: Mutation Testing and high-volume test generation.
+mutation = ["clnrm-core", "tera", "quickcheck", "uuid", "rand"]
+# Local storage for test fixtures.
 fixture-db = ["chrono"]
 
-# Phase 4: Observability (trace, metrics, SLO)
+# Phase 4: Observability and distributed tracing (OpenTelemetry).
 otel = ["opentelemetry", "opentelemetry-jaeger", "tracing", "tracing-subscriber"]
+# Metrics collection and Prometheus exporter.
 metrics = ["otel", "prometheus", "opentelemetry-prometheus"]
 
-# Phase 5: CLI Ergonomics (JSON, REPL, help)
+# Phase 5: CLI Ergonomics and interactivity.
+# Enables JSON output mode for all CLI verbs.
 json-output = []
-shell = ["rustyline", "tokio"]
+# Enables the interactive REPL shell.
+shell = ["rustyline", "tokio", "shlex"]
+# Rich UI elements like progress bars and colors.
 ui = ["colored", "indicatif"]
 
 # Extra: Performance & Benchmarking
 benchmarking = ["criterion", "rayon"]
+# Extended profiling support.
 profiling = ["benchmarking"]
 
-# COMBINATORIAL MAXIMALISM: The full "dev" environment
-all = ["inspection", "discovery", "conformance", "predictive", "lsp", 
-       "mutation", "fixture-db", "otel", "metrics", "json-output", 
-       "shell", "ui", "benchmarking", "profiling"]
+# GPU Acceleration for high-throughput verification (1000X).
+gpu = ["wgpu", "bytemuck", "pollster"]
 
+# 1000X Innovation Hardening
+# Automatic code remediation based on policy violations.
+remediation = ["syn", "quote", "proc-macro2", "tempfile"]
+# Post-Quantum Cryptography support.
+pqc = []
+
+# COMBINATORIAL MAXIMALISM: Enables all optional features.
+all = [
+    "inspection", 
+    "discovery", 
+    "conformance", 
+    "predictive", 
+    "lsp", 
+    "mutation", 
+    "fixture-db", 
+    "otel", 
+    "metrics", 
+    "json-output", 
+    "shell", 
+    "ui", 
+    "benchmarking", 
+    "profiling", 
+    "gpu", 
+    "remediation", 
+    "pqc"
+]
+
+# Development environment: alias for 'all'.
 dev = ["all"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

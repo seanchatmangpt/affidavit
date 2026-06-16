@@ -17,7 +17,7 @@
 //! 4. **Hybrid Binding:** The PqcSeal commits to both the BLAKE3 digest and 
 //!    the Kyber ciphertext, which are then signed by Dilithium.
 
-use crate::types::{Blake3Hash, OperationEvent, Receipt, canonical_bytes};
+use crate::types::{OperationEvent, Receipt};
 use crate::chain::{ChainAssembler, ChainError, recompute_chain};
 use serde::{Deserialize, Serialize};
 
@@ -215,7 +215,7 @@ mod tests {
         let d_pk = DilithiumPublicKey(b"mock-pk".to_vec());
         verify_pqc_receipt(&pqc_receipt, &d_pk).expect("PQC verification should pass");
 
-        println!("Quantum-Resistant Receipt Verified: {}", pqc_receipt.base.chain_hash);
+        tracing::info!("Quantum-Resistant Receipt Verified: {}", pqc_receipt.base.chain_hash);
     }
 
     #[test]

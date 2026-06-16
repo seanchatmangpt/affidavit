@@ -121,11 +121,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }));
     }
     
-    let base_hash = det_handles[0].await?;
+    let base_hash = det_handles.remove(0).await?;
     for (idx, h) in det_handles.into_iter().enumerate() {
         let h_val = h.await?;
         if h_val != base_hash {
-            println!("\x1b[1;31mDETERMINISM BREAK\x1b[0m at task {}: {} != {}", idx, h_val, base_hash);
+            println!("\x1b[1;31mDETERMINISM BREAK\x1b[0m at task {}: {} != {}", idx + 1, h_val, base_hash);
             std::process::exit(1);
         }
     }

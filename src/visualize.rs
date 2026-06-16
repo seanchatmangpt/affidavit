@@ -43,17 +43,21 @@ pub struct ReceiptGraph {
 ///
 /// This implements a Directly-Follows Graph (DFG) summary as required by
 /// ARDPRD and the Phase 1 inspection criteria.
+///
+/// This implementation is iterative and safe for massive receipts (10k+ events).
 pub fn build_graph(receipt: &Receipt) -> ReceiptGraph {
     let mut nodes: BTreeMap<String, GraphNode> = BTreeMap::new();
     let mut edges: BTreeMap<(String, String), GraphEdge> = BTreeMap::new();
 
     // 1. Build nodes from distinct event types
     for event in &receipt.events {
-        let node = nodes.entry(event.event_type.clone()).or_insert_with(|| GraphNode {
-            id: event.event_type.clone(),
-            label: event.event_type.clone(),
-            event_count: 0,
-        });
+        let node = nodes
+            .entry(event.event_type.clone())
+            .or_insert_with(|| GraphNode {
+                id: event.event_type.clone(),
+                label: event.event_type.clone(),
+                event_count: 0,
+            });
         node.event_count += 1;
     }
 
@@ -62,11 +66,13 @@ pub fn build_graph(receipt: &Receipt) -> ReceiptGraph {
         let from_type = receipt.events[i].event_type.clone();
         let to_type = receipt.events[i + 1].event_type.clone();
 
-        let edge = edges.entry((from_type.clone(), to_type.clone())).or_insert_with(|| GraphEdge {
-            from: from_type,
-            to: to_type,
-            weight: 0,
-        });
+        let edge = edges
+            .entry((from_type.clone(), to_type.clone()))
+            .or_insert_with(|| GraphEdge {
+                from: from_type,
+                to: to_type,
+                weight: 0,
+            });
         edge.weight += 1;
     }
 
@@ -76,17 +82,26 @@ pub fn build_graph(receipt: &Receipt) -> ReceiptGraph {
     }
 }
 
+/// Helper to escape DOT string literals.
+///
+/// Escapes `"` as `\"` and `\` as `\\` to ensure DOT validity.
+fn dot_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('\"', "\\\"")
+}
+
 /// Export the graph as DOT (Graphviz) format.
 ///
 /// The output follows the specific formatting rules defined in DOD_PHASE1_INSPECTION.md.
+/// Iterative implementation ensures no stack overflow on massive graphs.
 pub fn to_dot(graph: &ReceiptGraph) -> String {
-    let mut dot = String::from("digraph receipt {\n");
+    let mut dot = String::with_capacity(graph.nodes.len() * 100 + graph.edges.len() * 100);
+    dot.push_str("digraph receipt {\n");
     dot.push_str("  rankdir=LR;\n");
     dot.push_str("  node [fontname=\"Courier\"];\n");
 
     for node in &graph.nodes {
-        let escaped_id = node.id.replace('\"', "\\\"");
-        let escaped_label = node.label.replace('\"', "\\\"");
+        let escaped_id = dot_escape(&node.id);
+        let escaped_label = dot_escape(&node.label);
         dot.push_str(&format!(
             "  \"{}\" [label=\"{} ({})\"];\n",
             escaped_id, escaped_label, node.event_count
@@ -94,8 +109,8 @@ pub fn to_dot(graph: &ReceiptGraph) -> String {
     }
 
     for edge in &graph.edges {
-        let escaped_from = edge.from.replace('\"', "\\\"");
-        let escaped_to = edge.to.replace('\"', "\\\"");
+        let escaped_from = dot_escape(&edge.from);
+        let escaped_to = dot_escape(&edge.to);
         dot.push_str(&format!(
             "  \"{}\" -> \"{}\" [label=\"{}\"];\n",
             escaped_from, escaped_to, edge.weight

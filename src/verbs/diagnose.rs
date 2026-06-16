@@ -14,14 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Render verify outcomes as LSP-shaped diagnostics (lsp-max)
 #[verb("diagnose", "receipt")]
-pub fn diagnose(
-    #[arg(index = 1)]
-    receipt: String,
-) -> Result<()> {
-    crate::handlers::diagnose(
-        receipt,
-    )
+pub fn diagnose(#[arg(index = 1)] receipt: String) -> Result<()> {
+    crate::handlers::diagnose(receipt)
 }

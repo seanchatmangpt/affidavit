@@ -1,0 +1,54 @@
+/* benches/theme/criterion.css
+ * Custom CSS theme for affidavit Criterion reports.
+ * Matches affidavit visual identity: dark mode, BLAKE3-green accent.
+ */
+
+body {
+    background-color: #0d1117 !important;
+    color: #c9d1d9 !important;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: #00c853 !important;
+}
+
+a {
+    color: #58a6ff !important;
+}
+
+table {
+    background-color: #161b22 !important;
+    border-color: #30363d !important;
+}
+
+th, td {
+    border: 1px solid #30363d !important;
+}
+
+/* Regression and improvement colors */
+.regression {
+    color: #ff5252 !important;
+    font-weight: bold;
+}
+
+.improvement {
+    color: #00c853 !important;
+    font-weight: bold;
+}
+
+.warning {
+    color: #ffd740 !important;
+}
+
+/* Accents */
+.accent {
+    color: #00c853 !important;
+}
+
+.receipt-chain-metaphor {
+    border-left: 3px solid #00c853 !important;
+}
+
+/* Plot styling overrides would go here if we could easily target them */
+/* Since Criterion uses Chart.js or similar, we might need JS to theme plots fully */

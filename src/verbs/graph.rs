@@ -14,16 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Discover the directly-follows graph from a receipt (wasm4pm)
 #[verb("graph", "receipt")]
-pub fn graph(
-    format: Option<String>,
-    #[arg(index = 1)]
-    receipt: String,
-) -> Result<()> {
-    crate::handlers::graph(
-        format,
-        receipt,
-    )
+pub fn graph(format: Option<String>, #[arg(index = 1)] receipt: String) -> Result<()> {
+    crate::handlers::graph(format, receipt)
 }

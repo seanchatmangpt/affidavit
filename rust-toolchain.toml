@@ -3,3 +3,4 @@
 # which reads this file) and local `cargo fmt --all -- --check` always agree.
 # Update this date when intentionally upgrading the formatter.
 channel = "nightly-2026-06-15"
+components = ["rustfmt", "clippy"]

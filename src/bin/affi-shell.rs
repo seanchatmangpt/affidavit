@@ -8,15 +8,17 @@
 
 #[cfg(feature = "shell")]
 mod shell_impl {
+    use anyhow::{anyhow, Result};
     use rustyline::completion::{Completer, FilenameCompleter, Pair};
     use rustyline::error::ReadlineError;
     use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
     use rustyline::hint::{Hinter, HistoryHinter};
-    use rustyline::validate::{MatchingBracketValidator, ValidationContext, ValidationResult, Validator};
+    use rustyline::validate::{
+        MatchingBracketValidator, ValidationContext, ValidationResult, Validator,
+    };
     use rustyline::{CompletionType, Config, Context, EditMode, Editor, Helper};
-    use std::borrow::Cow;
-    use anyhow::{anyhow, Result};
     use shlex::split;
+    use std::borrow::Cow;
 
     use affidavit::handlers;
 
@@ -40,7 +42,7 @@ mod shell_impl {
         ) -> rustyline::Result<(usize, Vec<Pair>)> {
             // First, try filename completion
             let mut result = self.completer.complete(line, pos, ctx)?;
-            
+
             // Then, add verb completions if we're at the start of a word
             let word = &line[..pos];
             let last_space = word.rfind(' ').map(|i| i + 1).unwrap_or(0);
@@ -93,10 +95,7 @@ mod shell_impl {
     }
 
     impl Validator for AffiHelper {
-        fn validate(
-            &self,
-            ctx: &mut ValidationContext,
-        ) -> rustyline::Result<ValidationResult> {
+        fn validate(&self, ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
             let input = ctx.input();
             // Multi-line support: if line ends with '\', it's incomplete.
             if input.ends_with('\\') {
@@ -107,7 +106,7 @@ mod shell_impl {
         }
     }
 
-    pub fn run() -> Result<()> {
+    pub async fn run() -> Result<()> {
         let config = Config::builder()
             .history_ignore_space(true)
             .completion_type(CompletionType::List)
@@ -159,15 +158,15 @@ mod shell_impl {
                     if line.is_empty() {
                         continue;
                     }
-                    
+
                     // Handle multi-line continuation character
                     if line.ends_with('\\') {
                         line.pop();
                     }
 
                     rl.add_history_entry(&line)?;
-                    
-                    if let Err(e) = dispatch(&line) {
+
+                    if let Err(e) = dispatch(&line).await {
                         eprintln!("\x1b[1;31merror:\x1b[0m {e}");
                     }
                 }
@@ -190,7 +189,7 @@ mod shell_impl {
         Ok(())
     }
 
-    fn dispatch(line: &str) -> Result<()> {
+    async fn dispatch(line: &str) -> Result<()> {
         let args = split(line).ok_or_else(|| anyhow!("Invalid quoting in command"))?;
         if args.is_empty() {
             return Ok(());
@@ -232,13 +231,13 @@ mod shell_impl {
                         let mut payload = String::new();
                         let mut objects = Vec::new();
                         let mut r#type = String::new();
-                        
+
                         let mut i = 2;
                         while i < args.len() {
                             match args[i].as_str() {
                                 "--type" | "-t" => {
                                     if i + 1 < args.len() {
-                                        r#type = args[i+1].clone();
+                                        r#type = args[i + 1].clone();
                                         i += 2;
                                     } else {
                                         return Err(anyhow!("Missing value for --type"));
@@ -255,49 +254,104 @@ mod shell_impl {
                             }
                         }
                         if payload.is_empty() || r#type.is_empty() {
-                            return Err(anyhow!("Usage: receipt emit <payload> <object...> --type <type>"));
+                            return Err(anyhow!(
+                                "Usage: receipt emit <payload> <object...> --type <type>"
+                            ));
                         }
-                        handlers::emit(None, payload, objects, r#type).map_err(|e| anyhow!("{}", e))?;
+                        tokio::task::spawn_blocking(move || {
+                            handlers::emit(None, payload, objects, r#type)
+                        })
+                        .await?
+                        .map_err(|e| anyhow!("{}", e))?;
                     }
                     "assemble" => {
                         let out = args.get(2).cloned();
-                        handlers::assemble(None, out).map_err(|e| anyhow!("{}", e))?;
+                        tokio::task::spawn_blocking(move || handlers::assemble(None, out))
+                            .await?
+                            .map_err(|e| anyhow!("{}", e))?;
                     }
                     "verify" => {
-                        if args.len() < 3 { return Err(anyhow!("Usage: receipt verify <receipt>")); }
-                        handlers::verify(None, None, None, args[2].clone()).map_err(|e| anyhow!("{}", e))?;
+                        if args.len() < 3 {
+                            return Err(anyhow!("Usage: receipt verify <receipt>"));
+                        }
+                        let receipt = args[2].clone();
+                        tokio::task::spawn_blocking(move || {
+                            handlers::verify(None, None, None, receipt)
+                        })
+                        .await?
+                        .map_err(|e| anyhow!("{}", e))?;
                     }
                     "show" => {
-                        if args.len() < 3 { return Err(anyhow!("Usage: receipt show <receipt>")); }
-                        handlers::show(None, args[2].clone()).map_err(|e| anyhow!("{}", e))?;
+                        if args.len() < 3 {
+                            return Err(anyhow!("Usage: receipt show <receipt>"));
+                        }
+                        let receipt = args[2].clone();
+                        tokio::task::spawn_blocking(move || handlers::show(None, receipt))
+                            .await?
+                            .map_err(|e| anyhow!("{}", e))?;
                     }
                     "inspect" => {
-                        if args.len() < 3 { return Err(anyhow!("Usage: receipt inspect <receipt>")); }
-                        handlers::inspect(None, args[2].clone()).map_err(|e| anyhow!("{}", e))?;
+                        if args.len() < 3 {
+                            return Err(anyhow!("Usage: receipt inspect <receipt>"));
+                        }
+                        let receipt = args[2].clone();
+                        tokio::task::spawn_blocking(move || handlers::inspect(None, receipt))
+                            .await?
+                            .map_err(|e| anyhow!("{}", e))?;
                     }
                     "stats" => {
-                        if args.len() < 3 { return Err(anyhow!("Usage: receipt stats <receipt>")); }
-                        handlers::stats(None, args[2].clone()).map_err(|e| anyhow!("{}", e))?;
+                        if args.len() < 3 {
+                            return Err(anyhow!("Usage: receipt stats <receipt>"));
+                        }
+                        let receipt = args[2].clone();
+                        tokio::task::spawn_blocking(move || handlers::stats(None, receipt))
+                            .await?
+                            .map_err(|e| anyhow!("{}", e))?;
                     }
                     "graph" => {
-                        if args.len() < 3 { return Err(anyhow!("Usage: receipt graph <receipt>")); }
-                        handlers::graph(None, args[2].clone()).map_err(|e| anyhow!("{}", e))?;
+                        if args.len() < 3 {
+                            return Err(anyhow!("Usage: receipt graph <receipt>"));
+                        }
+                        let receipt = args[2].clone();
+                        tokio::task::spawn_blocking(move || handlers::graph(None, receipt))
+                            .await?
+                            .map_err(|e| anyhow!("{}", e))?;
                     }
                     "replay" => {
-                        if args.len() < 3 { return Err(anyhow!("Usage: receipt replay <receipt>")); }
-                        handlers::replay(args[2].clone()).map_err(|e| anyhow!("{}", e))?;
+                        if args.len() < 3 {
+                            return Err(anyhow!("Usage: receipt replay <receipt>"));
+                        }
+                        let receipt = args[2].clone();
+                        tokio::task::spawn_blocking(move || handlers::replay(receipt))
+                            .await?
+                            .map_err(|e| anyhow!("{}", e))?;
                     }
                     "model" => {
-                        if args.len() < 3 { return Err(anyhow!("Usage: receipt model <receipt>")); }
-                        handlers::model(args[2].clone()).map_err(|e| anyhow!("{}", e))?;
+                        if args.len() < 3 {
+                            return Err(anyhow!("Usage: receipt model <receipt>"));
+                        }
+                        let receipt = args[2].clone();
+                        tokio::task::spawn_blocking(move || handlers::model(receipt))
+                            .await?
+                            .map_err(|e| anyhow!("{}", e))?;
                     }
                     "conformance" => {
-                        if args.len() < 3 { return Err(anyhow!("Usage: receipt conformance <receipt>")); }
-                        handlers::conformance(args[2].clone()).map_err(|e| anyhow!("{}", e))?;
+                        if args.len() < 3 {
+                            return Err(anyhow!("Usage: receipt conformance <receipt>"));
+                        }
+                        let receipt = args[2].clone();
+                        tokio::task::spawn_blocking(move || handlers::conformance(receipt))
+                            .await?
+                            .map_err(|e| anyhow!("{}", e))?;
                     }
                     "diagnose" => {
-                        if args.len() < 3 { return Err(anyhow!("Usage: receipt diagnose <receipt>")); }
-                        handlers::diagnose(args[2].clone()).map_err(|e| anyhow!("{}", e))?;
+                        if args.len() < 3 {
+                            return Err(anyhow!("Usage: receipt diagnose <receipt>"));
+                        }
+                        let receipt = args[2].clone();
+                        tokio::task::spawn_blocking(move || handlers::diagnose(receipt))
+                            .await?
+                            .map_err(|e| anyhow!("{}", e))?;
                     }
                     _ => return Err(anyhow!("Unknown receipt subcommand: {}", args[1])),
                 }
@@ -309,8 +363,9 @@ mod shell_impl {
 }
 
 #[cfg(feature = "shell")]
-fn main() -> anyhow::Result<()> {
-    shell_impl::run()
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    shell_impl::run().await
 }
 
 #[cfg(not(feature = "shell"))]

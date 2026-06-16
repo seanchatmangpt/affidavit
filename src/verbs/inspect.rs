@@ -14,16 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Detailed structural analysis of a receipt (event/object distribution)
 #[verb("inspect", "receipt")]
-pub fn inspect(
-    format: Option<String>,
-    #[arg(index = 1)]
-    receipt: String,
-) -> Result<()> {
-    crate::handlers::inspect(
-        format,
-        receipt,
-    )
+pub fn inspect(format: Option<String>, #[arg(index = 1)] receipt: String) -> Result<()> {
+    crate::handlers::inspect(format, receipt)
 }

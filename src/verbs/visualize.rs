@@ -14,16 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Visualize receipt as graph (DOT or JSON)
 #[verb("visualize", "receipt")]
-pub fn visualize(
-    #[arg(index = 1)]
-    receipt: String,
-    format: String,
-) -> Result<()> {
-    crate::handlers::visualize(
-        receipt,
-        format,
-    )
+pub fn visualize(#[arg(index = 1)] receipt: String, format: String) -> Result<()> {
+    crate::handlers::visualize(receipt, format)
 }

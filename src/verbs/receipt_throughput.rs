@@ -14,13 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Measure end-to-end latency of the emit -> assemble -> verify pipeline
 #[verb("receipt-throughput", "bench")]
-pub fn receipt_throughput(
-    iterations: Option<u32>,
-) -> Result<()> {
-    crate::handlers::receipt_throughput(
-        iterations,
-    )
+pub fn receipt_throughput(iterations: Option<u32>) -> Result<()> {
+    crate::handlers::receipt_throughput(iterations)
 }

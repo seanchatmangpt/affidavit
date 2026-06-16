@@ -14,15 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Measure control-flow surprise (anomaly score) and its computation cost
 #[verb("variance", "bench")]
-pub fn variance(
-    iterations: Option<u32>,
-    receipt: Option<String>,
-) -> Result<()> {
-    crate::handlers::variance(
-        iterations,
-        receipt,
-    )
+pub fn variance(iterations: Option<u32>, receipt: Option<String>) -> Result<()> {
+    crate::handlers::variance(iterations, receipt)
 }

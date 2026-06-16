@@ -21,7 +21,7 @@ fn e2e_catalog_lists_available_fixtures() {
         .success()
         // AC-1: Header in stderr
         .stderr(predicate::str::contains("RECEIPT FIXTURE CATALOG"))
-        // AC-2: Column headers in stdout (or stderr, depending on final handler choice; 
+        // AC-2: Column headers in stdout (or stderr, depending on final handler choice;
         // DoD says "output includes a Name, Events, and Description column")
         .stdout(predicate::str::contains("Name"))
         .stdout(predicate::str::contains("Events"))
@@ -57,10 +57,15 @@ fn e2e_catalog_filter_by_events() {
 #[test]
 fn e2e_catalog_filter_no_match_exits_zero() {
     let mut cmd = Command::cargo_bin("affi").expect("affi binary builds");
-    cmd.args(["receipt", "catalog", "--filter-name", "nonexistent_fixture_xyz_123"])
-        .assert()
-        .success()
-        .stderr(predicate::str::contains("No fixtures match"));
+    cmd.args([
+        "receipt",
+        "catalog",
+        "--filter-name",
+        "nonexistent_fixture_xyz_123",
+    ])
+    .assert()
+    .success()
+    .stderr(predicate::str::contains("No fixtures match"));
 }
 
 /// Proves that help text correctly identifies the filter flags.
@@ -80,10 +85,12 @@ fn e2e_catalog_help_mentions_filter_flags() {
 #[test]
 fn e2e_catalog_path_is_inspectable() {
     let mut cmd = Command::cargo_bin("affi").expect("affi binary builds");
-    
+
     // 1. Get the catalog output
-    let assert = cmd.args(["receipt", "catalog", "--filter-name", "linear-5"]).assert();
-    
+    let assert = cmd
+        .args(["receipt", "catalog", "--filter-name", "linear-5"])
+        .assert();
+
     // If the feature is implemented and fixture exists, we would parse the path and run inspect.
     // For now, we assert the requirement: the output should contain a path-like string if successful.
     if assert.get_output().status.success() {
@@ -120,7 +127,8 @@ mod unit_tests {
         fixtures
             .into_iter()
             .filter(|f| {
-                let name_match = name.map_or(true, |n| f.name.to_lowercase().contains(&n.to_lowercase()));
+                let name_match =
+                    name.map_or(true, |n| f.name.to_lowercase().contains(&n.to_lowercase()));
                 let events_match = events.map_or(true, |e| f.event_count == e);
                 name_match && events_match
             })
@@ -130,10 +138,20 @@ mod unit_tests {
     #[test]
     fn test_filter_fixtures_by_name_case_insensitive() {
         let fixtures = vec![
-            FixtureMeta { name: "Linear-5".into(), event_count: 5, description: "desc".into(), path: None },
-            FixtureMeta { name: "Branching-3".into(), event_count: 3, description: "desc".into(), path: None },
+            FixtureMeta {
+                name: "Linear-5".into(),
+                event_count: 5,
+                description: "desc".into(),
+                path: None,
+            },
+            FixtureMeta {
+                name: "Branching-3".into(),
+                event_count: 3,
+                description: "desc".into(),
+                path: None,
+            },
         ];
-        
+
         let filtered = filter_fixtures(fixtures, Some("linear"), None);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].name, "Linear-5");
@@ -142,11 +160,26 @@ mod unit_tests {
     #[test]
     fn test_filter_fixtures_by_events_exact() {
         let fixtures = vec![
-            FixtureMeta { name: "fixture-1".into(), event_count: 1, description: "desc".into(), path: None },
-            FixtureMeta { name: "fixture-2".into(), event_count: 2, description: "desc".into(), path: None },
-            FixtureMeta { name: "fixture-3".into(), event_count: 3, description: "desc".into(), path: None },
+            FixtureMeta {
+                name: "fixture-1".into(),
+                event_count: 1,
+                description: "desc".into(),
+                path: None,
+            },
+            FixtureMeta {
+                name: "fixture-2".into(),
+                event_count: 2,
+                description: "desc".into(),
+                path: None,
+            },
+            FixtureMeta {
+                name: "fixture-3".into(),
+                event_count: 3,
+                description: "desc".into(),
+                path: None,
+            },
         ];
-        
+
         let filtered = filter_fixtures(fixtures, None, Some(2));
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].event_count, 2);
@@ -154,10 +187,13 @@ mod unit_tests {
 
     #[test]
     fn test_filter_fixtures_no_results() {
-        let fixtures = vec![
-            FixtureMeta { name: "a".into(), event_count: 1, description: "d".into(), path: None },
-        ];
-        
+        let fixtures = vec![FixtureMeta {
+            name: "a".into(),
+            event_count: 1,
+            description: "d".into(),
+            path: None,
+        }];
+
         let filtered = filter_fixtures(fixtures, Some("nonexistent"), Some(5));
         assert!(filtered.is_empty());
     }
@@ -165,10 +201,20 @@ mod unit_tests {
     #[test]
     fn test_filter_fixtures_all_none_returns_all() {
         let fixtures = vec![
-            FixtureMeta { name: "a".into(), event_count: 1, description: "d".into(), path: None },
-            FixtureMeta { name: "b".into(), event_count: 2, description: "d".into(), path: None },
+            FixtureMeta {
+                name: "a".into(),
+                event_count: 1,
+                description: "d".into(),
+                path: None,
+            },
+            FixtureMeta {
+                name: "b".into(),
+                event_count: 2,
+                description: "d".into(),
+                path: None,
+            },
         ];
-        
+
         let filtered = filter_fixtures(fixtures.clone(), None, None);
         assert_eq!(filtered.len(), 2);
     }

@@ -24,7 +24,6 @@
 //! the dynamic receipt evidence.
 
 use anyhow::{Context, Result};
-use quote::quote;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -32,11 +31,12 @@ use std::process::Command;
 use syn::{
     parse_file,
     visit::{self, Visit},
-    Expr, ExprCall, ExprMethodCall, ItemFn, Lit,
+    ExprMethodCall, Lit,
     spanned::Spanned,
 };
+use tracing::{info, warn};
 
-use crate::types::{OperationEvent, Receipt, Verdict};
+use crate::types::{Receipt};
 use crate::verifier::verify;
 
 /// The core remediator that maps receipt failures back to source code.
@@ -46,6 +46,7 @@ pub struct AutoRemediator {
 }
 
 impl AutoRemediator {
+    /// Create a new remediator for a given receipt and source directory.
     pub fn new(receipt_path: impl AsRef<Path>, source_dir: impl AsRef<Path>) -> Self {
         Self {
             receipt_path: receipt_path.as_ref().to_path_buf(),
@@ -65,7 +66,7 @@ impl AutoRemediator {
             return Ok("Receipt is valid. No remediation needed.".to_string());
         }
 
-        eprintln!("Diagnosed failure: {}", verdict.reason);
+        info!("Diagnosed failure: {}", verdict.reason);
 
         let rs_files = self.find_rs_files()?;
         for file in rs_files {
@@ -77,7 +78,7 @@ impl AutoRemediator {
             let ast = match parse_file(&content) {
                 Ok(ast) => ast,
                 Err(e) => {
-                    eprintln!("Warning: could not parse {:?}: {}", file, e);
+                    warn!("Warning: could not parse {:?}: {}", file, e);
                     continue;
                 }
             };
@@ -221,7 +222,7 @@ struct AppendInfo {
 }
 
 struct ProvenanceVisitor<'a> {
-    content: &'a str,
+    _content: &'a str,
     builds: HashMap<String, BuildInfo>,
     appends: Vec<AppendInfo>,
 }
@@ -229,19 +230,10 @@ struct ProvenanceVisitor<'a> {
 impl<'a> ProvenanceVisitor<'a> {
     fn new(content: &'a str) -> Self {
         Self {
-            content,
+            _content: content,
             builds: HashMap::new(),
             appends: Vec::new(),
         }
-    }
-
-    fn get_line(&self, span: proc_macro2::Span) -> usize {
-        // syn doesn't provide line numbers easily without proc-macro2 and extra features.
-        // We use a simple byte offset to line mapping as a fallback.
-        let offset = span.start().column; // This is NOT byte offset, syn is tricky.
-        // In a real impl, we'd use proc_macro2::LineColumn.
-        // Here we'll just use 0 and rely on our insert logic if we can't get it.
-        0 
     }
 }
 
@@ -251,23 +243,23 @@ impl<'ast, 'a> Visit<'ast> for ProvenanceVisitor<'a> {
             if let Some(ref init) = local.init {
                 // Handle both simple calls and those with ? or .expect()
                 let expr = match &*init.expr {
-                    Expr::Call(c) => Some(c),
-                    Expr::Try(t) => {
-                        if let Expr::Call(c) = &*t.expr { Some(c) } else { None }
+                    syn::Expr::Call(c) => Some(c),
+                    syn::Expr::Try(t) => {
+                        if let syn::Expr::Call(c) = &*t.expr { Some(c) } else { None }
                     }
-                    Expr::MethodCall(m) => {
+                    syn::Expr::MethodCall(m) => {
                          // Could be build_event(...).expect(...)
                          if m.method == "expect" || m.method == "unwrap" {
-                             if let Expr::Call(c) = &*m.receiver { Some(c) } else { None }
+                             if let syn::Expr::Call(c) = &*m.receiver { Some(c) } else { None }
                          } else { None }
                     }
                     _ => None,
                 };
 
                 if let Some(call) = expr {
-                    if let Expr::Path(ref p) = *call.func {
+                    if let syn::Expr::Path(ref p) = *call.func {
                         if p.path.segments.last().map(|s| s.ident == "build_event").unwrap_or(false) {
-                            if let Some(Expr::Lit(syn::ExprLit { lit: Lit::Str(ref s), .. })) = call.args.first() {
+                            if let Some(syn::Expr::Lit(syn::ExprLit { lit: Lit::Str(ref s), .. })) = call.args.first() {
                                 if let syn::Pat::Ident(ref id) = local.pat {
                                     self.builds.insert(id.ident.to_string(), BuildInfo {
                                         line: call.span().start().line,
@@ -287,7 +279,7 @@ impl<'ast, 'a> Visit<'ast> for ProvenanceVisitor<'a> {
         if i.method == "append" {
             let mut event_var = None;
             if let Some(arg) = i.args.first() {
-                if let Expr::Path(ref p) = arg {
+                if let syn::Expr::Path(ref p) = arg {
                     event_var = p.path.get_ident().map(|id| id.to_string());
                 }
             }
@@ -300,7 +292,6 @@ impl<'ast, 'a> Visit<'ast> for ProvenanceVisitor<'a> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -312,28 +303,11 @@ mod tests {
             asm.append(e0)?;
         "#;
         let ast = parse_file(code).unwrap();
-        let mut v = ProvenanceVisitor::new();
+        let mut v = ProvenanceVisitor::new(code);
         v.visit_file(&ast);
         assert!(v.builds.contains_key("e0"));
         assert_eq!(v.builds["e0"].event_type, "seeded");
         assert_eq!(v.appends.len(), 1);
         assert_eq!(v.appends[0].event_var.as_deref(), Some("e0"));
     }
-}
-
-fn main() -> Result<()> {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
-        println!("AI-Driven Auto-Remediation CLI");
-        println!("Usage: affi-remediate <receipt.json>");
-        return Ok(());
-    }
-
-    let remediator = AutoRemediator::new(&args[1], ".");
-    match remediator.remediate() {
-        Ok(patch) => println!("{}", patch),
-        Err(e) => eprintln!("Error: {}", e),
-    }
-
-    Ok(())
 }

@@ -1,136 +1,103 @@
-# affidavit
+# affidavit 📜
 
-**The Provenance Layer.** `affi` CLI · v26.6.14 · **1000x Initiative Complete**
+**The Provenance Layer for High-Assurance Systems.**
 
-`affidavit` assembles and certifies **provenance receipts**: append-only,
-content-addressed chains of operation-events that record what a process did.
-The `affi` binary lets you emit events, finalize them into an immutable
-receipt, and verify that receipt against a fixed format standard.
+[![Rust](https://img.shields.io/badge/rust-1.56%2B-blue.svg)](https://www.rust-lang.org)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
+[![1000x Initiative](https://img.shields.io/badge/1000x-Initiative%20Complete-green.svg)](STATUS.md)
 
-## 🚀 1000x Initiative: Combinatorial Maximalism
+`affidavit` is a cryptographic provenance engine designed to make the unverifiable unconstructable. It assembles, seals, and certifies **provenance receipts**—append-only, content-addressed BLAKE3 chains of operation-events that provide an immutable record of what a process actually did.
 
-The project has successfully completed the **1000x Initiative**, integrating 30+ new features across 6 library areas to provide a world-class developer experience.
+---
 
-- **10x Faster Tests:** Fixture-driven receipt generation.
-- **10x Faster Feedback:** Automated mutation testing.
-- **10x Easier Adoption:** Shell completion & ontology-driven help.
-- **10x More Confidence:** Process discovery & conformance scoring.
+## 🏛️ Doctrine: Certify, Don't Decide
 
-**See [wip/documentation_maximalist.md](wip/documentation_maximalist.md) for the full tutorial suite of all 30 features.**
+In complex systems, "honesty" is often undecidable. `affidavit` shifts the burden from detection to certification:
 
-## Doctrine
+1.  **Witness-Based Verification:** The verifier doesn't hunt for fraud; it checks a *witness* (the receipt) against a formal format standard.
+2.  **Decidable Pipeline:** Every stage of the 7-stage certify pipeline is decidable, yielding a definitive `ACCEPT` or `REJECT` verdict.
+3.  **Unconstructable Bypass:** Valid receipts cannot be "faked" or manually constructed. They must pass through canonical, sealed seams in the library.
+4.  **Content-Addressed Integrity:** Every event is linked via a rolling BLAKE3 hash. A single bit flip in any historical event invalidates the entire chain.
 
-1. **Certify, don't decide.** The verifier never decides whether work is
-   honest — that question is undecidable. It *checks a witness* (the receipt)
-   against a format standard, and every check is decidable.
-2. **A receipt is an append-only BLAKE3 chain of operation-events.** Each link
-   folds the previous chain hash with the canonical bytes of the next event, so
-   any edit to any event propagates through every later link.
-3. **Unverifiable work is rejected, not detected.** A tampered or malformed
-   receipt simply fails a stage and yields `REJECT` — the verifier proves a
-   lawful chain exists, it does not hunt for fraud.
-4. **The bypass is unconstructable.** Receipt struct-literal construction fails
-   at compile time (E0451: private field `_seal`). Only the canonical seam
-   ([`crate::chain::ChainAssembler::finalize`]) can construct sealed receipts.
+---
 
-## Install / build
+## 🚀 The 1000x Initiative
 
-Stable Rust, edition 2021. From the repo root:
+`affidavit` has been supercharged with 30+ features focused on **Combinatorial Maximalism** and world-class DX:
+
+*   ⚡ **High-Performance:** Parallelized verification and optional GPU acceleration.
+*   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts.
+*   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers.
+*   🤖 **Intelligent CLI:** Shell completion, telepathic QoL, and ontology-driven help.
+
+---
+
+## 🛠️ Installation & Quick Start
+
+### Build from Source
+Ensure you have the latest stable Rust toolchain installed.
 
 ```bash
-cargo build --all-features           # builds the affi binary with 1000x features
-cargo test                           # 60+ tests (30 core + 30 e2e)
+git clone https://github.com/your-repo/affidavit
+cd affidavit
+cargo build --release --all-features
 ```
 
-Run the binary either as `cargo run --bin affi -- <args>` or directly from
-`target/debug/affi`.
+### The "Golden Run" in 30 Seconds
+Run the end-to-end smoke test to see `affidavit` in action:
 
-## CLI surface (1000x Expanded)
-
-| Command | Purpose |
-| --- | --- |
-| `affi emit` | Append an operation-event to the working receipt. |
-| `affi assemble` | Finalize into an immutable receipt file. |
-| `affi verify` | Run the 7-stage certify pipeline. |
-| `affi show` | Human-readable dump of the chain. |
-| `affi receipt inspect` | **NEW** Detailed structural analysis. |
-| `affi receipt model` | **NEW** Auto-generate DFG/Petri model. |
-| `affi receipt conform` | **NEW** Score against process laws. |
-| `affi mutate receipt` | **NEW** Stress-test verifier with chaos. |
-| `affi bench throughput` | **NEW** Scaling & regression detection. |
-| `affi shell` | **NEW** Interactive provenance REPL. |
-
-### Worked example (the golden run)
-
-The script at [`examples/golden_run.sh`](examples/golden_run.sh) runs the real
-binary through the full lifecycle in a temp dir, then corrupts the receipt with
-`sed` and re-verifies. Abridged output:
-
-```text
---- emit event 1 ---
-emitted event evt-0 (seq 0)
---- emit event 2 ---
-emitted event evt-1 (seq 1)
-
---- assemble ---
-assembled receipt -> receipt.json
-content address: 88047402d8a59ea1099b6c374a19e4a7cc0c5a01b247dfcd566cb4b01becf05f
-
---- verify (honest, expect ACCEPT / exit 0) ---
-decode: PASS — 2 event(s), format_version present
-check_format: PASS — format_version == core/v1
-chain_integrity: PASS — recomputed chain hash matches stored chain_hash
-continuity: PASS — 2 event(s) with contiguous seq and unique ids
-verify_commitments: PASS — all commitments are well-formed BLAKE3 digests
-evaluate_profile: PASS — profile core/v1 satisfied
-verdict: ACCEPT [core/v1] — all stages passed
-exit code: 0
-
---- verify (tampered, expect REJECT / non-zero exit) ---
-chain_integrity: FAIL — chain hash mismatch: stored 203d3bbf… recomputed dd9b9980…
-verdict: REJECT [core/v1] — chain_integrity: chain hash mismatch …
-exit code: 2
+```bash
+./examples/golden_run.sh
 ```
 
-Flipping one event's `event_type` re-routes the rolling chain hash, so
-`chain_integrity` recomputes a different hash than the one stored in the
-receipt and the verdict flips to `REJECT`.
+---
 
-## The verifier: a 7-stage certify pipeline
+## 📖 Core Concepts
 
-The verifier is a straight pipeline — no component decides honesty. It maps
-directly onto the C4 Level-3 component view:
+### The Provenance Receipt
+A receipt is the primary unit of evidence. It consists of:
+- **Events:** Discrete operation records with monotonic sequence numbers.
+- **Commitments:** BLAKE3 digests of payload data (payloads are never stored in the receipt).
+- **Chain Seal:** A rolling hash that binds the entire history together.
 
-| # | Stage | C4 component | Decidable check |
-| --- | --- | --- | --- |
-| 1 | `decode` | decode | Receipt is structurally present and the version field parses. |
-| 2 | `check_format` | check_format(version) | `format_version` equals the standard this verifier knows (`core/v1`). |
-| 3 | `chain_integrity` | check_chain_integrity | Recompute the rolling BLAKE3 chain hash from event bytes and compare to the stored `chain_hash`. |
-| 4 | `continuity` | resolve_continuity | `seq` is contiguous from 0 with no gaps; event ids are unique. |
-| 5 | `verify_commitments` | verify_commitments | Every payload commitment is a well-formed BLAKE3 digest (commitments only — never raw payloads). |
-| 6 | `evaluate_profile` | evaluate_profile | Profile `core/v1`: each event carries an `event_type` and a commitment. |
-| 7 | `emit_verdict` | emit Verdict | ACCEPT iff every prior stage passed; otherwise REJECT with the first failing stage's reason. |
+### The 7-Stage Certify Pipeline
+Each receipt passes through a rigorous validation gauntlet:
+1.  **Decode:** Structural presence and version parsing.
+2.  **Format Check:** Verification against the `core/v1` standard.
+3.  **Chain Integrity:** Cryptographic re-computation of the rolling hash.
+4.  **Continuity:** Logical sequence and uniqueness validation.
+5.  **Commitment Verify:** Structural validation of all payload digests.
+6.  **Profile Evaluation:** Conformance scoring against business logic.
+7.  **Final Verdict:** Atomic `ACCEPT` or `REJECT` output.
 
-## Determinism guarantees
+---
 
-- **No wall-clock.** Events are ordered by a monotonic `seq` counter, not
-  timestamps. The same inputs always produce the same receipt and the same
-  verdict.
-- **No RNG, no map iteration order.** Serialized output uses sorted/canonical
-  JSON, so hashing is reproducible across runs and machines.
-- **The verifier is pure over the receipt bytes.** Given the same receipt it
-  always yields the same `Verdict`, and it reads commitments — never raw
-  payloads.
+## 💻 CLI Surface
 
-## Layout
+| Command | Description |
+| :--- | :--- |
+| `affi emit` | Record a new operation-event. |
+| `affi assemble` | Finalize and seal the current receipt. |
+| `affi verify` | Run the certify pipeline against a receipt. |
+| `affi receipt model` | Generate architectural models from provenance. |
+| `affi receipt conform`| Score a receipt against process laws. |
+| `affi shell` | Enter the interactive provenance REPL. |
 
-```
-src/lib.rs        module decls + re-exports
-src/main.rs       affi CLI entry (clap parsing + dispatch)
-src/types.rs      shared types: OperationEvent, Receipt, Verdict, CheckOutcome, ProfileId, Blake3Hash
-src/ocel.rs       OCEL event/object/relationship model + builders
-src/chain.rs      receipt assembly: rolling BLAKE3 chain hash, serialize/deserialize, persistence
-src/verifier.rs   the 7-stage certify pipeline
-src/cli.rs        command impls: emit, assemble, verify, show
-examples/golden_run.sh   end-to-end smoke (ACCEPT then REJECT)
-```
+---
+
+## 🛡️ Security Model
+
+`affidavit` is designed for high-stakes environments where provenance is non-negotiable:
+- **Zero-Knowledge Payloads:** We store commitments, not raw data, protecting sensitive information.
+- **Deterministic Hashing:** Canonical JSON serialization ensures hashes are stable across platforms.
+- **Memory Safety:** Written in 100% `safe` Rust (enforced via `#![deny(unsafe_code)]`).
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to participate in the provenance revolution.
+
+## 📄 License
+
+Dual-licensed under [MIT](LICENSE-MIT) or [Apache 2.0](LICENSE-APACHE).

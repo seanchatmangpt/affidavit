@@ -92,7 +92,7 @@ impl FixtureDatabase {
     /// Insert a receipt as a named fixture.
     pub fn insert(&mut self, name: &str, tags: &[&str], receipt: Receipt) -> Result<Fixture> {
         let chain_hash = receipt.chain_hash.as_hex().to_string();
-        
+
         // Dedup guard by chain_hash
         if self.index_by_chain_hash.contains_key(&chain_hash) {
             anyhow::bail!("fixture with chain_hash {} already exists", chain_hash);
@@ -104,7 +104,9 @@ impl FixtureDatabase {
         }
 
         let event_count = receipt.events.len();
-        let mut event_types: Vec<String> = receipt.events.iter()
+        let mut event_types: Vec<String> = receipt
+            .events
+            .iter()
             .map(|e| e.event_type.clone())
             .collect::<HashSet<_>>()
             .into_iter()
@@ -112,7 +114,7 @@ impl FixtureDatabase {
         event_types.sort();
 
         let inserted_at = iso8601_now();
-        
+
         // Generate a stable ID using blake3
         let id_input = format!("{}:{}:{}", name, chain_hash, inserted_at);
         let id = blake3::hash(id_input.as_bytes()).to_hex().to_string();
@@ -134,7 +136,10 @@ impl FixtureDatabase {
         // Update indexes
         self.index_by_name.insert(name.to_string(), index);
         self.index_by_chain_hash.insert(chain_hash, index);
-        self.index_by_event_count.entry(event_count).or_default().push(index);
+        self.index_by_event_count
+            .entry(event_count)
+            .or_default()
+            .push(index);
 
         Ok(fixture)
     }
@@ -147,7 +152,7 @@ impl FixtureDatabase {
         if query.min_events.is_some() || query.max_events.is_some() {
             let min = query.min_events.unwrap_or(0);
             let max = query.max_events.unwrap_or(usize::MAX);
-            
+
             let mut count_matches = HashSet::new();
             for (_count, idxs) in self.index_by_event_count.range(min..=max) {
                 for &idx in idxs {
@@ -164,13 +169,13 @@ impl FixtureDatabase {
         let mut filtered = Vec::new();
         for idx in results {
             let f = &self.db.fixtures[idx];
-            
+
             if let Some(ref name_sub) = query.name_contains {
                 if !f.name.to_lowercase().contains(&name_sub.to_lowercase()) {
                     continue;
                 }
             }
-            
+
             if let Some(ref tag) = query.tag {
                 if !f.tags.contains(tag) {
                     continue;
@@ -196,12 +201,16 @@ impl FixtureDatabase {
 
     /// Retrieve a fixture by exact name.
     pub fn get_by_name(&self, name: &str) -> Option<Fixture> {
-        self.index_by_name.get(name).map(|&idx| self.db.fixtures[idx].clone())
+        self.index_by_name
+            .get(name)
+            .map(|&idx| self.db.fixtures[idx].clone())
     }
 
     /// Retrieve a fixture by chain_hash hex string.
     pub fn get_by_chain_hash(&self, chain_hash: &str) -> Option<Fixture> {
-        self.index_by_chain_hash.get(chain_hash).map(|&idx| self.db.fixtures[idx].clone())
+        self.index_by_chain_hash
+            .get(chain_hash)
+            .map(|&idx| self.db.fixtures[idx].clone())
     }
 
     /// Return all fixtures, in insertion order.
@@ -245,7 +254,10 @@ impl FixtureDatabase {
         for (idx, f) in self.db.fixtures.iter().enumerate() {
             self.index_by_name.insert(f.name.clone(), idx);
             self.index_by_chain_hash.insert(f.chain_hash.clone(), idx);
-            self.index_by_event_count.entry(f.event_count).or_default().push(idx);
+            self.index_by_event_count
+                .entry(f.event_count)
+                .or_default()
+                .push(idx);
         }
         Ok(())
     }
@@ -258,7 +270,7 @@ fn iso8601_now() -> String {
         .unwrap_or_default();
     let secs = now.as_secs();
     // Crude ISO 8601-ish for standalone demo without chrono
-    format!("{}-01-01T00:00:00Z", 1970 + (secs / 31536000)) 
+    format!("{}-01-01T00:00:00Z", 1970 + (secs / 31536000))
 }
 
 /// Perform an atomic write by writing to a temporary file and renaming it.
@@ -287,7 +299,8 @@ mod tests {
                 vec![object_ref(format!("obj-{}", i), "artifact")],
                 format!("payload-{}", i).as_bytes(),
                 &mut counter,
-            ).unwrap();
+            )
+            .unwrap();
             asm.append(event).unwrap();
         }
         asm.finalize()
@@ -307,7 +320,7 @@ mod tests {
 
         assert_eq!(db.len(), 2);
         assert_eq!(db.get_by_name("fix-1").unwrap().receipt, r1);
-        
+
         let search_res = db.search(&FixtureQuery {
             min_events: Some(4),
             ..Default::default()
@@ -316,7 +329,7 @@ mod tests {
         assert_eq!(search_res[0].name, "fix-2");
 
         db.save().unwrap();
-        
+
         // Re-open
         let db2 = FixtureDatabase::open(&db_path).unwrap();
         assert_eq!(db2.len(), 2);

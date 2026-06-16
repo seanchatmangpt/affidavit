@@ -5,7 +5,7 @@
 
 use affidavit::chain::ChainAssembler;
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
-use affidavit::types::{Receipt, OperationEvent};
+use affidavit::types::{OperationEvent, Receipt};
 use assert_cmd::Command;
 use predicates::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -46,11 +46,13 @@ impl ReceiptGraph {
 
         // AC-8: Unique node for each event type
         for event in &receipt.events {
-            nodes_map.entry(event.event_type.clone()).or_insert(GraphNode {
-                id: event.event_type.clone(),
-                label: event.event_type.clone(),
-                node_type: "activity".to_string(),
-            });
+            nodes_map
+                .entry(event.event_type.clone())
+                .or_insert(GraphNode {
+                    id: event.event_type.clone(),
+                    label: event.event_type.clone(),
+                    node_type: "activity".to_string(),
+                });
         }
 
         // AC-3, AC-8: Edges between consecutive event types
@@ -105,10 +107,7 @@ fn create_receipt(events: &[(&str, &[(&str, &str)])]) -> Receipt {
     let mut counter = SeqCounter::new();
 
     for (ty, objects) in events {
-        let obj_refs = objects
-            .iter()
-            .map(|(id, ot)| object_ref(id, ot))
-            .collect();
+        let obj_refs = objects.iter().map(|(id, ot)| object_ref(id, ot)).collect();
         let ev = build_event(ty, obj_refs, ty.as_bytes(), &mut counter).expect("build event");
         asm.append(ev).expect("append");
     }
@@ -190,16 +189,29 @@ mod unit_tests {
         ]);
 
         let graph = ReceiptGraph::from_receipt_dfg(&receipt);
-        
+
         // AC-8: build node appears once in nodes
         let build_nodes: Vec<_> = graph.nodes.iter().filter(|n| n.id == "build").collect();
-        assert_eq!(build_nodes.len(), 1, "build node should appear exactly once");
+        assert_eq!(
+            build_nodes.len(),
+            1,
+            "build node should appear exactly once"
+        );
 
         // AC-8: edge build->build appears
-        let build_loop = graph.edges.iter().find(|e| e.source == "build" && e.target == "build");
-        assert!(build_loop.is_some(), "should contain a build->build self-loop edge");
+        let build_loop = graph
+            .edges
+            .iter()
+            .find(|e| e.source == "build" && e.target == "build");
+        assert!(
+            build_loop.is_some(),
+            "should contain a build->build self-loop edge"
+        );
 
-        let build_test = graph.edges.iter().find(|e| e.source == "build" && e.target == "test");
+        let build_test = graph
+            .edges
+            .iter()
+            .find(|e| e.source == "build" && e.target == "test");
         assert!(build_test.is_some(), "should contain a build->test edge");
     }
 
@@ -209,7 +221,7 @@ mod unit_tests {
         let receipt = create_receipt(&[("init", &[("f1", "file")])]);
 
         let graph = ReceiptGraph::from_receipt_dfg(&receipt);
-        
+
         // AC-9: nodes has 1 entry, edges has 0 entries
         assert_eq!(graph.nodes.len(), 1);
         assert_eq!(graph.edges.len(), 0);
@@ -256,7 +268,7 @@ fn e2e_visualize_rejects_tampered_receipt_ac10() {
     let receipt_path = dir.path().join("tampered.json");
     let receipt = create_receipt(&[("create", &[])]);
     let json = serde_json::to_string(&receipt).unwrap();
-    
+
     // Tamper with the event type
     let tampered = json.replace("\"create\"", "\"forged\"");
     std::fs::write(&receipt_path, tampered).unwrap();
@@ -275,11 +287,7 @@ fn e2e_visualize_rejects_tampered_receipt_ac10() {
 fn e2e_visualize_success_json() {
     let dir = TempDir::new().unwrap();
     let receipt_path = dir.path().join("r.json");
-    let receipt = create_receipt(&[
-        ("create", &[]),
-        ("transform", &[]),
-        ("release", &[]),
-    ]);
+    let receipt = create_receipt(&[("create", &[]), ("transform", &[]), ("release", &[])]);
     std::fs::write(&receipt_path, serde_json::to_string(&receipt).unwrap()).unwrap();
 
     affi()

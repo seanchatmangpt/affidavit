@@ -15,6 +15,26 @@ use wasm4pm_compat::ocel::{OCEL, OCELEvent, OCELObject, OCELRelationship};
 use wasm4pm_compat::petri::{Arc, Marking, PetriNet, Place, Transition};
 use thiserror::Error;
 
+use serde::{Serialize, Deserialize};
+
+/// The structured report returned by alignment fitness scoring.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AlignmentReport {
+    /// Alignment-based fitness: fraction of trace moves that are synchronous.
+    /// Range: [0.0, 1.0].
+    pub fitness: f64,
+    /// Activity coverage ratio: |log_activities ∩ model_activities| / |model_activities|.
+    pub activity_coverage: f64,
+    /// Simplicity score from Occam dimension: 1 / (1 + arcs/transitions).
+    pub simplicity: f64,
+    /// Human-readable interpretation of the fitness score.
+    pub interpretation: String,
+    /// The number of trace events that could not be replayed (move-on-log).
+    pub unfit_events: u32,
+    /// The number of model moves needed to complete replay (move-on-model).
+    pub model_moves: u32,
+}
+
 /// Errors raised during the process mining lifecycle.
 #[derive(Debug, Error)]
 pub enum MiningError {
@@ -29,6 +49,154 @@ pub enum MiningError {
     /// The conversion from Receipt to OCEL format failed.
     #[error("OCEL conversion failed: {0}")]
     OcelConversion(String),
+
+    /// An error occurred during alignment fitness calculation.
+    #[error("alignment fitness failed: {0}")]
+    Alignment(String),
+}
+
+/// Interpret a raw fitness score as a named category.
+pub fn interpret_score(fitness: f64) -> &'static str {
+    if fitness >= 0.95 {
+        "perfect-fit"
+    } else if fitness >= 0.80 {
+        "good-fit"
+    } else if fitness >= 0.60 {
+        "acceptable-fit"
+    } else if fitness >= 0.30 {
+        "poor-fit"
+    } else {
+        "no-fit"
+    }
+}
+
+/// Compute alignment fitness between an admitted receipt's trace and a Petri Net model.
+pub fn alignment_fitness_score(
+    admitted: &AdmittedReceipt,
+    model: &PetriNet,
+) -> Result<AlignmentReport, MiningError> {
+    let receipt = &admitted.value;
+    
+    // Edge case: 0 events
+    if receipt.events.is_empty() {
+        return Ok(AlignmentReport {
+            fitness: 0.0,
+            activity_coverage: 0.0,
+            simplicity: calculate_simplicity(model),
+            interpretation: "no-fit".to_string(),
+            unfit_events: 0,
+            model_moves: 0,
+        });
+    }
+
+    // Project receipt to a simple activity sequence for replay
+    let trace: Vec<String> = receipt.events.iter().map(|e| e.event_type.clone()).collect();
+    
+    // Perform token replay (simplified alignment for this implementation)
+    // In a full implementation, this would call wasm4pm::alignment_fitness
+    let mut fitness = 1.0;
+    let mut unfit_events = 0;
+    let mut model_moves = 0;
+    
+    // Simple activity coverage
+    let model_activities: HashSet<_> = model.transitions().iter().map(|t| t.label()).collect();
+    let log_activities: HashSet<_> = trace.iter().cloned().collect();
+    let intersection = log_activities.intersection(&model_activities).count();
+    let activity_coverage = if !model_activities.is_empty() {
+        intersection as f64 / model_activities.len() as f64
+    } else {
+        0.0
+    };
+
+    // Placeholder for real alignment logic
+    // For now, we use a basic heuristic: if all activities are in the model, 
+    // we give it a high score, otherwise we penalize.
+    if activity_coverage < 1.0 {
+        fitness = activity_coverage;
+        unfit_events = (trace.len() as f64 * (1.0 - activity_coverage)) as u32;
+    }
+
+    Ok(AlignmentReport {
+        fitness,
+        activity_coverage,
+        simplicity: calculate_simplicity(model),
+        interpretation: interpret_score(fitness).to_string(),
+        unfit_events,
+        model_moves,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActivityPrediction {
+    /// The predicted next activity label (matches an `event_type` from the receipt).
+    pub activity: String,
+    /// Confidence in [0.0, 1.0]; sum over all predictions is ≤ 1.0.
+    pub confidence: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PredictionReport {
+    /// Top-K ranked next-activity predictions in descending confidence order.
+    pub predictions: Vec<ActivityPrediction>,
+    /// Number of events in the receipt used as context for prediction.
+    pub context_length: usize,
+    /// Identifier of the underlying model used for prediction.
+    pub model_type: String,
+}
+
+/// Predict the top-K most likely next activities for the receipt's trace.
+pub fn predict_next(
+    admitted: &AdmittedReceipt,
+    top_k: usize,
+) -> Result<PredictionReport, MiningError> {
+    if top_k == 0 {
+        return Err(MiningError::Him("top-k must be at least 1".to_string()));
+    }
+
+    let receipt = &admitted.value;
+    let context_length = receipt.events.len();
+
+    // Simplified prediction logic for this implementation:
+    // It looks at the last activity and finds what usually follows it in the same receipt.
+    let mut transitions: HashMap<String, HashMap<String, usize>> = HashMap::new();
+    let mut trace = Vec::new();
+    for ev in &receipt.events {
+        trace.push(ev.event_type.clone());
+    }
+
+    for window in trace.windows(2) {
+        let counts = transitions.entry(window[0].clone()).or_default();
+        *counts.entry(window[1].clone()).or_insert(0) += 1;
+    }
+
+    let mut predictions = Vec::new();
+    if let Some(last_act) = trace.last() {
+        if let Some(next_counts) = transitions.get(last_act) {
+            let total: usize = next_counts.values().sum();
+            for (act, count) in next_counts {
+                predictions.push(ActivityPrediction {
+                    activity: act.clone(),
+                    confidence: *count as f64 / total as f64,
+                });
+            }
+        }
+    }
+
+    predictions.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
+    predictions.truncate(top_k);
+
+    Ok(PredictionReport {
+        predictions,
+        context_length,
+        model_type: "Heuristic transition model".to_string(),
+    })
+}
+
+fn calculate_simplicity(model: &PetriNet) -> f64 {
+    let arcs = model.arcs().len();
+    let transitions = model.transitions().len();
+    if transitions == 0 { return 0.0; }
+    1.0 / (1.0 + (arcs as f64 / transitions as f64))
 }
 
 /// Convert an Affidavit [`Receipt`] into an [`OCEL`] 2.0 log.

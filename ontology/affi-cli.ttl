@@ -33,10 +33,17 @@ affi:ReceiptNoun a cnv:Noun ;
     cnv:hasVerbs affi:EmitVerb , affi:AssembleVerb , affi:VerifyVerb , affi:ShowVerb , 
                  affi:InspectVerb , affi:DiffVerb , affi:StatsVerb , affi:GraphVerb , 
                  affi:ReplayVerb , affi:ModelVerb , affi:ConformanceVerb , affi:DiagnoseVerb ,
-                 affi:VisualizeVerb , affi:CatalogVerb ;
-    rdfs:comment "The receipt noun: affi receipt <emit|assemble|verify|show|inspect|diff|stats|graph|replay|model|conformance|diagnose|visualize|catalog>"@en .
+                 affi:VisualizeVerb , affi:CatalogVerb , affi:TestVerb ;
+    rdfs:comment "The receipt noun: affi receipt <emit|assemble|verify|show|inspect|diff|stats|graph|replay|model|conformance|diagnose|visualize|catalog|test>"@en .
 
 # --- Shared Arguments ---
+...
+# --- Verb: test -------------------------------------------------------------
+affi:TestVerb a cnv:Verb ;
+    cnv:hasVerbName "test" ;
+    cnv:verbAbout "A dummy test verb for ontology validation" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" .
 
 affi:FormatArg a cnv:Argument ;
     cnv:hasArgumentName "format" ;

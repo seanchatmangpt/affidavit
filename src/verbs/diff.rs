@@ -14,19 +14,12 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Compare two receipts and print their differences
 #[verb("diff", "receipt")]
 pub fn diff(
     format: Option<String>,
-    #[arg(index = 2)]
-    receipt_b: String,
-    #[arg(index = 1)]
-    receipt_a: String,
+    #[arg(index = 2)] receipt_b: String,
+    #[arg(index = 1)] receipt_a: String,
 ) -> Result<()> {
-    crate::handlers::diff(
-        format,
-        receipt_b,
-        receipt_a,
-    )
+    crate::handlers::diff(format, receipt_b, receipt_a)
 }

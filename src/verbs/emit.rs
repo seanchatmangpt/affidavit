@@ -14,7 +14,6 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Append one operation-event to the working receipt
 #[verb("emit", "receipt")]
 pub fn emit(
@@ -23,10 +22,5 @@ pub fn emit(
     object: Vec<String>,
     r#type: String,
 ) -> Result<()> {
-    crate::handlers::emit(
-        format,
-        payload,
-        object,
-        r#type,
-    )
+    crate::handlers::emit(format, payload, object, r#type)
 }

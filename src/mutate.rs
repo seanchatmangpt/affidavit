@@ -7,7 +7,7 @@
 //! and affidavit's ChainAssembler for consistent re-sealing of mutated receipts.
 
 use crate::chain::ChainAssembler;
-use crate::types::{Blake3Hash, OperationEvent, Receipt};
+use crate::types::{Blake3Hash, Receipt};
 use anyhow::{ensure, Result};
 use clnrm_core::determinism::rng::create_seeded_rng;
 use rand::RngCore;
@@ -74,7 +74,10 @@ impl MutationOperator for EventDropOperator {
 
     fn apply(&self, receipt: &Receipt, seed: u64) -> Result<AppliedMutation> {
         let n = receipt.events.len();
-        ensure!(n >= self.min_events(), "Receipt has too few events for EventDrop");
+        ensure!(
+            n >= self.min_events(),
+            "Receipt has too few events for EventDrop"
+        );
 
         let target_idx = (seed as usize) % n;
         let target_seq = receipt.events[target_idx].seq;
@@ -116,7 +119,10 @@ impl MutationOperator for EventReorderOperator {
 
     fn apply(&self, receipt: &Receipt, seed: u64) -> Result<AppliedMutation> {
         let n = receipt.events.len();
-        ensure!(n >= self.min_events(), "Receipt has too few events for EventReorder");
+        ensure!(
+            n >= self.min_events(),
+            "Receipt has too few events for EventReorder"
+        );
 
         let target_idx = (seed as usize) % (n - 1);
         let target_seq = receipt.events[target_idx].seq;
@@ -157,7 +163,10 @@ impl MutationOperator for TypeChangeOperator {
 
     fn apply(&self, receipt: &Receipt, seed: u64) -> Result<AppliedMutation> {
         let n = receipt.events.len();
-        ensure!(n >= self.min_events(), "Receipt has too few events for TypeChange");
+        ensure!(
+            n >= self.min_events(),
+            "Receipt has too few events for TypeChange"
+        );
 
         let target_idx = (seed as usize) % n;
         let target_seq = receipt.events[target_idx].seq;
@@ -194,21 +203,25 @@ impl MutationOperator for PayloadFlipOperator {
 
     fn apply(&self, receipt: &Receipt, seed: u64) -> Result<AppliedMutation> {
         let n = receipt.events.len();
-        ensure!(n >= self.min_events(), "Receipt has too few events for PayloadFlip");
+        ensure!(
+            n >= self.min_events(),
+            "Receipt has too few events for PayloadFlip"
+        );
 
         let target_idx = (seed as usize) % n;
         let target_seq = receipt.events[target_idx].seq;
 
         let mut new_events = receipt.events.clone();
-        
+
         // Use clnrm-core seeded RNG for data manipulation as requested
         let mut rng = create_seeded_rng(seed);
         let mut random_bytes = [0u8; 32];
         rng.fill_bytes(&mut random_bytes);
-        
+
         // Use the seed in the commitment string as per DOD
         let commitment_input = format!("mutated-payload-{}", seed);
-        new_events[target_idx].payload_commitment = Blake3Hash::from_bytes(commitment_input.as_bytes());
+        new_events[target_idx].payload_commitment =
+            Blake3Hash::from_bytes(commitment_input.as_bytes());
 
         let mutated_receipt = ChainAssembler::from_events(new_events)?.finalize();
 

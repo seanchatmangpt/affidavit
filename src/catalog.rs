@@ -4,7 +4,6 @@
 //! database, allowing users to discover and inspect available test cases.
 
 use crate::fixture_db::{Fixture, FixtureDatabase, FixtureQuery};
-use anyhow::Result;
 
 /// Filter and list fixtures from the database based on name and event count.
 ///
@@ -21,7 +20,7 @@ pub fn list_fixtures(
         max_events: events_filter,
         ..Default::default()
     };
-    
+
     db.search(&query)
 }
 
@@ -32,7 +31,10 @@ pub fn format_catalog(fixtures: &[Fixture]) -> String {
     }
 
     let mut output = String::new();
-    output.push_str(&format!("{:<20} {:<10} {:<30}\n", "Name", "Events", "Description"));
+    output.push_str(&format!(
+        "{:<20} {:<10} {:<30}\n",
+        "Name", "Events", "Description"
+    ));
     output.push_str(&format!("{:-<20} {:-<10} {:-<30}\n", "", "", ""));
 
     for f in fixtures {

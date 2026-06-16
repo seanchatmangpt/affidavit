@@ -131,7 +131,7 @@ impl DistributedVerifier {
                 // Stage 3-6: Local Shard Verification
                 let shard_outcome = verify_shard(&shard);
                 
-                let mut lock = outcomes.lock().unwrap();
+                let mut lock = outcomes.lock().map_err(|_| ShardingError::Failure("Mutex poisoned".to_string()))?;
                 lock.insert(i, (shard, shard_outcome));
                 Ok::<(), ShardingError>(())
             }));
@@ -142,7 +142,7 @@ impl DistributedVerifier {
             handle.join().map_err(|_| ShardingError::Failure("Thread panicked".to_string()))??;
         }
 
-        let lock = outcomes.lock().unwrap();
+        let lock = outcomes.lock().map_err(|_| ShardingError::Failure("Mutex poisoned".to_string()))?;
         let mut final_outcomes = Vec::new();
 
         // Stage 7: Stitching and Global Continuity
@@ -150,7 +150,7 @@ impl DistributedVerifier {
         let mut current_seq = 0u64;
 
         for i in 0..shard_count {
-            let (shard, shard_verdict) = lock.get(&i).unwrap();
+            let (shard, shard_verdict) = lock.get(&i).ok_or_else(|| ShardingError::Failure(format!("Missing shard {} in results", i)))?;
             
             // Check boundary chain integrity (Stitching)
             if shard.prev_chain_hash != current_hash {
@@ -260,7 +260,7 @@ fn fold_event_internal(prev: &Blake3Hash, event: &OperationEvent) -> Result<Blak
 }
 
 /// Sharding algorithm: Splits a Receipt into N shards and a Manifest.
-pub fn shard_receipt(receipt: Receipt, shard_size: usize) -> (ReceiptManifest, Vec<ReceiptShard>) {
+pub fn shard_receipt(receipt: Receipt, shard_size: usize) -> Result<(ReceiptManifest, Vec<ReceiptShard>), crate::error::AffidavitError> {
     let shard_count = (receipt.events.len() + shard_size - 1) / shard_size;
     let mut shards = Vec::with_capacity(shard_count);
     
@@ -275,7 +275,7 @@ pub fn shard_receipt(receipt: Receipt, shard_size: usize) -> (ReceiptManifest, V
         let prev_hash = current_hash.clone();
         // Compute shard hash
         for event in &shard_events {
-            current_hash = fold_event_internal(&current_hash, event).unwrap();
+            current_hash = fold_event_internal(&current_hash, event).map_err(crate::error::AffidavitError::ContentAddressing)?;
         }
         
         shards.push(ReceiptShard {
@@ -298,7 +298,7 @@ pub fn shard_receipt(receipt: Receipt, shard_size: usize) -> (ReceiptManifest, V
         final_chain_hash: receipt.chain_hash,
     };
 
-    (manifest, shards)
+    Ok((manifest, shards))
 }
 
 #[cfg(test)]
@@ -318,15 +318,15 @@ mod tests {
     }
 
     #[test]
-    fn test_distributed_verification_flow() {
+    fn test_distributed_verification_flow() -> Result<(), Box<dyn std::error::Error>> {
         let mut asm = ChainAssembler::new();
         for i in 0..10 {
-            asm.append(test_event(i as u64)).unwrap();
+            asm.append(test_event(i as u64))?;
         }
         let receipt = asm.finalize();
         let receipt_id = receipt.chain_hash.clone();
 
-        let (manifest, shards) = shard_receipt(receipt, 3);
+        let (manifest, shards) = shard_receipt(receipt, 3)?;
 
         // Mock DHT
         struct MockDht {
@@ -335,18 +335,18 @@ mod tests {
         }
         impl KademliaDHT for MockDht {
             fn put_shard(&self, shard: ReceiptShard) -> Result<(), String> {
-                self.shards.lock().unwrap().insert((shard.receipt_id.clone(), shard.shard_index), shard);
+                self.shards.lock().map_err(|_| "Poisoned".to_string())?.insert((shard.receipt_id.clone(), shard.shard_index), shard);
                 Ok(())
             }
             fn get_shard(&self, receipt_id: &Blake3Hash, index: usize) -> Result<ReceiptShard, String> {
-                self.shards.lock().unwrap().get(&(receipt_id.clone(), index)).cloned().ok_or("Not found".to_string())
+                self.shards.lock().map_err(|_| "Poisoned".to_string())?.get(&(receipt_id.clone(), index)).cloned().ok_or("Not found".to_string())
             }
             fn put_manifest(&self, manifest: ReceiptManifest) -> Result<(), String> {
-                self.manifests.lock().unwrap().insert(manifest.receipt_id.clone(), manifest);
+                self.manifests.lock().map_err(|_| "Poisoned".to_string())?.insert(manifest.receipt_id.clone(), manifest);
                 Ok(())
             }
             fn get_manifest(&self, receipt_id: &Blake3Hash) -> Result<ReceiptManifest, String> {
-                self.manifests.lock().unwrap().get(receipt_id).cloned().ok_or("Not found".to_string())
+                self.manifests.lock().map_err(|_| "Poisoned".to_string())?.get(receipt_id).cloned().ok_or("Not found".to_string())
             }
         }
 
@@ -356,17 +356,18 @@ mod tests {
         });
 
         // Seed DHT
-        dht.put_manifest(manifest).unwrap();
+        dht.put_manifest(manifest).map_err(|e| e.to_string())?;
         for shard in shards {
-            dht.put_shard(shard).unwrap();
+            dht.put_shard(shard).map_err(|e| e.to_string())?;
         }
 
         // Verify
         let verifier = DistributedVerifier::new(dht);
-        let result = verifier.verify_distributed(&receipt_id).unwrap();
+        let result = verifier.verify_distributed(&receipt_id)?;
 
         assert!(result.accepted);
         assert_eq!(result.reason, "All distributed shards passed 7-stage verification");
+        Ok(())
     }
 }
 
