@@ -18,14 +18,30 @@ fn affi(dir: &TempDir) -> Command {
 }
 
 fn build_receipt(dir: &TempDir, out: &str) {
-    for (ty, obj) in [("create", "f:artifact"), ("transform", "d:artifact"), ("release", "f:artifact")] {
+    for (ty, obj) in [
+        ("create", "f:artifact"),
+        ("transform", "d:artifact"),
+        ("release", "f:artifact"),
+    ] {
         affi(dir)
-            .args(["receipt", "emit", "--type", ty, "--object", obj, "--payload", "-"])
+            .args([
+                "receipt",
+                "emit",
+                "--type",
+                ty,
+                "--object",
+                obj,
+                "--payload",
+                "-",
+            ])
             .write_stdin(ty)
             .assert()
             .success();
     }
-    affi(dir).args(["receipt", "assemble", "--out", out]).assert().success();
+    affi(dir)
+        .args(["receipt", "assemble", "--out", out])
+        .assert()
+        .success();
 }
 
 #[test]
@@ -49,7 +65,9 @@ fn model_verb_discovers_a_process_model() {
         .args(["receipt", "model", "r.json"])
         .assert()
         .success()
-        .stderr(predicate::str::contains("discovered process model (wasm4pm)"))
+        .stderr(predicate::str::contains(
+            "discovered process model (wasm4pm)",
+        ))
         // the discovery output must name the receipt's activities
         .stderr(predicate::str::contains("create"))
         .stderr(predicate::str::contains("release"));
@@ -120,5 +138,7 @@ fn diagnose_verb_reports_clean_for_honest_receipt() {
         .args(["receipt", "diagnose", "r.json"])
         .assert()
         .success()
-        .stderr(predicate::str::contains("no diagnostics — receipt is clean"));
+        .stderr(predicate::str::contains(
+            "no diagnostics — receipt is clean",
+        ));
 }

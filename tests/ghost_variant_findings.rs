@@ -43,8 +43,7 @@ fn conformance_refusal_variants_are_values_but_not_laws() {
     // Display is stable (they are well-formed named values).
     assert_eq!(ConformanceRefusal::MissingLog.to_string(), "MissingLog");
     // Distinct as values.
-    let set: std::collections::BTreeSet<String> =
-        variants.iter().map(|v| v.to_string()).collect();
+    let set: std::collections::BTreeSet<String> = variants.iter().map(|v| v.to_string()).collect();
     assert_eq!(set.len(), 8, "all 8 variants are distinct values");
     // ...BUT the FINDING is that no wasm4pm-compat code path returns any of them.
     // That is a whole-crate property recorded in COVERAGE.md §7 with grep
@@ -64,5 +63,9 @@ fn prediction_refusal_variants_are_values_but_not_laws() {
     ];
     let set: std::collections::BTreeSet<String> =
         variants.iter().map(|v| format!("{v:?}")).collect();
-    assert_eq!(set.len(), 6, "all 6 variants are distinct values (but unreachable as laws)");
+    assert_eq!(
+        set.len(),
+        6,
+        "all 6 variants are distinct values (but unreachable as laws)"
+    );
 }

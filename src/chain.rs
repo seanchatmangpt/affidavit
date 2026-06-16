@@ -133,11 +133,7 @@ impl ChainAssembler {
 
     /// Finalize into an immutable `Receipt` carrying the final chain hash.
     pub fn finalize(self) -> Receipt {
-        Receipt::sealed(
-            FORMAT_VERSION.to_string(),
-            self.events,
-            self.running,
-        )
+        Receipt::sealed(FORMAT_VERSION.to_string(), self.events, self.running)
     }
 }
 
@@ -258,7 +254,10 @@ mod tests {
         tampered[0].payload_commitment = Blake3Hash::from_bytes(b"forged");
         let forged = recompute_chain(&tampered).unwrap();
 
-        assert_ne!(honest, forged, "tampering a commitment must break the chain");
+        assert_ne!(
+            honest, forged,
+            "tampering a commitment must break the chain"
+        );
     }
 
     #[test]

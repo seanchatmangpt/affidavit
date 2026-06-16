@@ -9,7 +9,11 @@ use wasm4pm_compat::petri::Marking;
 
 #[test]
 fn marking_records_per_place_token_counts() {
-    let m = Marking::new([("p0".to_string(), 2), ("p1".to_string(), 1), ("p2".to_string(), 0)]);
+    let m = Marking::new([
+        ("p0".to_string(), 2),
+        ("p1".to_string(), 1),
+        ("p2".to_string(), 0),
+    ]);
     assert!(!m.is_empty(), "a marking with token entries is non-empty");
     assert_eq!(m.tokens_on("p0"), 2);
     assert_eq!(m.tokens_on("p1"), 1);

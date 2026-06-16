@@ -9,15 +9,24 @@
 //   • SummaryShape — pm4py summary projection shapes.
 
 use wasm4pm_compat::formats::FormatKind as Fmt;
-use wasm4pm_compat::law::{PowlProjectionState as PPS, RelationLaw as RL};
 use wasm4pm_compat::interop::SummaryShape as Sum;
-
+use wasm4pm_compat::law::{PowlProjectionState as PPS, RelationLaw as RL};
 
 #[test]
 fn powl_projection_states_are_constructed() {
-    let all = [PPS::Unknown, PPS::ProcessTreeProjectable, PPS::ExceedsProcessTree, PPS::RefusedProjection];
+    let all = [
+        PPS::Unknown,
+        PPS::ProcessTreeProjectable,
+        PPS::ExceedsProcessTree,
+        PPS::RefusedProjection,
+    ];
     fn known(p: PPS) -> bool {
-        match p { PPS::Unknown | PPS::ProcessTreeProjectable | PPS::ExceedsProcessTree | PPS::RefusedProjection => true }
+        match p {
+            PPS::Unknown
+            | PPS::ProcessTreeProjectable
+            | PPS::ExceedsProcessTree
+            | PPS::RefusedProjection => true,
+        }
     }
     assert!(all.iter().copied().all(known));
     assert_eq!(all.len(), 4, "four POWL projection states");
@@ -25,25 +34,46 @@ fn powl_projection_states_are_constructed() {
 
 #[test]
 fn format_kinds_are_constructed() {
-    let all = [Fmt::OcelJson, Fmt::OcelXml, Fmt::OcelSqlite, Fmt::XesXml, Fmt::BpmnXml, Fmt::PetriPnml, Fmt::PowlJson];
+    let all = [
+        Fmt::OcelJson,
+        Fmt::OcelXml,
+        Fmt::OcelSqlite,
+        Fmt::XesXml,
+        Fmt::BpmnXml,
+        Fmt::PetriPnml,
+        Fmt::PowlJson,
+    ];
     // FormatKind is `#[non_exhaustive]` — census covers the 7 currently-known
     // formats; completeness is open by the crate's design (wildcard required).
     fn known(f: Fmt) -> bool {
         match f {
-            Fmt::OcelJson | Fmt::OcelXml | Fmt::OcelSqlite | Fmt::XesXml
-            | Fmt::BpmnXml | Fmt::PetriPnml | Fmt::PowlJson => true,
+            Fmt::OcelJson
+            | Fmt::OcelXml
+            | Fmt::OcelSqlite
+            | Fmt::XesXml
+            | Fmt::BpmnXml
+            | Fmt::PetriPnml
+            | Fmt::PowlJson => true,
             _ => false,
         }
     }
     assert!(all.iter().copied().all(known));
-    assert_eq!(all.len(), 7, "seven currently-known import/export format kinds");
+    assert_eq!(
+        all.len(),
+        7,
+        "seven currently-known import/export format kinds"
+    );
 }
 
 #[test]
 fn relation_laws_are_constructed() {
     let all = [RL::EventToObject, RL::ObjectToObject, RL::ObjectToEvent];
     fn label(r: RL) -> &'static str {
-        match r { RL::EventToObject => "e2o", RL::ObjectToObject => "o2o", RL::ObjectToEvent => "o2e" }
+        match r {
+            RL::EventToObject => "e2o",
+            RL::ObjectToObject => "o2o",
+            RL::ObjectToEvent => "o2e",
+        }
     }
     let s: std::collections::BTreeSet<&str> = all.iter().copied().map(label).collect();
     assert_eq!(s.len(), 3, "three OCEL relation directions");
@@ -51,7 +81,13 @@ fn relation_laws_are_constructed() {
 
 #[test]
 fn summary_shapes_are_constructed() {
-    let all = [Sum::Counts, Sum::TraceVariants, Sum::ActivityDistribution, Sum::TimingProfile, Sum::ObjectTypeDistribution];
+    let all = [
+        Sum::Counts,
+        Sum::TraceVariants,
+        Sum::ActivityDistribution,
+        Sum::TimingProfile,
+        Sum::ObjectTypeDistribution,
+    ];
     // Projection-category match. SummaryShape is `#[non_exhaustive]` (cross-crate),
     // so the compiler mandates a `_` arm; we route it to a panic so a newly-added
     // upstream variant fails this test loudly rather than being silently absorbed.
@@ -66,7 +102,6 @@ fn summary_shapes_are_constructed() {
     }
     let cats: std::collections::BTreeSet<&str> = all.iter().copied().map(category).collect();
     assert_eq!(cats.len(), 4, "four summary projection categories");
-    let debugs: std::collections::BTreeSet<String> =
-        all.iter().map(|s| format!("{s:?}")).collect();
+    let debugs: std::collections::BTreeSet<String> = all.iter().map(|s| format!("{s:?}")).collect();
     assert_eq!(debugs.len(), 5, "five distinct pm4py summary shapes");
 }

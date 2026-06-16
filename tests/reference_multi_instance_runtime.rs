@@ -14,7 +14,10 @@ use wasm4pm_compat::petri::{InstanceCreationKind, MultipleInstanceSpec};
 #[test]
 fn valid_runtime_spec_passes_validation_and_keeps_its_fields() {
     let spec = MultipleInstanceSpec::new(2, Some(5), Some(3), InstanceCreationKind::Dynamic);
-    assert!(spec.validate().is_ok(), "min=2 <= max=5 is a lawful multiplicity");
+    assert!(
+        spec.validate().is_ok(),
+        "min=2 <= max=5 is a lawful multiplicity"
+    );
     assert_eq!(spec.min, 2);
     assert_eq!(spec.max, Some(5));
     assert_eq!(spec.threshold, Some(3), "threshold preserved");

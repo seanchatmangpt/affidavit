@@ -12,7 +12,10 @@ use wasm4pm_compat::ocpq::{Predicate, PredicateKind};
 #[test]
 fn predicates_construct_across_the_kind_families() {
     let event = Predicate::<()>::new(PredicateKind::Event("place_order".into()));
-    assert!(matches!(event.kind, PredicateKind::Event(_)), "simple event predicate");
+    assert!(
+        matches!(event.kind, PredicateKind::Event(_)),
+        "simple event predicate"
+    );
 
     let card = Predicate::<()>::new(PredicateKind::Cardinality { min: 1, max: 5 });
     match card.kind {
@@ -26,7 +29,9 @@ fn predicates_construct_across_the_kind_families() {
         qualifier: Some("input".into()),
     });
     match e2o.kind {
-        PredicateKind::E2ORelation { qualifier, .. } => assert_eq!(qualifier.as_deref(), Some("input")),
+        PredicateKind::E2ORelation { qualifier, .. } => {
+            assert_eq!(qualifier.as_deref(), Some("input"))
+        }
         other => panic!("expected E2ORelation; got {other:?}"),
     }
 
@@ -35,7 +40,10 @@ fn predicates_construct_across_the_kind_families() {
         min: 1,
         max: 10,
     });
-    assert!(matches!(csb.kind, PredicateKind::ChildSetBound { .. }), "child-set-bound predicate");
+    assert!(
+        matches!(csb.kind, PredicateKind::ChildSetBound { .. }),
+        "child-set-bound predicate"
+    );
 }
 
 #[test]
@@ -47,7 +55,9 @@ fn simple_predicate_kinds_carry_their_expression() {
     ] {
         let p = Predicate::<()>::new(k);
         let carried = match &p.kind {
-            PredicateKind::Object(s) | PredicateKind::Relation(s) | PredicateKind::Temporal(s) => s.as_str(),
+            PredicateKind::Object(s) | PredicateKind::Relation(s) | PredicateKind::Temporal(s) => {
+                s.as_str()
+            }
             other => panic!("unexpected kind {other:?}"),
         };
         assert_eq!(carried, label);

@@ -83,7 +83,11 @@ fn main() {
     // (re-finalizing is deterministic over the same event sequence).
     let rebuilt = ChainAssembler::from_events(receipt.events.clone())
         .expect("honest events rehydrate into an assembler");
-    assert_eq!(rebuilt.events(), receipt.events.as_slice(), "events() returns the held sequence");
+    assert_eq!(
+        rebuilt.events(),
+        receipt.events.as_slice(),
+        "events() returns the held sequence"
+    );
     let refinalized = rebuilt.finalize();
     assert_eq!(
         refinalized.chain_hash, receipt.chain_hash,
@@ -93,8 +97,15 @@ fn main() {
     // --- serialize/deserialize round-trip: canonical bytes reload to an equal receipt ---
     let bytes = serialize_receipt(&receipt).expect("canonical serialization");
     let reloaded = deserialize_receipt(&bytes).expect("canonical bytes reload");
-    assert_eq!(reloaded.chain_hash, receipt.chain_hash, "round-trip preserves the chain hash");
-    assert_eq!(reloaded.events.len(), receipt.events.len(), "round-trip preserves all events");
+    assert_eq!(
+        reloaded.chain_hash, receipt.chain_hash,
+        "round-trip preserves the chain hash"
+    );
+    assert_eq!(
+        reloaded.events.len(),
+        receipt.events.len(),
+        "round-trip preserves all events"
+    );
     // EDGE (verified against the runtime contract): the `Receipt` Deserialize impl
     // RE-VERIFIES the chain hash at decode time, so deserialize_receipt REJECTS a
     // receipt whose stated chain_hash does not match a recompute over its events.

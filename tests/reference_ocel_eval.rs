@@ -7,7 +7,7 @@
 // string and an integer attribute and queries them back, confirming eval reads
 // the constructed attribute set (not constants) and returns None for unknown ids.
 
-use wasm4pm_compat::ocel::{OCEL, OCELAttributeValue, OCELEvent, OCELEventAttribute};
+use wasm4pm_compat::ocel::{OCELAttributeValue, OCELEvent, OCELEventAttribute, OCEL};
 
 #[test]
 fn eval_returns_constructed_event_attribute_valuation() {
@@ -32,5 +32,8 @@ fn eval_returns_constructed_event_attribute_valuation() {
 #[test]
 fn eval_returns_none_for_unknown_event() {
     let log = OCEL::new(vec![OCELEvent::new("e1".to_string(), "create")], vec![]);
-    assert!(log.eval("nonexistent").is_none(), "unknown event id → None, not a fabricated map");
+    assert!(
+        log.eval("nonexistent").is_none(),
+        "unknown event id → None, not a fabricated map"
+    );
 }

@@ -13,9 +13,9 @@ fn condition_cells_within_eight_bits_construct() {
     let _zero = ConditionCell::<0>::new();
     let _three = ConditionCell::<3>::new();
     let _eight = ConditionCell::<8>::new(); // upper boundary
-    // The fact this file COMPILES is the witness: every ConditionCell here has
-    // BITS <= 8. The NEGATIVE side (BITS == 9 must NOT compile) is witnessed by the
-    // trybuild fixture `tests/ui/compile_fail/condition_cell_nine.rs` (+ `.stderr`),
-    // which pins the `Require<{BITS<=8}>: IsTrue` failure. The 8-bit cap is a
-    // compile-time law, falsifiable on both sides.
+                                            // The fact this file COMPILES is the witness: every ConditionCell here has
+                                            // BITS <= 8. The NEGATIVE side (BITS == 9 must NOT compile) is witnessed by the
+                                            // trybuild fixture `tests/ui/compile_fail/condition_cell_nine.rs` (+ `.stderr`),
+                                            // which pins the `Require<{BITS<=8}>: IsTrue` failure. The 8-bit cap is a
+                                            // compile-time law, falsifiable on both sides.
 }

@@ -25,5 +25,8 @@ fn well_formed_envelope_is_well_shaped() {
         ReplayHint::new("h1"),
     )
     .expect("complete parts → well-shaped envelope");
-    assert!(env.is_well_shaped(), "an envelope with all four parts is well-shaped");
+    assert!(
+        env.is_well_shaped(),
+        "an envelope with all four parts is well-shaped"
+    );
 }

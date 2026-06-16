@@ -15,7 +15,11 @@ enum ShipmentLog {}
 #[test]
 fn correlated_log_carries_its_schema_const() {
     let by_object: CorrelatedLog<OrderLog, ShipmentLog, "by-object"> = CorrelatedLog::new();
-    assert_eq!(by_object.schema(), "by-object", "correlation schema recovered");
+    assert_eq!(
+        by_object.schema(),
+        "by-object",
+        "correlation schema recovered"
+    );
 
     let by_case: CorrelatedLog<OrderLog, ShipmentLog, "by-case"> = CorrelatedLog::new();
     assert_eq!(by_case.schema(), "by-case");

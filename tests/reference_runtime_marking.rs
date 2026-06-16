@@ -19,6 +19,14 @@ fn runtime_marking_reads_tokens_placed_on_the_net() {
     net.initial_marking = marking;
 
     let rt = net.initial_marking();
-    assert_eq!(rt.tokens_on("p0"), 3, "the borrowed view reads the placed tokens");
-    assert_eq!(rt.tokens_on("absent"), 0, "an unmarked place has zero tokens");
+    assert_eq!(
+        rt.tokens_on("p0"),
+        3,
+        "the borrowed view reads the placed tokens"
+    );
+    assert_eq!(
+        rt.tokens_on("absent"),
+        0,
+        "an unmarked place has zero tokens"
+    );
 }

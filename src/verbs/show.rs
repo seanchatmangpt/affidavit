@@ -14,14 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Print a human-readable dump of a receipt chain
 #[verb("show", "receipt")]
-pub fn show(
-    #[arg(index = 1)]
-    receipt: String,
-) -> Result<()> {
-    crate::handlers::show(
-        receipt,
-    )
+pub fn show(#[arg(index = 1)] receipt: String) -> Result<()> {
+    crate::handlers::show(receipt)
 }

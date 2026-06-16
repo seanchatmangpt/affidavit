@@ -13,7 +13,10 @@ fn choice_graph_with_one_node_is_disconnected() {
     let mut p = Powl::new();
     p.nodes.push(PowlNode::new(
         PowlNodeId(0),
-        PowlNodeKind::ChoiceGraph { nodes: vec![PowlNodeId(0)], edges: vec![] }, // < 2 nodes
+        PowlNodeKind::ChoiceGraph {
+            nodes: vec![PowlNodeId(0)],
+            edges: vec![],
+        }, // < 2 nodes
     ));
     p.root = Some(PowlNodeId(0));
     assert_eq!(p.validate(), Err(PowlRefusal::ChoiceGraphDisconnected));
@@ -22,8 +25,10 @@ fn choice_graph_with_one_node_is_disconnected() {
 #[test]
 fn cyclic_partial_order_is_refused() {
     let mut p = Powl::new();
-    p.nodes.push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
-    p.nodes.push(PowlNode::new(PowlNodeId(1), PowlNodeKind::Atom("b".into())));
+    p.nodes
+        .push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
+    p.nodes
+        .push(PowlNode::new(PowlNodeId(1), PowlNodeKind::Atom("b".into())));
     p.nodes.push(PowlNode::new(
         PowlNodeId(2),
         PowlNodeKind::PartialOrder(vec![PowlNodeId(0), PowlNodeId(1)]),

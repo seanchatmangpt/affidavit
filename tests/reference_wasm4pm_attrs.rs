@@ -16,8 +16,14 @@ fn event_attribute_bag_holds_each_value_kind() {
     attrs.insert("score".to_string(), V::Float(0.5));
     attrs.insert("when".to_string(), V::Date("2024-01-01".to_string()));
     attrs.insert("ok".to_string(), V::Boolean(true));
-    attrs.insert("tags".to_string(), V::List(vec![V::String("a".to_string()), V::String("b".to_string())]));
-    attrs.insert("meta".to_string(), V::Container(HashMap::from([("k".to_string(), V::Int(1))])));
+    attrs.insert(
+        "tags".to_string(),
+        V::List(vec![V::String("a".to_string()), V::String("b".to_string())]),
+    );
+    attrs.insert(
+        "meta".to_string(),
+        V::Container(HashMap::from([("k".to_string(), V::Int(1))])),
+    );
     let e = Event { attributes: attrs };
 
     assert!(matches!(e.attributes.get("concept:name"), Some(V::String(s)) if s == "create"));

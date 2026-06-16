@@ -10,7 +10,12 @@ use wasm4pm_compat::bpmn::{BpmnEvent, BpmnGateway, BpmnNode, BpmnNodeKind, BpmnT
 
 #[test]
 fn all_four_bpmn_event_kinds_construct() {
-    let kinds = [BpmnEvent::Start, BpmnEvent::Intermediate, BpmnEvent::End, BpmnEvent::Boundary];
+    let kinds = [
+        BpmnEvent::Start,
+        BpmnEvent::Intermediate,
+        BpmnEvent::End,
+        BpmnEvent::Boundary,
+    ];
     fn label(e: BpmnEvent) -> &'static str {
         match e {
             BpmnEvent::Start => "start",

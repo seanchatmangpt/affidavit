@@ -12,7 +12,11 @@ use wasm4pm_compat::interop::{ArtifactGrounding, OcelToXesProjection, Pm4pyShape
 #[test]
 fn named_flatten_projection_carries_its_case_notion() {
     let proj = OcelToXesProjection::new("order");
-    assert_eq!(proj.case_type(), "order", "the projection records the chosen case type");
+    assert_eq!(
+        proj.case_type(),
+        "order",
+        "the projection records the chosen case type"
+    );
     assert_eq!(
         OcelToXesProjection::PROJECTION_NAME.as_str(),
         "ocel-flatten-to-xes:by-case-type",
@@ -27,10 +31,16 @@ fn named_flatten_projection_carries_its_case_notion() {
 #[test]
 fn artifact_grounding_distinguishes_grounded_from_ungrounded() {
     let grounded = ArtifactGrounding::<()>::new(Pm4pyShape::EventLog, "xes:fixture-1");
-    assert!(grounded.is_grounded(), "an evidence-backed claim is grounded");
+    assert!(
+        grounded.is_grounded(),
+        "an evidence-backed claim is grounded"
+    );
 
     let ungrounded = ArtifactGrounding::<()>::new(Pm4pyShape::EventLog, "");
-    assert!(!ungrounded.is_grounded(), "an empty evidence ref is ungrounded (→ UngroundedArtifact)");
+    assert!(
+        !ungrounded.is_grounded(),
+        "an empty evidence ref is ungrounded (→ UngroundedArtifact)"
+    );
 
     // The object-centric vs flat classification (basis of FlatClaimOverObjectCentric).
     assert!(Pm4pyShape::ObjectCentricLog.is_object_centric());

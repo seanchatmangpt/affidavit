@@ -36,7 +36,11 @@ fn four_quality_dimensions_are_constructed_and_distinct() {
         }
     }
     let labels: std::collections::BTreeSet<&str> = all.iter().copied().map(label).collect();
-    assert_eq!(labels.len(), 5, "all five dimensions are distinct constructions");
+    assert_eq!(
+        labels.len(),
+        5,
+        "all five dimensions are distinct constructions"
+    );
     // Relocation note (COVERAGE.md §6): in the type-enforced regime, PRECISION is
     // not a scalar we compute then discard — an over-permissive ("flower")
     // receipt is one the OCEL court refuses (EmptyEventObjectLinks), so low

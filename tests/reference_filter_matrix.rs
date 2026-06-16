@@ -11,7 +11,12 @@ use wasm4pm_compat::interop::{check_filter_shape, FilterShape, InteropRefusal, P
 
 #[test]
 fn non_object_type_filters_are_valid_on_any_artifact() {
-    for filter in [FilterShape::Activity, FilterShape::Timeframe, FilterShape::Variant, FilterShape::Attribute] {
+    for filter in [
+        FilterShape::Activity,
+        FilterShape::Timeframe,
+        FilterShape::Variant,
+        FilterShape::Attribute,
+    ] {
         assert_eq!(
             check_filter_shape(Pm4pyShape::EventLog, filter),
             Ok(()),
@@ -34,7 +39,12 @@ fn object_type_filter_requires_object_centric_artifact() {
         "ObjectType filter admits on an object-centric log"
     );
     // Refused: ObjectType over a flat artifact → DimensionShapeMismatch.
-    for flat in [Pm4pyShape::EventLog, Pm4pyShape::PetriNet, Pm4pyShape::Bpmn, Pm4pyShape::ProcessTree] {
+    for flat in [
+        Pm4pyShape::EventLog,
+        Pm4pyShape::PetriNet,
+        Pm4pyShape::Bpmn,
+        Pm4pyShape::ProcessTree,
+    ] {
         assert_eq!(
             check_filter_shape(flat, FilterShape::ObjectType),
             Err(InteropRefusal::DimensionShapeMismatch),

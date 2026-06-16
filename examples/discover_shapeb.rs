@@ -105,7 +105,10 @@ fn main() {
         cm_fitness, fitness,
         "conformance_metrics fitness must equal quality_metrics fitness (same receipt, same net)"
     );
-    assert_eq!(cm_coverage, activity_coverage, "activity_coverage must agree across both entry points");
+    assert_eq!(
+        cm_coverage, activity_coverage,
+        "activity_coverage must agree across both entry points"
+    );
 
     // 5. THE TYPE-GATE EDGE the capability exists for: a forged receipt (seq starts
     //    at 5, violating continuity) is REFUSED by admission, so no AdmittedReceipt
@@ -118,8 +121,7 @@ fn main() {
         objects: vec![object_ref("file-1", "artifact")],
         payload_commitment: Blake3Hash::from_bytes(b"content"),
     };
-    let chain_hash =
-        recompute_chain(std::slice::from_ref(&forged_event)).expect("recompute chain");
+    let chain_hash = recompute_chain(std::slice::from_ref(&forged_event)).expect("recompute chain");
     // Receipts can only be minted via the sealed seam (ChainAssembler) or
     // canonical deserialization (which re-verifies the chain hash). We build the
     // forgery through deserialization with a *matching* hash, so the refusal is a
@@ -138,7 +140,10 @@ fn main() {
         "forged (continuity-violating) receipt MUST be refused — it can never become an \
          AdmittedReceipt, so discovery cannot be called on it"
     );
-    println!("forged receipt refused as expected: {}", refusal.unwrap_err());
+    println!(
+        "forged receipt refused as expected: {}",
+        refusal.unwrap_err()
+    );
 
     println!("OK: Shape-B discover-then-conform collapse demonstrated end-to-end.");
 }

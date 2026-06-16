@@ -17,10 +17,16 @@ use wasm4pm_compat::multiperspective::{
 fn a_value_can_be_tagged_with_a_single_perspective() {
     let cf: MultiPerspectiveEvidence<&str, ControlFlowPerspective> =
         MultiPerspectiveEvidence::new("activity-trace");
-    assert_eq!(cf.inner, "activity-trace", "inner value recoverable under a control-flow tag");
+    assert_eq!(
+        cf.inner, "activity-trace",
+        "inner value recoverable under a control-flow tag"
+    );
 
     let time: MultiPerspectiveEvidence<u64, TimePerspective> = MultiPerspectiveEvidence::new(1_000);
-    assert_eq!(time.inner, 1_000, "inner value recoverable under a time tag");
+    assert_eq!(
+        time.inner, 1_000,
+        "inner value recoverable under a time tag"
+    );
 }
 
 #[test]
@@ -30,11 +36,15 @@ fn perspectives_compose_at_the_type_level() {
     // the inner value is unchanged (zero runtime cost).
     type ResourceData = PerspectiveCombination<ResourcePerspective, DataPerspective>;
     let combined: MultiPerspectiveEvidence<i32, ResourceData> = MultiPerspectiveEvidence::new(42);
-    assert_eq!(combined.inner, 42, "combined-perspective carrier holds its value");
+    assert_eq!(
+        combined.inner, 42,
+        "combined-perspective carrier holds its value"
+    );
 
     // The four single perspectives are distinct carrier types — this only compiles
     // because each marker is a real, distinct type (zero-sized).
-    let _cf: MultiPerspectiveEvidence<(), ControlFlowPerspective> = MultiPerspectiveEvidence::new(());
+    let _cf: MultiPerspectiveEvidence<(), ControlFlowPerspective> =
+        MultiPerspectiveEvidence::new(());
     let _d: MultiPerspectiveEvidence<(), DataPerspective> = MultiPerspectiveEvidence::new(());
     let _r: MultiPerspectiveEvidence<(), ResourcePerspective> = MultiPerspectiveEvidence::new(());
     let _t: MultiPerspectiveEvidence<(), TimePerspective> = MultiPerspectiveEvidence::new(());

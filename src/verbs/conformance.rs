@@ -6,9 +6,6 @@ use clap_noun_verb_macros::verb;
 
 /// Compute fitness (wasm4pm token replay), activity_coverage (NOT van der Aalst precision), and simplicity (Occam)
 #[verb("conformance", "receipt")]
-pub fn conformance(
-    #[arg(index = 1)]
-    receipt: String,
-) -> Result<()> {
+pub fn conformance(#[arg(index = 1)] receipt: String) -> Result<()> {
     crate::handlers::conformance(receipt)
 }

@@ -25,7 +25,11 @@ fn token_in_both_initial_and_final_is_unsafe() {
         Marking::new([("i".to_string(), 1)]),
         Marking::new([("o".to_string(), 1)]),
     );
-    assert_eq!(safe.validate(), Ok(()), "disjoint initial/final markings are safe");
+    assert_eq!(
+        safe.validate(),
+        Ok(()),
+        "disjoint initial/final markings are safe"
+    );
 }
 
 #[test]
@@ -36,7 +40,10 @@ fn degenerate_instance_bounds_are_invalid() {
 
     // min > max → invalid.
     let inverted = MultipleInstanceSpec::new(5, Some(2), None, InstanceCreationKind::Dynamic);
-    assert_eq!(inverted.validate(), Err(PetriRefusal::InvalidInstanceBounds));
+    assert_eq!(
+        inverted.validate(),
+        Err(PetriRefusal::InvalidInstanceBounds)
+    );
 
     // 1..=3 → valid.
     let ok = MultipleInstanceSpec::new(1, Some(3), None, InstanceCreationKind::Static);

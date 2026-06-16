@@ -19,8 +19,12 @@ fn chain_grows_with_extend_with() {
         .expect("a non-empty chain of well-shaped links seeds");
     assert_eq!(chain.len(), 1, "seeded with one link");
 
-    chain.extend_with(envelope("step-1")).expect("well-shaped link accepted");
-    chain.extend_with(envelope("step-2")).expect("well-shaped link accepted");
+    chain
+        .extend_with(envelope("step-1"))
+        .expect("well-shaped link accepted");
+    chain
+        .extend_with(envelope("step-2"))
+        .expect("well-shaped link accepted");
     assert_eq!(chain.len(), 3, "two links appended");
     assert!(!chain.is_empty());
 }
@@ -31,5 +35,8 @@ fn empty_chain_is_refused_at_seed() {
     // try_from_parts cannot produce — so the reachable refusal here is EmptyChain
     // at seed time, already witnessed in court_law_witness; this asserts the
     // positive seed boundary.)
-    assert!(ReceiptChain::try_new("run-x", vec![]).is_err(), "empty chain refused at seed");
+    assert!(
+        ReceiptChain::try_new("run-x", vec![]).is_err(),
+        "empty chain refused at seed"
+    );
 }

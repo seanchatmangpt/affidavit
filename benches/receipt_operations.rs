@@ -3,10 +3,10 @@
 // Measures the performance of the core receipt sealing and verification pipeline.
 // Run with: cargo bench
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use affidavit::chain::{ChainAssembler, recompute_chain};
+use affidavit::chain::{recompute_chain, ChainAssembler};
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
 use affidavit::verifier::verify;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 fn bench_chain_append(c: &mut Criterion) {
     c.bench_function("chain_append_single_event", |b| {
@@ -18,7 +18,8 @@ fn bench_chain_append(c: &mut Criterion) {
                 vec![object_ref("obj", "artifact")],
                 black_box(b"payload"),
                 &mut counter,
-            ).expect("build event");
+            )
+            .expect("build event");
             asm.append(event).expect("append");
             asm.finalize()
         })
@@ -41,7 +42,8 @@ fn bench_chain_finalize(c: &mut Criterion) {
                             vec![object_ref("obj", "artifact")],
                             black_box(b"data"),
                             &mut counter,
-                        ).expect("build event");
+                        )
+                        .expect("build event");
                         asm.append(event).expect("append");
                     }
                     asm.finalize()
@@ -63,15 +65,14 @@ fn bench_verifier_pipeline(c: &mut Criterion) {
             vec![object_ref("obj", "artifact")],
             b"payload",
             &mut counter,
-        ).expect("build event");
+        )
+        .expect("build event");
         asm.append(event).expect("append");
     }
     let receipt = black_box(asm.finalize());
 
     c.bench_function("verifier_pipeline_10_events", |b| {
-        b.iter(|| {
-            verify(&receipt)
-        })
+        b.iter(|| verify(&receipt))
     });
 }
 
@@ -85,15 +86,14 @@ fn bench_chain_recompute(c: &mut Criterion) {
             vec![object_ref("obj", "artifact")],
             b"data",
             &mut counter,
-        ).expect("build event");
+        )
+        .expect("build event");
         asm.append(event).expect("append");
     }
     let receipt = asm.finalize();
 
     c.bench_function("recompute_chain_100_events", |b| {
-        b.iter(|| {
-            recompute_chain(&receipt.events)
-        })
+        b.iter(|| recompute_chain(&receipt.events))
     });
 }
 
@@ -104,8 +104,13 @@ fn bench_conformance_metrics(c: &mut Criterion) {
     let mut asm = ChainAssembler::new();
     let mut counter = SeqCounter::new();
     for act in ["create", "transform", "validate", "release"] {
-        let ev = build_event(act, vec![object_ref("o", "artifact")], act.as_bytes(), &mut counter)
-            .expect("event");
+        let ev = build_event(
+            act,
+            vec![object_ref("o", "artifact")],
+            act.as_bytes(),
+            &mut counter,
+        )
+        .expect("event");
         asm.append(ev).expect("append");
     }
     let receipt = asm.finalize();

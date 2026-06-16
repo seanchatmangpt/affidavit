@@ -11,8 +11,8 @@
 use wasm4pm_compat::xes::XesLifecycleTransition::{self, *};
 
 const ALL: [XesLifecycleTransition; 14] = [
-    Schedule, Assign, Start, Suspend, Resume, InProgress, Abort, Withdraw,
-    Complete, Unknown, AutoSkip, ManualSkip, Reassign, Plan,
+    Schedule, Assign, Start, Suspend, Resume, InProgress, Abort, Withdraw, Complete, Unknown,
+    AutoSkip, ManualSkip, Reassign, Plan,
 ];
 
 #[test]
@@ -32,7 +32,11 @@ fn the_lifecycle_alphabet_is_closed() {
     // A value outside the standard alphabet is NOT silently coerced.
     assert_eq!(XesLifecycleTransition::parse("custom"), None);
     assert_eq!(XesLifecycleTransition::parse(""), None);
-    assert_eq!(XesLifecycleTransition::parse("Complete"), None, "case-sensitive: capital-C is off-alphabet");
+    assert_eq!(
+        XesLifecycleTransition::parse("Complete"),
+        None,
+        "case-sensitive: capital-C is off-alphabet"
+    );
 }
 
 #[test]
@@ -41,7 +45,8 @@ fn terminal_transitions_are_exactly_the_five_end_states() {
     for t in ALL {
         let expected = match t {
             Complete | Abort | Withdraw | ManualSkip | AutoSkip => true,
-            Schedule | Assign | Start | Suspend | Resume | InProgress | Unknown | Reassign | Plan => false,
+            Schedule | Assign | Start | Suspend | Resume | InProgress | Unknown | Reassign
+            | Plan => false,
         };
         assert_eq!(t.is_terminal(), expected, "{t:?} terminal classification");
     }

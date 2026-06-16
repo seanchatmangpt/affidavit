@@ -15,8 +15,13 @@ fn get_activities_extracts_the_receipts_event_types() {
     let mut asm = ChainAssembler::new();
     let mut counter = SeqCounter::new();
     for act in ["create", "transform", "release", "create"] {
-        let ev = build_event(act, vec![object_ref("o", "artifact")], act.as_bytes(), &mut counter)
-            .expect("event");
+        let ev = build_event(
+            act,
+            vec![object_ref("o", "artifact")],
+            act.as_bytes(),
+            &mut counter,
+        )
+        .expect("event");
         asm.append(ev).expect("append");
     }
     let receipt = asm.finalize();
@@ -26,6 +31,13 @@ fn get_activities_extracts_the_receipts_event_types() {
     activities.sort_unstable();
     activities.dedup();
     // Exactly the three distinct event types (create appears twice → deduped).
-    assert_eq!(activities, vec!["create".to_string(), "release".to_string(), "transform".to_string()],
-        "the discovered activity vocabulary is the receipt's distinct event types");
+    assert_eq!(
+        activities,
+        vec![
+            "create".to_string(),
+            "release".to_string(),
+            "transform".to_string()
+        ],
+        "the discovered activity vocabulary is the receipt's distinct event types"
+    );
 }

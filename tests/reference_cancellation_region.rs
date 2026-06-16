@@ -12,12 +12,18 @@ use wasm4pm_compat::petri::CancellationRegion;
 #[test]
 fn cancellation_region_collects_members_from_str_iter() {
     let region = CancellationRegion::new(["t_a", "t_b", "p_mid"]);
-    assert_eq!(region.members(), &["t_a".to_string(), "t_b".to_string(), "p_mid".to_string()]);
+    assert_eq!(
+        region.members(),
+        &["t_a".to_string(), "t_b".to_string(), "p_mid".to_string()]
+    );
     assert_eq!(region.members().len(), 3, "all three members retained");
 }
 
 #[test]
 fn empty_cancellation_region_has_no_members() {
     let empty = CancellationRegion::new(Vec::<String>::new());
-    assert!(empty.members().is_empty(), "an empty region cancels nothing");
+    assert!(
+        empty.members().is_empty(),
+        "an empty region cancels nothing"
+    );
 }

@@ -26,7 +26,10 @@ const BLAKE3_HEX_LEN: usize = 64;
 
 /// Whether a hex string is a well-formed lowercase BLAKE3-256 digest.
 fn is_well_formed_hash(hex: &str) -> bool {
-    hex.len() == BLAKE3_HEX_LEN && hex.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
+    hex.len() == BLAKE3_HEX_LEN
+        && hex
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
 }
 
 /// Certify a receipt by running the seven-stage decidable pipeline.
@@ -155,7 +158,10 @@ fn stage_continuity(receipt: &Receipt) -> CheckOutcome {
     CheckOutcome {
         stage: "continuity".to_string(),
         passed: true,
-        detail: format!("{} event(s) with contiguous seq and unique ids", receipt.events.len()),
+        detail: format!(
+            "{} event(s) with contiguous seq and unique ids",
+            receipt.events.len()
+        ),
     }
 }
 

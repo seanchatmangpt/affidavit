@@ -4,17 +4,17 @@
 //! New DX/QOL verbs implemented here use 80% existing library code + 20% glue.
 
 // Include generated verb wrappers (these use the #[verb] macro to self-register via linkme)
-pub mod emit;
 pub mod assemble;
-pub mod verify;
-pub mod show;
+pub mod conformance;
+pub mod diagnose;
+pub mod emit;
+pub mod graph;
 pub mod inspect;
 pub mod model;
-pub mod diagnose;
-pub mod conformance;
 pub mod replay;
-pub mod graph;
+pub mod show;
 pub mod stats;
+pub mod verify;
 
 use affidavit::types::Receipt;
 use std::collections::HashMap;
@@ -79,15 +79,20 @@ mod tests {
             vec![object_ref("file-1", "artifact")],
             b"initial content",
             &mut counter,
-        ).expect("build event 1");
+        )
+        .expect("build event 1");
         asm.append(event1).expect("append event 1");
 
         let event2 = build_event(
             "modify",
-            vec![object_ref("file-1", "artifact"), object_ref("user-42", "agent")],
+            vec![
+                object_ref("file-1", "artifact"),
+                object_ref("user-42", "agent"),
+            ],
             b"modified content",
             &mut counter,
-        ).expect("build event 2");
+        )
+        .expect("build event 2");
         asm.append(event2).expect("append event 2");
 
         let receipt = asm.finalize();

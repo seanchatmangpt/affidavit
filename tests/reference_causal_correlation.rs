@@ -30,9 +30,17 @@ fn causal_link_and_chain_are_type_level_constructible() {
 #[test]
 fn correlation_key_carries_its_schema_const() {
     let by_case: CorrelationKey<"by-case"> = CorrelationKey::new();
-    assert_eq!(by_case.schema(), "by-case", "correlation key reports its schema const");
+    assert_eq!(
+        by_case.schema(),
+        "by-case",
+        "correlation key reports its schema const"
+    );
 
     let by_object: CorrelationKey<"by-object"> = CorrelationKey::new();
     assert_eq!(by_object.schema(), "by-object");
-    assert_ne!(by_case.schema(), by_object.schema(), "distinct schemas are distinct keys");
+    assert_ne!(
+        by_case.schema(),
+        by_object.schema(),
+        "distinct schemas are distinct keys"
+    );
 }

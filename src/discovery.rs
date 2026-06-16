@@ -17,7 +17,9 @@
 
 use crate::types::Receipt;
 use std::collections::HashMap;
-use wasm4pm::ilp_discovery::{compute_simplicity, discover_ilp_petri_net_from_log, discover_optimized_dfg_from_log};
+use wasm4pm::ilp_discovery::{
+    compute_simplicity, discover_ilp_petri_net_from_log, discover_optimized_dfg_from_log,
+};
 use wasm4pm::models::{AttributeValue, Event, EventLog, Trace};
 use wasm4pm::process_tree::discover_simple_process_tree_from_log;
 

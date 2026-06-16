@@ -38,5 +38,9 @@ fn binary_constraint_carries_a_target() {
     );
     assert_eq!(c.template, DeclareTemplate::Response);
     assert_eq!(c.activation.name(), "create");
-    assert_eq!(c.target.as_ref().map(|t| t.name()), Some("release"), "binary carries its target");
+    assert_eq!(
+        c.target.as_ref().map(|t| t.name()),
+        Some("release"),
+        "binary carries its target"
+    );
 }

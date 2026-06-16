@@ -7,7 +7,7 @@
 // a passing test is evidence affidavit's law holds under chicago-tdd's harness.
 
 use affidavit::admission::admit;
-use affidavit::chain::{ChainAssembler, recompute_chain, FORMAT_VERSION};
+use affidavit::chain::{recompute_chain, ChainAssembler, FORMAT_VERSION};
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
 use affidavit::types::{Blake3Hash, OperationEvent, Receipt};
 use chicago_tdd_tools::{assert_err, assert_in_range, assert_ok};
@@ -55,8 +55,7 @@ fn chicago_tdd_asserts_forged_receipt_is_refused() {
         objects: vec![object_ref("file-1", "artifact")],
         payload_commitment: Blake3Hash::from_bytes(b"content"),
     };
-    let chain_hash =
-        recompute_chain(std::slice::from_ref(&forged_event)).expect("recompute chain");
+    let chain_hash = recompute_chain(std::slice::from_ref(&forged_event)).expect("recompute chain");
     let forged_json = serde_json::json!({
         "format_version": FORMAT_VERSION,
         "events": [forged_event],
@@ -72,5 +71,8 @@ fn chicago_tdd_asserts_forged_receipt_is_refused() {
     let result = admit(forged);
 
     // Assert (chicago-tdd macro): the court refuses a forged receipt by name.
-    assert_err!(result, "forged receipt must be refused — admission must run the law");
+    assert_err!(
+        result,
+        "forged receipt must be refused — admission must run the law"
+    );
 }

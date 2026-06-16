@@ -9,7 +9,7 @@
 // Failing-when-fake: remove wasm4pm-compat → no compile; if the query methods
 // returned constants, the counts below would not reflect the constructed log.
 
-use wasm4pm_compat::ocel::{OCEL, OCELEvent, OCELObject};
+use wasm4pm_compat::ocel::{OCELEvent, OCELObject, OCEL};
 
 #[test]
 fn ocel2_log_is_constructed_and_queryable() {

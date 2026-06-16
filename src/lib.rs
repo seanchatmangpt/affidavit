@@ -19,9 +19,9 @@ pub mod cli;
 pub mod discovery;
 pub mod lsp;
 pub mod ocel;
+pub mod tracing;
 pub mod types;
 pub mod verifier;
-pub mod tracing;
 
 pub use types::{
     canonical_bytes, Blake3Hash, CheckOutcome, ObjectRef, OperationEvent, ProfileId, Receipt,

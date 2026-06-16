@@ -26,9 +26,17 @@ fn nested_well_formed_tree_admits_and_exposes_structure() {
     }); // 4
     t.root = Some(ProcessTreeNodeId(4));
 
-    assert_eq!(t.admit_shape(), Ok(()), "Sequence(a, Xor(b,c)) is structurally valid");
+    assert_eq!(
+        t.admit_shape(),
+        Ok(()),
+        "Sequence(a, Xor(b,c)) is structurally valid"
+    );
     assert_eq!(t.node_count(), 5, "five nodes in the arena");
-    assert_eq!(t.root, Some(ProcessTreeNodeId(4)), "root is the outer Sequence");
+    assert_eq!(
+        t.root,
+        Some(ProcessTreeNodeId(4)),
+        "root is the outer Sequence"
+    );
 
     // The root is the Sequence operator with two children.
     match &t.nodes[4] {
@@ -45,5 +53,9 @@ fn empty_tree_is_vacuously_admissible() {
     // An empty tree (no nodes, no root) has nothing to violate.
     let t = ProcessTree::new();
     assert_eq!(t.node_count(), 0);
-    assert_eq!(t.admit_shape(), Ok(()), "the empty tree admits (no node violates a law)");
+    assert_eq!(
+        t.admit_shape(),
+        Ok(()),
+        "the empty tree admits (no node violates a law)"
+    );
 }

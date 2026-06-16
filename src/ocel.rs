@@ -100,9 +100,7 @@ pub fn parse_object_ref(spec: &str) -> Result<ObjectRef, OcelError> {
         Some(ty) if !id.is_empty() && !ty.is_empty() => Ok(ObjectRef {
             id: id.to_string(),
             obj_type: ty.to_string(),
-            qualifier: qualifier
-                .filter(|q| !q.is_empty())
-                .map(|q| q.to_string()),
+            qualifier: qualifier.filter(|q| !q.is_empty()).map(|q| q.to_string()),
         }),
         _ => Err(OcelError::MalformedObjectRef(spec.to_string())),
     }
@@ -168,14 +166,8 @@ mod tests {
         let e1 = build_event("write", vec![object_ref("o1", "file")], b"hello", &mut c1).unwrap();
         let e2 = build_event("write", vec![object_ref("o1", "file")], b"hello", &mut c2).unwrap();
         assert_eq!(e1.payload_commitment, e2.payload_commitment);
-        assert_eq!(
-            e1.payload_commitment,
-            Blake3Hash::from_bytes(b"hello")
-        );
-        assert_ne!(
-            e1.payload_commitment,
-            Blake3Hash::from_bytes(b"world")
-        );
+        assert_eq!(e1.payload_commitment, Blake3Hash::from_bytes(b"hello"));
+        assert_ne!(e1.payload_commitment, Blake3Hash::from_bytes(b"world"));
     }
 
     #[test]
@@ -206,14 +198,22 @@ mod tests {
         let err = build_event("op", vec![object_ref("", "file")], b"x", &mut c).unwrap_err();
         assert_eq!(err, OcelError::EmptyObjectId(0));
 
-        let err2 = build_event("op", vec![object_ref("o1", "")], b"x", &mut SeqCounter::new())
-            .unwrap_err();
+        let err2 = build_event(
+            "op",
+            vec![object_ref("o1", "")],
+            b"x",
+            &mut SeqCounter::new(),
+        )
+        .unwrap_err();
         assert_eq!(err2, OcelError::EmptyObjectType(0));
     }
 
     #[test]
     fn parse_object_ref_handles_qualifier_and_errors() {
-        assert_eq!(parse_object_ref("o1:file").unwrap(), object_ref("o1", "file"));
+        assert_eq!(
+            parse_object_ref("o1:file").unwrap(),
+            object_ref("o1", "file")
+        );
         assert_eq!(
             parse_object_ref("o1:file:input").unwrap(),
             qualified_object_ref("o1", "file", "input")

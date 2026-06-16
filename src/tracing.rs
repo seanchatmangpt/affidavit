@@ -104,7 +104,9 @@ mod tests {
         assert_eq!(out, 42, "trace wrapper must return the inner result");
         let spans = captured_spans();
         assert!(
-            spans.iter().any(|s| s.operation == "verify" && s.target == "receipt.json"),
+            spans
+                .iter()
+                .any(|s| s.operation == "verify" && s.target == "receipt.json"),
             "verify must emit an observable span; got {spans:?}"
         );
     }

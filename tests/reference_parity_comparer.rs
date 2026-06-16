@@ -23,5 +23,8 @@ fn parity_rejects_divergent_values() {
     let diverged = std::panic::catch_unwind(|| {
         ParityComparer::assert_epsilon_close(0.83, 0.91); // diff 0.08 >> 1e-6
     });
-    assert!(diverged.is_err(), "a parity violation beyond epsilon must panic");
+    assert!(
+        diverged.is_err(),
+        "a parity violation beyond epsilon must panic"
+    );
 }

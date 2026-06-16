@@ -44,7 +44,10 @@ fn main() {
     // --- Round-trip parse_object_ref on a qualified ref ---
     let spec = "o2:report:output";
     let parsed = parse_object_ref(spec).expect("qualified spec parses");
-    assert_eq!(parsed, qualified, "parsed ref reconstructs the qualified ref");
+    assert_eq!(
+        parsed, qualified,
+        "parsed ref reconstructs the qualified ref"
+    );
     assert_eq!(parsed.qualifier.as_deref(), Some("output"));
 
     // --- EDGE: validate_event rejects a malformed (empty-id) object ref ---
@@ -57,7 +60,11 @@ fn main() {
         &mut SeqCounter::new(),
     )
     .expect_err("empty object id must be refused");
-    assert_eq!(err, OcelError::EmptyObjectId(0), "edge: empty object id rejected");
+    assert_eq!(
+        err,
+        OcelError::EmptyObjectId(0),
+        "edge: empty object id rejected"
+    );
 
     // EDGE: a malformed ref string yields MalformedObjectRef.
     let parse_err = parse_object_ref("nope").expect_err("no ':' must be refused");
@@ -83,7 +90,10 @@ fn main() {
     assert_eq!(resumed.next_seq(), 6, "next_seq is strictly monotonic");
     assert_eq!(resumed.peek(), 7, "peek shows the next undrawn seq");
     let resumed_event = build_event("amend", vec![], b"z", &mut resumed).expect("builds");
-    assert_eq!(resumed_event.seq, 7, "build_event draws the resumed counter's next seq");
+    assert_eq!(
+        resumed_event.seq, 7,
+        "build_event draws the resumed counter's next seq"
+    );
 
     println!("OK: built evt-0/evt-1, parsed {spec}, refused empty id + malformed ref + empty type, resumed seq 5->7");
 }

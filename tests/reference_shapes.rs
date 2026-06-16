@@ -8,21 +8,41 @@
 //   • ReceiptVerdict     — the admitted/refused receipt outcome.
 //   • BpmnGateway        — the BPMN gateway kinds.
 
+use wasm4pm_compat::bpmn::BpmnGateway;
 use wasm4pm_compat::law::ProcessShapeKind as Shape;
 use wasm4pm_compat::receipt::{ConformanceVerdict, ReceiptRefusal, ReceiptVerdict};
-use wasm4pm_compat::bpmn::BpmnGateway;
 
 #[test]
 fn the_process_shape_taxonomy_is_constructed() {
     let all = [
-        Shape::Event, Shape::Trace, Shape::EventLog, Shape::EventStream, Shape::XesLog,
-        Shape::OcelLog, Shape::DirectlyFollowsGraph, Shape::ObjectCentricDfg, Shape::PetriNet,
-        Shape::WorkflowNet, Shape::ObjectCentricPetriNet, Shape::ProcessTree, Shape::Powl,
-        Shape::DeclareModel, Shape::ObjectCentricDeclareModel, Shape::LogSkeleton,
-        Shape::OcpqQuery, Shape::Alignment, Shape::TokenReplay, Shape::ConformanceVerdict,
-        Shape::PredictionProblem, Shape::Receipt,
+        Shape::Event,
+        Shape::Trace,
+        Shape::EventLog,
+        Shape::EventStream,
+        Shape::XesLog,
+        Shape::OcelLog,
+        Shape::DirectlyFollowsGraph,
+        Shape::ObjectCentricDfg,
+        Shape::PetriNet,
+        Shape::WorkflowNet,
+        Shape::ObjectCentricPetriNet,
+        Shape::ProcessTree,
+        Shape::Powl,
+        Shape::DeclareModel,
+        Shape::ObjectCentricDeclareModel,
+        Shape::LogSkeleton,
+        Shape::OcpqQuery,
+        Shape::Alignment,
+        Shape::TokenReplay,
+        Shape::ConformanceVerdict,
+        Shape::PredictionProblem,
+        Shape::Receipt,
     ];
-    assert_eq!(all.len(), 22, "the taxonomy enumerates 22 process-artifact shapes");
+    assert_eq!(
+        all.len(),
+        22,
+        "the taxonomy enumerates 22 process-artifact shapes"
+    );
     // Distinctness via Debug (each is a materialised, distinct shape label).
     let s: std::collections::BTreeSet<String> = all.iter().map(|x| format!("{x:?}")).collect();
     assert_eq!(s.len(), 22, "all 22 shapes are distinct constructions");
@@ -34,12 +54,22 @@ fn the_process_shape_taxonomy_is_constructed() {
     // arm is a real touch of the variant, not a throwaway `_ => ()`.
     fn family(s: Shape) -> &'static str {
         match s {
-            Shape::Event | Shape::Trace | Shape::EventLog | Shape::EventStream
-            | Shape::XesLog | Shape::OcelLog => "log",
-            Shape::DirectlyFollowsGraph | Shape::ObjectCentricDfg | Shape::PetriNet
-            | Shape::WorkflowNet | Shape::ObjectCentricPetriNet | Shape::ProcessTree
+            Shape::Event
+            | Shape::Trace
+            | Shape::EventLog
+            | Shape::EventStream
+            | Shape::XesLog
+            | Shape::OcelLog => "log",
+            Shape::DirectlyFollowsGraph
+            | Shape::ObjectCentricDfg
+            | Shape::PetriNet
+            | Shape::WorkflowNet
+            | Shape::ObjectCentricPetriNet
+            | Shape::ProcessTree
             | Shape::Powl => "model",
-            Shape::DeclareModel | Shape::ObjectCentricDeclareModel | Shape::LogSkeleton
+            Shape::DeclareModel
+            | Shape::ObjectCentricDeclareModel
+            | Shape::LogSkeleton
             | Shape::OcpqQuery => "declarative/query",
             Shape::Alignment | Shape::TokenReplay | Shape::ConformanceVerdict => "conformance",
             Shape::PredictionProblem => "prediction",
@@ -86,12 +116,21 @@ fn conformance_and_receipt_verdicts_are_constructed() {
 #[test]
 fn bpmn_gateway_kinds_are_constructed() {
     let all = [
-        BpmnGateway::Exclusive, BpmnGateway::Parallel, BpmnGateway::Inclusive,
-        BpmnGateway::EventBased, BpmnGateway::Complex,
+        BpmnGateway::Exclusive,
+        BpmnGateway::Parallel,
+        BpmnGateway::Inclusive,
+        BpmnGateway::EventBased,
+        BpmnGateway::Complex,
     ];
     fn ok(g: BpmnGateway) -> bool {
-        matches!(g, BpmnGateway::Exclusive | BpmnGateway::Parallel | BpmnGateway::Inclusive
-            | BpmnGateway::EventBased | BpmnGateway::Complex)
+        matches!(
+            g,
+            BpmnGateway::Exclusive
+                | BpmnGateway::Parallel
+                | BpmnGateway::Inclusive
+                | BpmnGateway::EventBased
+                | BpmnGateway::Complex
+        )
     }
     assert!(all.iter().copied().all(ok));
     assert_eq!(all.len(), 5, "five BPMN gateway kinds");

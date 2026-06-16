@@ -45,7 +45,8 @@ pub fn assemble(out: Option<String>) -> Result<()> {
 /// handler (stderr or structured return), not through println! (the §6 guard).
 pub fn verify(receipt: String) -> Result<()> {
     let (code, verdict) = adapt(affidavit::cli::verify(&receipt))?;
-    eprintln!("verdict: {} [{}] — {}",
+    eprintln!(
+        "verdict: {} [{}] — {}",
         if verdict.accepted { "ACCEPT" } else { "REJECT" },
         verdict.profile.as_str(),
         verdict.reason
@@ -71,9 +72,20 @@ pub fn show(receipt: String) -> Result<()> {
         let objects = if event.objects.is_empty() {
             "(none)".to_string()
         } else {
-            event.objects.iter()
-                .map(|o| format!("{}:{}{}", o.id, o.obj_type,
-                    o.qualifier.as_ref().map(|q| format!("/{}", q)).unwrap_or_default()))
+            event
+                .objects
+                .iter()
+                .map(|o| {
+                    format!(
+                        "{}:{}{}",
+                        o.id,
+                        o.obj_type,
+                        o.qualifier
+                            .as_ref()
+                            .map(|q| format!("/{}", q))
+                            .unwrap_or_default()
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join(", ")
         };
@@ -81,7 +93,8 @@ pub fn show(receipt: String) -> Result<()> {
             let hex = event.payload_commitment.as_hex();
             hex.chars().take(12).collect::<String>()
         };
-        eprintln!("  [{seq:>3}] {ty} id={id} commit={commit} objects=[{objects}]",
+        eprintln!(
+            "  [{seq:>3}] {ty} id={id} commit={commit} objects=[{objects}]",
             seq = event.seq,
             ty = event.event_type,
             id = event.id,
@@ -141,14 +154,23 @@ pub fn replay(receipt: String) -> Result<()> {
         let objects = if event.objects.is_empty() {
             "(none)".to_string()
         } else {
-            event.objects.iter()
+            event
+                .objects
+                .iter()
                 .map(|o| format!("{}:{}", o.id, o.obj_type))
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        eprintln!("  step {seq}: {ty} → [{objects}]", seq = event.seq, ty = event.event_type);
+        eprintln!(
+            "  step {seq}: {ty} → [{objects}]",
+            seq = event.seq,
+            ty = event.event_type
+        );
     }
-    eprintln!("replay complete — {} steps in lawful seq order", parsed.events.len());
+    eprintln!(
+        "replay complete — {} steps in lawful seq order",
+        parsed.events.len()
+    );
     Ok(())
 }
 
@@ -161,8 +183,7 @@ pub fn model(receipt: String) -> Result<()> {
     // runs ONLY on an `AdmittedReceipt`. `admit()` runs the OCEL court + chain
     // verifier; a receipt that fails has no path to `discover_from_admitted`.
     let admitted = adapt(
-        affidavit::admission::admit(parsed)
-            .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
+        affidavit::admission::admit(parsed).map_err(|r| anyhow::anyhow!("admission refused: {r}")),
     )?;
     let tree = affidavit::discovery::discover_from_admitted(&admitted);
     eprintln!("discovered process model (wasm4pm) on the ADMITTED receipt:");
@@ -181,8 +202,7 @@ pub fn conformance(receipt: String) -> Result<()> {
     // courts first) — same discipline as `model`. Conformance on un-adjudicated
     // bytes has no path here.
     let admitted = adapt(
-        affidavit::admission::admit(parsed)
-            .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
+        affidavit::admission::admit(parsed).map_err(|r| anyhow::anyhow!("admission refused: {r}")),
     )?;
     let (fitness, activity_coverage, simplicity) =
         affidavit::discovery::quality_metrics_from_admitted(&admitted);
