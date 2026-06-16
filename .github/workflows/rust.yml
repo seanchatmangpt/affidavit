@@ -29,11 +29,9 @@ on:
   push:
   pull_request:
 
-# Each run is independent to prevent push and pull_request triggers from
-# cancelling each other in the queue before either gets a runner.
 concurrency:
-  group: rust-${{ github.run_id }}
-  cancel-in-progress: false
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

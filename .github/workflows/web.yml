@@ -18,12 +18,9 @@ on:
       - "web/**"
       - ".github/workflows/web.yml"
 
-# Each run is independent — no in-flight cancellation. This prevents the
-# push-trigger and pull_request-trigger from racing and killing each other,
-# which was causing all jobs to die in the queue before getting a runner.
 concurrency:
-  group: web-${{ github.run_id }}
-  cancel-in-progress: false
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
