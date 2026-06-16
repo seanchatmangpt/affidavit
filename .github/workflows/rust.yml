@@ -50,11 +50,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install nightly toolchain (rustfmt)
-        # @v1 reads the channel and date from rust-toolchain.toml — ensures CI and
-        # local always use the same pinned nightly formatter (not whatever @nightly
-        # happens to be at run time).
-        uses: dtolnay/rust-toolchain@v1
+        # Explicit toolchain pin matches rust-toolchain.toml so CI and local always
+        # use the same formatter binary (not whatever @nightly happens to be at run time).
+        uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly-2026-06-15
           components: rustfmt
 
       - name: cargo fmt --all -- --check

@@ -48,6 +48,12 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      - name: Environment info
+        run: |
+          echo "node $(node --version)  npm $(npm --version)"
+          echo "pwd: $(pwd)  repo-root: $(cd .. && pwd)"
+          ls .. | head -20
+
       - name: Install dependencies (npm ci)
         run: npm ci
 
@@ -56,7 +62,16 @@ jobs:
 
       - name: Build (next build)
         env:
-          # Prevent Next.js from making outbound telemetry requests, which can hang
-          # or add latency when the runner's outbound network is restricted.
-          NEXT_TELEMETRY_DISABLED: "1"
-        run: npm run build
+          NEXT_TELEMETRY_DISABLED: 1
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: |
+          npm run build 2>&1 | tee /tmp/next-build.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Surface build failure
+        if: failure()
+        run: |
+          echo "### next build output (last 60 lines)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -60 /tmp/next-build.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "(no build log captured)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
