@@ -1,0 +1,27 @@
+\contentsline {chapter}{Abstract}{v}{chapter*.1}%
+\contentsline {chapter}{Acknowledgements}{vii}{chapter*.2}%
+\contentsline {chapter}{List of Figures}{xi}{section*.4}%
+\contentsline {chapter}{List of Tables}{xiii}{section*.6}%
+\contentsline {chapter}{Listings}{xv}{section*.8}%
+\contentsline {chapter}{List of Algorithms}{xvii}{section*.10}%
+\contentsline {part}{I\hspace {1em}Theoretical Foundations and Ontological Frameworks}{1}{part.1}%
+\contentsline {chapter}{\numberline {1}Introduction to Cryptographic Provability}{3}{chapter.1}%
+\contentsline {chapter}{\numberline {2}Background and Literature Review}{5}{chapter.2}%
+\contentsline {chapter}{\numberline {3}The \textsc {Ostar}{} Ontology and the Chatman Equation}{7}{chapter.3}%
+\contentsline {part}{II\hspace {1em}The Cryptographic Manufacturing Pipeline}{9}{part.2}%
+\contentsline {chapter}{\numberline {4}Deterministic \textsc {Wasm}{} Execution Environments}{11}{chapter.4}%
+\contentsline {chapter}{\numberline {5}BLAKE3{} Receipt Chains and Provenance}{13}{chapter.5}%
+\contentsline {chapter}{\numberline {6}Formal Verification via Bipartite Typestate Graphs}{15}{chapter.6}%
+\contentsline {part}{III\hspace {1em}Holographic Developer Experience and Telepathy}{17}{part.3}%
+\contentsline {chapter}{\numberline {7}The Holographic Language Server Protocol}{19}{chapter.7}%
+\contentsline {chapter}{\numberline {8}Autonomous Governance and Intelligent Mutation}{21}{chapter.8}%
+\contentsline {part}{IV\hspace {1em}Empirical Evaluation and Future Trajectories}{23}{part.4}%
+\contentsline {chapter}{\numberline {9}Methodology and Empirical Evaluation}{25}{chapter.9}%
+\contentsline {chapter}{\numberline {10}Conclusion}{27}{chapter.10}%
+\contentsline {chapter}{Appendices}{29}{section*.22}%
+\contentsline {chapter}{W3C PROV-O Ontology Specification mapping}{31}{appendix*.23}%
+\contentsline {chapter}{Exhaustive Rust Macro Expansions}{33}{appendix*.25}%
+\contentsline {chapter}{Mathematical Proof of Pipeline Determinism}{35}{appendix*.27}%
+\contentsline {chapter}{Raw Benchmark Data and Statistical Variance Analysis}{37}{appendix*.29}%
+\contentsline {chapter}{Bibliography}{39}{section*.31}%
+\contentsfinish 

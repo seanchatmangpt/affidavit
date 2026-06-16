@@ -1,0 +1,121 @@
+\chapter{Literature Review: Cryptographic Provenance, Hash Chains, and Post-Quantum Sealing}
+\label{ch:lit_review_crypto}
+
+\section{Introduction to Cryptographic Provenance}
+\label{sec:crypto_prov_intro}
+
+The pursuit of verifiable, immutable, and cryptographically secure provenance has long been a foundational objective within the domains of computer science, information security, and systems engineering. Provenance, fundamentally defined as the chronological record of ownership, custody, or the history of operations performed on a digital object, is the bedrock upon which trust in digital systems is erected. In contemporary decentralized and trustless environments, the classical reliance on perimeter-based security architectures and centralized, trusted third parties has been demonstrably invalidated by a proliferation of advanced persistent threats (APTs), insider attacks, and catastrophic software supply chain vulnerabilities (e.g., SolarWinds, Log4j). Consequently, the paradigm has shifted inexorably toward cryptographically enforced mechanisms of truth, where the integrity and origin of data can be mathematically proven independently of the system's runtime state or the benevolence of its operators.
+
+Cryptographic provenance ensures that any digital artifact—be it a compiled binary, a runtime execution trace, a machine learning model weight, or a legal affidavit—carries with it a mathematically binding history of its creation and subsequent mutations. This epistemological shift from "trusted" to "verifiable" necessitates a rigorous synthesis of cryptographic primitives. The literature surrounding this domain is vast, encompassing the early theoretical constructs of one-way trapdoor functions, the architectural designs of distributed ledgers, and the bleeding-edge advancements in post-quantum cryptographic standardization. This chapter systematically interrogates the historical trajectory and current state-of-the-art in cryptographic provenance. It begins with an exhaustive analysis of foundational tamper-evident data structures, primarily Merkle trees and hash chains. It then critically evaluates the modern revolution in high-throughput cryptographic hashing, focusing on the BLAKE3 algorithm. Finally, it addresses the existential paradigm shift induced by quantum computing, providing a comprehensive review of the National Institute of Standards and Technology (NIST) Post-Quantum Cryptography (PQC) standardization process, with a specific, deep focus on Module-Lattice-Based Key-Encapsulation Mechanisms (ML-KEM, formerly CRYSTALS-Kyber) and Module-Lattice-Based Digital Signature Algorithms (ML-DSA, formerly CRYSTALS-Dilithium).
+
+\section{Historical Foundations: Merkle Trees and Tamper-Evident Logs}
+\label{sec:historical_merkle}
+
+The conceptual architecture of modern cryptographic provenance traces its origins to the late 1970s and early 1980s, a period marked by explosive innovation in public-key cryptography and digital signature schemes. However, the specific challenge of efficiently verifying the integrity of large, continuously expanding datasets required a novel structural approach.
+
+\subsection{The Inception of the Merkle Tree}
+In 1979, Ralph Merkle patented a method for providing digital signatures that utilized a tree structure of cryptographic hashes, now universally known as the Merkle Tree (Merkle, 1980). A Merkle tree is a rooted, directed acyclic graph (typically a binary tree) where every leaf node is labeled with the cryptographic hash of a data block, and every non-leaf node is labeled with the cryptographic hash of the labels of its child nodes. This recursive hashing structure provides a mechanism for secure, efficient verification of large data structures.
+
+The profound mathematical elegance of the Merkle tree lies in its logarithmic complexity, $O(\log n)$, for both inclusion proofs and consistency proofs. If a verifier holds the trusted root hash of a Merkle tree containing $n$ elements, proving that a specific element exists within the tree requires providing only the hash values of the sibling nodes along the path from the target leaf to the root. This characteristic is paramount for bandwidth-constrained environments and lightweight clients, as it uncouples the verification cost from the total size of the dataset.
+
+\subsection{Evolution of Hash Functions: Merkle-Damgård to Sponge Constructions}
+The security guarantees of a Merkle tree are inextricably bound to the properties of the underlying cryptographic hash function: collision resistance, pre-image resistance, and second pre-image resistance. Historically, hash functions relied heavily on the Merkle-Damgård (MD) construction, which processes input data sequentially in fixed-size blocks. Notable implementations of this construction include MD5, SHA-1, and the widely deployed SHA-2 family (SHA-256, SHA-512). 
+
+However, the MD construction suffers from inherent sequential bottlenecks and vulnerabilities to length-extension attacks. The cryptographic literature documented a gradual erosion of confidence in early MD-based algorithms. The collision resistance of MD5 was catastrophically broken by Wang et al. (2005), and subsequent theoretical and practical attacks against SHA-1 culminated in the SHAttered attack by Google and CWI in 2017, generating the first practical collision for SHA-1.
+
+These catastrophic breaks precipitated the NIST SHA-3 competition, which fundamentally altered the architectural landscape of hash functions by selecting Keccak, based on the novel sponge construction. The sponge construction absorbs data into a large internal state, applies a cryptographic permutation, and then squeezes out the hash value. While highly secure and resistant to length-extension attacks, Keccak/SHA-3 proved to be relatively slow in software implementations compared to highly optimized SHA-2 implementations, catalyzing further research into high-throughput hashing for environments demanding ubiquitous provenance tracking.
+
+\subsection{Tamper-Evident Logs and Certificate Transparency}
+The theoretical elegance of Merkle trees found profound practical application in the development of tamper-evident logs, most notably exemplified by the Certificate Transparency (CT) framework (RFC 6962). Proposed by Laurie et al., CT utilizes append-only Merkle trees to publicly log SSL/TLS certificates issued by Certificate Authorities (CAs). 
+
+In a tamper-evident log, any attempt to retroactively modify, delete, or insert a historical record requires changing the hash of that leaf node, which consequently alters the hash of its parent, rippling upwards and ultimately changing the root hash. Because the root hash is periodically broadcasted and witnessed by independent auditors and monitors (a process known as "gossiping"), any covert modification is mathematically guaranteed to be detected. This architecture forms the basis of all modern distributed version control systems (e.g., Git, where commits are linked via SHA-1 or SHA-256 hash chains) and distributed ledger technologies (blockchains).
+
+\sectionsection{Modern Hash Chains and the Dominance of BLAKE3}
+\label{sec:blake3}
+
+As the requirement for cryptographic provenance expands from coarse-grained events (e.g., committing code, issuing a certificate) to fine-grained, high-frequency observability (e.g., logging every function call, network packet, or OpenTelemetry span), the computational overhead of the hash function becomes the primary bottleneck. Provenance generation must not impede the performance of the system it observes.
+
+\subsection{The BLAKE Family Lineage}
+The BLAKE algorithm, submitted by Aumasson et al. to the SHA-3 competition, introduced a heavily optimized structure based on the ChaCha stream cipher's core permutation. Although Keccak won the competition, BLAKE (and its successor BLAKE2) gained massive adoption in the software industry due to its extraordinary software performance, often outperforming even MD5 and SHA-1 while providing security margins equivalent to or exceeding SHA-3.
+
+BLAKE2 optimized the original design by reducing the number of rounds and tuning the parameters for 64-bit and 32-bit platforms. However, BLAKE2 remained a fundamentally sequential algorithm. For massive datasets or high-bandwidth continuous streams, sequential processing leaves multi-core and Single Instruction, Multiple Data (SIMD) capabilities critically underutilized.
+
+\subsection{The BLAKE3 Revolution: Intrinsic Parallelism}
+BLAKE3, introduced by O'Connor, Aumasson, Neves, and Wilcox-O'Hearn in 2020, represents a paradigm shift in cryptographic hashing. Rather than acting as a simple sequential function, BLAKE3 is fundamentally a Merkle tree at its core. 
+
+BLAKE3 processes data in chunks of 1024 bytes. Each chunk is hashed independently using a variant of the BLAKE2 compression function. The resulting chunk hashes are then organized into a binary tree structure, and the parent nodes are computed until a single root hash is derived. This intrinsic tree structure confers two monumental advantages for cryptographic provenance pipelines:
+
+1.  **Unbounded Parallelism:** Because the 1024-byte chunks are hashed independently, a system can map the hashing workload across arbitrarily many CPU cores or SIMD lanes (AVX-512, NEON). This allows BLAKE3 to achieve throughputs scaling into tens of gigabytes per second, saturating memory bandwidth long before CPU limits are reached.
+2.  **Verified Streaming and Partial File Verification:** Similar to BitTorrent or Git, a verifier can authenticate a specific 1024-byte chunk of a multi-terabyte log file without hashing or downloading the entire file. They only require the sibling hashes along the Merkle path to the trusted root.
+
+In the context of the proposed thesis architectures, where millions of execution states, traces, and artifacts must be cryptographically sealed per second, BLAKE3 is not merely an optimization; it is a fundamental enabler. It permits the creation of an omnipresent, unforgeable hash chain (a continuous provenance log) with near-zero observer effect on the host system's latency.
+
+\section{The Impending Quantum Threat to Provenance}
+\label{sec:quantum_threat}
+
+The cryptographic foundations of provenance discussed thus far—hash functions for integrity and public-key cryptography for non-repudiation and identity—rely on mathematical problems deemed intractable for classical computers. However, the theoretical conceptualization and ongoing engineering realization of quantum computers pose an existential threat to this paradigm.
+
+\subsection{Quantum Mechanics and Cryptanalytic Algorithms}
+Unlike classical bits, which exist deterministically as 0 or 1, quantum bits (qubits) leverage the principles of superposition and entanglement, allowing a quantum computer to explore a massive solution space simultaneously. The implications for cryptography are catastrophic, primarily driven by two landmark quantum algorithms.
+
+\subsubsection{Shor's Algorithm}
+In 1994, Peter Shor published a quantum algorithm capable of solving integer factorization and the discrete logarithm problem in polynomial time. These are the precise mathematical foundations upon which nearly all currently deployed public-key cryptography rests, including RSA, Elliptic Curve Digital Signature Algorithm (ECDSA), and Edwards-curve Digital Signature Algorithm (EdDSA).
+
+When a Cryptographically Relevant Quantum Computer (CRQC) is developed, Shor's algorithm will render these signature schemes completely broken. An adversary possessing a CRQC could forge signatures, retroactively altering the provenance record. For example, they could forge a Git commit signature or a software release signing key, utterly destroying the chain of custody. This threat model gives rise to the "Harvest Now, Decrypt Later" (HNDL) paradigm, where adversaries store encrypted traffic today, waiting for Q-Day (the day a CRQC comes online) to decrypt it. In the context of provenance, the threat is "Counterfeit Later": if the provenance chain relies on classical signatures, a future quantum adversary can rewrite history.
+
+\subsubsection{Grover's Algorithm}
+While Shor's algorithm exponentially speeds up asymmetric crypto-analysis, Lov Grover's algorithm (1996) provides a quadratic speedup for unstructured search problems. For cryptographic hash functions like SHA-256 or BLAKE3, Grover's algorithm effectively halves the bit security. A 256-bit hash function, which provides 256 bits of pre-image resistance against a classical computer, provides only 128 bits of security against a quantum computer. 
+
+While a reduction to 128 bits is significant, it is generally considered that 256-bit hash functions (including BLAKE3) retain an adequate security margin against quantum attacks for the foreseeable future. Therefore, the primary focus of post-quantum remediation for provenance lies in replacing the vulnerable asymmetric signature and key-exchange mechanisms.
+
+\section{Post-Quantum Sealing: Standardization of Dilithium and Kyber}
+\label{sec:pqc_standardization}
+
+Recognizing the impending obsolescence of classical asymmetric cryptography, NIST initiated the Post-Quantum Cryptography Standardization Process in 2016. The objective was to solicit, evaluate, and standardize cryptographic algorithms resistant to both classical and quantum cryptanalysis. In August 2024, NIST released the finalized Federal Information Processing Standards (FIPS) for the first three PQC algorithms: FIPS 203 (ML-KEM/Kyber), FIPS 204 (ML-DSA/Dilithium), and FIPS 205 (SLH-DSA/Sphincs+).
+
+For robust, high-performance cryptographic provenance, ML-DSA and ML-KEM represent the most critical primitives for generating quantum-resistant "seals" over the BLAKE3 hash chains. Both algorithms belong to the family of lattice-based cryptography, specifically Module Learning With Errors (Module-LWE).
+
+\subsection{Lattice-Based Cryptography and Module-LWE}
+Lattice-based cryptography relies on the hardness of high-dimensional geometric problems, such as the Shortest Vector Problem (SVP) and the Closest Vector Problem (CVP). In a lattice—a set of points in $n$-dimensional space with a periodic structure—finding the shortest non-zero vector given a "bad" (highly skewed) basis is incredibly difficult, known to be NP-hard in certain cases.
+
+The Learning With Errors (LWE) problem, introduced by Oded Regev, reduces these worst-case lattice problems to an average-case problem involving linear equations with added Gaussian noise. If $\mathbf{s}$ is a secret vector, $\mathbf{A}$ is a public matrix, and $\mathbf{e}$ is a small error vector, the LWE problem asks the adversary to find $\mathbf{s}$ given $\mathbf{A}$ and $\mathbf{b} = \mathbf{A}\mathbf{s} + \mathbf{e}$. The added error $\mathbf{e}$ is crucial; without it, the system could be solved easily via Gaussian elimination.
+
+Module-LWE (MLWE) is an algebraic variant of LWE defined over polynomial rings. By structuring the matrix $\mathbf{A}$ as a matrix of polynomials, MLWE dramatically reduces the size of the public and private keys compared to standard LWE, making it highly practical for real-world networking and provenance logging.
+
+\subsection{ML-KEM (CRYSTALS-Kyber): Post-Quantum Key Encapsulation}
+FIPS 203 formalizes ML-KEM, derived from the CRYSTALS-Kyber submission. In a provenance pipeline, key encapsulation is required when verifiable data must also remain confidential between parties (e.g., transmitting proprietary telemetry logs to an auditing enclave). 
+
+ML-KEM operates by allowing an initiator to generate a symmetric key (e.g., an AES-256 or ChaCha20 key) and encapsulate it using the recipient's ML-KEM public key. The ciphertexts and public keys in ML-KEM are remarkably small for post-quantum algorithms (around 800 to 1500 bytes, depending on the security parameter set: Kyber512, Kyber768, or Kyber1024), and the encapsulation/decapsulation operations are computationally highly efficient, requiring only polynomial multiplications and additions.
+
+\subsection{ML-DSA (CRYSTALS-Dilithium): Post-Quantum Signatures}
+FIPS 204 formalizes ML-DSA, derived from CRYSTALS-Dilithium. For the purpose of immutable provenance, digital signatures are the supreme cryptographic primitive. Every block, log entry, or Merkle root must be signed by the executing entity to guarantee non-repudiation.
+
+ML-DSA operates on the Fiat-Shamir with Aborts framework, pioneered by Lyubashevsky. The core challenge in lattice-based signatures is that signing a message can inadvertently leak information about the private key (the short vector) through the geometry of the signature vector. To prevent this, the "abort" mechanism ensures that the signature is only published if the resulting vector falls within a strictly defined, key-independent geometric distribution (typically a uniform or Gaussian distribution). If the generated vector falls outside this bound, the algorithm discards it (aborts) and tries again.
+
+ML-DSA provides a highly balanced performance profile. While its public keys and signatures are larger than classical ECC (e.g., a Dilithium3 signature is approximately 3.3 Kilobytes, compared to a 64-byte Ed25519 signature), the computational speed of signing and verifying is exceptionally fast, often exceeding classical algorithms. 
+
+\subsection{Hybrid Cryptographic Architectures for Provenance}
+Despite the mathematical confidence in Module-LWE, the novelty of PQC algorithms necessitates a defense-in-depth approach. The current best practice in the literature, advocated by bodies such as the IETF, is the implementation of Hybrid Cryptography.
+
+A hybrid provenance seal involves combining a classical, battle-tested algorithm (e.g., Ed25519) with a post-quantum algorithm (e.g., ML-DSA). The data (or its BLAKE3 hash) is signed by both algorithms. An adversary attempting to forge the provenance record must break *both* the classical discrete logarithm problem *and* the post-quantum Module-LWE problem. This ensures that even if an unforeseen classical cryptanalytic breakthrough breaks Dilithium in the near term, the provenance record remains secured by Ed25519; conversely, when a CRQC emerges and breaks Ed25519, the record remains secured by Dilithium.
+
+\section{Cross-Disciplinary Syntheses: Irreducibility, Signals, and AI Provenance}
+\label{sec:crypto_prov_synthesis}
+
+To fully construct a maximalist architecture for provenance, we must synthesize cryptographic primitives with principles from physics, information theory, and artificial intelligence. 
+
+\subsection{Computational Irreducibility and the Foundation of Agency}
+The cryptographic hash chain is not merely a data structure; it is the physical manifestation of computational time. Drawing from complex systems theory, computational irreducibility acts as the foundation of agency \cite{ref_ComputationalIr9}. A BLAKE3 hash chain cannot be analytically skipped; to know the final state, the computation must be performed. This irreducibility ensures that an autonomous agent or system operating within a cryptographic framework has definitively traversed the historical sequence of states. The unbroken chain of cryptographic proofs mathematically binds the agent to its past, rendering its evolutionary trajectory undeniable and its agency provable.
+
+\subsection{Temporal Precision and Optimal Intent Encoding}
+As systems transition to microsecond and nanosecond event resolutions, the temporal synchronization required for distributed ledger consensus approaches the tolerances observed in advanced optical physics, such as the picosecond synchronization of mode-locked lasers \cite{ref_Picosecondsynch13}. Just as optical synchronization enables hyper-fast phenomena observation, hyper-parallelized hashing with BLAKE3 enables the cryptographic observation of massively parallel software execution without temporal drift. Furthermore, the act of digitally signing these state transitions via ML-DSA must be viewed through the lens of signal theory. The digital signature is the architecture of optimal intent encoding \cite{ref_SignalTheoryThe14}; it is a high-fidelity signal transmitted across time and space, immune to noise (tampering) and capable of perfectly reconstructing the original authoritative intent of the system or operator.
+
+\subsection{Cryptographic Sealing for LLMs and Generative Models}
+The urgency of cryptographic provenance is exponentially magnified by the proliferation of Large Language Models (LLMs). The capacity of generative AI to rapidly synthesize code and text introduces severe risks of intellectual property contamination. Recent findings confirming that LLMs plagiarize underscore the critical need for ensuring responsible sourcing \cite{ref_LLMsPlagiarizeE11}. By embedding ML-KEM and ML-DSA cryptographic seals within the inference pipelines of LLMs, every generated artifact can be immutably linked back to its specific prompt, model weights, and context window. This establishes an unbroken chain of custody from the generative impulse to the finalized output, ensuring that AI-augmented systems remain accountable, auditable, and fully compliant with intellectual property and security regulations.
+
+\section{Conclusion}
+\label{sec:crypto_prov_conclusion}
+
+The literature demonstrates a clear evolutionary trajectory toward absolute mathematical certainty in digital systems. The transition from simplistic sequential hashing to the hyper-parallelized, tree-structured architectures exemplified by BLAKE3 provides the necessary throughput to observe and cryptographically link state transitions at the microsecond level. Concurrently, the looming existential threat of quantum cryptanalysis has catalyzed the rapid standardization of Module-Lattice-based cryptography.
+
+To achieve robust, long-term cryptographic provenance—capable of surviving the transition into the quantum era—systems engineering must synthesize these primitives. A modern provenance pipeline must ingest high-velocity data, anchor it into a BLAKE3-derived Merkle DAG, and mathematically seal the root hashes using hybrid architectures incorporating FIPS 204 ML-DSA and FIPS 203 ML-KEM. This exact intersection of high-throughput hashing and post-quantum algebraic geometry forms the foundational substrate upon which truly immutable, autonomous verifiable software supply chains can be built.

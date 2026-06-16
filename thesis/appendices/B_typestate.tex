@@ -1,0 +1,775 @@
+\chapter{Combinatorial Typestate Proofs}
+\label{app:typestate}
+
+In this appendix, we provide an exhaustive, line-by-line breakdown of the combinatorial typestate proofs utilized within the Affidavit framework. These proofs serve to demonstrate, with absolute mathematical and compile-time certainty, that invalid event sequences are impossible to construct, let alone execute. We present both the theoretical foundations expressed in TLA+ (Temporal Logic of Actions) and the practical implementation encoded in Rust's advanced type system.
+
+\section{TLA+ Specification of Typestate Transitions}
+
+We begin by defining the core state machine in TLA+. This specification guarantees that our conceptual model is sound before we even attempt to encode it in Rust.
+
+\begin{lstlisting}[language=tla]
+---------------- MODULE TypestateProofs ----------------
+EXTENDS Naturals, Sequences, FiniteSets
+
+\* The set of all possible abstract states an entity can inhabit.
+VARIABLES
+    currentState,  \* The currently active state.
+    eventLog       \* A historical record of all applied events.
+
+\* Define the specific states for a standard Object-Centric Event Log lifecycle.
+States == {"Uninitialized", "Discovered", "Mutated", "Observed", "Terminated"}
+
+\* Define the specific events that trigger state transitions.
+Events == {"Discover", "Mutate", "Observe", "Terminate"}
+
+\* The initial condition of our universe.
+Init ==
+    /\ currentState = "Uninitialized"
+    /\ eventLog = <<>>
+
+\* The transition rule for moving from Uninitialized to Discovered.
+DoDiscover ==
+    /\ currentState = "Uninitialized"
+    /\ currentState' = "Discovered"
+    /\ eventLog' = Append(eventLog, "Discover")
+
+\* The transition rule for moving from Discovered to Mutated.
+DoMutate ==
+    /\ currentState = "Discovered"
+    /\ currentState' = "Mutated"
+    /\ eventLog' = Append(eventLog, "Mutate")
+
+\* The transition rule for moving from Mutated to Observed.
+DoObserve ==
+    /\ currentState \in {"Discovered", "Mutated"}
+    /\ currentState' = "Observed"
+    /\ eventLog' = Append(eventLog, "Observe")
+
+\* The transition rule for moving from Observed to Terminated.
+DoTerminate ==
+    /\ currentState = "Observed"
+    /\ currentState' = "Terminated"
+    /\ eventLog' = Append(eventLog, "Terminate")
+
+\* The comprehensive Next-state relation.
+Next ==
+    \/ DoDiscover
+    \/ DoMutate
+    \/ DoObserve
+    \/ DoTerminate
+
+\* The complete temporal formula.
+Spec == Init /\ [][Next]_<<currentState, eventLog>>
+======================================================
+\end{lstlisting}
+
+\subsection{Exhaustive Line-by-Line TLA+ Explanation}
+
+Let us dissect the TLA+ specification to ensure absolute clarity on its mechanics.
+
+\textbf{Line 1: \texttt{---------------- MODULE TypestateProofs ----------------}}
+This line declares the beginning of the TLA+ module named \texttt{TypestateProofs}. The surrounding dashes are standard TLA+ syntax for module demarcation, visually separating the module from any preceding text.
+
+\textbf{Line 2: \texttt{EXTENDS Naturals, Sequences, FiniteSets}}
+This imports standard TLA+ modules. \texttt{Naturals} provides basic arithmetic and numbers, which are often used implicitly. \texttt{Sequences} is critical for our \texttt{eventLog}, providing the \texttt{Append} operator. \texttt{FiniteSets} allows us to reason about finite collections of elements.
+
+\textbf{Line 4: \texttt{\* The set of all possible abstract states an entity can inhabit.}}
+A standard TLA+ comment line.
+
+\textbf{Line 5: \texttt{VARIABLES}}
+This keyword introduces the state variables that will change over time in our specification.
+
+\textbf{Line 6: \texttt{currentState,  \* The currently active state.}}
+We declare \texttt{currentState}. This variable holds a string representing the typestate at any given step. The comment clarifies its purpose.
+
+\textbf{Line 7: \texttt{eventLog       \* A historical record of all applied events.}}
+We declare \texttt{eventLog}. This will be a sequence (tuple in TLA+ parlance) tracking the ordered history of transitions.
+
+\textbf{Line 9: \texttt{\* Define the specific states for a standard Object-Centric Event Log lifecycle.}}
+A comment explaining the next definition.
+
+\textbf{Line 10: \texttt{States == \{"Uninitialized", "Discovered", "Mutated", "Observed", "Terminated"\}}}
+Here we define a constant set \texttt{States} containing strings. These map exactly to the Rust marker structs we will define later. It limits the domain of \texttt{currentState}.
+
+\textbf{Line 12: \texttt{\* Define the specific events that trigger state transitions.}}
+A comment explaining the next definition.
+
+\textbf{Line 13: \texttt{Events == \{"Discover", "Mutate", "Observe", "Terminate"\}}}
+We define a constant set \texttt{Events}. These correspond to the generic methods available in our Rust trait bounds.
+
+\textbf{Line 15: \texttt{\* The initial condition of our universe.}}
+A comment indicating the start of the initialization predicate.
+
+\textbf{Line 16: \texttt{Init ==}}
+The \texttt{Init} predicate defines the starting point of the state machine. All legal behaviors must begin with a state satisfying this predicate.
+
+\textbf{Line 17: \texttt{/\textbackslash currentState = "Uninitialized"}}
+The logical AND operator (`/\textbackslash') specifies that initially, the \texttt{currentState} must be exactly the string `"Uninitialized"`.
+
+\textbf{Line 18: \texttt{/\textbackslash eventLog = <<>>}}
+Furthermore, the \texttt{eventLog} must be an empty sequence (`<<>>`).
+
+\textbf{Line 20: \texttt{\* The transition rule for moving from Uninitialized to Discovered.}}
+A comment for the \texttt{DoDiscover} action.
+
+\textbf{Line 21: \texttt{DoDiscover ==}}
+The action predicate defining the discovery transition.
+
+\textbf{Line 22: \texttt{/\textbackslash currentState = "Uninitialized"}}
+The enabling condition: this transition can only fire if the system is currently in the `"Uninitialized"` state.
+
+\textbf{Line 23: \texttt{/\textbackslash currentState' = "Discovered"}}
+The next-state relation: if this action fires, the value of \texttt{currentState} in the \textit{next} step (`currentState'`) will be `"Discovered"`.
+
+\textbf{Line 24: \texttt{/\textbackslash eventLog' = Append(eventLog, "Discover")}}
+The \texttt{eventLog} in the next step (`eventLog'`) will be the current \texttt{eventLog} with the string `"Discover"` appended to it.
+
+\textbf{Line 26: \texttt{\* The transition rule for moving from Discovered to Mutated.}}
+A comment for the \texttt{DoMutate} action.
+
+\textbf{Line 27: \texttt{DoMutate ==}}
+The action predicate for mutation.
+
+\textbf{Line 28: \texttt{/\textbackslash currentState = "Discovered"}}
+The enabling condition: must be in `"Discovered"` state.
+
+\textbf{Line 29: \texttt{/\textbackslash currentState' = "Mutated"}}
+The next state will be `"Mutated"`.
+
+\textbf{Line 30: \texttt{/\textbackslash eventLog' = Append(eventLog, "Mutate")}}
+The event `"Mutate"` is appended to the log.
+
+\textbf{Line 32: \texttt{\* The transition rule for moving from Mutated to Observed.}}
+A comment for the \texttt{DoObserve} action.
+
+\textbf{Line 33: \texttt{DoObserve ==}}
+The action predicate for observation.
+
+\textbf{Line 34: \texttt{/\textbackslash currentState \textbackslash in \{"Discovered", "Mutated"\}}}
+Notice this enabling condition is slightly different. We use the set membership operator `\textbackslash in`. This means an observation can occur directly after discovery OR after mutation. This maps to complex trait bounds in Rust.
+
+\textbf{Line 35: \texttt{/\textbackslash currentState' = "Observed"}}
+The next state will be `"Observed"`.
+
+\textbf{Line 36: \texttt{/\textbackslash eventLog' = Append(eventLog, "Observe")}}
+The event `"Observe"` is appended to the log.
+
+\textbf{Line 38: \texttt{\* The transition rule for moving from Observed to Terminated.}}
+A comment for the \texttt{DoTerminate} action.
+
+\textbf{Line 39: \texttt{DoTerminate ==}}
+The action predicate for termination.
+
+\textbf{Line 40: \texttt{/\textbackslash currentState = "Observed"}}
+The enabling condition: must be in `"Observed"` state.
+
+\textbf{Line 41: \texttt{/\textbackslash currentState' = "Terminated"}}
+The next state will be `"Terminated"`.
+
+\textbf{Line 42: \texttt{/\textbackslash eventLog' = Append(eventLog, "Terminate")}}
+The event `"Terminate"` is appended to the log.
+
+\textbf{Line 44: \texttt{\* The comprehensive Next-state relation.}}
+A comment for the \texttt{Next} relation.
+
+\textbf{Line 45: \texttt{Next ==}}
+This predicate defines all possible valid steps the system can take.
+
+\textbf{Line 46: \texttt{\textbackslash / DoDiscover}}
+Logical OR (`\textbackslash /`): The system might take the \texttt{DoDiscover} step.
+
+\textbf{Line 47: \texttt{\textbackslash / DoMutate}}
+OR it might take the \texttt{DoMutate} step.
+
+\textbf{Line 48: \texttt{\textbackslash / DoObserve}}
+OR it might take the \texttt{DoObserve} step.
+
+\textbf{Line 49: \texttt{\textbackslash / DoTerminate}}
+OR it might take the \texttt{DoTerminate} step.
+
+\textbf{Line 51: \texttt{\* The complete temporal formula.}}
+A comment for the main specification.
+
+\textbf{Line 52: \texttt{Spec == Init /\textbackslash [][Next]\_<<currentState, eventLog>>}}
+This states that all valid behaviors must start in a state satisfying \texttt{Init}, and every subsequent step must either satisfy \texttt{Next} or leave the variables \texttt{<<currentState, eventLog>>} unchanged (stuttering step).
+
+\textbf{Line 53: \texttt{======================================================}}
+The end of the TLA+ module.
+
+\section{Rust Typestate Encoding}
+
+Having rigorously defined the state machine in TLA+, we now translate this into Rust's type system. By leveraging zero-sized types (ZSTs) and trait bounds, we elevate temporal logic from a theoretical model to a compile-time enforcement mechanism. This guarantees that invalid state transitions yield compiler errors, preventing invalid state entirely at runtime.
+
+\begin{lstlisting}[language=Rust]
+// Marker types representing the states from our TLA+ model.
+// These are Zero-Sized Types (ZSTs) and incur no runtime overhead.
+pub struct Uninitialized;
+pub struct Discovered;
+pub struct Mutated;
+pub struct Observed;
+pub struct Terminated;
+
+// A sealed trait to prevent external implementation of our states.
+mod private {
+    pub trait Sealed {}
+    impl Sealed for super::Uninitialized {}
+    impl Sealed for super::Discovered {}
+    impl Sealed for super::Mutated {}
+    impl Sealed for super::Observed {}
+    impl Sealed for super::Terminated {}
+}
+
+// The State trait, restricted to our defined marker types.
+pub trait State: private::Sealed {}
+impl State for Uninitialized {}
+impl State for Discovered {}
+impl State for Mutated {}
+impl State for Observed {}
+impl State for Terminated {}
+
+// Traits defining allowed transitions.
+// This is where the TLA+ enabling conditions are encoded.
+
+// Only Uninitialized can be transition to Discovered.
+pub trait CanDiscover: State {
+    type NextState: State;
+}
+impl CanDiscover for Uninitialized {
+    type NextState = Discovered;
+}
+
+// Only Discovered can transition to Mutated.
+pub trait CanMutate: State {
+    type NextState: State;
+}
+impl CanMutate for Discovered {
+    type NextState = Mutated;
+}
+
+// Both Discovered and Mutated can transition to Observed.
+pub trait CanObserve: State {
+    type NextState: State;
+}
+impl CanObserve for Discovered {
+    type NextState = Observed;
+}
+impl CanObserve for Mutated {
+    type NextState = Observed;
+}
+
+// Only Observed can transition to Terminated.
+pub trait CanTerminate: State {
+    type NextState: State;
+}
+impl CanTerminate for Observed {
+    type NextState = Terminated;
+}
+
+// The core Entity struct, parameterized by its current State.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entity<S: State> {
+    pub id: String,
+    pub payload: Vec<u8>,
+    // The PhantomData consumes the state parameter without occupying memory.
+    _state: std::marker::PhantomData<S>,
+}
+
+// Implementation of the initial constructor.
+impl Entity<Uninitialized> {
+    pub fn new(id: String) -> Self {
+        Entity {
+            id,
+            payload: Vec::new(),
+            _state: std::marker::PhantomData,
+        }
+    }
+}
+
+// Implementation block generically bounded over CanDiscover.
+// Notice we consume `self` (taking ownership) to invalidate the old state.
+impl<S: State + CanDiscover> Entity<S> {
+    pub fn discover(self, data: Vec<u8>) -> Entity<<S as CanDiscover>::NextState> {
+        Entity {
+            id: self.id,
+            payload: data,
+            _state: std::marker::PhantomData,
+        }
+    }
+}
+
+// Implementation block bounded over CanMutate.
+impl<S: State + CanMutate> Entity<S> {
+    pub fn mutate(mut self, extra_data: &[u8]) -> Entity<<S as CanMutate>::NextState> {
+        self.payload.extend_from_slice(extra_data);
+        Entity {
+            id: self.id,
+            payload: self.payload,
+            _state: std::marker::PhantomData,
+        }
+    }
+}
+
+// Implementation block bounded over CanObserve.
+impl<S: State + CanObserve> Entity<S> {
+    pub fn observe(self) -> Entity<<S as CanObserve>::NextState> {
+        // Here we might emit telemetry or calculate hashes.
+        Entity {
+            id: self.id,
+            payload: self.payload,
+            _state: std::marker::PhantomData,
+        }
+    }
+}
+
+// Implementation block bounded over CanTerminate.
+impl<S: State + CanTerminate> Entity<S> {
+    pub fn terminate(self) -> Entity<<S as CanTerminate>::NextState> {
+        // Final cleanup operations.
+        Entity {
+            id: self.id,
+            payload: self.payload,
+            _state: std::marker::PhantomData,
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Exhaustive Line-by-Line Rust Explanation}
+
+The following is an uncompromisingly detailed analysis of the Rust typestate implementation, mapping back to the TLA+ logic.
+
+\textbf{Line 1: \texttt{// Marker types representing the states from our TLA+ model.}}
+A standard Rust comment indicating the purpose of the subsequent struct definitions.
+
+\textbf{Line 2: \texttt{// These are Zero-Sized Types (ZSTs) and incur no runtime overhead.}}
+A crucial comment explaining that these types exist purely for compile-time checking. They compile away entirely in the final binary.
+
+\textbf{Line 3: \texttt{pub struct Uninitialized;}}
+Defines the `Uninitialized` type. It corresponds precisely to `"Uninitialized"` in our TLA+ `States` set. It contains no fields.
+
+\textbf{Line 4: \texttt{pub struct Discovered;}}
+Defines the `Discovered` type, mapping to `"Discovered"`.
+
+\textbf{Line 5: \texttt{pub struct Mutated;}}
+Defines the `Mutated` type, mapping to `"Mutated"`.
+
+\textbf{Line 6: \texttt{pub struct Observed;}}
+Defines the `Observed` type, mapping to `"Observed"`.
+
+\textbf{Line 7: \texttt{pub struct Terminated;}}
+Defines the `Terminated` type, mapping to `"Terminated"`.
+
+\textbf{Line 9: \texttt{// A sealed trait to prevent external implementation of our states.}}
+A comment introducing the sealed trait pattern, an essential technique for robust API design.
+
+\textbf{Line 10: \texttt{mod private \{}}
+We declare a private module named `private`. Because it is not marked `pub`, nothing outside the parent module can access its contents directly.
+
+\textbf{Line 11: \texttt{    pub trait Sealed \{\}}}
+Inside the `private` module, we define a public trait named `Sealed`. It has no methods. Its only purpose is to restrict implementations.
+
+\textbf{Line 12: \texttt{    impl Sealed for super::Uninitialized \{\}}}
+We implement `Sealed` for the `Uninitialized` struct defined in the parent (`super`) module.
+
+\textbf{Line 13: \texttt{    impl Sealed for super::Discovered \{\}}}
+We implement `Sealed` for `Discovered`.
+
+\textbf{Line 14: \texttt{    impl Sealed for super::Mutated \{\}}}
+We implement `Sealed` for `Mutated`.
+
+\textbf{Line 15: \texttt{    impl Sealed for super::Observed \{\}}}
+We implement `Sealed` for `Observed`.
+
+\textbf{Line 16: \texttt{    impl Sealed for super::Terminated \{\}}}
+We implement `Sealed` for `Terminated`.
+
+\textbf{Line 17: \texttt{\}}}
+Closes the `private` module. External code cannot implement `private::Sealed` because the trait, while public, resides in an inaccessible module.
+
+\textbf{Line 19: \texttt{// The State trait, restricted to our defined marker types.}}
+Comment introducing the main `State` trait.
+
+\textbf{Line 20: \texttt{pub trait State: private::Sealed \{\}}}
+We declare the public trait `State`. The key here is the supertrait bound `: private::Sealed`. Any type that implements `State` \textit{must also} implement `private::Sealed`. Since only our five internal structs implement `private::Sealed`, only those five structs can ever implement `State`. This effectively creates a closed, finite set of types, perfectly mirroring the TLA+ `States` set.
+
+\textbf{Line 21: \texttt{impl State for Uninitialized \{\}}}
+Explicitly implementing the `State` trait for `Uninitialized`.
+
+\textbf{Line 22: \texttt{impl State for Discovered \{\}}}
+Explicitly implementing the `State` trait for `Discovered`.
+
+\textbf{Line 23: \texttt{impl State for Mutated \{\}}}
+Explicitly implementing the `State` trait for `Mutated`.
+
+\textbf{Line 24: \texttt{impl State for Observed \{\}}}
+Explicitly implementing the `State` trait for `Observed`.
+
+\textbf{Line 25: \texttt{impl State for Terminated \{\}}}
+Explicitly implementing the `State` trait for `Terminated`.
+
+\textbf{Line 27: \texttt{// Traits defining allowed transitions.}}
+A comment grouping the transition traits.
+
+\textbf{Line 28: \texttt{// This is where the TLA+ enabling conditions are encoded.}}
+This comment draws the direct link between the TLA+ logic (`/\textbackslash currentState = "..."`) and the Rust trait system.
+
+\textbf{Line 30: \texttt{// Only Uninitialized can be transition to Discovered.}}
+Comment for `CanDiscover`.
+
+\textbf{Line 31: \texttt{pub trait CanDiscover: State \{}}
+Declares the `CanDiscover` trait. It requires the implementing type to already be a `State`.
+
+\textbf{Line 32: \texttt{    type NextState: State;}}
+Defines an associated type `NextState`. This maps directly to the `currentState'` variable in TLA+. It specifies the exact state type that will result from the transition.
+
+\textbf{Line 33: \texttt{\}}}
+Closes the trait definition.
+
+\textbf{Line 34: \texttt{impl CanDiscover for Uninitialized \{}}
+We implement `CanDiscover` \textit{only} for `Uninitialized`. This encodes the TLA+ logic `currentState = "Uninitialized"`.
+
+\textbf{Line 35: \texttt{    type NextState = Discovered;}}
+We specify that the result of discovery is the `Discovered` type. This encodes `currentState' = "Discovered"`.
+
+\textbf{Line 36: \texttt{\}}}
+Closes the implementation block.
+
+\textbf{Line 38: \texttt{// Only Discovered can transition to Mutated.}}
+Comment for `CanMutate`.
+
+\textbf{Line 39: \texttt{pub trait CanMutate: State \{}}
+Declares `CanMutate`, again requiring a `State`.
+
+\textbf{Line 40: \texttt{    type NextState: State;}}
+Associated type for the destination state.
+
+\textbf{Line 41: \texttt{\}}}
+Closes the trait definition.
+
+\textbf{Line 42: \texttt{impl CanMutate for Discovered \{}}
+Implements `CanMutate` only for `Discovered`.
+
+\textbf{Line 43: \texttt{    type NextState = Mutated;}}
+The destination state is `Mutated`.
+
+\textbf{Line 44: \texttt{\}}}
+Closes the block.
+
+\textbf{Line 46: \texttt{// Both Discovered and Mutated can transition to Observed.}}
+Comment highlighting a crucial multi-source transition.
+
+\textbf{Line 47: \texttt{pub trait CanObserve: State \{}}
+Declares `CanObserve`.
+
+\textbf{Line 48: \texttt{    type NextState: State;}}
+Associated destination type.
+
+\textbf{Line 49: \texttt{\}}}
+Closes the trait definition.
+
+\textbf{Line 50: \texttt{impl CanObserve for Discovered \{}}
+We implement `CanObserve` for `Discovered`. This handles the first part of the TLA+ condition `currentState \textbackslash in \{"Discovered", "Mutated"\}`.
+
+\textbf{Line 51: \texttt{    type NextState = Observed;}}
+The destination state from `Discovered` is `Observed`.
+
+\textbf{Line 52: \texttt{\}}}
+Closes the block.
+
+\textbf{Line 53: \texttt{impl CanObserve for Mutated \{}}
+We \textit{also} implement `CanObserve` for `Mutated`. This satisfies the second part of the TLA+ condition. Rust's trait system perfectly models set membership enabling conditions through multiple implementations of a transition trait.
+
+\textbf{Line 54: \texttt{    type NextState = Observed;}}
+The destination state from `Mutated` is also `Observed`.
+
+\textbf{Line 55: \texttt{\}}}
+Closes the block.
+
+\textbf{Line 57: \texttt{// Only Observed can transition to Terminated.}}
+Comment for `CanTerminate`.
+
+\textbf{Line 58: \texttt{pub trait CanTerminate: State \{}}
+Declares `CanTerminate`.
+
+\textbf{Line 59: \texttt{    type NextState: State;}}
+Associated destination type.
+
+\textbf{Line 60: \texttt{\}}}
+Closes the trait definition.
+
+\textbf{Line 61: \texttt{impl CanTerminate for Observed \{}}
+Implements `CanTerminate` only for `Observed`.
+
+\textbf{Line 62: \texttt{    type NextState = Terminated;}}
+The destination is `Terminated`.
+
+\textbf{Line 63: \texttt{\}}}
+Closes the block.
+
+\textbf{Line 65: \texttt{// The core Entity struct, parameterized by its current State.}}
+Comment introducing the main data structure.
+
+\textbf{Line 66: \texttt{\#[derive(Debug, Clone, PartialEq, Eq)]}}
+Standard Rust derives to provide basic printing, cloning, and equality checking capabilities.
+
+\textbf{Line 67: \texttt{pub struct Entity<S: State> \{}}
+Declares the generic struct `Entity`. The generic parameter `S` represents the typestate. The bound `S: State` enforces that only our defined marker types can be used. We cannot create an `Entity<i32>`.
+
+\textbf{Line 68: \texttt{    pub id: String,}}
+A basic data field, a unique identifier for the entity.
+
+\textbf{Line 69: \texttt{    pub payload: Vec<u8>,}}
+Another data field, holding arbitrary byte payload.
+
+\textbf{Line 70: \texttt{    // The PhantomData consumes the state parameter without occupying memory.}}
+A comment explaining the magic of `PhantomData`.
+
+\textbf{Line 71: \texttt{    \_state: std::marker::PhantomData<S>,}}
+Because the struct generic `S` is not used by any actual data fields (like `id` or `payload`), the Rust compiler would normally complain about an unused generic parameter. `PhantomData<S>` acts as a zero-sized type that tells the compiler, "Act as if this struct contains a field of type `S`, even though it doesn't at runtime." This binds the typestate strictly to the struct's type signature.
+
+\textbf{Line 72: \texttt{\}}}
+Closes the struct definition.
+
+\textbf{Line 74: \texttt{// Implementation of the initial constructor.}}
+Comment for the creation logic.
+
+\textbf{Line 75: \texttt{impl Entity<Uninitialized> \{}}
+This block contains methods that are \textit{only} available when the Entity is in the `Uninitialized` state.
+
+\textbf{Line 76: \texttt{    pub fn new(id: String) -> Self \{}}
+The constructor. It returns `Self`, which in this context specifically means `Entity<Uninitialized>`. This maps to the TLA+ `Init` predicate.
+
+\textbf{Line 77: \texttt{        Entity \{}}
+Starts building the struct instance.
+
+\textbf{Line 78: \texttt{            id,}}
+Assigns the provided `id`.
+
+\textbf{Line 79: \texttt{            payload: Vec::new(),}}
+Initializes an empty payload.
+
+\textbf{Line 80: \texttt{            \_state: std::marker::PhantomData,}}
+Initializes the zero-sized phantom field.
+
+\textbf{Line 81: \texttt{        \}}}
+Completes the struct construction.
+
+\textbf{Line 82: \texttt{    \}}}
+Closes the `new` function.
+
+\textbf{Line 83: \texttt{\}}}
+Closes the implementation block.
+
+\textbf{Line 85: \texttt{// Implementation block generically bounded over CanDiscover.}}
+Comment for the discovery method.
+
+\textbf{Line 86: \texttt{// Notice we consume `self` (taking ownership) to invalidate the old state.}}
+This comment highlights a core mechanism of Rust typestates: affine types. By taking `self` by value (instead of `\&self` or `\&mut self`), the method consumes the original value. The old `Entity<Uninitialized>` can never be used again.
+
+\textbf{Line 87: \texttt{impl<S: State + CanDiscover> Entity<S> \{}}
+This is a stroke of brilliance. Instead of writing `impl Entity<Uninitialized>`, we write generically over any state `S` that implements `CanDiscover`. While currently only `Uninitialized` implements `CanDiscover`, this design allows for complex graph expansions later without rewriting method signatures.
+
+\textbf{Line 88: \texttt{    pub fn discover(self, data: Vec<u8>) -> Entity<<S as CanDiscover>::NextState> \{}}
+The `discover` method. It takes `self` by value (consuming it). It returns a new `Entity`. The returned Entity's state parameter is dynamically extracted from the `CanDiscover` trait implementation: `<S as CanDiscover>::NextState`. This will evaluate to `Entity<Discovered>`.
+
+\textbf{Line 89: \texttt{        Entity \{}}
+Constructs the new Entity.
+
+\textbf{Line 90: \texttt{            id: self.id,}}
+Moves the `id` from the old Entity to the new one.
+
+\textbf{Line 91: \texttt{            payload: data,}}
+Assigns the new data.
+
+\textbf{Line 92: \texttt{            \_state: std::marker::PhantomData,}}
+Initializes the phantom data for the new state.
+
+\textbf{Line 93: \texttt{        \}}}
+Closes struct construction.
+
+\textbf{Line 94: \texttt{    \}}}
+Closes the `discover` method.
+
+\textbf{Line 95: \texttt{\}}}
+Closes the implementation block.
+
+\textbf{Line 97: \texttt{// Implementation block bounded over CanMutate.}}
+Comment for mutation logic.
+
+\textbf{Line 98: \texttt{impl<S: State + CanMutate> Entity<S> \{}}
+Bounded generically over any state that can be mutated (currently just `Discovered`).
+
+\textbf{Line 99: \texttt{    pub fn mutate(mut self, extra\_data: \&[u8]) -> Entity<<S as CanMutate>::NextState> \{}}
+Takes `self` by value, marking it as mutable internally. Returns the new `NextState` (`Entity<Mutated>`).
+
+\textbf{Line 100: \texttt{        self.payload.extend\_from\_slice(extra\_data);}}
+Modifies the payload. Because we own `self`, we can modify it freely before moving its parts into the new instance.
+
+\textbf{Line 101: \texttt{        Entity \{}}
+Constructs the new Entity.
+
+\textbf{Line 102: \texttt{            id: self.id,}}
+Moves the ID.
+
+\textbf{Line 103: \texttt{            payload: self.payload,}}
+Moves the mutated payload.
+
+\textbf{Line 104: \texttt{            \_state: std::marker::PhantomData,}}
+New phantom data.
+
+\textbf{Line 105: \texttt{        \}}}
+Closes struct construction.
+
+\textbf{Line 106: \texttt{    \}}}
+Closes `mutate` method.
+
+\textbf{Line 107: \texttt{\}}}
+Closes implementation block.
+
+\textbf{Line 109: \texttt{// Implementation block bounded over CanObserve.}}
+Comment for observation.
+
+\textbf{Line 110: \texttt{impl<S: State + CanObserve> Entity<S> \{}}
+Bounded generically over `CanObserve`. Crucially, because both `Discovered` and `Mutated` implement `CanObserve`, this single generic block provides the `observe` method to BOTH types. This perfectly matches the TLA+ set membership `currentState \in \{"Discovered", "Mutated"\}`.
+
+\textbf{Line 111: \texttt{    pub fn observe(self) -> Entity<<S as CanObserve>::NextState> \{}}
+Takes ownership, returns `Entity<Observed>`.
+
+\textbf{Line 112: \texttt{        // Here we might emit telemetry or calculate hashes.}}
+Comment regarding side-effects.
+
+\textbf{Line 113: \texttt{        Entity \{}}
+Builds the new Entity.
+
+\textbf{Line 114: \texttt{            id: self.id,}}
+Moves ID.
+
+\textbf{Line 115: \texttt{            payload: self.payload,}}
+Moves payload.
+
+\textbf{Line 116: \texttt{            \_state: std::marker::PhantomData,}}
+New phantom data.
+
+\textbf{Line 117: \texttt{        \}}}
+Closes struct construction.
+
+\textbf{Line 118: \texttt{    \}}}
+Closes `observe` method.
+
+\textbf{Line 119: \texttt{\}}}
+Closes implementation block.
+
+\textbf{Line 121: \texttt{// Implementation block bounded over CanTerminate.}}
+Comment for termination.
+
+\textbf{Line 122: \texttt{impl<S: State + CanTerminate> Entity<S> \{}}
+Bounded over `CanTerminate` (only `Observed`).
+
+\textbf{Line 123: \texttt{    pub fn terminate(self) -> Entity<<S as CanTerminate>::NextState> \{}}
+Takes ownership, returns `Entity<Terminated>`.
+
+\textbf{Line 124: \texttt{        // Final cleanup operations.}}
+Comment.
+
+\textbf{Line 125: \texttt{        Entity \{}}
+Builds the final Entity.
+
+\textbf{Line 126: \texttt{            id: self.id,}}
+Moves ID.
+
+\textbf{Line 127: \texttt{            payload: self.payload,}}
+Moves payload.
+
+\textbf{Line 128: \texttt{            \_state: std::marker::PhantomData,}}
+Final phantom data.
+
+\textbf{Line 129: \texttt{        \}}}
+Closes struct construction.
+
+\textbf{Line 130: \texttt{    \}}}
+Closes `terminate` method.
+
+\textbf{Line 131: \texttt{\}}}
+Closes implementation block.
+
+\section{Compile-Time Verification Scenarios}
+
+To demonstrate the efficacy of this typestate encoding, let us examine various sequence constructions and how the Rust compiler interacts with them. The core principle is that the compiler tracks the typestate in the return type of every transition method. If a subsequent method call does not exist in the implementation block for the \textit{current} type, the compilation fails, acting as an unbypassable proof of invalidity.
+
+\begin{lstlisting}[language=Rust]
+fn test_valid_sequence_discovery_to_termination() {
+    let uninit = Entity::new("obj-123".to_string());
+    // Type is Entity<Uninitialized>. Can call `discover`.
+
+    let discovered = uninit.discover(vec![1, 2, 3]);
+    // `uninit` is consumed (moved). It cannot be used again.
+    // Type is now Entity<Discovered>. Can call `mutate` or `observe`.
+
+    let mutated = discovered.mutate(&[4, 5]);
+    // Type is Entity<Mutated>. Can call `observe`.
+
+    let observed = mutated.observe();
+    // Type is Entity<Observed>. Can call `terminate`.
+
+    let terminated = observed.terminate();
+    // Type is Entity<Terminated>. No further transition methods are defined.
+
+    // This compiles perfectly, proving the sequence is valid under the TLA+ Spec.
+}
+
+fn test_valid_sequence_short_circuit_observation() {
+    let uninit = Entity::new("obj-456".to_string());
+    
+    let discovered = uninit.discover(vec![10, 20]);
+    
+    // We skip mutation entirely. `Discovered` implements `CanObserve`.
+    let observed = discovered.observe();
+    
+    let terminated = observed.terminate();
+    
+    // This also compiles perfectly, proving the short-circuit path is valid.
+}
+
+fn test_invalid_sequence_premature_observation() {
+    let uninit = Entity::new("obj-789".to_string());
+    
+    // The following line will NOT compile.
+    // Error: no method named `observe` found for struct `Entity<Uninitialized>`
+    // let observed = uninit.observe(); 
+}
+
+fn test_invalid_sequence_double_discovery() {
+    let uninit = Entity::new("obj-000".to_string());
+    let discovered1 = uninit.discover(vec![1]);
+    
+    // The following line will NOT compile for TWO reasons.
+    // 1. `uninit` was moved in the previous line. (Use of moved value error).
+    // 2. Even if we had a new uninit, `discovered1` does not have a `discover` method.
+    // Error: no method named `discover` found for struct `Entity<Discovered>`
+    // let discovered2 = discovered1.discover(vec![2]); 
+}
+
+fn test_invalid_sequence_mutation_after_observation() {
+    let uninit = Entity::new("obj-xxx".to_string());
+    let discovered = uninit.discover(vec![1]);
+    let observed = discovered.observe();
+    
+    // The following line will NOT compile.
+    // Error: no method named `mutate` found for struct `Entity<Observed>`
+    // let mutated = observed.mutate(&[2]);
+}
+\end{lstlisting}
+
+\subsection{Combinatorial Explosion Mitigation}
+
+One might ask: why define states as types instead of enums checked at runtime? If we used an enum (e.g., `enum State { Uninit, Disc, Mut, Obs, Term }`), checking validity would require `match` statements at runtime within every method. For a linear sequence, this is trivial.
+
+However, in complex workflows involving combinatorial branching (where an entity might transition through a non-deterministic subset of dozens of possible intermediate states before reaching a sink state), runtime validation incurs massive computational overhead. Every transition requires checking the enum variant. If a workflow fails midway due to an invalid transition, the system must perform costly rollback operations or enter a permanent error state.
+
+By pushing these proofs to compile-time via typestates, we achieve \textit{combinatorial explosion mitigation} in two key ways:
+
+1. **Zero Runtime Cost:** The marker structs (`Uninitialized`, `Discovered`, etc.) are zero-sized types (ZSTs). They do not exist in the final compiled machine code. The transition traits (`CanDiscover`, etc.) act entirely as compile-time constraints. When `Entity::discover` is compiled, it is essentially a memory move, or an in-place update if the compiler optimizes it. There is no `if (currentState == Uninitialized)` check emitted in the assembly.
+
+2. **Shift Left Proof:** The proof that a sequence is valid is resolved before the program ever runs. If a developer attempts to encode a workflow branch that violates the established `States` and `Events` ontology (defined in the Governor layer and expressed via these traits), the code simply will not build. It is impossible to deploy an application that can reach an invalid typestate geometry.
+
+This combination of strict mathematical definition via TLA+ and zero-cost compile-time enforcement via Rust's trait system forms the unshakable foundation of the Affidavit framework's safety guarantees. Such strict typestate constraints are increasingly critical when generating code via zero-code LLM frameworks \cite{ref_AutoAgentAFully57} and agentic traffic simulations \cite{ref_CARJANAgentBase64}, where the potential for code hallucinations \cite{ref_CodeHaluInvesti59} and unverified state transitions necessitates absolute architectural closure. By generating robust synthetic validation data \cite{ref_InParsSuperchar60} and applying these typestate proofs, Affidavit neutralizes the inherent unpredictability of neuro-symbolic agents \cite{ref_FastandAccurate62}.

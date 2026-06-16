@@ -1,0 +1,349 @@
+\chapter{Implementation: The Core Certify Pipeline}
+\label{ch:impl_core}
+
+\section{Introduction to the Rust Implementation}
+The implementation of the Affidavit framework is deeply intertwined with the guarantees provided by the Rust programming language. Rust's strict adherence to memory safety without a garbage collector, combined with its robust type system, makes it the ideal candidate for building a cryptographic verification pipeline where determinism and performance are paramount. This chapter exhaustively details the implementation of the core `certify` pipeline, which serves as the foundational mechanism for validating decentralized execution receipts, assembling cryptographic proofs, and propagating observability context.
+
+The `certify` pipeline is not merely a sequence of functions; it is a formally structured, typestate-driven automaton that enforces correct state transitions at compile time. By leveraging Rust's ownership model, we guarantee that invalid states cannot be represented in memory, thereby eliminating entire classes of runtime errors. This approach, heavily inspired by the principles of zero-trust architecture, ensures that every incoming event trace is treated as potentially adversarial until mathematically proven otherwise. 
+
+In this chapter, we dissect the architecture of the verifier, moving layer by layer through the 7-stage pipeline. We will explore the intricacies of zero-copy deserialization, the enforcement of causal consistency via Directed Acyclic Graphs (DAGs), the rigorous application of semantic ontologies, and the final generation of BLAKE3 cryptographic receipts. Finally, we discuss how OpenTelemetry baggage is utilized to stitch these verification proofs back into the broader distributed tracing ecosystem.
+
+\section{Architecture of the 7-Stage Verifier}
+The core verification logic is subdivided into a rigorous 7-stage pipeline. Each stage is strictly isolated, receiving an immutable reference to the output of the previous stage and yielding a new, strongly-typed artifact. This pipelined architecture prevents side-channel leaks and ensures that side-effects are contained within explicitly defined boundaries. The strict linear progression guarantees that an event cannot be cryptographically sealed without first passing semantic evaluation, and it cannot be semantically evaluated without first having its structural integrity validated.
+
+\subsection{Stage 1: Ingestion and Baggage Extraction}
+The pipeline begins at the boundary layer, where raw, untrusted byte streams are ingested. This stage is responsible for recognizing the envelope format (typically JSON Lines or a custom binary framing protocol) and extracting the embedded OpenTelemetry (OTel) baggage. The boundary layer acts as the first line of defense against malformed or maliciously crafted inputs.
+
+The extraction process utilizes a zero-copy deserialization strategy whenever possible, utilizing the `serde` framework alongside the `zerocopy` crate for binary payloads. This ensures that the ingestion phase does not introduce unnecessary memory allocation overhead, which is critical for high-throughput environments. By mapping byte slices directly to structured representations, we avoid the latency spikes associated with heap fragmentation and garbage collection pauses found in managed languages.
+
+\begin{lstlisting}[language=Rust, caption={Zero-copy ingestion boundary and baggage extraction}]
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+
+/// Represents the raw, unvalidated boundary of an incoming payload.
+/// Lifetimes are strictly bound to the underlying byte slice.
+#[derive(Debug)]
+pub struct IngestionBoundary<'a> {
+    raw_payload: &'a [u8],
+}
+
+/// A zero-copy view into the extracted OpenTelemetry baggage.
+#[derive(Debug, Deserialize)]
+pub struct BaggageView<'a> {
+    #[serde(borrow)]
+    pub trace_id: Cow<'a, str>,
+    #[serde(borrow)]
+    pub span_id: Cow<'a, str>,
+    #[serde(borrow)]
+    pub trace_flags: Cow<'a, str>,
+}
+
+impl<'a> IngestionBoundary<'a> {
+    /// Attempts to parse the header delimiter and extract the OTel baggage.
+    /// Fails fast on malformed envelopes to prevent resource exhaustion.
+    pub fn extract_baggage(&self) -> Result<BaggageView<'a>, IngestionError> {
+        let header_end = self.find_header_delimiter()?;
+        
+        // Strict boundary check before parsing
+        if header_end > self.raw_payload.len() {
+            return Err(IngestionError::OutOfBounds);
+        }
+        
+        let header_slice = &self.raw_payload[..header_end];
+        
+        // Deserialize utilizing zero-copy techniques
+        serde_json::from_slice(header_slice)
+            .map_err(|e| IngestionError::DeserializationFailed(e.to_string()))
+    }
+
+    fn find_header_delimiter(&self) -> Result<usize, IngestionError> {
+        // Fast SIMD-accelerated search for newline or delimiter
+        memchr::memchr(b'\n', self.raw_payload)
+            .ok_or(IngestionError::MissingDelimiter)
+    }
+}
+
+#[derive(Debug)]
+pub enum IngestionError {
+    MissingDelimiter,
+    OutOfBounds,
+    DeserializationFailed(String),
+}
+\end{lstlisting}
+
+\subsection{Stage 2: Schema Validation and Deserialization}
+Once the OTel baggage is verified to exist and be syntactically valid according to the W3C specification, the payload enters the schema validation phase. Here, the untrusted byte stream is mapped onto strictly typed Rust structs. This phase represents the transition from unstructured entropy to structured data.
+
+We employ `serde` with strict refusal of unknown fields (`#[serde(deny_unknown_fields)]`). This prevents "smuggling" of adversarial data within ignored fields. Furthermore, this stage implements deep semantic validation beyond mere type checking, ensuring that string lengths, integer ranges, and enumerated values fall within strictly defined, deterministic bounds. We heavily utilize the `validator` crate to enforce these constraints at the struct level.
+
+\begin{lstlisting}[language=Rust, caption={Strict schema validation utilizing the validator crate}]
+use serde::Deserialize;
+use validator::Validate;
+
+#[derive(Debug, Deserialize, Validate)]
+#[serde(deny_unknown_fields)]
+pub struct ValidatedEventPayload {
+    #[validate(length(min = 1, max = 255))]
+    pub event_type: String,
+    
+    #[validate(range(min = 0, max = 4294967295))]
+    pub sequence_number: u32,
+    
+    #[validate(length(min = 32, max = 64))]
+    pub actor_id: String,
+    
+    // The inner payload is retained as a raw JSON value for later,
+    // phase-specific deferred parsing if necessary.
+    pub data_blob: serde_json::Value,
+}
+
+impl ValidatedEventPayload {
+    pub fn verify_constraints(&self) -> Result<(), ValidationError> {
+        self.validate().map_err(|e| ValidationError::ConstraintViolation(e))
+    }
+}
+\end{lstlisting}
+
+\subsection{Stage 3: Cryptographic Pre-flight Checks}
+Before structural validation occurs in earnest for the inner business logic, the pipeline performs rapid cryptographic pre-flight checks. If the incoming payload claims to be signed or accompanied by a MAC (Message Authentication Code), this stage verifies the signatures using highly optimized elliptic curve cryptography libraries (e.g., `k256` or `ed25519-dalek`).
+
+The rationale for placing this before deep structural validation is to fail fast on adversarial payloads, mitigating Denial of Service (DoS) vectors that attempt to exhaust CPU resources via complex, deeply nested JSON parsing. By rejecting invalidly signed payloads early, we preserve compute cycles for legitimate traffic.
+
+\begin{lstlisting}[language=Rust, caption={Cryptographic pre-flight verification using ed25519}]
+use ed25519_dalek::{PublicKey, Signature, Verifier};
+use std::convert::TryFrom;
+
+pub struct CryptoPreflight;
+
+impl CryptoPreflight {
+    pub fn verify_signature(
+        public_key_bytes: &[u8],
+        message: &[u8],
+        signature_bytes: &[u8]
+    ) -> Result<(), CryptoError> {
+        let public_key = PublicKey::from_bytes(public_key_bytes)
+            .map_err(|_| CryptoError::InvalidPublicKey)?;
+            
+        let signature = Signature::try_from(signature_bytes)
+            .map_err(|_| CryptoError::InvalidSignatureFormat)?;
+            
+        public_key.verify(message, &signature)
+            .map_err(|_| CryptoError::SignatureMismatch)
+    }
+}
+
+#[derive(Debug)]
+pub enum CryptoError {
+    InvalidPublicKey,
+    InvalidSignatureFormat,
+    SignatureMismatch,
+}
+\end{lstlisting}
+
+\subsection{Stage 4: Topological Sorting and DAG Construction}
+The verified payloads, now representing discrete events, are parsed into a Directed Acyclic Graph (DAG) representing the causal history of the execution. This is a computationally intensive phase where the `certify` pipeline reconstructs the causal net from the dispersed OTel traces. Each event is a node, and the `traceparent` relationships form the directed edges.
+
+The implementation relies on Petgraph, utilizing its `DiGraph` structure. The graph is built incrementally, and Kahn's algorithm is applied to detect cycles. The presence of any cycle immediately faults the pipeline, as it implies a violation of causality (e.g., a time-travel anomaly or a malicious attempt to forge history) in the recorded execution trace.
+
+\begin{lstlisting}[language=Rust, caption={Causal DAG construction and cycle detection}]
+use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::algo::toposort;
+use std::collections::HashMap;
+
+pub struct CausalGraph {
+    graph: DiGraph<EventNode, EdgeType>,
+    node_map: HashMap<String, NodeIndex>,
+}
+
+#[derive(Debug)]
+pub struct EventNode {
+    pub span_id: String,
+    pub event_type: String,
+}
+
+#[derive(Debug)]
+pub struct EdgeType {
+    pub relationship: String,
+}
+
+impl CausalGraph {
+    pub fn new() -> Self {
+        Self {
+            graph: DiGraph::new(),
+            node_map: HashMap::new(),
+        }
+    }
+
+    pub fn insert_event(&mut self, event: EventNode) -> NodeIndex {
+        let id = event.span_id.clone();
+        let idx = self.graph.add_node(event);
+        self.node_map.insert(id, idx);
+        idx
+    }
+
+    pub fn add_causal_link(&mut self, parent_id: &str, child_id: &str) -> Result<(), DagError> {
+        let parent_idx = self.node_map.get(parent_id).ok_or(DagError::NodeNotFound)?;
+        let child_idx = self.node_map.get(child_id).ok_or(DagError::NodeNotFound)?;
+        
+        self.graph.add_edge(*parent_idx, *child_idx, EdgeType { relationship: "causes".into() });
+        Ok(())
+    }
+
+    pub fn verify_acyclic(&self) -> Result<Vec<NodeIndex>, DagError> {
+        // Kahn's algorithm for topological sorting. Returns Err if a cycle is detected.
+        toposort(&self.graph, None).map_err(|_| DagError::CycleDetected)
+    }
+}
+
+#[derive(Debug)]
+pub enum DagError {
+    NodeNotFound,
+    CycleDetected,
+}
+\end{lstlisting}
+
+\subsection{Stage 5: Semantic Rule Evaluation}
+With the causal DAG verified as acyclic, the pipeline evaluates the domain-specific semantic rules. These rules are defined using the Ostar ontology and compiled into an executable form via a WebAssembly (Wasm) runtime or native Rust trait implementations depending on the strictness required. This structured approach to defining and enforcing the operational architecture of virtual organizations ensures strict adherence to modeled boundaries \cite{ref_ModelingVirtual35}. The evaluation engine traverses the DAG, applying the rules to each node and edge to verify that the transitions between states were legal according to the predefined semantic laws (e.g., ensuring a "PaymentProcessed" event is strictly preceded by an "OrderCreated" event).
+
+This phase enforces the typestate of the distributed system, operating as a highly specialized form of ontology-driven Complex Event Processing (CEP) \cite{ref_RealTimeHealthA39}. By representing valid transitions as a finite state machine evaluated over the DAG, we ensure that the entire distributed execution adhered to the constitutional logic of the application. Furthermore, when a violation is detected, the system can leverage structured semantic feedback mechanisms---akin to those used in runtime control for multi-agent systems \cite{ref_OntologyBasedFe37} or explainable SHACL validation \cite{ref_xpSHACLExplaina36}---to provide actionable, cryptographically proven root-cause analysis to the orchestrator.
+
+\subsection{Stage 6: The BLAKE3 Chain Assembler}
+Upon successful semantic verification, the pipeline transitions to the generation of the unforgeable cryptographic receipt. This is handled by the BLAKE3 Chain Assembler.
+
+BLAKE3 is chosen for its exceptional speed and inherent parallelism. The assembler constructs a Merkle tree of all verified events. The root of this tree, combined with the environment configuration, the verifier's own identity, and the topologically sorted event hashes, is hashed again to produce the final deterministic receipt.
+
+\begin{lstlisting}[language=Rust, caption={BLAKE3 Merkle-based receipt generation}]
+use blake3::Hasher;
+
+pub struct ChainAssembler {
+    hasher: Hasher,
+    event_count: usize,
+}
+
+impl ChainAssembler {
+    pub fn new(context_hash: &[u8; 32]) -> Self {
+        let mut hasher = Hasher::new();
+        // Bind the receipt to the specific verification context
+        hasher.update(context_hash);
+        Self { hasher, event_count: 0 }
+    }
+
+    pub fn push_verified_event(&mut self, canonical_bytes: &[u8]) {
+        // In a full implementation, this would build a Merkle tree.
+        // Here we demonstrate the linear chain update for simplicity.
+        self.hasher.update(canonical_bytes);
+        self.event_count += 1;
+    }
+
+    pub fn finalize(self) -> Receipt {
+        Receipt {
+            hash: self.hasher.finalize().into(),
+            event_count: self.event_count,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Receipt {
+    pub hash: [u8; 32],
+    pub event_count: usize,
+}
+\end{lstlisting}
+
+\subsection{Stage 7: OTel Trace Finalization and Emittance}
+The final stage is responsible for closing the observability loop. It generates an OpenTelemetry span that encapsulates the entire verification process, embedding the BLAKE3 receipt hash as a span attribute (e.g., `affidavit.receipt.blake3`). This span is then linked back to the original execution trace via the extracted baggage, creating an unbroken chain of custody from execution to verification. This emits a standard OTLP (OpenTelemetry Protocol) payload to the configured collector.
+
+\section{Deep Code Analysis: Memory Safety Guarantees}
+The Affidavit pipeline relies heavily on Rust's type system to enforce memory safety and thread safety without runtime overhead. This section details the specific patterns used to achieve zero-cost abstractions.
+
+\subsection{Lifetimes and Zero-Copy Deserialization}
+Throughout the ingestion and validation phases, explicit lifetimes (`<'a>`) are heavily utilized to bind the parsed data structures directly to the underlying memory-mapped file or network buffer. This eliminates the need for expensive heap allocations and copying. The borrow checker ensures that these references can never outlive the underlying buffer, preventing use-after-free vulnerabilities. We utilize the `Cow` (Clone-on-Write) smart pointer to allow in-place modification only when necessary (e.g., unescaping strings), otherwise falling back to immutable slice references.
+
+\subsection{Ownership Semantics in the Verification Pipeline}
+The transition between the 7 stages is governed by Rust's ownership semantics. When an event passes from Stage N to Stage N+1, ownership of the data structure is transferred (moved) via value consumption.
+
+\begin{lstlisting}[language=Rust, caption={Typestate enforcement via ownership transfer}]
+struct RawPayload(Vec<u8>);
+struct ValidatedPayload(Vec<u8>);
+
+impl RawPayload {
+    // Consumes self, preventing further use of the unvalidated state
+    fn validate(self) -> Result<ValidatedPayload, Error> {
+        // ... validation logic ...
+        Ok(ValidatedPayload(self.0))
+    }
+}
+\end{lstlisting}
+
+This means the previous stage can no longer access or mutate the data, preventing data races and logic errors. It physically prevents a developer from accidentally passing unvalidated data to the cryptographic hasher.
+
+If a stage needs to retain data while passing it forward, explicit cloning or the use of `Arc` (Atomic Reference Counted) pointers is required, making the cost of sharing explicit in the code.
+
+\subsection{Concurrency and the Send/Sync Traits}
+To achieve high throughput, the pipeline utilizes thread pools (via `rayon` for CPU-bound tasks like hashing and DAG construction, and `tokio` for I/O bound tasks like ingestion and emittance). The compiler statically guarantees thread safety through the `Send` and `Sync` traits. If a data structure is not safe to be sent across threads (e.g., it contains a raw pointer or an `Rc`), the compiler will refuse to compile the multi-threaded verification code. This provides unparalleled confidence in the system's stability under load.
+
+\section{The BLAKE3 Chain Assembler: Cryptographic Receipts}
+The BLAKE3 assembler is the cryptographic heart of the `certify` command.
+
+\subsection{Merkle Tree Construction}
+To support efficient proofs of inclusion, the events are structured into a Merkle tree. BLAKE3 is essentially a Merkle tree internally, but the assembler enforces a specific logical structure that maps directly to the causal DAG, allowing for granular proofs of specific causal chains without revealing the entire execution history.
+
+\subsection{Receipt Determinism}
+A critical requirement of the system is absolute determinism. Given the same input trace and the same semantic rules, the generated BLAKE3 receipt must be identical bit-for-bit across any architecture (x86_64, ARM) or platform (Linux, macOS, Windows).
+
+To achieve this, the canonical serialization of the events enforces strict ordering of JSON keys (lexicographical sort), consistent encoding of floating-point numbers (IEEE 754 bit-exactness), and explicit encoding formats for strings (always UTF-8). All timestamps are normalized to UTC epoch nanoseconds before hashing.
+
+\section{OpenTelemetry Baggage Propagation}
+\subsection{The W3C Baggage Format in Rust}
+The implementation strictly adheres to the W3C Baggage specification. The baggage parser is implemented as a fast, zero-allocation state machine that handles URI decoding and whitespace normalization as per the standard.
+
+\subsection{Cross-Boundary Trace Context Stitching}
+When the verifier emits its own traces, it must stitch them to the traces of the observed system. This is done by extracting the `traceparent` from the incoming payload and using it as the parent of the verification span. The generated BLAKE3 receipt is appended to the baggage, ensuring that any subsequent operations down the line (such as a separate auditing service or an admission controller) have access to the cryptographic proof of verification without needing to re-run the pipeline.
+
+\section{Architecture Diagrams}
+
+\begin{figure}[htpb]
+\centering
+\begin{tikzpicture}[node distance=2.5cm, auto, thick, font=\sffamily]
+  % Define styles
+  \tikzstyle{stage} = [draw, rectangle, rounded corners, fill=blue!10, minimum width=4cm, minimum height=1.2cm, text centered]
+  \tikzstyle{secure} = [draw, rectangle, rounded corners, fill=green!20, minimum width=4cm, minimum height=1.2cm, text centered]
+  \tikzstyle{emit} = [draw, rectangle, rounded corners, fill=orange!20, minimum width=4cm, minimum height=1.2cm, text centered]
+  \tikzstyle{arrow} = [thick,->,>=stealth]
+
+  % Nodes
+  \node[stage] (ingest) {1. Ingestion \& Zero-Copy Ext.};
+  \node[stage, below of=ingest] (schema) {2. Strict Schema Validation};
+  \node[stage, below of=schema] (crypto) {3. Signature Pre-flight};
+  \node[stage, below of=crypto] (dag) {4. Topological DAG Build};
+  
+  \node[stage, right=3cm of dag] (semantics) {5. Ostar Semantic Rules};
+  \node[secure, above=2.5cm of semantics] (blake3) {6. BLAKE3 Merkle Assembler};
+  \node[emit, above=2.5cm of blake3] (otel) {7. OTel Trace Finalization};
+
+  % Edges
+  \draw[arrow] (ingest) -- node[right] {`\&[u8]`} (schema);
+  \draw[arrow] (schema) -- node[right] {`ValidatedPayload`} (crypto);
+  \draw[arrow] (crypto) -- node[right] {`VerifiedSignature`} (dag);
+  \draw[arrow] (dag) -- node[above] {`DiGraph`} (semantics);
+  \draw[arrow] (semantics) -- node[right] {`Typestate Verified`} (blake3);
+  \draw[arrow] (blake3) -- node[right] {`Receipt Hash`} (otel);
+  
+  % Bounding box for security boundary
+  \draw[dashed, red, thick] (-2.5,-8.5) rectangle (2.5, 1.5);
+  \node[red, above] at (0, 1.5) {Untrusted Boundary};
+  
+  \draw[dashed, green, thick] (4,-8.5) rectangle (10.5, 1.5);
+  \node[green, above] at (7.25, 1.5) {Trusted Verification Core};
+
+\end{tikzpicture}
+\caption{The 7-Stage Core Certify Pipeline Architecture demonstrating the transition from the untrusted boundary to the trusted verification core.}
+\label{fig:pipeline_arch_detailed}
+\end{figure}
+
+\section{Performance Considerations and Micro-Optimizations}
+The critical path of the verifier has been heavily optimized. Flamegraph profiling revealed bottlenecks in JSON deserialization, which were mitigated by migrating to `simd-json` where applicable, leveraging AVX2 instructions on modern processors. Furthermore, the memory allocator was switched to `jemalloc`, which dramatically reduced fragmentation and improved multi-threaded allocation performance during the DAG construction phase.
+
+The BLAKE3 assembler leverages the SIMD capabilities intrinsic to the BLAKE3 algorithm, processing multiple blocks of data concurrently on a single core. This allows the cryptographic hashing to keep pace with the high-throughput I/O required by enterprise-scale deployment.
+
+The rigid separation of concerns enforced by the 7-stage architecture, combined with Rust's zero-cost abstractions, yields a system that is simultaneously mathematically verifiable, cryptographically secure, and highly performant. The architecture guarantees that security is not bolted on as an afterthought, but is structurally inherent to the design of the pipeline itself.

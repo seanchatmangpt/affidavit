@@ -1,0 +1,136 @@
+\chapter{Literature Review: Process Mining and Conformance Checking}
+\label{ch:literature_review_pm}
+
+\section{Introduction}
+The rapid proliferation of information systems across disparate industrial sectors has inevitably led to the generation of massive volumes of event data. These event data, often referred to as event logs, serve as a foundational, empirical footprint of the underlying business processes enacted within organizations. The discipline of process mining has emerged at the intersection of data mining, machine learning, and business process management to extract non-trivial, actionable, and mathematically rigorous insights from such event logs. This chapter embarks on an exhaustive and meticulous review of the foundational literature, tracing the epistemological origins of process models, delineating the evolutionary trajectory of event data standardizations, and critically evaluating the algorithmic paradigms that underpin process discovery and conformance checking. The overarching objective is to contextualize the current state-of-the-art and identify the theoretical lacunae that necessitate the novel contributions proposed in this dissertation.
+
+\section{The Mathematical Foundations: Petri Nets}
+\subsection{Historical Context and Evolution}
+The conceptualization of concurrent, asynchronous, and non-deterministic systems found its formal vanguard in the pioneering work of Carl Adam Petri in the early 1960s. Petri's seminal dissertation introduced a graphical and mathematical modeling tool, subsequently denominated as Petri nets, which provided an unprecedented formalism for describing chemical processes and communication protocols. The transition of Petri nets from theoretical computer science to the domain of business process modeling was catalyzed by the realization that organizational workflows inherently exhibit properties of concurrency, conflict, and synchronization. The classic state-machine models were fundamentally inadequate to capture the true parallel nature of human and automated activities, leading to a paradigm shift towards token-driven network structures.
+
+\subsection{Formal Definitions and Semantics}
+To construct a rigorous theoretical framework, it is imperative to define Petri nets formalistically. 
+\begin{definition}[Petri Net]
+A Petri net is defined as a directed bipartite graph $N = (P, T, F)$ where:
+\begin{itemize}
+    \item $P$ is a finite set of places, representing passive elements or conditions.
+    \item $T$ is a finite set of transitions, representing active elements or events, such that $P \cap T = \emptyset$.
+    \item $F \subseteq (P \times T) \cup (T \times P)$ is a set of directed arcs, representing the flow relation.
+\end{itemize}
+\end{definition}
+
+The state of a Petri net is captured by its marking, a multiset of tokens distributed across the places.
+\begin{definition}[Marking]
+A marking $M$ of a Petri net $N = (P, T, F)$ is a mapping $M: P \rightarrow \mathbb{N}_0$, where $\mathbb{N}_0$ denotes the set of non-negative integers. The marking defines the current global state of the system by specifying the number of tokens residing in each place $p \in P$.
+\end{definition}
+
+The dynamic behavior of the net is governed by the enabling and firing rules of transitions.
+\begin{definition}[Enabling and Firing]
+A transition $t \in T$ is enabled in a marking $M$, denoted as $(N, M)[t\rangle$, if and only if for all $p \in \bullet t$, $M(p) \geq 1$, where $\bullet t = \{p \in P \mid (p, t) \in F\}$ represents the preset of $t$.
+An enabled transition $t$ may fire, consuming one token from each input place and producing one token in each output place, resulting in a new marking $M'$, denoted as $(N, M)[t\rangle (N, M')$. The new marking is calculated as $M'(p) = M(p) - \mathbf{1}_{p \in \bullet t} + \mathbf{1}_{p \in t \bullet}$, where $t \bullet = \{p \in P \mid (t, p) \in F\}$ is the postset of $t$, and $\mathbf{1}$ is the indicator function.
+\end{definition}
+
+This simple yet profound mechanism allows for the mathematically verifiable representation of sequential routing, parallel execution (AND-split/AND-join), exclusive choice (XOR-split/XOR-join), and iterative loops. However, the classical Petri net formulation exhibits limitations in modeling complex data attributes, temporal constraints, and resource allocations, prompting the development of High-Level Petri Nets, Colored Petri Nets, and Stochastic Petri Nets, which are extensively discussed in the broader literature but remain tangential to the pure control-flow analysis prioritized in this discourse.
+
+\section{Event Data Formalization: From XES to OCEL}
+\subsection{The eXtensible Event Stream (XES) Standard}
+The initial phases of process mining research were hindered by the absence of a unified data format. The introduction of the eXtensible Event Stream (XES) standard, subsequently ratified as an IEEE standard, provided a vital inflection point. XES posits a hierarchical, flat-case structure. An event log $L$ in XES is formally a multiset of traces. A trace $\sigma \in L$ is a totally ordered sequence of events $\langle e_1, e_2, \dots, e_n \rangle$. Each event $e_i$ is bound to a singular, overarching case identifier, representing a distinct process instance.
+
+Let $\mathcal{E}$ be the universe of all possible events. An event $e \in \mathcal{E}$ is typically characterized by a set of attributes mapping keys to values (e.g., $e.name \in \mathcal{A}$ for the activity name, $e.timestamp \in \mathcal{T}$ for the occurrence time). The XES paradigm, while monumentally successful, embeds a fundamental flaw: the assumption of a singular case notion. In real-world enterprise resource planning (ERP) systems, an event often correlates with multiple entities simultaneously (e.g., an order, a customer, a delivery). Flattening these multifaceted relationships into a single-case perspective inherently leads to the phenomena of convergence (duplicate events) and divergence (disconnected events), distorting the reality of the process execution.
+
+\subsection{Object-Centric Event Logs (OCEL)}
+To rectify the ontological limitations of XES, the Object-Centric Event Log (OCEL) standard was formulated. OCEL abolishes the rigid case notion, conceptualizing events as occurrences that interact with a multitude of objects belonging to diverse object types.
+\begin{definition}[OCEL Formalization]
+An Object-Centric Event Log is defined as a tuple $L_{OCEL} = (E, O, T_o, \pi_{act}, \pi_{time}, \pi_{vmap}, \pi_{omap})$, where:
+\begin{itemize}
+    \item $E$ is a finite set of event identifiers.
+    \item $O$ is a finite set of object identifiers.
+    \item $T_o$ is a finite set of object types.
+    \item $\pi_{act}: E \rightarrow \mathcal{A}$ maps events to activity names.
+    \item $\pi_{time}: E \rightarrow \mathcal{T}$ maps events to timestamps.
+    \item $\pi_{vmap}: E \cup O \rightarrow (\mathcal{K} \not\rightarrow \mathcal{V})$ maps entities to their attribute key-value pairs.
+    \item $\pi_{omap}: E \rightarrow \mathcal{P}(O)$ maps each event to the subset of objects it interacts with, where $\mathcal{P}(O)$ is the powerset of $O$.
+\end{itemize}
+\end{definition}
+
+This relational structure perfectly mirrors the relational databases underpinning modern information systems. The transition from XES to OCEL represents a paradigm shift, mandating the re-evaluation of all classical process discovery and conformance checking algorithms, which predominantly operated on the premise of isolated, non-interacting traces. The complexities introduced by object graphs, object synchronization, and variable binding fundamentally complicate the mathematical tractability of analysis.
+
+\section{Process Discovery: Algorithmic Paradigms}
+\subsection{The Alpha Algorithm and its Inadequacies}
+The seminal Alpha ($\alpha$) algorithm demonstrated the theoretical possibility of discovering a concurrent Petri net from a sequential event log. By analyzing the direct succession ($>$), causality ($\rightarrow$), parallel ($\parallel$), and choice ($\#$) relations among activities, the $\alpha$-algorithm reconstructs the control-flow.
+\begin{align*}
+a > b &\iff \exists \sigma \in L: \sigma = \langle \dots, a, b, \dots \rangle \\
+a \rightarrow b &\iff a > b \land \neg(b > a) \\
+a \parallel b &\iff a > b \land b > a \\
+a \# b &\iff \neg(a > b) \land \neg(b > a)
+\end{align*}
+
+Despite its theoretical elegance, the $\alpha$-algorithm is acutely sensitive to noise, incapable of handling short loops, and often generates unstructured, incomprehensible models colloquially termed "spaghetti models." It assumes complete event logs, a condition rarely satisfied in empirical datasets.
+
+\subsection{The Heuristics Miner}
+To combat the fragility of the $\alpha$-algorithm, the Heuristics Miner was introduced, pivoting towards a probabilistic interpretation of event relations. Instead of binary causal relations, it computes dependency measures. The dependency measure between activity $a$ and activity $b$ is formally defined as:
+\begin{equation}
+a \Rightarrow_W b = \begin{cases}
+    \frac{|a > b| - |b > a|}{|a > b| + |b > a| + 1} & \text{if } a \neq b \\
+    \frac{|a > a|}{|a > a| + 1} & \text{if } a = b
+\end{cases}
+\end{equation}
+
+By applying threshold parameters to these continuous metrics, the Heuristics Miner constructs a Dependency Graph, which is subsequently converted into a Causal Net and ultimately a Petri net. This robustification significantly improves the handling of infrequent, noisy behavior. However, the resulting models are not mathematically guaranteed to be sound (i.e., free of deadlocks and livelocks), presenting a severe limitation for formal analysis and downstream verification tasks.
+
+\subsection{The Inductive Miner: Guaranteeing Soundness}
+The Inductive Miner paradigm elegantly resolved the soundness predicament by employing a divide-and-conquer strategy on the Directly-Follows Graph (DFG) extracted from the log. The algorithm recursively partitions the set of activities by identifying specific structural cuts (e.g., exclusive-choice cut, sequence cut, concurrent cut, loop cut) in the DFG.
+\begin{definition}[Cut]
+A cut is an operator $\oplus \in \{\times, \rightarrow, \land, \circlearrowleft\}$ and a partition $P_1, P_2, \dots, P_n$ of the activities $A$, such that the relations in the log perfectly (or approximately, in its heuristic variants) align with the semantics of the operator applied to the partitions.
+\end{definition}
+
+If a log perfectly conforms to a process tree structure, the Inductive Miner will discover it. By constructing the process model as a strictly hierarchical Process Tree, the algorithm structurally guarantees soundness by construction. Any valid process tree can be deterministically mapped to a sound, generalized block-structured Petri net. The Inductive Miner framework has been extensively expanded (e.g., IMf for infrequent behavior, IMc for incomplete logs) and remains the preeminent baseline for control-flow discovery. Nonetheless, its bias towards block-structured models occasionally forces over-generalization when the underlying ground truth exhibits non-block-structured, intertwined concurrency.
+
+\section{Conformance Checking: Measuring Deviations}
+Conformance checking constitutes the analytical process of contrasting an observed event log against a normative, prescriptive, or previously discovered process model. The goal is not merely to classify a trace as fitting or non-fitting, but to precisely quantify and localize the deviations.
+
+\subsection{Token Replay and its Limitations}
+Early conformance checking mechanisms relied on simple token replay. A trace is replayed event-by-event on the Petri net. If a required token is missing to fire a transition, a "missing token" error is recorded, and an artificial token is injected to allow the replay to continue. At the end of the trace, "remaining tokens" are also penalized. While computationally trivial, token replay is fundamentally flawed. A single initial deviation can cascade, causing a localized error to flood the model with artificial tokens, leading to a catastrophic collapse of the diagnostic metric. The error diagnosis is not robust and fails to provide the minimal explanation for the non-conformance.
+
+\subsection{Alignment-Based Conformance Checking}
+The contemporary gold standard for conformance checking is alignment-based fitness. The foundational premise is to map the observed trace to the most similar execution sequence mathematically possible within the model. This is framed as a cost-minimization optimization problem.
+
+Let $L$ be an event log and $M$ be a Petri net. Let $\sigma_L = \langle e_1, e_2, \dots, e_n \rangle$ be a trace in $L$. Let $\Sigma_M$ be the set of all valid execution sequences (often infinite) generated by $M$.
+An alignment is a sequence of moves $\gamma = \langle (x_1, y_1), (x_2, y_2), \dots, (x_m, y_m) \rangle$. Each move $(x, y)$ can be:
+\begin{itemize}
+    \item A \textbf{synchronous move} $(a, t)$, where an event $a$ in the log matches a transition $t$ in the model, and the activity label of $t$ equals $a$.
+    \item A \textbf{log move} $(a, \gg)$, indicating an event occurred in reality but is not permitted by the model at this state.
+    \item A \textbf{model move} $(\gg, t)$, indicating the model requires a transition $t$ to fire, but no corresponding event was observed in the log.
+\end{itemize}
+
+The projection of the alignment on the first element (ignoring $\gg$) must yield the observed trace $\sigma_L$. The projection on the second element (ignoring $\gg$) must yield a valid sequence $\sigma_M \in \Sigma_M$.
+A cost function $\kappa$ assigns a penalty to each move type. Typically, synchronous moves have zero cost, while log and model moves have strictly positive costs (often $\kappa(a, \gg) = 1, \kappa(\gg, t) = 1$).
+The objective is to find the optimal alignment $\gamma_{opt}$ that minimizes the total cost:
+\begin{equation}
+\gamma_{opt} = \arg\min_{\gamma \in \Gamma(\sigma_L, M)} \sum_{(x,y) \in \gamma} \kappa(x,y)
+\end{equation}
+
+\subsection{A* Search and State Space Explosion}
+The computation of the optimal alignment is notoriously an NP-hard problem. It is traditionally solved using the A* (A-star) algorithm exploring the state space of the synchronous product of the log trace and the Petri net. The state in the search space is defined by $(pos, M')$, where $pos$ is the index in the log trace and $M'$ is the current marking of the Petri net. The A* algorithm utilizes a heuristic function $h(pos, M')$ to estimate the remaining cost to reach the goal state (the end of the trace and a final marking of the net). For the search to guarantee optimality, the heuristic must be admissible (never overestimate the cost).
+
+Despite significant optimizations in heuristic formulation, state space pruning, and structural reduction, the A* approach suffers acutely from the state space explosion problem. Highly concurrent models or models with complex cyclic behaviors cause the search space to grow exponentially, rendering exact alignment computation intractable for large, real-world industrial datasets. This computational bottleneck is a primary catalyst for ongoing research into approximation algorithms, decomposition techniques, and fundamentally novel formalisms, which this thesis seeks to augment.
+
+\section{Cross-Disciplinary Syntheses: Cognitive and Contextual Paradigms in Process Mining}
+The trajectory of process mining is increasingly intersecting with cognitive computing and complex systems theory. Traditional conformance checking, anchored in A* search, faces algorithmic bottlenecks that parallel the cognitive limitations of monolithic AI models. This necessitates a combinatorial maximalist approach, drawing from disparate fields to resolve inherent complexities.
+
+\subsection{Context-Awareness and Workflow Decomposition}
+The rigid structuralism of the Inductive Miner and traditional process trees often fails to capture the fluid, context-dependent execution of modern workflows. Inspired by advancements in multimodal UI automation, specifically context-aware workflow decomposition \cite{ref_ContextAwareWor12}, process discovery must evolve to treat sub-processes not as static sub-trees, but as dynamic, contextually instantiated graphs. In the same way that user interface workflows are dynamically decomposed based on visual and semantic context, enterprise processes must be discovered as conditionally active sub-components. This context-awareness bridges the gap between high-level intent and low-level event instantiation.
+
+\subsection{Structured Memory Graphs and Heuristic Optimization}
+The state-space explosion intrinsic to alignment-based conformance checking demands radical heuristic innovation. We can draw a profound symmetry between the trajectory of execution paths in a Petri net and the semantic routing within Large Language Models (LLMs). The advent of knowledge-aware self-correction via structured memory graphs \cite{ref_KnowledgeAwareS10} provides a revolutionary template. Instead of relying solely on admissible, static A* heuristics, conformance checking architectures can integrate dynamically updated memory graphs that map historical deviation patterns. When the alignment search encounters a state explosion, it can self-correct its search trajectory by consulting this structured memory of past non-conformances, transforming an NP-hard blind search into an experience-guided traversal. Furthermore, the application of adaptive, cost-effective computational strategies, analogous to those utilized in ThriftLLM for cost-effective selection of LLMs \cite{ref_ThriftLLMOnCost15}, suggests a paradigm of multi-fidelity conformance checking. In this model, lightweight, inexpensive heuristic estimators are applied to common traces, reserving the full, computationally exhaustive A* alignment only for highly anomalous, high-risk deviations.
+
+\subsection{Integration with Security Risk Management}
+Ultimately, the quantification of process deviations is not merely an academic exercise in formal language theory; it is a critical component of enterprise security. The deviations detected by alignment algorithms must be intrinsically linked to an integrated conceptual model for information system security risk management \cite{ref_AnIntegratedCon8}. Every log move or model move represents a potential vulnerability or policy violation. By mapping the abstract cost functions of conformance alignments ($\kappa$) to empirical risk vectors—such as unauthorized access patterns or bypassed security gates—process mining transcends operational observability and becomes a proactive mechanism for risk mitigation.
+
+\section{Critiques and Identifying the Literature Gap}
+While the corpus of process mining literature is voluminous and mathematically robust, several critical vulnerabilities persist.
+First, the disconnect between formal verification guarantees (e.g., soundness) and empirical accuracy remains stark. Algorithms that guarantee soundness often sacrifice precision, producing overly permissive models.
+Second, the transition to Object-Centric Event Logs has fractured the established toolchain. Conformance checking over interacting object graphs introduces complexities regarding synchronization points that current alignment algorithms cannot efficiently resolve without combinatorial explosions.
+Third, the prevailing literature implicitly assumes static structural models. The temporal dynamics, concept drift, and evolutionary nature of biological and organizational systems are severely under-represented in the mathematical formalisms, which predominantly rely on static Petri net topologies.
+The subsequent chapters will detail the proposed methodologies to traverse these exact gaps, synthesizing a framework that unites high-fidelity object-centric discovery with computationally tractable, verifiable conformance mechanisms.
+

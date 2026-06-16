@@ -1,0 +1,205 @@
+\chapter{Theoretical Framework: The Universal Provenance Ontology}
+\label{ch:theory_ontology}
+
+\section{Introduction to Provenance in Computational Governance}
+
+The conceptual bedrock upon which the Affidavit framework is erected relies fundamentally on the rigorous, formalized articulation of provenance. In the context of computational governance and distributed multi-agent systems, provenance is not merely a supplementary metadata trace, but rather the foundational substrate enabling auditability, cryptographic non-repudiation, and causal determinism. The ambition of this chapter is to exhaustively dissect the theoretical framework of the Universal Provenance Ontology as it applies to the Affidavit architecture, and to provide a comprehensive mapping of the Affidavit domain model to the World Wide Web Consortium's (W3C) PROV-O standard.
+
+Provenance, derived from the French \textit{provenir} (to come from), has historically been a critical concept in art history, archival science, and law. In the digital realm, particularly within complex distributed networks involving artificial intelligence agents, smart contracts, and high-velocity continuous integration pipelines, provenance translates to the unalterable, cryptographically secured chronological record of the creation, modification, and transmission of digital artifacts. It answers the fundamental questions of \textit{who} did \textit{what}, \textit{when}, \textit{where}, \textit{how}, and most crucially, \textit{why}.
+
+The necessity for a universal, standardized ontology arises from the inherent heterogeneity of modern software supply chains. A single digital artifact—be it a compiled binary, a Docker image, or an auto-generated piece of code—may undergo numerous transformations across diverse environments, orchestrated by an array of human and non-human actors. Without a shared semantic vocabulary, the provenance graph becomes fragmented, resulting in isolated silos of history that cannot be coherently queried or validated.
+
+\section{The W3C PROV-O Standard: An Exhaustive Examination}
+
+The W3C PROV Ontology (PROV-O) serves as the normative specification for interoperable provenance interchange on the Semantic Web. PROV-O defines a set of core classes, properties, and restrictions that form a directed acyclic graph (DAG) representing the causal dependencies between entities, activities, and agents.
+
+\subsection{Core Classes in PROV-O}
+
+At its nucleus, PROV-O is predicated upon three fundamental classes:
+
+\begin{itemize}
+    \item \textbf{\texttt{prov:Entity}}: An entity is a physical, digital, conceptual, or other kind of thing with some fixed aspects; entities may be real or imaginary. In the Affidavit context, entities encompass source code files, cryptographic hashes, abstract syntax trees (ASTs), test execution reports, and intermediate compilation artifacts.
+    \item \textbf{\texttt{prov:Activity}}: An activity is something that occurs over a period of time and acts upon or with entities; it may include consuming, processing, transforming, modifying, relocating, using, or generating entities. Affidavit activities include build processes, linting operations, code generation via Large Language Models (LLMs), and cryptographic sealing.
+    \item \textbf{\texttt{prov:Agent}}: An agent is something that bears some form of responsibility for an activity taking place, for the existence of an entity, or for another agent's activity. Agents can be human developers, service accounts, automated CI/CD runners, or autonomous AI entities.
+\end{itemize}
+
+\subsection{Core Properties and Causal Relations}
+
+The true power of PROV-O lies in its relational properties, which establish the causal links between instances of the core classes:
+
+\begin{itemize}
+    \item \textbf{\texttt{prov:wasGeneratedBy}}: This property links an Entity to the Activity that created it. This is a critical edge in the provenance graph, establishing the temporal origin of an artifact.
+    \item \textbf{\texttt{prov:used}}: This property links an Activity to an Entity that it consumed or utilized during its execution.
+    \item \textbf{\texttt{prov:wasAssociatedWith}}: This links an Activity to an Agent, indicating responsibility or facilitation.
+    \item \textbf{\texttt{prov:wasDerivedFrom}}: A direct link between two Entities, indicating that one was constructed or influenced by the other. This is often a macroscopic view that abstracts away the underlying Activity.
+    \item \textbf{\texttt{prov:wasAttributedTo}}: Links an Entity directly to an Agent responsible for its creation.
+    \item \textbf{\texttt{prov:actedOnBehalfOf}}: A crucial property for modeling multi-agent delegation chains, linking a subordinate Agent to a principal Agent.
+\end{itemize}
+
+\section{The Affidavit Domain Model: A Semantic Extension}
+
+While PROV-O provides a robust foundational ontology, the specialized requirements of the Affidavit framework necessitate a semantic extension to capture the nuances of cryptographic receipts, deterministic execution constraints, and multi-agent AI delegation.
+
+The Affidavit domain model introduces several subclasses and specialized properties that refine the PROV-O semantics without breaking interoperability. This adherence to the Open World Assumption (OWA) allows Affidavit provenance graphs to be consumed by standard semantic reasoners while preserving domain-specific fidelity.
+
+\subsection{Affidavit Entities}
+
+\begin{itemize}
+    \item \textbf{\texttt{affi:CryptographicReceipt}} (Subclass of \texttt{prov:Entity}): Represents a cryptographically verifiable proof of a state transition, typically incorporating a BLAKE3 hash and a digital signature.
+    \item \textbf{\texttt{affi:SourceArtifact}} (Subclass of \texttt{prov:Entity}): Represents human-authored or machine-generated source code.
+    \item \textbf{\texttt{affi:CompilationTarget}} (Subclass of \texttt{prov:Entity}): Represents a compiled binary or intermediate representation (e.g., WebAssembly module).
+    \item \textbf{\texttt{affi:PolicyDocument}} (Subclass of \texttt{prov:Entity}): A formalized set of rules (often in Rego or Semantic Web Rule Language - SWRL) governing the validation logic.
+\end{itemize}
+
+\subsection{Affidavit Activities}
+
+\begin{itemize}
+    \item \textbf{\texttt{affi:DeterministicBuild}} (Subclass of \texttt{prov:Activity}): An activity guaranteed to produce a bit-for-bit identical output given the same inputs, crucial for verifiable software supply chains.
+    \item \textbf{\texttt{affi:AIGeneration}} (Subclass of \texttt{prov:Activity}): Specifically denotes an activity where an LLM or similar AI model generates code or documentation. Recognizing language models as semiotic machines \cite{ref_LanguageModelsa26}, this activity captures not just text emission but the synthesis of meaningful symbols and structures that require rigorous semantic tracing.
+    \item \textbf{\texttt{affi:CryptographicSealing}} (Subclass of \texttt{prov:Activity}): The process of appending a digital signature and metadata to an artifact to prevent tampering.
+\end{itemize}
+
+\subsection{Affidavit Agents}
+
+\begin{itemize}
+    \item \textbf{\texttt{affi:HumanOperator}} (Subclass of \texttt{prov:Agent}): A human actor interacting with the system.
+    \item \textbf{\texttt{affi:AutonomousAgent}} (Subclass of \texttt{prov:Agent}): An AI-driven actor capable of independent decision-making and task execution.
+    \item \textbf{\texttt{affi:CIEnvironment}} (Subclass of \texttt{prov:SoftwareAgent}): A specialized software agent representing a Continuous Integration pipeline runner (e.g., GitHub Actions runner).
+\end{itemize}
+
+\section{Exhaustive Mapping of Affidavit to PROV-O}
+
+The mapping between the Affidavit domain model and PROV-O is formally defined using the Web Ontology Language (OWL). This allows automated reasoners to infer relationships and validate the structural integrity of the provenance graph.
+
+\subsection{OWL Class Equivalence and Subsumption}
+
+The following formal axioms define the relationship between Affidavit and PROV-O classes:
+
+\begin{verbatim}
+affi:CryptographicReceipt rdfs:subClassOf prov:Entity .
+affi:DeterministicBuild rdfs:subClassOf prov:Activity .
+affi:AutonomousAgent rdfs:subClassOf prov:Agent .
+affi:AutonomousAgent rdfs:subClassOf prov:SoftwareAgent .
+\end{verbatim}
+
+\subsection{Property Constraints and Cardinality}
+
+Affidavit enforces strict cardinality constraints to ensure deterministic provenance tracing. For instance, a \texttt{affi:CryptographicReceipt} MUST be generated by exactly one \texttt{affi:CryptographicSealing} activity.
+
+\begin{verbatim}
+affi:CryptographicReceipt rdfs:subClassOf [
+  a owl:Restriction ;
+  owl:onProperty prov:wasGeneratedBy ;
+  owl:cardinality "1"^^xsd:nonNegativeInteger ;
+  owl:allValuesFrom affi:CryptographicSealing
+] .
+\end{verbatim}
+
+\section{Multi-Agent Delegation Chains and Semantic Properties}
+
+A hallmark of advanced CI/CD systems and AI-driven development environments is the presence of complex delegation chains. An architect (human agent) may delegate a task to an orchestrator agent, which in turn delegates sub-tasks to specialized autonomous agents. Capturing this hierarchy is paramount for accountability, aligning with modern frameworks for the ethical oversight and holistic tracking of AI agents \cite{ref_OntheETHOSofAIA25}.
+
+PROV-O provides the \texttt{prov:actedOnBehalfOf} property to model these relationships. In Affidavit, we extend this to capture the specific nature of the delegation, including the cryptographic authorization token (e.g., a JSON Web Token or a custom capability token) that facilitated the delegation.
+
+\subsection{Modeling Delegation in RDF/Turtle}
+
+The following Turtle snippet illustrates a complex delegation chain where a Human Architect delegates to a CI Runner, which delegates to an LLM Agent for code generation.
+
+\begin{verbatim}
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix affi: <https://affidavit.dev/ontology/v1#> .
+@prefix ex: <http://example.com/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:ArchitectAlice a affi:HumanOperator, prov:Person ;
+    prov:label "Alice (Lead Architect)" .
+
+ex:JenkinsRunner a affi:CIEnvironment, prov:SoftwareAgent ;
+    prov:label "Jenkins Node 04" ;
+    prov:actedOnBehalfOf ex:ArchitectAlice ;
+    affi:authorizedByToken "jwt:ey..." .
+
+ex:CodeGeneratorLLM a affi:AutonomousAgent, prov:SoftwareAgent ;
+    prov:label "GPT-4 Code Synthesizer" ;
+    prov:actedOnBehalfOf ex:JenkinsRunner ;
+    affi:modelConfiguration "temperature=0.2, top_p=0.9" .
+
+ex:GenerateAuthModule a affi:AIGeneration, prov:Activity ;
+    prov:startedAtTime "2023-10-27T10:00:00Z"^^xsd:dateTime ;
+    prov:endedAtTime "2023-10-27T10:00:45Z"^^xsd:dateTime ;
+    prov:wasAssociatedWith ex:CodeGeneratorLLM .
+
+ex:AuthModuleSource a affi:SourceArtifact, prov:Entity ;
+    prov:value "pub fn authenticate() { ... }" ;
+    prov:wasGeneratedBy ex:GenerateAuthModule ;
+    prov:wasAttributedTo ex:CodeGeneratorLLM .
+\end{verbatim}
+
+\subsection{Transitive Reasoning on Delegation Chains}
+
+By utilizing the \texttt{prov:actedOnBehalfOf} property, semantic reasoners can compute the transitive closure of responsibility. Even though the LLM Agent generated the code, the reasoner can infer that the human architect, Alice, holds ultimate responsibility for the artifact due to the continuous chain of delegation.
+
+This is formalized in PROV-O, but Affidavit leverages SWRL rules to explicitly assign cryptographic liability across the chain, ensuring that if a generated artifact violates a security policy, the auditing system can trace the failure back to the original human authorization or the specific misconfiguration of the intermediary agent.
+
+\section{Semantic Web Properties and Open World Assumption}
+
+The choice of RDF and OWL for modeling provenance in Affidavit is deliberate. The Semantic Web stack provides several critical advantages over traditional relational databases or rigid JSON schemas:
+
+\begin{enumerate}
+    \item \textbf{Global Unique Identifiers (URIs)}: Every entity, activity, and agent is identified by a URI, preventing naming collisions across decentralized organizations and ensuring unambiguous reference across distributed systems.
+    \item \textbf{Graph Traversal}: Provenance is inherently a graph structure. RDF triples naturally form a directed graph, making it highly efficient to query causal pathways using SPARQL.
+    \item \textbf{Open World Assumption (OWA)}: The OWA postulates that the truth value of a statement is unknown if it is not explicitly stated. This means that an Affidavit provenance graph can be continuously enriched with new information from third-party auditors or external systems without invalidating existing data.
+    \item \textbf{Ontology Alignment}: If an organization uses an internal vocabulary (e.g., a specific hardware taxonomy), it can be formally aligned with the Affidavit ontology using \texttt{owl:equivalentClass} or \texttt{rdfs:subClassOf}, enabling seamless integration without data migration.
+\end{enumerate}
+
+\section{Advanced RDF/Turtle Mappings for Cryptographic Receipts}
+
+A core innovation of Affidavit is the integration of cryptographic verifiable claims within the semantic graph. A standard PROV-O graph proves causal history \textit{if} you trust the entity that asserted the graph. Affidavit removes this need for trust by embedding BLAKE3 hashes and Ed25519 signatures directly into the RDF triples.
+
+\subsection{The Receipt Structure}
+
+An Affidavit receipt is not just a JSON object; it is a serialized subgraph.
+
+\begin{verbatim}
+ex:Receipt_7f8a9 a affi:CryptographicReceipt, prov:Entity ;
+    prov:value "7f8a9b..."^^affi:BLAKE3Hash ;
+    affi:signature "sig_ed25519_..." ;
+    prov:wasGeneratedBy ex:SealingActivity_12 ;
+    prov:wasDerivedFrom ex:AuthModuleSource .
+
+ex:SealingActivity_12 a affi:CryptographicSealing, prov:Activity ;
+    prov:used ex:AuthModuleSource ;
+    prov:wasAssociatedWith ex:NotaryAgent .
+\end{verbatim}
+
+\subsection{SPARQL Queries for Auditability}
+
+The semantic structure enables complex, highly expressive queries that are impossible with flat log files, mirroring advancements in object-centric analysis of event logs using SPARQL \cite{ref_ObjectCentricAn31}. For instance, an auditor might want to find all source artifacts generated by an LLM that were subsequently compiled into a binary without undergoing a static analysis phase.
+
+\begin{verbatim}
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX affi: <https://affidavit.dev/ontology/v1#>
+
+SELECT ?binary ?source ?llmAgent
+WHERE {
+  ?binary a affi:CompilationTarget ;
+          prov:wasDerivedFrom ?source .
+          
+  ?source a affi:SourceArtifact ;
+          prov:wasGeneratedBy ?genActivity .
+          
+  ?genActivity a affi:AIGeneration ;
+               prov:wasAssociatedWith ?llmAgent .
+               
+  FILTER NOT EXISTS {
+    ?analysisActivity a affi:StaticAnalysis ;
+                      prov:used ?source .
+  }
+}
+\end{verbatim}
+
+This query leverages graph traversal and negation-as-failure (via \texttt{FILTER NOT EXISTS}) to identify compliance violations in near real-time.
+
+\section{Conclusion}
+
+The rigorous application of the W3C PROV-O standard, extended by the domain-specific Affidavit ontology, provides an unprecedented level of formal verifiability to software engineering processes. By modeling the intricate web of entities, activities, and agents—especially in the context of autonomous AI delegation—as a cryptographically sealed semantic graph, Affidavit transcends traditional logging, offering a mathematically sound foundation for zero-trust continuous integration and deployment. The extensive use of RDF and OWL ensures that this provenance data is not only tamper-proof but also universally interoperable and machine-reasoning capable.
