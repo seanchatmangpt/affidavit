@@ -55,4 +55,8 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Build (next build)
+        env:
+          # Prevent Next.js from making outbound telemetry requests, which can hang
+          # or add latency when the runner's outbound network is restricted.
+          NEXT_TELEMETRY_DISABLED: "1"
         run: npm run build
