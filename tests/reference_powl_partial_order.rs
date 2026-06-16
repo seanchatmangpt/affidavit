@@ -19,8 +19,10 @@ fn order_edge_carries_from_and_to() {
 #[test]
 fn valid_partial_order_admits() {
     let mut p = Powl::new();
-    p.nodes.push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
-    p.nodes.push(PowlNode::new(PowlNodeId(1), PowlNodeKind::Atom("b".into())));
+    p.nodes
+        .push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
+    p.nodes
+        .push(PowlNode::new(PowlNodeId(1), PowlNodeKind::Atom("b".into())));
     p.nodes.push(PowlNode::new(
         PowlNodeId(2),
         PowlNodeKind::PartialOrder(vec![PowlNodeId(0), PowlNodeId(1)]),
@@ -29,7 +31,11 @@ fn valid_partial_order_admits() {
     p.edges.push(OrderEdge::new(PowlNodeId(0), PowlNodeId(1)));
     p.root = Some(PowlNodeId(2));
 
-    assert_eq!(p.validate(), Ok(()), "an acyclic partial order (a before b) admits");
+    assert_eq!(
+        p.validate(),
+        Ok(()),
+        "an acyclic partial order (a before b) admits"
+    );
     assert_eq!(p.node_count(), 3);
     assert_eq!(p.edges.len(), 1, "one precedence edge");
 }

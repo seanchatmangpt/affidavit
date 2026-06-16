@@ -29,18 +29,29 @@ fn event(id: &str, seq: u64, payload: &[u8]) -> OperationEvent {
 fn main() {
     // --- HONEST receipt: assembled through the canonical seam. ---
     let mut asm = ChainAssembler::new();
-    asm.append(event("e0", 0, b"payload-zero")).expect("append e0");
-    asm.append(event("e1", 1, b"payload-one")).expect("append e1");
+    asm.append(event("e0", 0, b"payload-zero"))
+        .expect("append e0");
+    asm.append(event("e1", 1, b"payload-one"))
+        .expect("append e1");
     let honest = asm.finalize();
 
     let verdict = verify(&honest);
     println!("HONEST receipt verdict: accepted={}", verdict.accepted);
     for o in &verdict.outcomes {
-        println!("  [{}] {} — {}", if o.passed { "PASS" } else { "FAIL" }, o.stage, o.detail);
+        println!(
+            "  [{}] {} — {}",
+            if o.passed { "PASS" } else { "FAIL" },
+            o.stage,
+            o.detail
+        );
     }
     println!("  reason: {}", verdict.reason);
 
-    assert!(verdict.accepted, "honest receipt must be accepted; reason: {}", verdict.reason);
+    assert!(
+        verdict.accepted,
+        "honest receipt must be accepted; reason: {}",
+        verdict.reason
+    );
     assert!(
         verdict.outcomes.iter().all(|o| o.passed),
         "every stage must pass for an honest receipt"
@@ -55,20 +66,34 @@ fn main() {
     forged.chain_hash = recompute_chain(&forged.events).expect("re-seal forged chain");
 
     let forged_verdict = verify(&forged);
-    println!("\nFORGED (seq-gap) receipt verdict: accepted={}", forged_verdict.accepted);
+    println!(
+        "\nFORGED (seq-gap) receipt verdict: accepted={}",
+        forged_verdict.accepted
+    );
     for o in &forged_verdict.outcomes {
-        println!("  [{}] {} — {}", if o.passed { "PASS" } else { "FAIL" }, o.stage, o.detail);
+        println!(
+            "  [{}] {} — {}",
+            if o.passed { "PASS" } else { "FAIL" },
+            o.stage,
+            o.detail
+        );
     }
     println!("  reason: {}", forged_verdict.reason);
 
-    assert!(!forged_verdict.accepted, "forged seq-gap receipt must be REJECTED");
+    assert!(
+        !forged_verdict.accepted,
+        "forged seq-gap receipt must be REJECTED"
+    );
 
     let continuity = forged_verdict
         .outcomes
         .iter()
         .find(|o| o.stage == "continuity")
         .expect("continuity stage must be present in outcomes");
-    assert!(!continuity.passed, "continuity stage must fail on a seq gap");
+    assert!(
+        !continuity.passed,
+        "continuity stage must fail on a seq gap"
+    );
 
     // chain_integrity precedes continuity, so it must still pass — proving the
     // continuity check is what caught the forgery, not the chain hash.
@@ -77,7 +102,10 @@ fn main() {
         .iter()
         .find(|o| o.stage == "chain_integrity")
         .expect("chain_integrity stage present");
-    assert!(chain.passed, "re-sealed chain must pass; continuity is the real catch");
+    assert!(
+        chain.passed,
+        "re-sealed chain must pass; continuity is the real catch"
+    );
 
     // The verdict reason must name the continuity stage (first failure).
     assert!(

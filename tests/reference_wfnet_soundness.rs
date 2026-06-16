@@ -15,11 +15,19 @@ use wasm4pm_compat::petri::WfNetConst;
 #[test]
 fn soundness_typestate_advances_unknown_to_claimed() {
     let unknown = WfNetConst::<{ SoundnessState::Unknown }>::new();
-    assert_eq!(unknown.soundness_state(), SoundnessState::Unknown, "fresh net: soundness Unknown");
+    assert_eq!(
+        unknown.soundness_state(),
+        SoundnessState::Unknown,
+        "fresh net: soundness Unknown"
+    );
 
     // claim_sound is freely available — anyone may CLAIM (unproven) soundness.
     let claimed = unknown.claim_sound();
-    assert_eq!(claimed.soundness_state(), SoundnessState::Claimed, "claimed (unproven) soundness");
+    assert_eq!(
+        claimed.soundness_state(),
+        SoundnessState::Claimed,
+        "claimed (unproven) soundness"
+    );
 }
 
 #[test]

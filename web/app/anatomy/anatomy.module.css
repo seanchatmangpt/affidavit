@@ -1,0 +1,160 @@
+/* Scoped styles for /anatomy. Builds on the global design-system classes
+   (.card .grid .label .src .muted .green .warn, table/th/td, pre.doc, code).
+   Only adds what the reference layout needs: stage badges, the legend, and
+   the rejection-gallery framing. Colors come from the global CSS vars. */
+
+.intro {
+  max-width: 80ch;
+}
+
+/* ---- Stage badge: maps a field (or a rejection) to a pipeline stage ---- */
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #1b2130;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.badge + .badge {
+  margin-left: 0.3rem;
+}
+
+/* Per-stage accent. Each of the 7 stages gets a stable hue so the eye can
+   trace a field to the same color in the legend and the rejection gallery. */
+.stageDecode            { color: var(--muted);  border-color: #2c3447; }
+.stageCheckFormat       { color: var(--accent); border-color: #234a73; }
+.stageChainIntegrity    { color: #c792ea;       border-color: #4a3a63; }
+.stageContinuity        { color: var(--green);  border-color: #2f5d36; }
+.stageVerifyCommitments { color: var(--warn);   border-color: #5d4a1f; }
+.stageEvaluateProfile   { color: #56d4dd;       border-color: #1f5359; }
+.stageEmitVerdict       { color: #ff9d6b;       border-color: #5d3a1f; }
+
+/* The "—" badge used for fields no verify stage decides (e.g. construction
+   time, or the canonical sort itself). Kept visually quiet. */
+.stageNone {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+/* ---- Stage legend (the 7-stage map at the top) ---- */
+.legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.6rem;
+  margin: 0.75rem 0 0.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+}
+
+.legendNum {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 1.2em;
+  text-align: right;
+}
+
+.legendBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.legendDesc {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---- Field table niceties ---- */
+.typeName {
+  color: var(--fg);
+}
+
+.fieldCell code {
+  white-space: nowrap;
+}
+
+.typeCell {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 0.5rem;
+}
+
+/* ---- Rejection gallery ---- */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 1rem;
+}
+
+.reject {
+  display: flex;
+  flex-direction: column;
+}
+
+.reject pre.doc,
+.reject pre {
+  margin: 0 0 0.6rem;
+}
+
+.rejectHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.rejectTitle {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.rejectWhy {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: auto;
+}
+
+/* Highlight the offending token inside a malformed snippet. */
+.bad {
+  color: var(--warn);
+  background: #3a2a14;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 0.35rem;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}

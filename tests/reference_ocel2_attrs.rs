@@ -13,11 +13,17 @@ use wasm4pm_compat::ocel::{OCELAttributeValue as V, OCELEventAttribute};
 fn ocel2_event_attribute_builders_map_to_value_variants() {
     let s = OCELEventAttribute::string("actor", "alice".to_string());
     assert_eq!(s.name, "actor");
-    assert!(matches!(&s.value, V::String(x) if x == "alice"), "string builder → String");
+    assert!(
+        matches!(&s.value, V::String(x) if x == "alice"),
+        "string builder → String"
+    );
 
     let i = OCELEventAttribute::integer("amount", 42);
     assert_eq!(i.name, "amount");
-    assert!(matches!(i.value, V::Integer(42)), "integer builder → Integer");
+    assert!(
+        matches!(i.value, V::Integer(42)),
+        "integer builder → Integer"
+    );
 }
 
 #[test]

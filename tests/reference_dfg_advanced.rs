@@ -13,7 +13,11 @@ fn performance_dfg_edge_carries_frequency_and_duration() {
     assert_eq!(edge.source(), "create");
     assert_eq!(edge.target(), "release");
     assert_eq!(edge.frequency().0, 5, "directly-follows frequency");
-    assert_eq!(edge.duration_ns(), Some(1_000_000), "time perspective: mean duration");
+    assert_eq!(
+        edge.duration_ns(),
+        Some(1_000_000),
+        "time perspective: mean duration"
+    );
 
     // Without a duration, the time perspective is absent (not fabricated).
     let no_time = DfgEdgeFull::new("a", "b", 1);
@@ -38,6 +42,13 @@ fn object_centric_dfg_holds_per_type_dfgs() {
         t
     };
     assert_eq!(types, vec!["item", "order"], "both object types present");
-    assert_eq!(ocdfg.get("order").unwrap().edges().len(), 1, "order dfg has its edge");
-    assert!(ocdfg.get("nonexistent").is_none(), "unknown object type → None");
+    assert_eq!(
+        ocdfg.get("order").unwrap().edges().len(),
+        1,
+        "order dfg has its edge"
+    );
+    assert!(
+        ocdfg.get("nonexistent").is_none(),
+        "unknown object type → None"
+    );
 }

@@ -8,15 +8,28 @@
 //   • ComplianceKind    — the compliance-checking modes.
 //   • DiagnosticSeverity — the compat diagnostic severity levels.
 
-use wasm4pm_compat::prediction::{ComplianceKind as CK, PredictionHorizon as PH, PredictionTarget as PT};
 use wasm4pm_compat::diagnostic::DiagnosticSeverity as Sev;
+use wasm4pm_compat::prediction::{
+    ComplianceKind as CK, PredictionHorizon as PH, PredictionTarget as PT,
+};
 
 #[test]
 fn the_six_prediction_targets_are_constructed() {
-    let all = [PT::NextActivity, PT::OutcomeLabel, PT::RemainingTime, PT::DriftSignal, PT::Risk, PT::ComplianceConstraint];
+    let all = [
+        PT::NextActivity,
+        PT::OutcomeLabel,
+        PT::RemainingTime,
+        PT::DriftSignal,
+        PT::Risk,
+        PT::ComplianceConstraint,
+    ];
     // Route through the real Display impl and collect distinct names.
     let names: std::collections::BTreeSet<String> = all.iter().map(|t| t.to_string()).collect();
-    assert_eq!(names.len(), 6, "six distinct predictive-monitoring target names");
+    assert_eq!(
+        names.len(),
+        6,
+        "six distinct predictive-monitoring target names"
+    );
     assert!(names.contains("next-activity"));
     assert!(names.contains("compliance-constraint"));
     // No-wildcard family partition: a new upstream variant breaks compilation.
@@ -59,7 +72,11 @@ fn prediction_horizons_are_constructed() {
 fn compliance_kinds_are_constructed() {
     let all = [CK::Monitoring, CK::Audit, CK::Certification];
     fn label(c: CK) -> &'static str {
-        match c { CK::Monitoring => "monitoring", CK::Audit => "audit", CK::Certification => "certification" }
+        match c {
+            CK::Monitoring => "monitoring",
+            CK::Audit => "audit",
+            CK::Certification => "certification",
+        }
     }
     let s: std::collections::BTreeSet<&str> = all.iter().copied().map(label).collect();
     assert_eq!(s.len(), 3, "three compliance kinds");
@@ -69,7 +86,11 @@ fn compliance_kinds_are_constructed() {
 fn diagnostic_severities_are_constructed() {
     let all = [Sev::Error, Sev::Warning, Sev::Info];
     fn label(s: Sev) -> &'static str {
-        match s { Sev::Error => "error", Sev::Warning => "warning", Sev::Info => "info" }
+        match s {
+            Sev::Error => "error",
+            Sev::Warning => "warning",
+            Sev::Info => "info",
+        }
     }
     let set: std::collections::BTreeSet<&str> = all.iter().copied().map(label).collect();
     assert_eq!(set.len(), 3, "three diagnostic severities");

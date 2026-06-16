@@ -21,8 +21,14 @@ fn e2e_complete_lifecycle_honest() {
     // Stage 1: Emit events
     affi(&dir)
         .args([
-            "receipt", "emit", "--type", "init", "--object", "app:service",
-            "--payload", "-",
+            "receipt",
+            "emit",
+            "--type",
+            "init",
+            "--object",
+            "app:service",
+            "--payload",
+            "-",
         ])
         .write_stdin("app initialization")
         .assert()
@@ -31,8 +37,14 @@ fn e2e_complete_lifecycle_honest() {
 
     affi(&dir)
         .args([
-            "receipt", "emit", "--type", "transform", "--object", "data:artifact",
-            "--payload", "-",
+            "receipt",
+            "emit",
+            "--type",
+            "transform",
+            "--object",
+            "data:artifact",
+            "--payload",
+            "-",
         ])
         .write_stdin("data transformation")
         .assert()
@@ -41,8 +53,14 @@ fn e2e_complete_lifecycle_honest() {
 
     affi(&dir)
         .args([
-            "receipt", "emit", "--type", "release", "--object", "app:service",
-            "--payload", "-",
+            "receipt",
+            "emit",
+            "--type",
+            "release",
+            "--object",
+            "app:service",
+            "--payload",
+            "-",
         ])
         .write_stdin("release deployment")
         .assert()
@@ -85,8 +103,14 @@ fn e2e_tamper_detection() {
     // Build an honest receipt
     affi(&dir)
         .args([
-            "receipt", "emit", "--type", "create", "--object", "file:artifact",
-            "--payload", "-",
+            "receipt",
+            "emit",
+            "--type",
+            "create",
+            "--object",
+            "file:artifact",
+            "--payload",
+            "-",
         ])
         .write_stdin("file content")
         .assert()
@@ -98,11 +122,9 @@ fn e2e_tamper_detection() {
         .success();
 
     // Tamper with the receipt (change an event type)
-    let receipt = fs::read_to_string(dir.path().join("tampered.json"))
-        .expect("read receipt");
+    let receipt = fs::read_to_string(dir.path().join("tampered.json")).expect("read receipt");
     let tampered = receipt.replace("\"create\"", "\"forged\"");
-    fs::write(dir.path().join("tampered.json"), tampered)
-        .expect("write tampered receipt");
+    fs::write(dir.path().join("tampered.json"), tampered).expect("write tampered receipt");
 
     // Tampered receipt fails at deserialization (stronger than verify rejection)
     affi(&dir)
@@ -158,9 +180,14 @@ fn e2e_qualified_objects() {
     // Event with qualified object (role specified)
     affi(&dir)
         .args([
-            "receipt", "emit", "--type", "transform",
-            "--object", "dataset:artifact:input",
-            "--payload", "-",
+            "receipt",
+            "emit",
+            "--type",
+            "transform",
+            "--object",
+            "dataset:artifact:input",
+            "--payload",
+            "-",
         ])
         .write_stdin("data transformation")
         .assert()
@@ -186,8 +213,14 @@ fn e2e_stdin_payload() {
     // Payload from stdin (as opposed to file)
     affi(&dir)
         .args([
-            "receipt", "emit", "--type", "stdin_test", "--object", "test:artifact",
-            "--payload", "-",
+            "receipt",
+            "emit",
+            "--type",
+            "stdin_test",
+            "--object",
+            "test:artifact",
+            "--payload",
+            "-",
         ])
         .write_stdin("this is from stdin")
         .assert()

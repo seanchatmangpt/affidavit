@@ -26,6 +26,13 @@ fn the_only_path_to_a_verdict_is_running_a_verifier() {
     // Consistent. The envelope can ONLY be obtained this way (sealed constructor).
     let verified = UnknownVerifier.verify(99u64);
     assert_eq!(verified.inner, 99);
-    assert_eq!(verified.verdict(), CausalConsistency::Unknown, "trivial verifier claims only Unknown");
-    assert!(!verified.is_consistent(), "Unknown is not Consistent — no over-claim");
+    assert_eq!(
+        verified.verdict(),
+        CausalConsistency::Unknown,
+        "trivial verifier claims only Unknown"
+    );
+    assert!(
+        !verified.is_consistent(),
+        "Unknown is not Consistent — no over-claim"
+    );
 }

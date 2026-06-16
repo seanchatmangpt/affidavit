@@ -9,7 +9,13 @@ use wasm4pm_compat::eventlog::{Event, Trace};
 
 #[test]
 fn trace_with_explicit_case_id_exposes_identity_and_events() {
-    let t = Trace::new("case-7", [Event::new("create").at_ns(1), Event::new("release").at_ns(2)]);
+    let t = Trace::new(
+        "case-7",
+        [
+            Event::new("create").at_ns(1),
+            Event::new("release").at_ns(2),
+        ],
+    );
     assert_eq!(t.case_id(), "case-7", "explicit case id recovered");
     assert_eq!(t.len(), 2, "two events");
     assert!(!t.is_empty());

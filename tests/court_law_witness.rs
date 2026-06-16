@@ -16,35 +16,29 @@
 // projection cannot trigger it. That honesty is the point: I witness the court's
 // guarantee, not a convenient subset.
 
-use wasm4pm_compat::ocel::{EventObjectLink, Object, ObjectChange, ObjectObjectLink, OcelEvent, OcelLog, OcelRefusal};
-use wasm4pm_compat::dfg::{Dfg, DfgEdge, DfgNode, DfgRefusal};
-use wasm4pm_compat::process_tree::{
-    ProcessTree, ProcessTreeNode, ProcessTreeNodeId, ProcessTreeOperator, ProcessTreeRefusal,
-};
-use wasm4pm_compat::eventlog::{
-    Event as ElEvent, EventLogRefusal, Trace as ElTrace,
-};
-use wasm4pm_compat::bpmn::{BpmnEdge, BpmnEvent, BpmnLane, BpmnNode, BpmnProcess, BpmnRefusal};
 use std::collections::HashSet;
-use wasm4pm_compat::petri::{Arc, Marking, PetriNet, PetriRefusal, Place, Transition, WfNet};
-use wasm4pm_compat::xes::{XesEvent, XesExtension, XesLog, XesRefusal, XesTrace};
-use wasm4pm_compat::powl::{PowlChoiceNode, PowlNodeId, PowlRefusal};
+use wasm4pm_compat::bpmn::{BpmnEdge, BpmnEvent, BpmnLane, BpmnNode, BpmnProcess, BpmnRefusal};
 use wasm4pm_compat::declare::{
     Activity, DeclareConstraint, DeclareRefusal, DeclareScope, DeclareTemplate,
 };
-use wasm4pm_compat::receipt::{
-    Digest, ReceiptChain, ReceiptEnvelope, ReceiptRefusal, ReplayHint,
-};
+use wasm4pm_compat::dfg::{Dfg, DfgEdge, DfgNode, DfgRefusal};
+use wasm4pm_compat::eventlog::{Event as ElEvent, EventLogRefusal, Trace as ElTrace};
 use wasm4pm_compat::interop::{
     check_filter_shape, ArtifactGrounding, FilterShape, InteropRefusal, Pm4pyShape,
 };
 use wasm4pm_compat::models::{PetriNet as ModelPetriNet, PetriNetRefusal};
+use wasm4pm_compat::ocel::{
+    EventObjectLink, Object, ObjectChange, ObjectObjectLink, OcelEvent, OcelLog, OcelRefusal,
+};
+use wasm4pm_compat::petri::{Arc, Marking, PetriNet, PetriRefusal, Place, Transition, WfNet};
+use wasm4pm_compat::powl::{PowlChoiceNode, PowlNodeId, PowlRefusal};
+use wasm4pm_compat::process_tree::{
+    ProcessTree, ProcessTreeNode, ProcessTreeNodeId, ProcessTreeOperator, ProcessTreeRefusal,
+};
+use wasm4pm_compat::receipt::{Digest, ReceiptChain, ReceiptEnvelope, ReceiptRefusal, ReplayHint};
+use wasm4pm_compat::xes::{XesEvent, XesExtension, XesLog, XesRefusal, XesTrace};
 
-fn log(
-    objects: Vec<Object>,
-    events: Vec<OcelEvent>,
-    e2o: Vec<EventObjectLink>,
-) -> OcelLog {
+fn log(objects: Vec<Object>, events: Vec<OcelEvent>, e2o: Vec<EventObjectLink>) -> OcelLog {
     OcelLog::new(
         objects,
         events,
@@ -172,7 +166,10 @@ fn process_tree_court_refuses_dangling_node_reference() {
         children: vec![ProcessTreeNodeId(0), ProcessTreeNodeId(99)], // 99 is OOB
     });
     t.root = Some(ProcessTreeNodeId(0));
-    assert_eq!(t.admit_shape(), Err(ProcessTreeRefusal::DanglingNodeReference));
+    assert_eq!(
+        t.admit_shape(),
+        Err(ProcessTreeRefusal::DanglingNodeReference)
+    );
 }
 
 #[test]
@@ -185,7 +182,10 @@ fn process_tree_court_refuses_tau_leaf_with_children() {
         children: vec![ProcessTreeNodeId(0)], // tau with a child — invalid
     });
     t.root = Some(ProcessTreeNodeId(1));
-    assert_eq!(t.admit_shape(), Err(ProcessTreeRefusal::TauLeafWithChildren));
+    assert_eq!(
+        t.admit_shape(),
+        Err(ProcessTreeRefusal::TauLeafWithChildren)
+    );
 }
 
 #[test]
@@ -210,7 +210,11 @@ fn process_tree_court_refuses_loop_invalid_arity() {
     t.nodes.push(ProcessTreeNode::Activity("c".into()));
     t.nodes.push(ProcessTreeNode::Operator {
         operator: ProcessTreeOperator::Loop,
-        children: vec![ProcessTreeNodeId(0), ProcessTreeNodeId(1), ProcessTreeNodeId(2)],
+        children: vec![
+            ProcessTreeNodeId(0),
+            ProcessTreeNodeId(1),
+            ProcessTreeNodeId(2),
+        ],
     });
     t.root = Some(ProcessTreeNodeId(3));
     assert_eq!(t.admit_shape(), Err(ProcessTreeRefusal::InvalidArity));
@@ -260,7 +264,11 @@ fn eventlog_court_admits_monotonic_trace() {
         ElEvent::new("create").at_ns(10),
         ElEvent::new("release").at_ns(20),
     ]);
-    assert_eq!(trace.validate(), Ok(()), "a monotonic non-empty trace admits");
+    assert_eq!(
+        trace.validate(),
+        Ok(()),
+        "a monotonic non-empty trace admits"
+    );
 }
 
 // ── BpmnRefusal — five named variants fired against real violations ──
@@ -318,7 +326,11 @@ fn bpmn_court_refuses_dangling_edge() {
 #[test]
 fn bpmn_court_admits_well_formed_process() {
     let p = BpmnProcess::new(start_end(), [BpmnEdge::new("s", "e")]);
-    assert_eq!(p.validate(), Ok(()), "start→end with a connecting edge admits");
+    assert_eq!(
+        p.validate(),
+        Ok(()),
+        "start→end with a connecting edge admits"
+    );
 }
 
 #[test]
@@ -333,7 +345,11 @@ fn bpmn_court_refuses_lane_node_not_declared() {
 fn bpmn_court_admits_lane_with_declared_nodes() {
     let lane = BpmnLane::new("l1", "Ops", ["t1", "t2"]);
     let known: HashSet<&str> = ["t1", "t2"].into_iter().collect();
-    assert_eq!(lane.validate(&known), Ok(()), "a lane over declared nodes admits");
+    assert_eq!(
+        lane.validate(&known),
+        Ok(()),
+        "a lane over declared nodes admits"
+    );
 }
 
 // ── PetriRefusal — the classical van der Aalst PROPER-COMPLETION criterion ──
@@ -379,7 +395,14 @@ fn petri_court_admits_net_with_final_marking() {
 
 #[test]
 fn xes_court_refuses_missing_log_name() {
-    let log = XesLog::new("", [], [XesTrace::new("c", [XesEvent::new().with("concept:name", "a")])]);
+    let log = XesLog::new(
+        "",
+        [],
+        [XesTrace::new(
+            "c",
+            [XesEvent::new().with("concept:name", "a")],
+        )],
+    );
     assert_eq!(log.validate(), Err(XesRefusal::MissingLogName));
 }
 
@@ -408,7 +431,10 @@ fn xes_court_refuses_invalid_extension() {
     let log = XesLog::new(
         "l",
         [XesExtension::new("Concept", "", "uri")], // empty prefix
-        [XesTrace::new("c", [XesEvent::new().with("concept:name", "a")])],
+        [XesTrace::new(
+            "c",
+            [XesEvent::new().with("concept:name", "a")],
+        )],
     );
     assert_eq!(log.validate(), Err(XesRefusal::InvalidExtension));
 }
@@ -419,7 +445,10 @@ fn xes_court_refuses_missing_trace_name() {
     let log = XesLog::new(
         "l",
         [XesExtension::new("Concept", "concept", "uri")],
-        [XesTrace::new("", [XesEvent::new().with("concept:name", "a")])], // empty trace name
+        [XesTrace::new(
+            "",
+            [XesEvent::new().with("concept:name", "a")],
+        )], // empty trace name
     );
     assert_eq!(log.validate(), Err(XesRefusal::MissingTraceName));
 }
@@ -431,7 +460,10 @@ fn xes_court_refuses_undeclared_extension_prefix() {
     let log = XesLog::new(
         "l",
         [], // no extensions declared
-        [XesTrace::new("c", [XesEvent::new().with("concept:name", "create")])],
+        [XesTrace::new(
+            "c",
+            [XesEvent::new().with("concept:name", "create")],
+        )],
     );
     assert_eq!(log.validate(), Err(XesRefusal::UndeclaredExtensionPrefix));
 }
@@ -442,10 +474,21 @@ fn xes_court_admits_well_formed_log() {
     // `concept:name` key references a declared prefix.
     let log = XesLog::new(
         "l",
-        [XesExtension::new("Concept", "concept", "http://www.xes-standard.org/concept.xesext")],
-        [XesTrace::new("c", [XesEvent::new().with("concept:name", "create")])],
+        [XesExtension::new(
+            "Concept",
+            "concept",
+            "http://www.xes-standard.org/concept.xesext",
+        )],
+        [XesTrace::new(
+            "c",
+            [XesEvent::new().with("concept:name", "create")],
+        )],
     );
-    assert_eq!(log.validate(), Ok(()), "a named log with a declared extension admits");
+    assert_eq!(
+        log.validate(),
+        Ok(()),
+        "a named log with a declared extension admits"
+    );
 }
 
 // ── PowlRefusal — POWL (partially-ordered workflow language) choice arity ──
@@ -457,7 +500,10 @@ fn powl_court_refuses_invalid_choice_arity() {
     let bad = PowlChoiceNode::new(vec![PowlNodeId(0)]); // one branch < 2
     assert_eq!(
         bad.validate(),
-        Err(PowlRefusal::InvalidChoiceArity { declared: 1, required_min: 2 }),
+        Err(PowlRefusal::InvalidChoiceArity {
+            declared: 1,
+            required_min: 2
+        }),
         "a single-branch choice must be refused with its arity data"
     );
 }
@@ -532,7 +578,11 @@ fn declare_court_admits_well_formed_constraint() {
         Activity::new("place_order"),
         DeclareScope::SingleObjectScope("order".into()),
     );
-    assert_eq!(c.validate(), Ok(()), "a unary constraint with activation + scope admits");
+    assert_eq!(
+        c.validate(),
+        Ok(()),
+        "a unary constraint with activation + scope admits"
+    );
 }
 
 // ── ReceiptRefusal — the receipt-shape law, in affidavit's OWN domain ──
@@ -541,13 +591,8 @@ fn declare_court_admits_well_formed_constraint() {
 // violations (4 envelope-shape + EmptyChain + BrokenChainLink).
 
 fn good_envelope() -> ReceiptEnvelope {
-    ReceiptEnvelope::try_from_parts(
-        "subject",
-        "witness",
-        Digest::new("d"),
-        ReplayHint::new("h"),
-    )
-    .expect("well-shaped envelope")
+    ReceiptEnvelope::try_from_parts("subject", "witness", Digest::new("d"), ReplayHint::new("h"))
+        .expect("well-shaped envelope")
 }
 
 #[test]
@@ -600,7 +645,10 @@ fn interop_court_refuses_ungrounded_artifact() {
 #[test]
 fn interop_court_refuses_flat_claim_over_object_centric() {
     let g = ArtifactGrounding::<()>::new(Pm4pyShape::ObjectCentricLog, "ocel:fixture-1");
-    assert_eq!(g.admit_flat(), Err(InteropRefusal::FlatClaimOverObjectCentric));
+    assert_eq!(
+        g.admit_flat(),
+        Err(InteropRefusal::FlatClaimOverObjectCentric)
+    );
 }
 
 #[test]

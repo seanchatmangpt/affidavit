@@ -37,11 +37,17 @@ fn a_real_continuity_refusal_flows_into_error_diagnostics() {
 
     // REAL verifier — not a hand-built verdict.
     let verdict = affidavit::verifier::verify(&forged);
-    assert!(!verdict.accepted, "the forged receipt is genuinely rejected by the verifier");
+    assert!(
+        !verdict.accepted,
+        "the forged receipt is genuinely rejected by the verifier"
+    );
 
     // The genuine reject verdict renders as editor diagnostics.
     let diags = verdict_to_diagnostics(&verdict);
-    assert!(!diags.is_empty(), "a rejected verdict must surface diagnostics");
+    assert!(
+        !diags.is_empty(),
+        "a rejected verdict must surface diagnostics"
+    );
 
     // At least one Error diagnostic from affidavit names the failing continuity stage.
     let continuity_err = diags.iter().find(|d| {

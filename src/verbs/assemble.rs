@@ -14,13 +14,8 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-
 /// Finalize the working receipt into an immutable receipt file
 #[verb("assemble", "receipt")]
-pub fn assemble(
-    out: Option<String>,
-) -> Result<()> {
-    crate::handlers::assemble(
-        out,
-    )
+pub fn assemble(out: Option<String>) -> Result<()> {
+    crate::handlers::assemble(out)
 }

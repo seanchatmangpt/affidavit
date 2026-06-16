@@ -14,20 +14,35 @@ use wasm4pm_compat::ocel::{OcelAttribute, OcelAttributeValue as V};
 fn typed_attribute_builders_produce_correct_variants() {
     let b = OcelAttribute::boolean("flag", true);
     assert_eq!(b.key, "flag");
-    assert!(matches!(b.value, V::Boolean(true)), "boolean builder → Boolean");
+    assert!(
+        matches!(b.value, V::Boolean(true)),
+        "boolean builder → Boolean"
+    );
 
     let i = OcelAttribute::integer("count", 7);
     assert_eq!(i.key, "count");
-    assert!(matches!(i.value, V::Integer(7)), "integer builder → Integer");
+    assert!(
+        matches!(i.value, V::Integer(7)),
+        "integer builder → Integer"
+    );
 
     let f = OcelAttribute::float("ratio", 0.5);
-    assert!(matches!(f.value, V::Float(x) if (x - 0.5).abs() < 1e-9), "float builder → Float");
+    assert!(
+        matches!(f.value, V::Float(x) if (x - 0.5).abs() < 1e-9),
+        "float builder → Float"
+    );
 
     let s = OcelAttribute::string("name", "alice");
-    assert!(matches!(&s.value, V::String(x) if x == "alice"), "string builder → String");
+    assert!(
+        matches!(&s.value, V::String(x) if x == "alice"),
+        "string builder → String"
+    );
 
     let t = OcelAttribute::timestamp_ns("ts", 1_000);
-    assert!(matches!(t.value, V::TimestampNs(1_000)), "timestamp_ns builder → TimestampNs");
+    assert!(
+        matches!(t.value, V::TimestampNs(1_000)),
+        "timestamp_ns builder → TimestampNs"
+    );
 }
 
 #[test]

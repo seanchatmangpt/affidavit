@@ -6,7 +6,9 @@
 // every wrapper emits its named span with its target — failing-when-fake: drop a
 // record_span call and that operation's span vanishes.
 
-use affidavit::tracing::{captured_spans, clear_spans, trace_assemble, trace_emit, trace_show, trace_verify};
+use affidavit::tracing::{
+    captured_spans, clear_spans, trace_assemble, trace_emit, trace_show, trace_verify,
+};
 
 #[test]
 fn all_four_operation_wrappers_emit_named_spans() {
@@ -18,7 +20,8 @@ fn all_four_operation_wrappers_emit_named_spans() {
     let _ = trace_show("r.json", || ());
 
     let spans = captured_spans();
-    let ops: std::collections::BTreeSet<&str> = spans.iter().map(|s| s.operation.as_str()).collect();
+    let ops: std::collections::BTreeSet<&str> =
+        spans.iter().map(|s| s.operation.as_str()).collect();
     assert!(ops.contains("emit"), "emit span emitted; got {ops:?}");
     assert!(ops.contains("assemble"), "assemble span emitted");
     assert!(ops.contains("verify"), "verify span emitted");
@@ -30,5 +33,8 @@ fn all_four_operation_wrappers_emit_named_spans() {
 fn span_wrappers_return_the_inner_result() {
     clear_spans();
     let out = trace_verify("x", || 7 + 1);
-    assert_eq!(out, 8, "the wrapper is transparent to the inner computation's result");
+    assert_eq!(
+        out, 8,
+        "the wrapper is transparent to the inner computation's result"
+    );
 }

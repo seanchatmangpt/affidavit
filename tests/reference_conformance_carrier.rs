@@ -8,15 +8,27 @@
 // in-range, refuse out-of-range/NaN) and the builder's metric accumulation.
 
 use wasm4pm_compat::conformance::{
-    ConformanceResult, F1, Fitness, Generalization, Precision, Simplicity,
+    ConformanceResult, Fitness, Generalization, Precision, Simplicity, F1,
 };
 
 #[test]
 fn metric_newtypes_enforce_zero_one_bound() {
     // In-range values are admitted and recoverable.
-    assert_eq!(Fitness::new(0.0).map(|m| m.get()), Some(0.0), "lower bound admitted");
-    assert_eq!(Fitness::new(1.0).map(|m| m.get()), Some(1.0), "upper bound admitted");
-    assert_eq!(Precision::new(0.5).map(|m| m.get()), Some(0.5), "interior admitted");
+    assert_eq!(
+        Fitness::new(0.0).map(|m| m.get()),
+        Some(0.0),
+        "lower bound admitted"
+    );
+    assert_eq!(
+        Fitness::new(1.0).map(|m| m.get()),
+        Some(1.0),
+        "upper bound admitted"
+    );
+    assert_eq!(
+        Precision::new(0.5).map(|m| m.get()),
+        Some(0.5),
+        "interior admitted"
+    );
 
     // Out-of-range and non-finite are REFUSED (None) — the bound is a real law.
     assert_eq!(Fitness::new(1.5), None, "above 1.0 refused");
@@ -43,5 +55,8 @@ fn conformance_result_accumulates_a_verdict() {
     assert_eq!(r.deviating_traces, 3);
     // conformance_rate is derived from the trace counts (a real computation, in [0,1]).
     let rate = r.conformance_rate();
-    assert!((0.0..=1.0).contains(&rate), "conformance_rate in [0,1]; got {rate}");
+    assert!(
+        (0.0..=1.0).contains(&rate),
+        "conformance_rate in [0,1]; got {rate}"
+    );
 }

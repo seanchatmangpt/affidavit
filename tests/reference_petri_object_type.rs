@@ -41,5 +41,9 @@ fn arc_with_declared_object_type_admits() {
 
     // An untyped arc (object_type None) also preserves trivially.
     let untyped = ObjectCentricPetriNet::new(net_with_object_typed_arc(None), Vec::<String>::new());
-    assert_eq!(untyped.validate(), Ok(()), "no object-typed arcs → trivially preserved");
+    assert_eq!(
+        untyped.validate(),
+        Ok(()),
+        "no object-typed arcs → trivially preserved"
+    );
 }

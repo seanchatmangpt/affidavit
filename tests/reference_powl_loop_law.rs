@@ -13,7 +13,10 @@ use wasm4pm_compat::powl::{PowlNodeId, PowlNodeKind, TypedPowlLoopNode};
 
 #[test]
 fn dynamic_powl_loop_carries_body_and_optional_redo() {
-    let with_redo = PowlNodeKind::Loop { body: PowlNodeId(0), redo: Some(PowlNodeId(1)) };
+    let with_redo = PowlNodeKind::Loop {
+        body: PowlNodeId(0),
+        redo: Some(PowlNodeId(1)),
+    };
     match with_redo {
         PowlNodeKind::Loop { body, redo } => {
             assert_eq!(body, PowlNodeId(0));
@@ -22,7 +25,10 @@ fn dynamic_powl_loop_carries_body_and_optional_redo() {
         other => panic!("expected Loop; got {other:?}"),
     }
 
-    let no_redo = PowlNodeKind::Loop { body: PowlNodeId(2), redo: None };
+    let no_redo = PowlNodeKind::Loop {
+        body: PowlNodeId(2),
+        redo: None,
+    };
     match no_redo {
         PowlNodeKind::Loop { redo: None, .. } => {}
         other => panic!("expected redo-less Loop; got {other:?}"),
@@ -32,7 +38,8 @@ fn dynamic_powl_loop_carries_body_and_optional_redo() {
 #[test]
 fn typed_loop_node_admits_exactly_arity_two() {
     // ARITY == 2 satisfies `Require<{ARITY==2}>: IsTrue` — this compiles.
-    let node = TypedPowlLoopNode::<(PowlNodeId, PowlNodeId), 2>::new((PowlNodeId(0), PowlNodeId(1)));
+    let node =
+        TypedPowlLoopNode::<(PowlNodeId, PowlNodeId), 2>::new((PowlNodeId(0), PowlNodeId(1)));
     assert_eq!(node.children.0, PowlNodeId(0));
     assert_eq!(node.children.1, PowlNodeId(1));
     // TypedPowlLoopNode::<_, 3> does NOT compile: Require<{3==2}> has no IsTrue impl.

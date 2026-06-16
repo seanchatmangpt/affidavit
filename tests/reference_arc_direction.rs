@@ -16,15 +16,27 @@ fn arc_direction_classifies_bipartite_edges() {
     let t2p = Arc::transition_to_place("t0", "p1");
     assert_eq!(t2p.direction(), ArcDirection::TransitionToPlace);
 
-    assert_ne!(p2t.direction(), t2p.direction(), "the two directions are distinct");
+    assert_ne!(
+        p2t.direction(),
+        t2p.direction(),
+        "the two directions are distinct"
+    );
 }
 
 #[test]
 fn plain_arc_has_no_object_type() {
     let arc = Arc::place_to_transition("p", "t");
-    assert_eq!(arc.object_type(), None, "a plain arc carries no object type");
+    assert_eq!(
+        arc.object_type(),
+        None,
+        "a plain arc carries no object type"
+    );
 
     let mut typed = Arc::place_to_transition("p", "t");
     typed.object_type = Some(("order".to_string(), false));
-    assert_eq!(typed.object_type(), Some("order"), "an object-typed arc reports its type");
+    assert_eq!(
+        typed.object_type(),
+        Some("order"),
+        "an object-typed arc reports its type"
+    );
 }

@@ -14,10 +14,13 @@ fn xes_log_exposes_name_extensions_and_traces() {
         [XesExtension::new("Concept", "concept", "uri")],
         [
             XesTrace::new("case-1", [XesEvent::new().with("concept:name", "create")]),
-            XesTrace::new("case-2", [
-                XesEvent::new().with("concept:name", "create"),
-                XesEvent::new().with("concept:name", "release"),
-            ]),
+            XesTrace::new(
+                "case-2",
+                [
+                    XesEvent::new().with("concept:name", "create"),
+                    XesEvent::new().with("concept:name", "release"),
+                ],
+            ),
         ],
     );
 

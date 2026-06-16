@@ -11,8 +11,14 @@ use wasm4pm_compat::ocel::OcelAttributeValue as V;
 fn nested_list_and_map_values_compose() {
     // A map with a nested list value: {"items": [1, 2], "meta": {"flag": true}}
     let nested = V::Map(vec![
-        ("items".to_string(), V::List(vec![V::Integer(1), V::Integer(2)])),
-        ("meta".to_string(), V::Map(vec![("flag".to_string(), V::Boolean(true))])),
+        (
+            "items".to_string(),
+            V::List(vec![V::Integer(1), V::Integer(2)]),
+        ),
+        (
+            "meta".to_string(),
+            V::Map(vec![("flag".to_string(), V::Boolean(true))]),
+        ),
     ]);
 
     match &nested {
@@ -47,5 +53,8 @@ fn deeply_nested_lists() {
             other => panic!("expected nested List; got {other:?}"),
         };
     }
-    assert!(matches!(cur, V::Integer(42)), "innermost value reached through 3 list levels");
+    assert!(
+        matches!(cur, V::Integer(42)),
+        "innermost value reached through 3 list levels"
+    );
 }

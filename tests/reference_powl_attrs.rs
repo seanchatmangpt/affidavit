@@ -6,8 +6,8 @@
 //     partial-order, choice-graph). Data variants constructed with real payloads.
 //   • OcelAttributeValue — the OCEL attribute value union (incl. nested List/Map).
 
-use wasm4pm_compat::powl::{PowlNodeId, PowlNodeKind as PK};
 use wasm4pm_compat::ocel::OcelAttributeValue as V;
+use wasm4pm_compat::powl::{PowlNodeId, PowlNodeKind as PK};
 
 #[test]
 fn powl_node_kinds_are_constructed_with_payloads() {
@@ -15,9 +15,15 @@ fn powl_node_kinds_are_constructed_with_payloads() {
         PK::Atom("place_order".to_string()),
         PK::Silent,
         PK::Choice(vec![PowlNodeId(0), PowlNodeId(1)]),
-        PK::Loop { body: PowlNodeId(0), redo: Some(PowlNodeId(1)) },
+        PK::Loop {
+            body: PowlNodeId(0),
+            redo: Some(PowlNodeId(1)),
+        },
         PK::PartialOrder(vec![PowlNodeId(0), PowlNodeId(1), PowlNodeId(2)]),
-        PK::ChoiceGraph { nodes: vec![PowlNodeId(0), PowlNodeId(1)], edges: vec![] },
+        PK::ChoiceGraph {
+            nodes: vec![PowlNodeId(0), PowlNodeId(1)],
+            edges: vec![],
+        },
     ];
     // Exhaustive no-wildcard match — compile-time census of the node taxonomy.
     fn kind(p: &PK) -> &'static str {
@@ -31,7 +37,11 @@ fn powl_node_kinds_are_constructed_with_payloads() {
         }
     }
     let s: std::collections::BTreeSet<&str> = all.iter().map(kind).collect();
-    assert_eq!(s.len(), 6, "six distinct POWL node kinds constructed with payloads");
+    assert_eq!(
+        s.len(),
+        6,
+        "six distinct POWL node kinds constructed with payloads"
+    );
 }
 
 #[test]
@@ -61,5 +71,9 @@ fn ocel_attribute_values_are_constructed_including_nested() {
         }
     }
     let s: std::collections::BTreeSet<&str> = all.iter().map(tag).collect();
-    assert_eq!(s.len(), 8, "all eight OCEL attribute-value variants constructed");
+    assert_eq!(
+        s.len(),
+        8,
+        "all eight OCEL attribute-value variants constructed"
+    );
 }

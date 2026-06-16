@@ -1,0 +1,133 @@
+/* Verifier Studio — local styles layered on the global design system. */
+
+.textarea {
+  width: 100%;
+  background: #1b2130;
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.toolbar {
+  margin-top: 0.6rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.button {
+  background: #1f6feb;
+  color: white;
+  border: 0;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font: inherit;
+}
+.button:hover {
+  background: #2a7bf6;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font: inherit;
+}
+.secondary:hover {
+  border-color: var(--accent);
+}
+
+.headline {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.verdictRow {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.exampleNote {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 0.3rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hashBox {
+  word-break: break-all;
+  background: #1b2130;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  font-size: 12px;
+}
+
+.hashLabel {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+
+.match {
+  color: var(--green);
+}
+.mismatch {
+  color: var(--warn);
+}
+
+.details {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 0.5rem 0.75rem;
+}
+.details > summary {
+  cursor: pointer;
+  color: var(--accent);
+  list-style: revert;
+}
+.details pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0.6rem 0 0.2rem 0;
+  font-size: 12px;
+}
+
+.errorBox {
+  margin-top: 1rem;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  color: var(--warn);
+  background: rgba(210, 153, 34, 0.06);
+}
+
+.note {
+  margin-top: 1.5rem;
+  color: var(--muted);
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 0.8rem;
+}
+
+.selfTest {
+  font-size: 11px;
+}

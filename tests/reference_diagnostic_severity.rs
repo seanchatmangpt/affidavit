@@ -38,12 +38,24 @@ fn defects_are_errors_advice_is_info() {
 #[test]
 fn severity_counts_are_eight_errors_one_info() {
     let all = [
-        D::MissingWitness, D::MissingRoundTripFixture, D::RawEvidenceExportedAsAdmitted,
-        D::LossyProjectionWithoutPolicy, D::HiddenFlattening, D::MissingRefusalPath,
-        D::MissingReceiptShape, D::UnreachablePrimitive, D::MigrationRecommended,
+        D::MissingWitness,
+        D::MissingRoundTripFixture,
+        D::RawEvidenceExportedAsAdmitted,
+        D::LossyProjectionWithoutPolicy,
+        D::HiddenFlattening,
+        D::MissingRefusalPath,
+        D::MissingReceiptShape,
+        D::UnreachablePrimitive,
+        D::MigrationRecommended,
     ];
-    let errors = all.iter().filter(|d| d.to_string().starts_with("[Error]")).count();
-    let infos = all.iter().filter(|d| d.to_string().starts_with("[Info]")).count();
+    let errors = all
+        .iter()
+        .filter(|d| d.to_string().starts_with("[Error]"))
+        .count();
+    let infos = all
+        .iter()
+        .filter(|d| d.to_string().starts_with("[Info]"))
+        .count();
     assert_eq!(errors, 8, "eight defect diagnostics");
     assert_eq!(infos, 1, "one advisory");
 }

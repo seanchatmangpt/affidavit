@@ -12,13 +12,19 @@
 //
 // Each no-wildcard match is a compile-time census: missing/ghost variant → no compile.
 
-use wasm4pm_compat::object_lifecycle::ObjectLifecyclePhase as Phase;
 use wasm4pm_compat::causality::CausalConsistency as CC;
+use wasm4pm_compat::object_lifecycle::ObjectLifecyclePhase as Phase;
 use wasm4pm_compat::temporal::TemporalOrder as TO;
 
 #[test]
 fn object_lifecycle_phases_are_constructed() {
-    let all = [Phase::Created, Phase::Active, Phase::Modified, Phase::Archived, Phase::Deleted];
+    let all = [
+        Phase::Created,
+        Phase::Active,
+        Phase::Modified,
+        Phase::Archived,
+        Phase::Deleted,
+    ];
     // No-wildcard match: each phase maps to a lifecycle stage family. A 23rd
     // variant would break compilation here.
     fn family(p: Phase) -> &'static str {
@@ -30,14 +36,18 @@ fn object_lifecycle_phases_are_constructed() {
     }
     assert!(all.iter().copied().map(family).all(|f| !f.is_empty()));
     // Distinctness via Display: five distinct rendered phase names.
-    let names: std::collections::BTreeSet<String> =
-        all.iter().map(|p| format!("{p}")).collect();
+    let names: std::collections::BTreeSet<String> = all.iter().map(|p| format!("{p}")).collect();
     assert_eq!(names.len(), 5, "five distinct lifecycle phases (Display)");
 }
 
 #[test]
 fn causal_consistency_verdicts_are_constructed() {
-    let all = [CC::Consistent, CC::HasCycles, CC::HasContradictions, CC::Unknown];
+    let all = [
+        CC::Consistent,
+        CC::HasCycles,
+        CC::HasContradictions,
+        CC::Unknown,
+    ];
     fn label(c: CC) -> &'static str {
         match c {
             CC::Consistent => "consistent",

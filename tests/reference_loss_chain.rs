@@ -29,9 +29,16 @@ fn loss_chain_tracks_lossless_then_lossy() {
 
     chain.push(step);
     assert!(!chain.is_empty(), "chain now has a recorded loss");
-    assert!(!chain.is_lossless(), "a chain with a loss step is NOT lossless");
+    assert!(
+        !chain.is_lossless(),
+        "a chain with a loss step is NOT lossless"
+    );
     assert_eq!(chain.len(), 1);
-    assert_eq!(chain.steps().len(), 1, "the loss step is retained, not silent");
+    assert_eq!(
+        chain.steps().len(),
+        1,
+        "the loss step is retained, not silent"
+    );
 }
 
 #[test]

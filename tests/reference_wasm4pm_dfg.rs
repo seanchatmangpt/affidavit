@@ -9,11 +9,19 @@ use wasm4pm::models::{DFGNode, DirectlyFollowsRelation, DFG};
 
 #[test]
 fn dfg_node_and_relation_carry_frequencies() {
-    let node = DFGNode { id: "a".to_string(), label: "create".to_string(), frequency: 5 };
+    let node = DFGNode {
+        id: "a".to_string(),
+        label: "create".to_string(),
+        frequency: 5,
+    };
     assert_eq!(node.label, "create");
     assert_eq!(node.frequency, 5, "activity occurrence count");
 
-    let rel = DirectlyFollowsRelation { from: "a".to_string(), to: "b".to_string(), frequency: 3 };
+    let rel = DirectlyFollowsRelation {
+        from: "a".to_string(),
+        to: "b".to_string(),
+        frequency: 3,
+    };
     assert_eq!(rel.from, "a");
     assert_eq!(rel.to, "b");
     assert_eq!(rel.frequency, 3, "directly-follows count");
@@ -22,14 +30,34 @@ fn dfg_node_and_relation_carry_frequencies() {
 #[test]
 fn dfg_assembles_nodes_edges_and_endpoints() {
     let mut dfg = DFG::new();
-    dfg.nodes.push(DFGNode { id: "a".to_string(), label: "create".to_string(), frequency: 2 });
-    dfg.nodes.push(DFGNode { id: "b".to_string(), label: "release".to_string(), frequency: 2 });
-    dfg.edges.push(DirectlyFollowsRelation { from: "a".to_string(), to: "b".to_string(), frequency: 2 });
+    dfg.nodes.push(DFGNode {
+        id: "a".to_string(),
+        label: "create".to_string(),
+        frequency: 2,
+    });
+    dfg.nodes.push(DFGNode {
+        id: "b".to_string(),
+        label: "release".to_string(),
+        frequency: 2,
+    });
+    dfg.edges.push(DirectlyFollowsRelation {
+        from: "a".to_string(),
+        to: "b".to_string(),
+        frequency: 2,
+    });
     dfg.start_activities.insert("a".to_string(), 2);
     dfg.end_activities.insert("b".to_string(), 2);
 
     assert_eq!(dfg.nodes.len(), 2);
     assert_eq!(dfg.edges.len(), 1);
-    assert_eq!(dfg.start_activities.get("a"), Some(&2), "start activity frequency");
-    assert_eq!(dfg.end_activities.get("b"), Some(&2), "end activity frequency");
+    assert_eq!(
+        dfg.start_activities.get("a"),
+        Some(&2),
+        "start activity frequency"
+    );
+    assert_eq!(
+        dfg.end_activities.get("b"),
+        Some(&2),
+        "end activity frequency"
+    );
 }

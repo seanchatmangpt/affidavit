@@ -7,8 +7,8 @@
 // the conformance-metric vocabulary. Both are covered as constructions, with
 // no-wildcard matches making them compile-time censuses.
 
-use wasm4pm_compat::multiperspective::ProcessPerspective;
 use wasm4pm_compat::law::QualityMetricKind;
+use wasm4pm_compat::multiperspective::ProcessPerspective;
 
 #[test]
 fn the_four_process_perspectives_are_constructed() {
@@ -28,7 +28,11 @@ fn the_four_process_perspectives_are_constructed() {
         }
     }
     let labels: std::collections::BTreeSet<&str> = all.iter().copied().map(label).collect();
-    assert_eq!(labels.len(), 4, "all four perspectives are distinct constructions");
+    assert_eq!(
+        labels.len(),
+        4,
+        "all four perspectives are distinct constructions"
+    );
 }
 
 #[test]
@@ -50,5 +54,9 @@ fn the_quality_metric_vocabulary_is_constructed() {
         }
     }
     let labels: std::collections::BTreeSet<&str> = all.iter().copied().map(label).collect();
-    assert_eq!(labels.len(), 5, "all five quality-metric kinds are distinct constructions");
+    assert_eq!(
+        labels.len(),
+        5,
+        "all five quality-metric kinds are distinct constructions"
+    );
 }

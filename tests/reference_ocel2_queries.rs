@@ -6,10 +6,13 @@
 // and object→object (o2o) relationships and queries them back, proving the
 // query methods read the constructed link structure (not constants).
 
-use wasm4pm_compat::ocel::{OCEL, OCELEvent, OCELObject, OCELRelationship};
+use wasm4pm_compat::ocel::{OCELEvent, OCELObject, OCELRelationship, OCEL};
 
 fn rel(object_id: &str, qualifier: &str) -> OCELRelationship {
-    OCELRelationship { object_id: object_id.to_string(), qualifier: qualifier.to_string() }
+    OCELRelationship {
+        object_id: object_id.to_string(),
+        qualifier: qualifier.to_string(),
+    }
 }
 
 #[test]
@@ -19,7 +22,10 @@ fn e2o_returns_constructed_event_object_links() {
     e.relationships.push(rel("o2", "output"));
     let log = OCEL::new(
         vec![e],
-        vec![OCELObject::new("o1".to_string(), "artifact"), OCELObject::new("o2".to_string(), "artifact")],
+        vec![
+            OCELObject::new("o1".to_string(), "artifact"),
+            OCELObject::new("o2".to_string(), "artifact"),
+        ],
     );
 
     let links = log.e2o("e1");
@@ -34,9 +40,19 @@ fn e2o_returns_constructed_event_object_links() {
 fn o2o_returns_constructed_object_object_links() {
     let mut o1 = OCELObject::new("o1".to_string(), "artifact");
     o1.relationships.push(rel("o2", "derived-from"));
-    let log = OCEL::new(vec![], vec![o1, OCELObject::new("o2".to_string(), "artifact")]);
+    let log = OCEL::new(
+        vec![],
+        vec![o1, OCELObject::new("o2".to_string(), "artifact")],
+    );
 
     let links = log.o2o("o1");
-    assert_eq!(links, vec![("o2", "derived-from")], "object-object link returned with its qualifier");
-    assert!(log.o2o("o2").is_empty(), "an object with no o2o links returns none");
+    assert_eq!(
+        links,
+        vec![("o2", "derived-from")],
+        "object-object link returned with its qualifier"
+    );
+    assert!(
+        log.o2o("o2").is_empty(),
+        "an object with no o2o links returns none"
+    );
 }

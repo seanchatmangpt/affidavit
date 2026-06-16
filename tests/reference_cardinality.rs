@@ -29,16 +29,27 @@ fn cardinality_admits_within_window_and_refuses_outside() {
 #[test]
 fn cardinality_unbounded_sides_are_open() {
     // No min → nothing is too small; no max → nothing is too large.
-    let no_min = ObjectTypeCardinality { min_count: None, max_count: Some(2), ..Default::default() };
+    let no_min = ObjectTypeCardinality {
+        min_count: None,
+        max_count: Some(2),
+        ..Default::default()
+    };
     assert!(no_min.admits(0), "unbounded below admits zero");
     assert!(!no_min.admits(3), "still bounded above");
 
-    let no_max = ObjectTypeCardinality { min_count: Some(5), max_count: None, ..Default::default() };
+    let no_max = ObjectTypeCardinality {
+        min_count: Some(5),
+        max_count: None,
+        ..Default::default()
+    };
     assert!(!no_max.admits(4), "still bounded below");
     assert!(no_max.admits(1_000), "unbounded above admits large counts");
 
     let unbounded = ObjectTypeCardinality::default();
-    assert!(unbounded.admits(0) && unbounded.admits(usize::MAX), "fully unbounded admits everything");
+    assert!(
+        unbounded.admits(0) && unbounded.admits(usize::MAX),
+        "fully unbounded admits everything"
+    );
 }
 
 #[test]

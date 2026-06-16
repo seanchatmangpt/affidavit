@@ -12,11 +12,15 @@ use wasm4pm_compat::powl::{Powl, PowlNode, PowlNodeId, PowlNodeKind, PowlRefusal
 #[test]
 fn loop_with_missing_body_is_invalid() {
     let mut p = Powl::new();
-    p.nodes.push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
+    p.nodes
+        .push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
     // Loop body references id 99, which is not in the arena.
     p.nodes.push(PowlNode::new(
         PowlNodeId(1),
-        PowlNodeKind::Loop { body: PowlNodeId(99), redo: None },
+        PowlNodeKind::Loop {
+            body: PowlNodeId(99),
+            redo: None,
+        },
     ));
     p.root = Some(PowlNodeId(1));
     assert_eq!(p.validate(), Err(PowlRefusal::InvalidLoop));
@@ -25,11 +29,15 @@ fn loop_with_missing_body_is_invalid() {
 #[test]
 fn loop_with_missing_redo_is_invalid() {
     let mut p = Powl::new();
-    p.nodes.push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
+    p.nodes
+        .push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
     // Valid body (0), but redo references a missing id.
     p.nodes.push(PowlNode::new(
         PowlNodeId(1),
-        PowlNodeKind::Loop { body: PowlNodeId(0), redo: Some(PowlNodeId(88)) },
+        PowlNodeKind::Loop {
+            body: PowlNodeId(0),
+            redo: Some(PowlNodeId(88)),
+        },
     ));
     p.root = Some(PowlNodeId(1));
     assert_eq!(p.validate(), Err(PowlRefusal::InvalidLoop));

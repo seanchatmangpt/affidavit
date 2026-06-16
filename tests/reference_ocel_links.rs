@@ -16,7 +16,11 @@ fn event_object_link_carries_ids_and_optional_qualifier() {
     assert_eq!(plain.qualifier(), None, "no qualifier by default");
 
     let qualified = EventObjectLink::new("e1", "o1").qualified("input");
-    assert_eq!(qualified.qualifier(), Some("input"), "qualified role recovered");
+    assert_eq!(
+        qualified.qualifier(),
+        Some("input"),
+        "qualified role recovered"
+    );
 }
 
 #[test]
@@ -36,5 +40,9 @@ fn object_change_carries_attribute_value_and_optional_time() {
     assert_eq!(c.timestamp_ns(), Some(5_000), "change is timestamped");
 
     let untimed = ObjectChange::new("o", "a", "v");
-    assert_eq!(untimed.timestamp_ns(), None, "no timestamp → None (not fabricated)");
+    assert_eq!(
+        untimed.timestamp_ns(),
+        None,
+        "no timestamp → None (not fabricated)"
+    );
 }

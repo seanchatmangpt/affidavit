@@ -87,8 +87,7 @@ pub fn assemble(out: Option<&str>) -> Result<()> {
         None => PathBuf::from(format!("{address}.json")),
     };
 
-    chain::save_receipt(&receipt, &path)
-        .with_context(|| format!("writing receipt to {path:?}"))?;
+    chain::save_receipt(&receipt, &path).with_context(|| format!("writing receipt to {path:?}"))?;
 
     println!("assembled receipt -> {}", path.display());
     println!("content address: {address}");

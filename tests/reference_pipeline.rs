@@ -30,8 +30,13 @@ fn honest_receipt(activities: &[&str]) -> Receipt {
     let mut asm = ChainAssembler::new();
     let mut counter = SeqCounter::new();
     for a in activities {
-        let ev = build_event(*a, vec![object_ref("o", "artifact")], a.as_bytes(), &mut counter)
-            .expect("build event");
+        let ev = build_event(
+            *a,
+            vec![object_ref("o", "artifact")],
+            a.as_bytes(),
+            &mut counter,
+        )
+        .expect("build event");
         asm.append(ev).expect("append");
     }
     asm.finalize()
@@ -50,8 +55,14 @@ fn the_admitted_receipt_is_both_log_and_certificate() {
 
     // The discovered model reflects the receipt's events — discovery really ran on
     // the certificate, not on a placeholder.
-    assert!(model.contains("create"), "model mined from the certificate names its activities: {model}");
-    assert!(model.contains("release"), "model mined from the certificate names its activities: {model}");
+    assert!(
+        model.contains("create"),
+        "model mined from the certificate names its activities: {model}"
+    );
+    assert!(
+        model.contains("release"),
+        "model mined from the certificate names its activities: {model}"
+    );
 }
 
 #[test]

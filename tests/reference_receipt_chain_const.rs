@@ -33,7 +33,11 @@ fn empty_chain_is_refused_at_zero_arity() {
     // Reachable refusal: N == 0 is a constructible type; no trybuild needed.
     let empty: [ReceiptEnvelope; 0] = [];
     let result = ReceiptChainConst::try_new("run-x", empty);
-    assert_eq!(result, Err(ReceiptRefusal::EmptyChain), "a zero-arity chain is refused by name");
+    assert_eq!(
+        result,
+        Err(ReceiptRefusal::EmptyChain),
+        "a zero-arity chain is refused by name"
+    );
 }
 
 #[test]
@@ -42,7 +46,10 @@ fn ill_shaped_link_is_refused_by_index() {
     // so the chain refuses at that link's zero-based index. Failing-when-fake — the
     // refusal only fires because the malformed envelope is genuinely ill-shaped.
     let broken = ReceiptEnvelope::new("", "witness", Digest::new("d"), ReplayHint::new("h"));
-    assert!(!broken.is_well_shaped(), "the empty-subject envelope is genuinely ill-shaped");
+    assert!(
+        !broken.is_well_shaped(),
+        "the empty-subject envelope is genuinely ill-shaped"
+    );
 
     let result = ReceiptChainConst::try_new("run-x", [broken]);
     assert_eq!(

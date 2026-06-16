@@ -22,34 +22,67 @@ fn full_dx_pipeline_through_the_binary() {
     let dir = TempDir::new().expect("tempdir");
 
     // 1. emit three events (ggen/clap-noun-verb CLI + affidavit chain)
-    for (ty, obj) in [("create", "f:artifact"), ("transform", "d:artifact"), ("release", "f:artifact")] {
+    for (ty, obj) in [
+        ("create", "f:artifact"),
+        ("transform", "d:artifact"),
+        ("release", "f:artifact"),
+    ] {
         affi(&dir)
-            .args(["receipt", "emit", "--type", ty, "--object", obj, "--payload", "-"])
+            .args([
+                "receipt",
+                "emit",
+                "--type",
+                ty,
+                "--object",
+                obj,
+                "--payload",
+                "-",
+            ])
             .write_stdin(ty)
             .assert()
             .success();
     }
     // 2. assemble → immutable receipt
-    affi(&dir).args(["receipt", "assemble", "--out", "r.json"]).assert().success();
+    affi(&dir)
+        .args(["receipt", "assemble", "--out", "r.json"])
+        .assert()
+        .success();
 
     // 3. verify → ACCEPT (affidavit court: OCEL + chain)
-    affi(&dir).args(["receipt", "verify", "r.json"]).assert().success()
+    affi(&dir)
+        .args(["receipt", "verify", "r.json"])
+        .assert()
+        .success()
         .stderr(predicate::str::contains("verdict: ACCEPT"));
 
     // 4. inspect → structural analysis (chicago-tdd-flavored)
-    affi(&dir).args(["receipt", "inspect", "r.json"]).assert().success()
+    affi(&dir)
+        .args(["receipt", "inspect", "r.json"])
+        .assert()
+        .success()
         .stderr(predicate::str::contains("RECEIPT INSPECTION REPORT"));
 
     // 5. model → process discovery (wasm4pm) names the activities
-    affi(&dir).args(["receipt", "model", "r.json"]).assert().success()
+    affi(&dir)
+        .args(["receipt", "model", "r.json"])
+        .assert()
+        .success()
         .stderr(predicate::str::contains("create"))
         .stderr(predicate::str::contains("release"));
 
     // 6. conformance → fitness/activity_coverage/simplicity (wasm4pm token replay)
-    affi(&dir).args(["receipt", "conformance", "r.json"]).assert().success()
+    affi(&dir)
+        .args(["receipt", "conformance", "r.json"])
+        .assert()
+        .success()
         .stderr(predicate::str::contains("fitness (token replay):"));
 
     // 7. diagnose → clean (lsp-max diagnostics)
-    affi(&dir).args(["receipt", "diagnose", "r.json"]).assert().success()
-        .stderr(predicate::str::contains("no diagnostics — receipt is clean"));
+    affi(&dir)
+        .args(["receipt", "diagnose", "r.json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "no diagnostics — receipt is clean",
+        ));
 }

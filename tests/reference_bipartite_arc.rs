@@ -12,13 +12,15 @@ use wasm4pm_compat::petri::BipartiteArcConst;
 
 #[test]
 fn bipartite_arc_encodes_direction_in_the_type() {
-    let p2t = BipartiteArcConst::<{ ArcDirectionConst::PlaceToTransition }, u32>::new("p0", "t0", 1);
+    let p2t =
+        BipartiteArcConst::<{ ArcDirectionConst::PlaceToTransition }, u32>::new("p0", "t0", 1);
     assert_eq!(p2t.place_id(), "p0");
     assert_eq!(p2t.transition_id(), "t0");
     assert_eq!(p2t.weight(), 1);
     assert_eq!(p2t.direction(), ArcDirectionConst::PlaceToTransition);
 
-    let t2p = BipartiteArcConst::<{ ArcDirectionConst::TransitionToPlace }, u32>::new("p1", "t0", 2);
+    let t2p =
+        BipartiteArcConst::<{ ArcDirectionConst::TransitionToPlace }, u32>::new("p1", "t0", 2);
     assert_eq!(t2p.direction(), ArcDirectionConst::TransitionToPlace);
     assert_eq!(t2p.weight(), 2);
 

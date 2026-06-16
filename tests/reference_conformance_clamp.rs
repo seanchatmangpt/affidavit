@@ -12,11 +12,15 @@ use wasm4pm_compat::conformance::ConformanceResult;
 #[test]
 fn builder_clamps_out_of_range_into_unit_interval() {
     let r = ConformanceResult::new(0.5, 1, 1, 0)
-        .with_precision(1.7)        // > 1 → clamped to 1.0
-        .with_generalization(-0.3)  // < 0 → clamped to 0.0
-        .with_simplicity(0.4);      // in range → kept
+        .with_precision(1.7) // > 1 → clamped to 1.0
+        .with_generalization(-0.3) // < 0 → clamped to 0.0
+        .with_simplicity(0.4); // in range → kept
     assert_eq!(r.precision, Some(1.0), "above-1 precision clamped to 1.0");
-    assert_eq!(r.generalization, Some(0.0), "below-0 generalization clamped to 0.0");
+    assert_eq!(
+        r.generalization,
+        Some(0.0),
+        "below-0 generalization clamped to 0.0"
+    );
     assert_eq!(r.simplicity, Some(0.4), "in-range simplicity kept");
 }
 

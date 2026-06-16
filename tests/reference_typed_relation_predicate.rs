@@ -28,8 +28,9 @@ fn o2o_witnesses_expression_and_kind() {
 
 #[test]
 fn time_between_events_witnesses_expression_and_kind() {
-    let p =
-        TypedRelationPredicate::<{ RelationPredicateKind::TimeBetweenEvents }>::new("TBE(e1,e2,0,3600000)");
+    let p = TypedRelationPredicate::<{ RelationPredicateKind::TimeBetweenEvents }>::new(
+        "TBE(e1,e2,0,3600000)",
+    );
     assert_eq!(p.expression(), "TBE(e1,e2,0,3600000)");
     assert_eq!(p.kind(), RelationPredicateKind::TimeBetweenEvents);
 }

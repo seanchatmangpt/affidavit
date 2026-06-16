@@ -9,8 +9,8 @@
 // yields a LossReport. Failing-when-fake: if the projection stopped refusing under
 // RefuseLoss, the first assert fails.
 
-use wasm4pm_compat::loss::{LossPolicy, Project};
 use wasm4pm_compat::interop::XesToOcedProjection;
+use wasm4pm_compat::loss::{LossPolicy, Project};
 use wasm4pm_compat::xes::XesRefusal;
 
 #[test]
@@ -28,5 +28,8 @@ fn lifting_under_refuse_loss_refuses_with_lifting_loss() {
 fn lifting_under_a_permissive_policy_yields_a_report_not_a_refusal() {
     let proj = XesToOcedProjection::new("order");
     let report = proj.project(LossPolicy::AllowLossWithReport);
-    assert!(report.is_ok(), "a permissive policy produces a LossReport, not a refusal");
+    assert!(
+        report.is_ok(),
+        "a permissive policy produces a LossReport, not a refusal"
+    );
 }

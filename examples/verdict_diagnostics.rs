@@ -17,9 +17,7 @@
 use affidavit::chain::{recompute_chain, FORMAT_VERSION};
 use affidavit::lsp::{verdict_to_diagnostics, DIAGNOSTIC_SOURCE};
 use affidavit::ocel::object_ref;
-use affidavit::types::{
-    Blake3Hash, CheckOutcome, OperationEvent, ProfileId, Receipt, Verdict,
-};
+use affidavit::types::{Blake3Hash, CheckOutcome, OperationEvent, ProfileId, Receipt, Verdict};
 use lsp_max::lsp_types::DiagnosticSeverity;
 
 fn main() {

@@ -25,5 +25,8 @@ fn valid_discriminants_decode_and_round_trip() {
 #[test]
 fn out_of_range_byte_is_refused_by_name() {
     assert_eq!(Powl8Op::try_from(9), Err(Powl8OpError::InvalidDiscriminant));
-    assert_eq!(Powl8Op::try_from(255), Err(Powl8OpError::InvalidDiscriminant));
+    assert_eq!(
+        Powl8Op::try_from(255),
+        Err(Powl8OpError::InvalidDiscriminant)
+    );
 }

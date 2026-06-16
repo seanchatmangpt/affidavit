@@ -38,10 +38,8 @@ pub fn verdict_to_diagnostics(verdict: &Verdict) -> Vec<Diagnostic> {
             // index is the canonical anchor).
             let line = index as u32;
             let range = Range::new(Position::new(line, 0), Position::new(line, 1));
-            let mut diag = Diagnostic::new_simple(
-                range,
-                format!("{}: {}", outcome.stage, outcome.detail),
-            );
+            let mut diag =
+                Diagnostic::new_simple(range, format!("{}: {}", outcome.stage, outcome.detail));
             diag.severity = Some(DiagnosticSeverity::ERROR);
             diag.source = Some(DIAGNOSTIC_SOURCE.to_string());
             diagnostics.push(diag);

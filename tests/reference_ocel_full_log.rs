@@ -8,7 +8,7 @@
 // into a coherent whole, not just construct in isolation.
 
 use wasm4pm_compat::ocel::{
-    OCEL, OCELAttributeValue, OCELEvent, OCELEventAttribute, OCELObject, OCELRelationship,
+    OCELAttributeValue, OCELEvent, OCELEventAttribute, OCELObject, OCELRelationship, OCEL,
 };
 
 #[test]
@@ -16,8 +16,10 @@ fn complete_ocel_log_queries_compose() {
     // Two events: one links to two objects with qualified roles + an attribute.
     let mut e1 = OCELEvent::new("e1".to_string(), "place_order")
         .with_attribute(OCELEventAttribute::integer("amount", 100));
-    e1.relationships.push(OCELRelationship::new("e1".to_string(), "ord-1".to_string()));
-    e1.relationships.push(OCELRelationship::new("e1".to_string(), "itm-1".to_string()));
+    e1.relationships
+        .push(OCELRelationship::new("e1".to_string(), "ord-1".to_string()));
+    e1.relationships
+        .push(OCELRelationship::new("e1".to_string(), "itm-1".to_string()));
     let e2 = OCELEvent::new("e2".to_string(), "ship");
 
     let objects = vec![

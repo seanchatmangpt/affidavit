@@ -12,7 +12,10 @@ use wasm4pm_compat::causal_net::{CausalNet, CausalNetRefusal};
 fn net(nodes: Vec<&str>, deps: Vec<(&str, &str, f64)>) -> CausalNet {
     CausalNet {
         nodes: nodes.into_iter().map(String::from).collect(),
-        dependency_measures: deps.into_iter().map(|(s, t, w)| (s.to_string(), t.to_string(), w)).collect(),
+        dependency_measures: deps
+            .into_iter()
+            .map(|(s, t, w)| (s.to_string(), t.to_string(), w))
+            .collect(),
         inputs: Vec::new(),
         outputs: Vec::new(),
     }
@@ -29,7 +32,10 @@ fn causal_net_refuses_invalid_dependency_score() {
     let n = net(vec!["a", "b"], vec![("a", "b", 1.5)]); // score > 1.0
     assert_eq!(n.validate(), Err(CausalNetRefusal::InvalidDependencyScore));
     let nan = net(vec!["a", "b"], vec![("a", "b", f64::NAN)]);
-    assert_eq!(nan.validate(), Err(CausalNetRefusal::InvalidDependencyScore));
+    assert_eq!(
+        nan.validate(),
+        Err(CausalNetRefusal::InvalidDependencyScore)
+    );
 }
 
 #[test]
@@ -42,5 +48,9 @@ fn causal_net_refuses_disconnected_graph() {
 #[test]
 fn causal_net_admits_well_formed_net() {
     let n = net(vec!["a", "b"], vec![("a", "b", 0.9)]);
-    assert_eq!(n.validate(), Ok(()), "non-empty nodes, valid score, connected → admits");
+    assert_eq!(
+        n.validate(),
+        Ok(()),
+        "non-empty nodes, valid score, connected → admits"
+    );
 }

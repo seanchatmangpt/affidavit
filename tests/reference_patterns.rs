@@ -68,7 +68,11 @@ fn all_in_surface_patterns() -> Vec<WorkflowPattern> {
 #[test]
 fn all_seventeen_in_surface_patterns_are_constructed() {
     let patterns = all_in_surface_patterns();
-    assert_eq!(patterns.len(), 17, "the crate exports 17 in-surface patterns");
+    assert_eq!(
+        patterns.len(),
+        17,
+        "the crate exports 17 in-surface patterns"
+    );
 
     // Each constructed pattern maps to a distinct WCP number — proving each is a
     // reachable, distinct construction (the ghost-variant discipline applied to
@@ -89,7 +93,10 @@ fn patterns_are_witness_distinct_not_just_named() {
     // A pattern carried as a structural label must not be confusable with another
     // (the crate's stated guarantee: a WfNetConst claiming ParallelSplit cannot be
     // silently confused with one claiming ExclusiveChoice). Exercise the Eq law.
-    assert_ne!(WorkflowPattern::ParallelSplit, WorkflowPattern::ExclusiveChoice);
+    assert_ne!(
+        WorkflowPattern::ParallelSplit,
+        WorkflowPattern::ExclusiveChoice
+    );
     assert_eq!(WorkflowPattern::Sequence, WorkflowPattern::Sequence);
     // Debug renders (the label is materialised, not phantom).
     assert_eq!(format!("{:?}", WorkflowPattern::CancelCase), "CancelCase");

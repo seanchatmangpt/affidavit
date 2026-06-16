@@ -10,9 +10,17 @@ use wasm4pm_compat::xes::{XesExtension, XesTraceAttributes};
 
 #[test]
 fn xes_extension_exposes_name_prefix_uri() {
-    let ext = XesExtension::new("Concept", "concept", "http://www.xes-standard.org/concept.xesext");
+    let ext = XesExtension::new(
+        "Concept",
+        "concept",
+        "http://www.xes-standard.org/concept.xesext",
+    );
     assert_eq!(ext.name(), "Concept");
-    assert_eq!(ext.prefix(), "concept", "the prefix that lawful namespaced keys must reference");
+    assert_eq!(
+        ext.prefix(),
+        "concept",
+        "the prefix that lawful namespaced keys must reference"
+    );
     assert_eq!(ext.uri(), "http://www.xes-standard.org/concept.xesext");
 }
 
@@ -25,5 +33,9 @@ fn xes_trace_attributes_round_trip() {
     assert_eq!(attrs.get("cost:total"), Some("42"));
     assert_eq!(attrs.get("absent"), None, "unset key → None");
     // The concept:name convenience accessor.
-    assert_eq!(attrs.concept_name(), Some("case-1"), "concept:name surfaced via accessor");
+    assert_eq!(
+        attrs.concept_name(),
+        Some("case-1"),
+        "concept:name surfaced via accessor"
+    );
 }

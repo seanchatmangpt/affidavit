@@ -13,9 +13,15 @@ use wasm4pm_compat::diagnostic::CompatDiagnostic as D;
 #[test]
 fn hidden_flattening_diagnostic_points_at_the_lossreport_remedy() {
     let s = D::HiddenFlattening.to_string();
-    assert!(s.starts_with("[Error]"), "hidden flattening is an Error; got {s}");
+    assert!(
+        s.starts_with("[Error]"),
+        "hidden flattening is an Error; got {s}"
+    );
     assert!(s.contains("hidden flattening"), "names the defect");
-    assert!(s.contains("LossReport"), "points at the named-loss remedy; got {s}");
+    assert!(
+        s.contains("LossReport"),
+        "points at the named-loss remedy; got {s}"
+    );
 }
 
 #[test]
@@ -37,8 +43,14 @@ fn compat_diagnostics_render_severity_and_message() {
             s.starts_with("[Error]") || s.starts_with("[Warning]") || s.starts_with("[Info]"),
             "every diagnostic renders a severity tag; got {s}"
         );
-        assert!(s.len() > 10, "carries a guidance message, not just a tag: {s}");
+        assert!(
+            s.len() > 10,
+            "carries a guidance message, not just a tag: {s}"
+        );
     }
     // RawEvidenceExportedAsAdmitted is the T-1 (fiat-admission) hazard, named.
-    assert!(D::RawEvidenceExportedAsAdmitted.to_string().to_lowercase().contains("admitted"));
+    assert!(D::RawEvidenceExportedAsAdmitted
+        .to_string()
+        .to_lowercase()
+        .contains("admitted"));
 }

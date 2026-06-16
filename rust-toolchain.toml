@@ -1,2 +1,5 @@
 [toolchain]
-channel = "nightly"
+# Pinned to the nightly used to format the tree so that CI (dtolnay/rust-toolchain@v1,
+# which reads this file) and local `cargo fmt --all -- --check` always agree.
+# Update this date when intentionally upgrading the formatter.
+channel = "nightly-2026-06-15"

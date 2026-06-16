@@ -14,14 +14,18 @@ fn log_with_all_well_formed_traces_admits() {
         Trace::from_events([Event::new("a").at_ns(1), Event::new("b").at_ns(2)]),
         Trace::from_events([Event::new("c").at_ns(1)]),
     ]);
-    assert_eq!(log.validate(), Ok(()), "all traces well-formed → log admits");
+    assert_eq!(
+        log.validate(),
+        Ok(()),
+        "all traces well-formed → log admits"
+    );
 }
 
 #[test]
 fn one_malformed_trace_refuses_the_whole_log() {
     let log = EventLog::from_traces([
         Trace::from_events([Event::new("a").at_ns(1)]), // ok
-        Trace::from_events(Vec::<Event>::new()),         // empty → EmptyTrace
+        Trace::from_events(Vec::<Event>::new()),        // empty → EmptyTrace
     ]);
     assert_eq!(
         log.validate(),

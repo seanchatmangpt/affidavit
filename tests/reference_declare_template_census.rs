@@ -15,11 +15,28 @@ use wasm4pm_compat::declare::DeclareTemplate::{self, *};
 // Every variant, listed once. The exhaustive match below makes this list complete
 // at compile time.
 const ALL: [DeclareTemplate; 22] = [
-    Existence, Absence, Init, Existence2, Existence3, Absence2, Absence3,
-    RespondedExistence, CoExistence, Response, Precedence, Succession,
-    AlternateResponse, AlternatePrecedence, AlternateSuccession,
-    ChainResponse, ChainPrecedence, ChainSuccession,
-    NotSuccession, NotChainSuccession, NotCoExistence, ExclusiveChoice,
+    Existence,
+    Absence,
+    Init,
+    Existence2,
+    Existence3,
+    Absence2,
+    Absence3,
+    RespondedExistence,
+    CoExistence,
+    Response,
+    Precedence,
+    Succession,
+    AlternateResponse,
+    AlternatePrecedence,
+    AlternateSuccession,
+    ChainResponse,
+    ChainPrecedence,
+    ChainSuccession,
+    NotSuccession,
+    NotChainSuccession,
+    NotCoExistence,
+    ExclusiveChoice,
 ];
 
 #[test]
@@ -29,9 +46,9 @@ fn every_declare_template_has_a_lawful_arity_and_taxonomy() {
         let (expected_arity, unary) = match t {
             Existence | Absence | Init | Existence2 | Existence3 | Absence2 | Absence3 => (1, true),
             RespondedExistence | CoExistence | Response | Precedence | Succession
-            | AlternateResponse | AlternatePrecedence | AlternateSuccession
-            | ChainResponse | ChainPrecedence | ChainSuccession
-            | NotSuccession | NotChainSuccession | NotCoExistence | ExclusiveChoice => (2, false),
+            | AlternateResponse | AlternatePrecedence | AlternateSuccession | ChainResponse
+            | ChainPrecedence | ChainSuccession | NotSuccession | NotChainSuccession
+            | NotCoExistence | ExclusiveChoice => (2, false),
         };
         assert_eq!(t.arity(), expected_arity, "{t:?} arity");
         assert_eq!(t.arity() == 1, unary, "{t:?} unary/binary classification");
@@ -42,7 +59,14 @@ fn every_declare_template_has_a_lawful_arity_and_taxonomy() {
 fn negative_and_chain_taxonomies_match_the_library_contract() {
     // is_negative is the FORBIDDING family: the Absence counts + the Not-* templates.
     // (ExclusiveChoice is NOT negative — a guess to the contrary is caught here.)
-    for t in [Absence, Absence2, Absence3, NotCoExistence, NotSuccession, NotChainSuccession] {
+    for t in [
+        Absence,
+        Absence2,
+        Absence3,
+        NotCoExistence,
+        NotSuccession,
+        NotChainSuccession,
+    ] {
         assert!(t.is_negative(), "{t:?} is a negative (forbidding) template");
     }
     for t in [Existence, Response, Succession, ExclusiveChoice] {
@@ -50,7 +74,12 @@ fn negative_and_chain_taxonomies_match_the_library_contract() {
     }
 
     // Chain templates (immediate succession): the three Chain* + NotChainSuccession.
-    for t in [ChainResponse, ChainPrecedence, ChainSuccession, NotChainSuccession] {
+    for t in [
+        ChainResponse,
+        ChainPrecedence,
+        ChainSuccession,
+        NotChainSuccession,
+    ] {
         assert!(t.is_chain(), "{t:?} is a chain template");
     }
     assert!(!Response.is_chain(), "Response is not a chain template");

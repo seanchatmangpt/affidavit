@@ -13,7 +13,8 @@ fn ocel_object_carries_type_attributes_and_relationships() {
         .with_attribute(OCELEventAttribute::string("status", "open".to_string()))
         .with_attribute(OCELEventAttribute::integer("priority", 3));
     // Inter-object relationship: this order relates to item "i1".
-    obj.relationships.push(OCELRelationship::new("o1".to_string(), "i1".to_string()));
+    obj.relationships
+        .push(OCELRelationship::new("o1".to_string(), "i1".to_string()));
 
     assert_eq!(obj.id, "o1");
     assert_eq!(obj.object_type, "order");
@@ -27,5 +28,8 @@ fn ocel_object_carries_type_attributes_and_relationships() {
 fn bare_object_has_no_attributes_or_relationships() {
     let bare = OCELObject::new("o2".to_string(), "item");
     assert!(bare.attributes.is_empty());
-    assert!(bare.relationships.is_empty(), "no relationships unless added (not fabricated)");
+    assert!(
+        bare.relationships.is_empty(),
+        "no relationships unless added (not fabricated)"
+    );
 }

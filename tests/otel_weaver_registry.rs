@@ -127,8 +127,10 @@ fn weaver_semconv_registry_is_closed_and_coherent() {
     let declared = declared_attribute_ids(&yaml);
 
     // The documented SpanRecord fields from src/tracing.rs.
-    let span_record_fields: BTreeSet<String> =
-        ["operation", "target"].iter().map(|s| s.to_string()).collect();
+    let span_record_fields: BTreeSet<String> = ["operation", "target"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
     assert_eq!(
         declared, span_record_fields,

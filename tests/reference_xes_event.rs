@@ -24,7 +24,11 @@ fn xes_event_exposes_standard_perspectives() {
         Some(XesLifecycleTransition::Complete),
         "lifecycle parsed into the typed transition"
     );
-    assert_eq!(e.lifecycle_transition_raw(), Some("complete"), "raw lifecycle string preserved");
+    assert_eq!(
+        e.lifecycle_transition_raw(),
+        Some("complete"),
+        "raw lifecycle string preserved"
+    );
 }
 
 #[test]
@@ -33,6 +37,10 @@ fn unset_standard_attributes_are_none() {
     assert_eq!(bare.concept_name(), None);
     assert_eq!(bare.resource(), None);
     assert_eq!(bare.lifecycle_transition(), None, "no lifecycle set → None");
-    assert_eq!(bare.attribute("custom:key"), Some("v"), "arbitrary attribute readable");
+    assert_eq!(
+        bare.attribute("custom:key"),
+        Some("v"),
+        "arbitrary attribute readable"
+    );
     assert_eq!(bare.attributes().len(), 1, "one attribute on the bag");
 }

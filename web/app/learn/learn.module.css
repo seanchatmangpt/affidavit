@@ -1,0 +1,341 @@
+/* Learn page — scoped styles. Builds on global .card/.grid/.label etc. */
+
+.intro {
+  max-width: 760px;
+}
+.lead {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+/* ---- section scaffolding ---- */
+.section {
+  margin-top: 2.5rem;
+}
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.25rem;
+}
+.kicker {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.sectionSub {
+  color: var(--muted);
+  margin-top: 0;
+  max-width: 760px;
+}
+
+/* ---- doctrine cards ---- */
+.principle {
+  position: relative;
+  padding-top: 1.4rem;
+}
+.principleNum {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.9rem;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--border);
+  line-height: 1;
+}
+.principleTitle {
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
+.principle p {
+  margin: 0;
+  color: var(--fg);
+}
+
+/* ---- chain-fold micro-diagram ---- */
+.chain {
+  margin-top: 1rem;
+}
+.chainCaption {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 0.75rem;
+}
+.chainRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+}
+.chainLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  flex-wrap: wrap;
+}
+.chainSeed,
+.chainHash {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg);
+  color: var(--accent);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.chainSeed {
+  color: var(--muted);
+}
+.chainEvent {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.25rem 0.55rem;
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.chainEvent em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+.chainArrow {
+  color: var(--green);
+  font-size: 13px;
+}
+.chainNote {
+  color: var(--muted);
+  margin: 0.85rem 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ---- pipeline flow ---- */
+.flow {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  padding: 0.5rem 0.25rem 1rem;
+}
+.node {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+.stageBtn {
+  appearance: none;
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  padding: 0.6rem 0.7rem;
+  min-width: 140px;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.stageBtn:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.stageBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.stageBtnActive {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 18px -6px var(--accent);
+}
+.stageBtnFail {
+  border-color: var(--warn);
+  box-shadow: 0 0 0 1px var(--warn), 0 0 18px -6px var(--warn);
+}
+.stageNo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 0.35rem;
+}
+.stageBtnActive .stageNo,
+.stageBtnFail .stageNo {
+  color: var(--fg);
+}
+.stageName {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+/* connector arrow between nodes */
+.arrow {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 2px;
+  position: relative;
+  margin: 0 -1px;
+  background: linear-gradient(90deg, var(--border), var(--border));
+  align-self: center;
+  overflow: hidden;
+}
+.arrow::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: flowPulse 2.4s linear infinite;
+}
+.arrow::before {
+  content: "›";
+  position: absolute;
+  right: -3px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--border);
+  font-size: 14px;
+  line-height: 1;
+}
+@keyframes flowPulse {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arrow::after { animation: none; }
+  .stageBtn { transition: none; }
+}
+
+/* verdict node at the end is emphasised */
+.verdictArrow::before { color: var(--green); }
+
+/* ---- expanded stage detail ---- */
+.detail {
+  margin-top: 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 1rem 1.1rem;
+}
+.detailHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.detailTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0;
+}
+.detailFn {
+  color: var(--muted);
+  font-size: 12px;
+}
+.detailRow {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+}
+.detailRow:first-of-type { border-top: none; }
+.detailRow .rowLabel {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.failBadge {
+  display: inline-block;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  border-radius: 4px;
+  padding: 0 0.35rem;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0.25rem 0 0;
+}
+
+/* ---- determinism ---- */
+.detList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.detList li {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+}
+.detList li:first-child { border-top: none; }
+.detKey { color: var(--green); font-weight: 600; }
+
+/* ---- residuals (honest limits) — visually distinct ---- */
+.residuals {
+  border-color: var(--warn);
+  border-style: dashed;
+  background: linear-gradient(180deg, rgba(210, 153, 34, 0.05), transparent);
+}
+.residualItem {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--border);
+}
+.residualItem:first-child { border-top: none; }
+.residualMark {
+  color: var(--warn);
+  flex: 0 0 auto;
+}
+
+/* ---- try-it callout ---- */
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.ctaBtn {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  color: var(--accent);
+  background: rgba(88, 166, 255, 0.06);
+  transition: background 0.15s ease;
+}
+.ctaBtn:hover {
+  background: rgba(88, 166, 255, 0.14);
+  text-decoration: none;
+}
+.ctaBtnGhost {
+  border-color: var(--border);
+  color: var(--fg);
+  background: var(--panel);
+}

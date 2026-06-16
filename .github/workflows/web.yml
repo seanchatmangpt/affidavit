@@ -1,0 +1,76 @@
+# web.yml — PRIMARY CI for the affidavit repo.
+#
+# The Next.js app under web/ is fully self-contained (Node 22) and is the
+# reliable green signal for this repository: it has no dependency on the
+# sibling PATH crates the Rust crate needs (see rust.yml for why those make a
+# clean `cargo build` impossible in CI). Type-check and build here must both
+# genuinely pass. (This repo ships no ESLint config, so there is no lint step;
+# strict `tsc --noEmit` plus `next build` are the gates.)
+name: web
+
+on:
+  push:
+    paths:
+      - "web/**"
+      - ".github/workflows/web.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - ".github/workflows/web.yml"
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: web (Node 22, typecheck + build)
+    runs-on: ubuntu-latest
+    # Bound runaway runs: a clean cold build here is ~1-2 min, so a job that
+    # runs much longer is a hung step (e.g. a stalled npm ci on the runner),
+    # not real work. Fail fast instead of burning the 360-minute default.
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Environment info
+        run: |
+          echo "node $(node --version)  npm $(npm --version)"
+          echo "pwd: $(pwd)  repo-root: $(cd .. && pwd)"
+          ls .. | head -20
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: Type-check (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: Build (next build)
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: |
+          npm run build 2>&1 | tee /tmp/next-build.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Surface build failure
+        if: failure()
+        run: |
+          echo "### next build output (last 60 lines)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -60 /tmp/next-build.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "(no build log captured)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

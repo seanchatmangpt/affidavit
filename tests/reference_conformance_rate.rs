@@ -26,6 +26,9 @@ fn conformance_rate_is_fitting_over_total() {
 fn empty_log_rate_is_guarded_to_zero_not_nan() {
     let empty = ConformanceResult::new(0.0, 0, 0, 0);
     let rate = empty.conformance_rate();
-    assert_eq!(rate, 0.0, "empty log → 0.0, not NaN (division-by-zero guarded)");
+    assert_eq!(
+        rate, 0.0,
+        "empty log → 0.0, not NaN (division-by-zero guarded)"
+    );
     assert!(!rate.is_nan());
 }

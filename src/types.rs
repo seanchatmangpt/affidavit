@@ -100,12 +100,10 @@ impl<'de> Deserialize<'de> for Receipt {
             .map_err(|e| D::Error::custom(format!("chain recomputation failed: {e}")))?;
 
         if recomputed != raw.chain_hash {
-            return Err(D::Error::custom(
-                format!(
-                    "chain hash mismatch: receipt claims {}, recomputed {}",
-                    raw.chain_hash, recomputed
-                )
-            ));
+            return Err(D::Error::custom(format!(
+                "chain hash mismatch: receipt claims {}, recomputed {}",
+                raw.chain_hash, recomputed
+            )));
         }
 
         Ok(Receipt {
@@ -237,7 +235,8 @@ mod tests {
             vec![crate::ocel::object_ref("obj", "artifact")],
             b"payload",
             &mut counter,
-        ).expect("build event");
+        )
+        .expect("build event");
         asm.append(event).expect("append");
         let honest = asm.finalize();
 
@@ -249,9 +248,16 @@ mod tests {
 
         // Try to deserialize the forged receipt - should fail
         let result: Result<Receipt, _> = serde_json::from_str(&forged_json);
-        assert!(result.is_err(), "forged receipt should fail deserialization (chain mismatch)");
         assert!(
-            result.as_ref().unwrap_err().to_string().contains("chain hash mismatch"),
+            result.is_err(),
+            "forged receipt should fail deserialization (chain mismatch)"
+        );
+        assert!(
+            result
+                .as_ref()
+                .unwrap_err()
+                .to_string()
+                .contains("chain hash mismatch"),
             "error should mention chain hash mismatch"
         );
     }
@@ -265,7 +271,8 @@ mod tests {
             vec![crate::ocel::object_ref("obj", "artifact")],
             b"payload",
             &mut counter,
-        ).expect("build event");
+        )
+        .expect("build event");
         asm.append(event).expect("append");
         let honest = asm.finalize();
 

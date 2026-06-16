@@ -16,13 +16,28 @@ use wasm4pm_compat::declare::DeclareTemplate as T;
 /// Every exported template, constructed exactly once.
 fn all_templates() -> Vec<T> {
     vec![
-        T::Existence, T::Absence, T::Init, T::Existence2, T::Existence3,
-        T::Absence2, T::Absence3,
-        T::RespondedExistence, T::CoExistence, T::Response, T::Precedence,
-        T::Succession, T::AlternateResponse, T::AlternatePrecedence,
-        T::AlternateSuccession, T::ChainResponse, T::ChainPrecedence,
-        T::ChainSuccession, T::NotSuccession, T::NotChainSuccession,
-        T::NotCoExistence, T::ExclusiveChoice,
+        T::Existence,
+        T::Absence,
+        T::Init,
+        T::Existence2,
+        T::Existence3,
+        T::Absence2,
+        T::Absence3,
+        T::RespondedExistence,
+        T::CoExistence,
+        T::Response,
+        T::Precedence,
+        T::Succession,
+        T::AlternateResponse,
+        T::AlternatePrecedence,
+        T::AlternateSuccession,
+        T::ChainResponse,
+        T::ChainPrecedence,
+        T::ChainSuccession,
+        T::NotSuccession,
+        T::NotChainSuccession,
+        T::NotCoExistence,
+        T::ExclusiveChoice,
     ]
 }
 
@@ -30,13 +45,28 @@ fn all_templates() -> Vec<T> {
 /// compile-time census of the template catalogue.
 fn arity_label(t: T) -> &'static str {
     match t {
-        T::Existence | T::Absence | T::Init | T::Existence2 | T::Existence3
-        | T::Absence2 | T::Absence3 => "unary",
-        T::RespondedExistence | T::CoExistence | T::Response | T::Precedence
-        | T::Succession | T::AlternateResponse | T::AlternatePrecedence
-        | T::AlternateSuccession | T::ChainResponse | T::ChainPrecedence
-        | T::ChainSuccession | T::NotSuccession | T::NotChainSuccession
-        | T::NotCoExistence | T::ExclusiveChoice => "binary",
+        T::Existence
+        | T::Absence
+        | T::Init
+        | T::Existence2
+        | T::Existence3
+        | T::Absence2
+        | T::Absence3 => "unary",
+        T::RespondedExistence
+        | T::CoExistence
+        | T::Response
+        | T::Precedence
+        | T::Succession
+        | T::AlternateResponse
+        | T::AlternatePrecedence
+        | T::AlternateSuccession
+        | T::ChainResponse
+        | T::ChainPrecedence
+        | T::ChainSuccession
+        | T::NotSuccession
+        | T::NotChainSuccession
+        | T::NotCoExistence
+        | T::ExclusiveChoice => "binary",
     }
 }
 
@@ -45,8 +75,16 @@ fn all_twentytwo_declare_templates_are_constructed() {
     let all = all_templates();
     assert_eq!(all.len(), 22, "the crate exports 22 DECLARE templates");
 
-    let unary = all.iter().copied().filter(|t| arity_label(*t) == "unary").count();
-    let binary = all.iter().copied().filter(|t| arity_label(*t) == "binary").count();
+    let unary = all
+        .iter()
+        .copied()
+        .filter(|t| arity_label(*t) == "unary")
+        .count();
+    let binary = all
+        .iter()
+        .copied()
+        .filter(|t| arity_label(*t) == "binary")
+        .count();
     assert_eq!(unary, 7, "7 unary templates");
     assert_eq!(binary, 15, "15 binary templates");
 }

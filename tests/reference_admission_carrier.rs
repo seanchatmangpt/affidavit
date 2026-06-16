@@ -21,13 +21,20 @@ fn admission_carries_value_and_mints_admitted_evidence() {
     assert_eq!(a.value, "admitted-log", "admission carries its value");
     // into_evidence is the sole path to Admitted; the result holds the same value.
     let ev = a.into_evidence();
-    assert_eq!(ev.value, "admitted-log", "Admitted evidence holds the admitted value");
+    assert_eq!(
+        ev.value, "admitted-log",
+        "Admitted evidence holds the admitted value"
+    );
 }
 
 #[test]
 fn refusal_carries_a_named_reason() {
     let r = Refusal::<MyLaw, Ocel20>::new(MyLaw::DanglingLink);
-    assert_eq!(r.reason, MyLaw::DanglingLink, "refusal carries its named reason");
+    assert_eq!(
+        r.reason,
+        MyLaw::DanglingLink,
+        "refusal carries its named reason"
+    );
     // into_reason yields the named law back — auditable, not a stack trace.
     assert_eq!(r.into_reason(), MyLaw::DanglingLink);
 }

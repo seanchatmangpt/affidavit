@@ -19,15 +19,23 @@ fn honest_receipt() -> Receipt {
         ("transform", b"beta".as_slice()),
         ("release", b"gamma".as_slice()),
     ] {
-        let ev = build_event(ty, vec![object_ref("o1", "artifact")], payload, &mut counter)
-            .expect("build event");
+        let ev = build_event(
+            ty,
+            vec![object_ref("o1", "artifact")],
+            payload,
+            &mut counter,
+        )
+        .expect("build event");
         asm.append(ev).expect("append event");
     }
     asm.finalize()
 }
 
 /// Find a stage outcome by name, asserting the stage exists.
-fn stage<'a>(verdict: &'a affidavit::types::Verdict, name: &str) -> &'a affidavit::types::CheckOutcome {
+fn stage<'a>(
+    verdict: &'a affidavit::types::Verdict,
+    name: &str,
+) -> &'a affidavit::types::CheckOutcome {
     verdict
         .outcomes
         .iter()
@@ -40,7 +48,11 @@ fn golden_honest_receipt_accepts() {
     let receipt = honest_receipt();
     assert_eq!(receipt.events.len(), 3);
     let verdict = verify(&receipt);
-    assert!(verdict.accepted, "honest receipt must ACCEPT: {}", verdict.reason);
+    assert!(
+        verdict.accepted,
+        "honest receipt must ACCEPT: {}",
+        verdict.reason
+    );
     assert_eq!(verdict.reason, "all stages passed");
     assert!(verdict.outcomes.iter().all(|o| o.passed));
 }
@@ -133,7 +145,10 @@ fn determinism_identical_verdict_bytes() {
 
     let b1 = canonical_bytes(&v1).expect("serialize verdict 1");
     let b2 = canonical_bytes(&v2).expect("serialize verdict 2");
-    assert_eq!(b1, b2, "verifying the same receipt must yield identical Verdict bytes");
+    assert_eq!(
+        b1, b2,
+        "verifying the same receipt must yield identical Verdict bytes"
+    );
 
     // Teeth: the chain itself is deterministic, so the bytes aren't trivially equal.
     assert_eq!(

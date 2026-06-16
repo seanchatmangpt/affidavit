@@ -26,7 +26,10 @@ fn main() {
         // stand-in for a real verify body
         "verified"
     });
-    assert_eq!(result, "verified", "trace_verify must return the inner closure result");
+    assert_eq!(
+        result, "verified",
+        "trace_verify must return the inner closure result"
+    );
 
     // Exactly one span must have been recorded, with the right operation + target.
     let spans = captured_spans();
@@ -56,11 +59,35 @@ fn main() {
     trace_show("r.json", || ());
     let all = captured_spans();
     assert_eq!(all.len(), 4, "four traced ops -> four spans; got {all:?}");
-    assert_eq!(all[0], SpanRecord { operation: "emit".into(), target: "artifact.seed".into() });
-    assert_eq!(all[1], SpanRecord { operation: "assemble".into(), target: "3".into() },
-        "assemble's target is the event count");
-    assert_eq!(all[2], SpanRecord { operation: "verify".into(), target: "r.json".into() });
-    assert_eq!(all[3], SpanRecord { operation: "show".into(), target: "r.json".into() });
+    assert_eq!(
+        all[0],
+        SpanRecord {
+            operation: "emit".into(),
+            target: "artifact.seed".into()
+        }
+    );
+    assert_eq!(
+        all[1],
+        SpanRecord {
+            operation: "assemble".into(),
+            target: "3".into()
+        },
+        "assemble's target is the event count"
+    );
+    assert_eq!(
+        all[2],
+        SpanRecord {
+            operation: "verify".into(),
+            target: "r.json".into()
+        }
+    );
+    assert_eq!(
+        all[3],
+        SpanRecord {
+            operation: "show".into(),
+            target: "r.json".into()
+        }
+    );
 
     println!("OK: all 4 trace wrappers (emit/assemble/verify/show) emit spans: {all:?}");
 }

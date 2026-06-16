@@ -33,12 +33,30 @@ fn affi(dir: &TempDir) -> Command {
 /// by the lifecycle stages that need an assembled receipt.
 fn lifecycle_up_to_assemble(dir: &TempDir) -> std::path::PathBuf {
     affi(dir)
-        .args(["receipt", "emit", "--type", "emit", "--object", "o1:artifact", "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            "emit",
+            "--object",
+            "o1:artifact",
+            "--payload",
+            "-",
+        ])
         .write_stdin("hello")
         .assert()
         .success();
     affi(dir)
-        .args(["receipt", "emit", "--type", "emit", "--object", "o2:artifact", "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            "emit",
+            "--object",
+            "o2:artifact",
+            "--payload",
+            "-",
+        ])
         .write_stdin("world")
         .assert()
         .success();
@@ -55,7 +73,16 @@ fn lifecycle_up_to_assemble(dir: &TempDir) -> std::path::PathBuf {
 fn dispatch_emit_first() {
     let dir = TempDir::new().expect("tempdir");
     affi(&dir)
-        .args(["receipt", "emit", "--type", "emit", "--object", "o1:artifact", "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            "emit",
+            "--object",
+            "o1:artifact",
+            "--payload",
+            "-",
+        ])
         .write_stdin("hello")
         .assert()
         .success()
@@ -66,12 +93,30 @@ fn dispatch_emit_first() {
 fn dispatch_emit_second() {
     let dir = TempDir::new().expect("tempdir");
     affi(&dir)
-        .args(["receipt", "emit", "--type", "emit", "--object", "o1:artifact", "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            "emit",
+            "--object",
+            "o1:artifact",
+            "--payload",
+            "-",
+        ])
         .write_stdin("hello")
         .assert()
         .success();
     affi(&dir)
-        .args(["receipt", "emit", "--type", "emit", "--object", "o2:artifact", "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            "emit",
+            "--object",
+            "o2:artifact",
+            "--payload",
+            "-",
+        ])
         .write_stdin("world")
         .assert()
         .success()
@@ -82,12 +127,30 @@ fn dispatch_emit_second() {
 fn dispatch_assemble() {
     let dir = TempDir::new().expect("tempdir");
     affi(&dir)
-        .args(["receipt", "emit", "--type", "emit", "--object", "o1:artifact", "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            "emit",
+            "--object",
+            "o1:artifact",
+            "--payload",
+            "-",
+        ])
         .write_stdin("hello")
         .assert()
         .success();
     affi(&dir)
-        .args(["receipt", "emit", "--type", "emit", "--object", "o2:artifact", "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            "emit",
+            "--object",
+            "o2:artifact",
+            "--payload",
+            "-",
+        ])
         .write_stdin("world")
         .assert()
         .success();
@@ -130,7 +193,10 @@ fn dispatch_verify_tampered_reject() {
 
     let original = fs::read_to_string(&receipt).expect("read receipt");
     let tampered = original.replace("\"emit\"", "\"emitX\"");
-    assert_ne!(original, tampered, "tamper must actually mutate an event_type");
+    assert_ne!(
+        original, tampered,
+        "tamper must actually mutate an event_type"
+    );
     fs::write(&receipt, tampered).expect("write tampered receipt");
 
     affi(&dir)
