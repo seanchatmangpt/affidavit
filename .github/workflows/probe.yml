@@ -1,0 +1,31 @@
+# probe.yml — minimal CI probe to isolate infrastructure vs. workflow issues.
+#
+# Every CI job on this repo has been failing 1-8s after a runner is assigned,
+# producing only a system.txt log that ends at "Job is about to start running
+# on the hosted runner" — no step logs at all, not even "Set up job". That
+# signature means the job dies BEFORE executing any step.
+#
+# This probe is the controlled experiment: a single `echo`, no checkout, no
+# external actions, no toolchain. If even THIS fails at startup, the cause is
+# the Actions runner environment / account (e.g. exhausted Actions minutes or a
+# spending-limit / payment issue on this PRIVATE repo), not our workflows. If it
+# SUCCEEDS while rust.yml/web.yml fail, the cause is something specific to those
+# workflows. Delete once the question is answered.
+name: ci-probe
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Smoke test (no checkout, no external actions)
+        run: |
+          echo "runner is alive at $(date -u)"
+          echo "os: $(uname -a)"
