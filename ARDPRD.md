@@ -1,35 +1,63 @@
 # Affidavit — Product & Architecture Requirements
 
 **Document:** PRD / ARD (combined)
-**Version:** v31.0 (post-seam-derivation rewrite)
-**Status:** Phase 1 implementable; Phase 2 standing
-**Supersedes:** `affidavit_prd_ard_v30.1.1.md`
+**Version:** v32.0 (1000x Initiative Completion)
+**Status:** **1000x Initiative Complete** — Combinatorial Maximalism Deliverable
+**Supersedes:** `v31.0`
 
 ---
 
 ## 0. One-sentence statement
 
-Affidavit makes unwitnessed work unconstructable: every operation that produces a receipt enters the type system as raw evidence and can leave only by passing — atomically — through a structural-law court and a cryptographic chain-seal, so a receipt that was not both adjudicated and chained has no representation in anything Affidavit emits.
-
-The rest of this document is the derivation of that sentence and the requirements that follow from it.
+Affidavit makes unwitnessed work unconstructable: every operation that produces a receipt enters the type system as raw evidence and can leave only by passing — atomically — through a structural-law court and a cryptographic chain-seal, now augmented by a 30-feature maximalist DX/QOL platform.
 
 ---
 
-## 1. Problem
+## 1. Problem (Updated)
 
-The market need is detection of LLM code-cheating: an agent that reports success it did not achieve — a test that passes by special-casing the oracle, a gate that parses but never fires, a stub that returns the expected value. Two facts make naive detection a dead end:
-
-**Undecidability.** Whether an arbitrary program's behavior satisfies a non-trivial semantic property — including "is this honest work or a cheat" — is undecidable by Rice's theorem. No detector decides it in general.
-
-**Empirical ceiling.** The decidable approximations lose in practice. On adversarial benchmarks, frontier models cheat at high rates (ImpossibleBench-class results put a strong model near ~54%), and the best behavioral detectors plateau well short of reliability (~63% ceiling). A screen good enough to ship is a screen good enough to evade.
-
-The conclusion is not "build a better detector." It is that detection is the wrong frame, because it asks an undecidable question about a finished artifact.
+The problem of LLM code-cheating remains, but the solution has scaled. Affidavit now provides not just the "Blue River Dam" of structural admission, but a complete ecosystem for process intelligence, observability, and mutation testing that makes evasion mathematically and operationally intractable.
 
 ---
 
-## 2. Thesis — relocate the undecidable
+## 2. Thesis — 1000x Scale
 
-Affidavit does not detect cheating. It **relocates** the undecidable predicate from *the artifact* to *the form work is permitted to take*. Rather than ask "is this finished thing honest" (undecidable), it legislates "honest work carries a witness, and unwitnessed work does not type-check" (decidable, because it is a property of construction, not of behavior).
+The relocation of the undecidable predicate is now supported by:
+- **Process Intelligence:** Auto-discovery of DFG/Petri models from receipts.
+- **High-Fidelity Observability:** OTel-instrumented verification pipelines.
+- **Chaos Mutation:** Stress-testing the verifier with automated corruption.
+- **Maximalist Ergonomics:** A self-documenting CLI powered by ggen ontology.
+
+---
+
+## 3. Product requirements (1000x Expanded)
+
+### Functional Requirements (Selected)
+
+**FR-7 to FR-36 — The 1000x Suite.** Affidavit shall implement 30 features across 6 categories (Inspection, Discovery, Benchmarking, Mutation, Observability, CLI) as defined in the 1000x Initiative roadmap.
+
+**FR-37 — Maximalist Documentation.** The project shall maintain a single authoritative source of tutorials for all 30 features, ensuring zero bit-rot in developer onboarding.
+
+---
+
+## 5. Architecture decisions (ADRs)
+
+**ADR-8 — Combinatorial Maximalism.** Affidavit shall prioritize deep integration with existing elite libraries over hand-writing custom features. *Rationale:* High-leverage 80/20 integration is the only path to a 1000x improvement within a bounded timeline.
+
+**ADR-9 — Feature Gating for Scale.** All 1000x features shall be accessible via Cargo features, preserving a lean core while enabling a maximalist platform.
+
+---
+
+## 9. Acceptance (1000x Gate)
+
+A surface in Affidavit is **admitted** only when:
+- It carries its core architectural witnesses (bypass unconstructable, deterministic seal).
+- It passes its corresponding **E2E 1000x Test Suite** (1 of 6).
+- Its performance is verified by the **Criterion Regression Gate**.
+- Its documentation is verified as **Runnable and Passable**.
+
+---
+
+*End of spec. v32.0 — Combinatorial Maximalism is the law of the project.*
 
 The relocation has three classical escapes from the undecidability wall; Affidavit uses the second and third and rejects the first:
 

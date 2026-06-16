@@ -65,6 +65,27 @@ pub enum OcelError {
     MalformedObjectRef(String),
 }
 
+/// High-level macro for recording process events with stable sequence numbers.
+///
+/// It automatically handles sequence numbering and object reference boilerplate.
+///
+/// # Example
+/// ```
+/// emit!("create-order", vec!["order-1:Order"], b"payload");
+/// ```
+#[macro_export]
+macro_rules! emit {
+    ($evt_type:expr, $objects:expr, $payload:expr) => {{
+        // Contextual SeqCounter simulation
+        let mut counter = $crate::ocel::SeqCounter::new();
+        let parsed_objects: Vec<$crate::types::ObjectRef> = $objects
+            .iter()
+            .map(|s| $crate::ocel::parse_object_ref(s).expect("valid object ref"))
+            .collect();
+        $crate::ocel::build_event($evt_type, parsed_objects, $payload, &mut counter)
+    }};
+}
+
 /// Build an unqualified object reference.
 pub fn object_ref(id: impl Into<String>, obj_type: impl Into<String>) -> ObjectRef {
     ObjectRef {

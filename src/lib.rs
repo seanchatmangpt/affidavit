@@ -14,15 +14,35 @@
 #![deny(clippy::print_stdout)]
 
 pub mod admission;
+pub mod bench;
+pub mod catalog;
 pub mod chain;
 pub mod cli;
+pub mod diff;
 pub mod discovery;
+pub mod error;
+pub mod fixture_db;
+pub mod handlers;
 pub mod lsp;
+pub mod model_mining;
+pub mod mutate;
 pub mod ocel;
+pub mod predict_maximalist;
 pub mod tracing;
 pub mod types;
 pub mod verifier;
+pub mod verbs;
+pub mod visualize;
 
+#[cfg(test)]
+#[path = "../wip/1000x_receipt_to_wasm_qol.rs"]
+mod receipt_to_wasm_qol;
+
+pub fn run() -> clap_noun_verb::Result<()> {
+    clap_noun_verb::run()
+}
+
+pub use error::AffidavitError;
 pub use types::{
     canonical_bytes, Blake3Hash, CheckOutcome, ObjectRef, OperationEvent, ProfileId, Receipt,
     Verdict,

@@ -35,12 +35,27 @@ thread_local! {
 /// Record a span into the observable thread-local sink. This is the consumer
 /// that makes the instrumentation witnessable.
 fn record_span(operation: &str, target: &str) {
+    let record = SpanRecord {
+        operation: operation.to_string(),
+        target: target.to_string(),
+    };
+
+    // Thread-local log for in-process witnessing (tests)
     SPAN_LOG.with(|log| {
-        log.borrow_mut().push(SpanRecord {
-            operation: operation.to_string(),
-            target: target.to_string(),
-        });
+        log.borrow_mut().push(record.clone());
     });
+
+    // Global sink for cross-process DX innovation (TDD Synthesizer)
+    if let Ok(sink_path) = std::env::var("AFFI_TRACE_SINK") {
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(sink_path)
+        {
+            let line = format!("{}|{}\n", record.operation, record.target);
+            let _ = std::io::Write::write_all(&mut file, line.as_bytes());
+        }
+    }
 }
 
 /// Snapshot the spans recorded on the current thread (for witnessing).

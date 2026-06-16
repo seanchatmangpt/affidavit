@@ -1,0 +1,33 @@
+{# Context variables: pattern_name, event_count, expected_verdict, event_types, object_ids #}
+
+#[test]
+fn test_{{ pattern_name | replace(from="-", to="_") | replace(from=".", to="_") }}() {
+    use affidavit::chain::ChainAssembler;
+    use affidavit::ocel::{build_event, object_ref, SeqCounter};
+    use affidavit::verifier::verify;
+
+    let mut asm = ChainAssembler::new();
+    let mut counter = SeqCounter::new();
+
+    {% for event in events %}
+    let event_{{ loop.index0 }} = build_event(
+        "{{ event.event_type }}",
+        vec![{% for obj in event.objects %}object_ref("{{ obj.id }}", "{{ obj.obj_type }}"){% if not loop.last %}, {% endif %}{% endfor %}],
+        b"{{ event.payload }}",
+        &mut counter,
+    ).expect("build event {{ loop.index0 }}");
+    asm.append(event_{{ loop.index0 }}).expect("append event {{ loop.index0 }}");
+    {% endfor %}
+
+    let receipt = asm.finalize();
+    let verdict = verify(&receipt);
+
+    {% if expected_verdict == "ACCEPT" %}
+    assert!(verdict.accepted, "pattern {{ pattern_name }} must ACCEPT; reason: {}", verdict.reason);
+    assert_eq!(verdict.reason, "all stages passed");
+    {% else %}
+    assert!(!verdict.accepted, "pattern {{ pattern_name }} must REJECT");
+    assert!(verdict.reason.contains("{{ expected_failure_stage }}"),
+        "expected failure at stage '{{ expected_failure_stage }}', got: {}", verdict.reason);
+    {% endif %}
+}

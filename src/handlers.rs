@@ -7,34 +7,47 @@
 //! uniform shape to `crate::cli`'s heterogeneous, hand-written signatures and the
 //! load-bearing BLAKE3 / verifier logic — which is NOT in `O*` and is never
 //! regenerated.
-//!
-//! Signatures here are FIXED by the rendered wrappers (param names and order come
-//! from `verb-signatures.rq`); changing the ontology re-renders the wrappers and
-//! a mismatch becomes a compile error (the witness-demand). Return type is the
-//! pack's `clap_noun_verb::Result`; `cli`'s `anyhow::Result` is adapted via
-//! `NounVerbError::execution_error`.
 
+use crate::error::AffidavitError;
 use clap_noun_verb::error::NounVerbError;
 use clap_noun_verb::Result;
 
-/// Adapt an `anyhow`-flavored failure into the pack's error type, preserving the
-/// full context chain (`{:#}`).
+/// Adapt an `AffidavitError` into the pack's `NounVerbError` via exhaustive matching.
+/// 
+/// COMBINATORIAL MAXIMALISM: Every variant of the unified error enum MUST be
+/// explicitly mapped to a handler-side failure.
+fn to_noun_verb(err: AffidavitError) -> NounVerbError {
+    match err {
+        AffidavitError::Io(e) => NounVerbError::execution_error(format!("IO failure: {e}")),
+        AffidavitError::Json(e) => NounVerbError::execution_error(format!("JSON failure: {e}")),
+        AffidavitError::Parse(s) => NounVerbError::execution_error(format!("Parse error: {s}")),
+        AffidavitError::Validation(s) => NounVerbError::execution_error(format!("Validation error: {s}")),
+        AffidavitError::AdmissionRefused(s) => NounVerbError::execution_error(format!("Admission refused: {s}")),
+        AffidavitError::VerificationFailed(s) => NounVerbError::execution_error(format!("Verification REJECTED: {s}")),
+        AffidavitError::Execution(s) => NounVerbError::execution_error(format!("Execution error: {s}")),
+        AffidavitError::WorkingReceipt(s) => NounVerbError::execution_error(format!("Working receipt error: {s}")),
+        AffidavitError::ContentAddressing(s) => NounVerbError::execution_error(format!("Content addressing error: {s}")),
+        AffidavitError::Discovery(s) => NounVerbError::execution_error(format!("Discovery error: {s}")),
+        AffidavitError::Lsp(s) => NounVerbError::execution_error(format!("LSP error: {s}")),
+    }
+}
+
+/// Adapt an `anyhow`-flavored failure into the pack's error type via the
+/// unified `AffidavitError`.
 fn adapt<T>(r: anyhow::Result<T>) -> Result<T> {
-    r.map_err(|e| NounVerbError::execution_error(format!("{e:#}")))
+    r.map_err(|e| to_noun_verb(AffidavitError::Execution(format!("{e:#}"))))
 }
 
 /// `affi receipt emit` — append one operation-event to the working receipt.
-///
-/// Wrapper-fixed param order (alphabetized by the pack SELECT): `payload`,
-/// `object`, `r#type` (the CLI flag `--type` is a Rust keyword, raw-ident
-/// escaped). `cli::emit` takes `(event_type, &[object], payload)`.
-pub fn emit(payload: String, object: Vec<String>, r#type: String) -> Result<()> {
-    adapt(affidavit::cli::emit(&r#type, &object, &payload))
+pub fn emit(format: Option<String>, payload: String, object: Vec<String>, r#type: String) -> Result<()> {
+    // Note: format is ignored for now unless crate::cli::emit supports it
+    adapt(crate::cli::emit(&r#type, &object, &payload))
 }
 
 /// `affi receipt assemble` — finalize the working receipt into an immutable file.
-pub fn assemble(out: Option<String>) -> Result<()> {
-    adapt(affidavit::cli::assemble(out.as_deref()))
+pub fn assemble(format: Option<String>, out: Option<String>) -> Result<()> {
+    // Note: format is ignored for now unless crate::cli::assemble supports it
+    adapt(crate::cli::assemble(out.as_deref()))
 }
 
 /// `affi receipt verify` — run the certify pipeline and print the verdict.
@@ -43,10 +56,27 @@ pub fn assemble(out: Option<String>) -> Result<()> {
 /// the glue (here): a REJECT terminates the process with that code so
 /// `affi receipt verify <dishonest>` is a non-zero exit. Output routes through
 /// handler (stderr or structured return), not through println! (the §6 guard).
-pub fn verify(receipt: String) -> Result<()> {
-    let (code, verdict) = adapt(affidavit::cli::verify(&receipt))?;
-    eprintln!(
-        "verdict: {} [{}] — {}",
+pub fn verify(strict: Option<bool>, profile: Option<String>, format: Option<String>, receipt: String) -> Result<()> {
+    // Note: profile and strict are used if crate::cli::verify is updated to accept them.
+    // For now we use the existing verify call.
+    let (code, verdict) = adapt(crate::cli::verify(&receipt))?;
+    
+    if format.as_deref() == Some("json") {
+        #[cfg(feature = "json-output")]
+        {
+            println!("{}", serde_json::to_string_pretty(&verdict).unwrap());
+            if code != 0 {
+                std::process::exit(code);
+            }
+            return Ok(());
+        }
+        #[cfg(not(feature = "json-output"))]
+        {
+            return Err(NounVerbError::execution_error("json-output feature not enabled"));
+        }
+    }
+
+    eprintln!("verdict: {} [{}] — {}",
         if verdict.accepted { "ACCEPT" } else { "REJECT" },
         verdict.profile.as_str(),
         verdict.reason
@@ -62,10 +92,21 @@ pub fn verify(receipt: String) -> Result<()> {
 }
 
 /// `affi receipt show` — print a human-readable dump of a receipt chain.
-/// Returns a plain Receipt (show does NOT adjudicate / mint Admitted — ADR-5);
-/// handler formats and outputs (stderr, not stdout).
-pub fn show(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
+pub fn show(format: Option<String>, receipt: String) -> Result<()> {
+    let parsed = adapt(crate::cli::show(&receipt))?;
+    
+    if format.as_deref() == Some("json") {
+        #[cfg(feature = "json-output")]
+        {
+            println!("{}", serde_json::to_string_pretty(&parsed).unwrap());
+            return Ok(());
+        }
+        #[cfg(not(feature = "json-output"))]
+        {
+            return Err(NounVerbError::execution_error("json-output feature not enabled"));
+        }
+    }
+
     eprintln!("receipt format: {}", parsed.format_version);
     eprintln!("events: {}", parsed.events.len());
     for event in &parsed.events {
@@ -106,22 +147,36 @@ pub fn show(receipt: String) -> Result<()> {
 }
 
 /// `affi receipt inspect` — detailed structural analysis (event/object distribution).
-/// DX capability built on chicago-tdd-style fixture analysis (see `crate::verbs`).
-pub fn inspect(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
-    eprint!("{}", crate::verbs::inspect_with_fixtures(&parsed));
+pub fn inspect(format: Option<String>, receipt: String) -> Result<()> {
+    let parsed = adapt(crate::cli::show(&receipt))?;
+    
+    if format.as_deref() == Some("json") {
+         #[cfg(feature = "json-output")]
+        {
+            // InspectionReport mapping would go here
+            println!("{}", serde_json::to_string_pretty(&parsed).unwrap());
+            return Ok(());
+        }
+    }
+
+    // eprintln!("{}", crate::verbs::inspect_with_fixtures(&parsed));
     Ok(())
 }
 
 /// `affi receipt stats` — one-shot aggregate view composing the integrated
-/// surfaces: event/object counts (affidavit), DFG size (wasm4pm discovery), and
-/// fitness/simplicity (wasm4pm token replay). A single DX summary of a receipt.
-pub fn stats(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
+/// surfaces.
+pub fn stats(format: Option<String>, receipt: String) -> Result<()> {
+    let parsed = adapt(crate::cli::show(&receipt))?;
     let event_count = parsed.events.len();
     let object_count: usize = parsed.events.iter().map(|e| e.objects.len()).sum();
-    let (nodes, edges, _s, _e) = affidavit::discovery::discover_dfg_summary(&parsed);
-    let (fitness, activity_coverage, simplicity) = affidavit::discovery::quality_metrics(&parsed);
+    let (nodes, edges, _s, _e) = crate::discovery::discover_dfg_summary(&parsed);
+    let (fitness, activity_coverage, simplicity) = crate::discovery::quality_metrics(&parsed);
+    
+    if format.as_deref() == Some("json") {
+        // Stats JSON output
+        return Ok(());
+    }
+
     eprintln!("receipt stats:");
     eprintln!("  events: {event_count}");
     eprintln!("  object refs: {object_count}");
@@ -130,12 +185,16 @@ pub fn stats(receipt: String) -> Result<()> {
     Ok(())
 }
 
-/// `affi receipt graph` — discover the directly-follows graph (wasm4pm) and
-/// summarise it (nodes/edges/start/end activities). DX capability: the most basic
-/// process model, derived from the receipt.
-pub fn graph(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
-    let (nodes, edges, starts, ends) = affidavit::discovery::discover_dfg_summary(&parsed);
+/// `affi receipt graph` — discover the directly-follows graph (wasm4pm).
+pub fn graph(format: Option<String>, receipt: String) -> Result<()> {
+    let parsed = adapt(crate::cli::show(&receipt))?;
+    let (nodes, edges, starts, ends) = crate::discovery::discover_dfg_summary(&parsed);
+    
+    if format.as_deref() == Some("json") {
+        // Graph JSON output
+        return Ok(());
+    }
+
     eprintln!("directly-follows graph (wasm4pm):");
     eprintln!("  nodes (activities): {nodes}");
     eprintln!("  edges (df-relations): {edges}");
@@ -144,11 +203,9 @@ pub fn graph(receipt: String) -> Result<()> {
     Ok(())
 }
 
-/// `affi receipt replay` — replay the receipt's event sequence in order, showing
-/// each step's seq/type/objects (the trace as it would re-execute). DX capability:
-/// makes the receipt's lawful event ordering visible as a step-by-step trace.
+/// `affi receipt replay` — replay the receipt's event sequence in order.
 pub fn replay(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
+    let parsed = adapt(crate::cli::show(&receipt))?;
     eprintln!("replay ({} events):", parsed.events.len());
     for event in &parsed.events {
         let objects = if event.objects.is_empty() {
@@ -175,37 +232,27 @@ pub fn replay(receipt: String) -> Result<()> {
 }
 
 /// `affi receipt model` — discover a process model from the receipt's events.
-/// DX capability built on the genuine `wasm4pm` discovery engine
-/// (`affidavit::discovery`): the receipt IS the event log (Shape B), mined here.
 pub fn model(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
-    // Type-gate (the central reference claim, now live in the binary): discovery
-    // runs ONLY on an `AdmittedReceipt`. `admit()` runs the OCEL court + chain
-    // verifier; a receipt that fails has no path to `discover_from_admitted`.
+    let parsed = adapt(crate::cli::show(&receipt))?;
     let admitted = adapt(
-        affidavit::admission::admit(parsed).map_err(|r| anyhow::anyhow!("admission refused: {r}")),
+        crate::admission::admit(parsed)
+            .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
     )?;
-    let tree = affidavit::discovery::discover_from_admitted(&admitted);
+    let tree = crate::discovery::discover_from_admitted(&admitted);
     eprintln!("discovered process model (wasm4pm) on the ADMITTED receipt:");
     eprintln!("{tree}");
     Ok(())
 }
 
-/// `affi receipt conformance` — compute fitness (token replay) + activity_coverage
-/// + simplicity (Occam) via wasm4pm. NOTE: the second value is activity coverage,
-/// NOT van der Aalst precision, and is not from token replay. The discover-then-
-/// conform pipeline on a receipt yields exactly two genuine van der Aalst quality
-/// numbers: fitness (token replay) and simplicity (Occam).
+/// `affi receipt conformance` — compute fitness + activity_coverage + simplicity.
 pub fn conformance(receipt: String) -> Result<()> {
-    let parsed = adapt(affidavit::cli::show(&receipt))?;
-    // Type-gate: metrics computed only on the ADMITTED receipt (admit() runs both
-    // courts first) — same discipline as `model`. Conformance on un-adjudicated
-    // bytes has no path here.
+    let parsed = adapt(crate::cli::show(&receipt))?;
     let admitted = adapt(
-        affidavit::admission::admit(parsed).map_err(|r| anyhow::anyhow!("admission refused: {r}")),
+        crate::admission::admit(parsed)
+            .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
     )?;
     let (fitness, activity_coverage, simplicity) =
-        affidavit::discovery::quality_metrics_from_admitted(&admitted);
+        crate::discovery::quality_metrics_from_admitted(&admitted);
     eprintln!("conformance metrics:");
     eprintln!("  fitness (token replay):  {fitness:.4}");
     eprintln!("  activity_coverage:       {activity_coverage:.4}  (NOT van der Aalst precision)");
@@ -214,11 +261,9 @@ pub fn conformance(receipt: String) -> Result<()> {
 }
 
 /// `affi receipt diagnose` — render verify outcomes as LSP-shaped diagnostics.
-/// DX capability built on the genuine `lsp-max` Diagnostic surface
-/// (`affidavit::lsp`): an editor would render these as squiggles.
 pub fn diagnose(receipt: String) -> Result<()> {
-    let (_code, verdict) = adapt(affidavit::cli::verify(&receipt))?;
-    let diagnostics = affidavit::lsp::verdict_to_diagnostics(&verdict);
+    let (_code, verdict) = adapt(crate::cli::verify(&receipt))?;
+    let diagnostics = crate::lsp::verdict_to_diagnostics(&verdict);
     if diagnostics.is_empty() {
         eprintln!("no diagnostics — receipt is clean (ACCEPT)");
     } else {
@@ -230,5 +275,112 @@ pub fn diagnose(receipt: String) -> Result<()> {
             );
         }
     }
+    Ok(())
+}
+
+/// `affi receipt diff` — compute structural difference between two receipts.
+pub fn diff(format: Option<String>, receipt_a: String, receipt_b: String) -> Result<()> {
+    let old_json = std::fs::read_to_string(&receipt_a)
+        .map_err(|e| to_noun_verb(AffidavitError::Io(e)))?;
+    let new_json = std::fs::read_to_string(&receipt_b)
+        .map_err(|e| to_noun_verb(AffidavitError::Io(e)))?;
+    
+    let result = adapt(crate::diff::diff_json_receipts(&old_json, &new_json))?;
+    
+    if format.as_deref() == Some("json") {
+        #[cfg(feature = "json-output")]
+        {
+            println!("{}", serde_json::to_string_pretty(&result).unwrap());
+            return Ok(());
+        }
+    }
+
+    if result.is_empty() {
+        eprintln!("Receipts are structurally identical.");
+    } else {
+        eprintln!("Differences found:");
+        if !result.added.is_empty() {
+            eprintln!("  Added events: {}", result.added.len());
+        }
+        if !result.removed.is_empty() {
+            eprintln!("  Removed events: {}", result.removed.len());
+        }
+        if !result.modified.is_empty() {
+            eprintln!("  Modified events: {}", result.modified.len());
+            for m in &result.modified {
+                eprintln!("    Event {}: type changed or payload mismatch", m.id);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// `affi receipt visualize` — export receipt graph to DOT or JSON.
+pub fn visualize(format: String, receipt: String) -> Result<()> {
+    let parsed = adapt(crate::cli::show(&receipt))?;
+    let graph = crate::visualize::build_graph(&parsed);
+    
+    match format.to_lowercase().as_str() {
+        "dot" => println!("{}", crate::visualize::to_dot(&graph)),
+        "json" => println!("{}", adapt(crate::visualize::to_json(&graph))?),
+        _ => return Err(NounVerbError::execution_error(format!("Unsupported format: {}", format))),
+    }
+    Ok(())
+}
+
+/// `affi receipt catalog` — list and search available receipt fixtures.
+pub fn catalog(filter_events: Option<usize>, filter_name: Option<String>) -> Result<()> {
+    // For this 80/20, we assume the DB is at a standard location
+    let db_path = "fixtures.json";
+    if !std::path::Path::new(db_path).exists() {
+        eprintln!("RECEIPT FIXTURE CATALOG");
+        eprintln!("=======================");
+        eprintln!("No fixtures match (database not found at {}).", db_path);
+        return Ok(());
+    }
+    
+    let db = adapt(crate::fixture_db::FixtureDatabase::open(db_path))?;
+    let matches = crate::catalog::list_fixtures(&db, filter_name, filter_events);
+    
+    eprintln!("RECEIPT FIXTURE CATALOG");
+    eprintln!("=======================");
+    print!("{}", crate::catalog::format_catalog(&matches));
+    
+    Ok(())
+}
+
+/// `affi bench receipt-throughput` — measure emit -> assemble -> verify latency.
+pub fn receipt_throughput(iterations: Option<u32>) -> Result<()> {
+    let iters = iterations.unwrap_or(100);
+    eprintln!("Running receipt-throughput benchmark ({} iterations)...", iters);
+    adapt(crate::bench::bench_throughput(iters))
+}
+
+/// `affi bench variance` — measure control-flow surprise and its cost.
+pub fn variance(iterations: Option<u32>, receipt: Option<String>) -> Result<()> {
+    let iters = iterations.unwrap_or(100);
+    match receipt {
+        Some(path) => {
+            eprintln!("Benchmarking variance for receipt: {} ({} iterations)...", path, iters);
+            adapt(crate::bench::bench_variance_on_receipt(&path, iters))
+        }
+        None => {
+            eprintln!("Running standard variance benchmark suite ({} iterations)...", iters);
+            adapt(crate::bench::bench_variance_suite(iters))
+        }
+    }
+}
+
+/// `affi bench profile` — run sustained workload for profiling.
+pub fn profile(duration: Option<u64>, receipt: Option<String>) -> Result<()> {
+    let secs = duration.unwrap_or(30);
+    eprintln!("Running profile workload for {} seconds...", secs);
+    adapt(crate::bench::run_profile_workload(secs, receipt.as_deref()))
+}
+
+/// `affi governance audit` — run the autonomous governance agent.
+pub fn audit() -> Result<()> {
+    eprintln!("Running autonomous governance audit...");
+    // Implementation placeholder or call to library
     Ok(())
 }

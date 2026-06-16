@@ -1,22 +1,31 @@
-//! Generated verb wrappers (ontology-driven via ggen) + new DX/QOL verbs (80/20 integration).
-//!
-//! In the normal workflow, ggen would render verb wrappers here (via `ggen sync`).
-//! New DX/QOL verbs implemented here use 80% existing library code + 20% glue.
+// Copyright (c) 2024 Sean Chatman
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//
+// Aggregate module list for the rendered verb wrappers (rendered from O* by ggen).
+// Consumed query column (verbs-mod.rq): modules.
 
-// Include generated verb wrappers (these use the #[verb] macro to self-register via linkme)
+//! Rendered verb modules.
+
 pub mod assemble;
+pub mod audit;
+pub mod catalog;
 pub mod conformance;
 pub mod diagnose;
+pub mod diff;
 pub mod emit;
 pub mod graph;
 pub mod inspect;
 pub mod model;
+pub mod profile;
+pub mod receipt_throughput;
 pub mod replay;
 pub mod show;
 pub mod stats;
+pub mod variance;
 pub mod verify;
+pub mod visualize;
 
-use affidavit::types::Receipt;
+use crate::types::Receipt;
 use std::collections::HashMap;
 
 /// `affi receipt inspect` — detailed receipt analysis using test fixtures.
@@ -67,11 +76,11 @@ pub fn inspect_with_fixtures(receipt: &Receipt) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use affidavit::ocel::*;
+    use crate::ocel::*;
 
     #[test]
     fn inspect_generates_detailed_report() {
-        let mut asm = affidavit::chain::ChainAssembler::new();
+        let mut asm = crate::chain::ChainAssembler::new();
         let mut counter = SeqCounter::new();
 
         let event1 = build_event(

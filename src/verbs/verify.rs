@@ -14,8 +14,20 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
+
 /// Run the certify pipeline over a receipt and print the verdict
 #[verb("verify", "receipt")]
-pub fn verify(#[arg(index = 1)] receipt: String) -> Result<()> {
-    crate::handlers::verify(receipt)
+pub fn verify(
+    strict: Option<bool>,
+    profile: Option<String>,
+    format: Option<String>,
+    #[arg(index = 1)]
+    receipt: String,
+) -> Result<()> {
+    crate::handlers::verify(
+        strict,
+        profile,
+        format,
+        receipt,
+    )
 }

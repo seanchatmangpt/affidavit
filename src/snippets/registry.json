@@ -1,0 +1,82 @@
+{
+  "snippets": [
+    {
+      "name": "chain-build-2-events",
+      "tags": ["chain", "basic", "receipt"],
+      "description": "Build a 2-event receipt using ChainAssembler",
+      "language": "rust",
+      "imports": [
+        "affidavit::chain::ChainAssembler",
+        "affidavit::ocel::{build_event, object_ref, SeqCounter}"
+      ],
+      "code": "let mut asm = ChainAssembler::new();\nlet mut counter = SeqCounter::new();\nlet e0 = build_event(\"build\", vec![object_ref(\"repo:main\", \"git\")], b\"payload-0\", &mut counter)?;\nasm.append(e0)?;\nlet receipt = asm.finalize();"
+    },
+    {
+      "name": "verify-receipt",
+      "tags": ["verify", "pipeline", "verdict"],
+      "description": "Run the 7-stage certify pipeline on a receipt",
+      "language": "rust",
+      "imports": ["affidavit::verifier::verify"],
+      "code": "let verdict = verify(&receipt);\nassert!(verdict.accepted, \"reason: {}\", verdict.reason);"
+    },
+    {
+      "name": "tamper-detection",
+      "tags": ["tamper", "chain-integrity", "mutation"],
+      "description": "Demonstrate that tampering a commitment breaks chain integrity",
+      "language": "rust",
+      "imports": [
+        "affidavit::types::Blake3Hash",
+        "affidavit::verifier::verify"
+      ],
+      "code": "let mut tampered = receipt.clone();\ntampered.events[0].payload_commitment = Blake3Hash::from_bytes(b\"evil\");\nlet verdict = verify(&tampered);\nassert!(!verdict.accepted);\nassert_eq!(verdict.outcomes[2].stage, \"chain_integrity\");"
+    },
+    {
+      "name": "object-reference",
+      "tags": ["ocel", "object"],
+      "description": "Create a reference to an object in an OCEL event",
+      "language": "rust",
+      "imports": ["affidavit::ocel::object_ref"],
+      "code": "let obj = object_ref(\"user:123\", \"identity\");"
+    },
+    {
+      "name": "seq-counter",
+      "tags": ["ocel", "sequence"],
+      "description": "Manage event sequence numbers",
+      "language": "rust",
+      "imports": ["affidavit::ocel::SeqCounter"],
+      "code": "let mut counter = SeqCounter::new();\nlet seq = counter.next();"
+    },
+    {
+        "name": "inspect-receipt",
+        "tags": ["inspect", "debug"],
+        "description": "Inspect a receipt using the default handler",
+        "language": "rust",
+        "imports": ["affidavit::handlers::inspect"],
+        "code": "inspect(&receipt);"
+    },
+    {
+        "name": "diff-receipts",
+        "tags": ["diff", "debug"],
+        "description": "Compare two receipts and print the diff",
+        "language": "rust",
+        "imports": ["affidavit::handlers::diff"],
+        "code": "diff(&receipt_a, &receipt_b);"
+    },
+    {
+        "name": "blake3-hash",
+        "tags": ["hash", "crypto"],
+        "description": "Create a Blake3Hash from bytes",
+        "language": "rust",
+        "imports": ["affidavit::types::Blake3Hash"],
+        "code": "let hash = Blake3Hash::from_bytes(b\"data\");"
+    },
+    {
+        "name": "discover-stages",
+        "tags": ["discovery", "pipeline"],
+        "description": "Discover all certification stages for a receipt",
+        "language": "rust",
+        "imports": ["affidavit::discovery::discover_stages"],
+        "code": "let stages = discover_stages(&receipt);"
+    }
+  ]
+}

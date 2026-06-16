@@ -181,3 +181,157 @@ fn load_receipt(path: &str) -> Result<Receipt> {
         serde_json::from_str(&text).with_context(|| format!("parsing receipt {path:?}"))?;
     Ok(receipt)
 }
+
+/// Convert a Markdown string to plain ASCII for terminal display.
+///
+/// Transformations applied in order:
+/// 1. ATX headings (#, ##, ###) -> UPPERCASE text + underline (=, -, ~)
+/// 2. Bold (**text** or __text__) -> text (strips markers)
+/// 3. Italic (*text* or _text_) -> text (strips markers)
+/// 4. Inline code (`text`) -> text (strips backticks)
+/// 5. Fenced code blocks (``` ... ```) -> 4-space indented block
+/// 6. Links [text](url) -> "text (url)"
+/// 7. Reflow all paragraphs to max_width (default 80)
+pub(crate) fn format_help_markdown(md: &str) -> String {
+    format_help_markdown_width(md, 80)
+}
+
+pub(crate) fn format_help_markdown_width(md: &str, max_width: usize) -> String {
+    let mut result = String::new();
+    let mut current_paragraph = String::new();
+    let mut in_code_block = false;
+
+    for line in md.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.starts_with("```") {
+            if !current_paragraph.is_empty() {
+                if !result.is_empty() {
+                    result.push('\n');
+                }
+                result.push_str(&reflow_paragraph(&current_paragraph, max_width));
+                result.push('\n');
+                current_paragraph.clear();
+            }
+            in_code_block = !in_code_block;
+            continue;
+        }
+
+        if in_code_block {
+            result.push_str("    ");
+            result.push_str(line);
+            result.push('\n');
+            continue;
+        }
+
+        if trimmed.starts_with('#') {
+            if !current_paragraph.is_empty() {
+                if !result.is_empty() {
+                    result.push('\n');
+                }
+                result.push_str(&reflow_paragraph(&current_paragraph, max_width));
+                result.push('\n');
+                current_paragraph.clear();
+            }
+            let level = trimmed.chars().take_while(|&c| c == '#').count();
+            let text = trimmed[level..].trim();
+            let transformed = apply_inline_transforms(text);
+            let uppercase = transformed.to_uppercase();
+            let underline_char = match level {
+                1 => '=',
+                2 => '-',
+                _ => '~',
+            };
+            if !result.is_empty() {
+                result.push('\n');
+            }
+            result.push_str(&uppercase);
+            result.push('\n');
+            result.push_str(&underline_char.to_string().repeat(uppercase.len()));
+            result.push('\n');
+            continue;
+        }
+
+        if trimmed.is_empty() {
+            if !current_paragraph.is_empty() {
+                if !result.is_empty() {
+                    result.push('\n');
+                }
+                result.push_str(&reflow_paragraph(&current_paragraph, max_width));
+                result.push('\n');
+                current_paragraph.clear();
+            }
+        } else {
+            if !current_paragraph.is_empty() {
+                current_paragraph.push(' ');
+            }
+            current_paragraph.push_str(trimmed);
+        }
+    }
+
+    if !current_paragraph.is_empty() {
+        if !result.is_empty() {
+            result.push('\n');
+        }
+        result.push_str(&reflow_paragraph(&current_paragraph, max_width));
+        result.push('\n');
+    }
+
+    result.trim_end_matches('\n').to_string()
+}
+
+fn apply_inline_transforms(text: &str) -> String {
+    let mut s = text.to_string();
+
+    // 6. Links [text](url) -> "text (url)"
+    while let Some(start_bracket) = s.find('[') {
+        if let Some(end_bracket) = s[start_bracket..].find(']') {
+            let end_bracket = start_bracket + end_bracket;
+            if let Some(start_paren) = s[end_bracket..].find('(') {
+                let start_paren = end_bracket + start_paren;
+                if let Some(end_paren) = s[start_paren..].find(')') {
+                    let end_paren = start_paren + end_paren;
+                    let link_text = &s[start_bracket + 1..end_bracket];
+                    let url = &s[start_paren + 1..end_paren];
+                    let replacement = format!("{} ({})", link_text, url);
+                    s.replace_range(start_bracket..end_paren + 1, &replacement);
+                    continue;
+                }
+            }
+        }
+        break;
+    }
+
+    // 2. Bold
+    s = s.replace("**", "");
+    s = s.replace("__", "");
+
+    // 3. Italic
+    s = s.replace("*", "");
+
+    // 4. Inline code
+    s = s.replace("`", "");
+
+    s
+}
+
+fn reflow_paragraph(text: &str, max_width: usize) -> String {
+    let text = apply_inline_transforms(text);
+    let mut result = String::new();
+    let mut current_line = String::new();
+
+    for word in text.split_whitespace() {
+        if current_line.is_empty() {
+            current_line.push_str(word);
+        } else if current_line.len() + 1 + word.len() <= max_width {
+            current_line.push(' ');
+            current_line.push_str(word);
+        } else {
+            result.push_str(&current_line);
+            result.push('\n');
+            current_line = word.to_string();
+        }
+    }
+    result.push_str(&current_line);
+    result
+}

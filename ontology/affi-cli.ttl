@@ -12,22 +12,12 @@
 # `ggen sync`; the pack supplies the queries + templates that render thin #[verb]
 # wrappers under src/verbs/, each delegating to crate::handlers::<verb>.
 #
-# Surface: `affi receipt <emit|assemble|verify|show>`.
-#
-# Conventions adopted from the pack (verb-signatures.rq + verb.rs.tera):
-#   - Direct triples (NOT RDF lists): the pack SELECT matches `?verb cnv:hasArguments ?arg`
-#     and `?noun cnv:hasVerbs ?verb`, so verbs and arguments are linked directly.
-#   - Plain-string literals (no @en language tags): the SELECT projects
-#     ?verb_name/?flag verbatim into the template, so a langString would corrupt
-#     the rendered Rust identifier.
-#   - cnv:fieldName overrides the kebab->snake field for Rust-keyword / renamed
-#     flags: `--type` -> field `event_type` (matches src/cli.rs::emit's signature),
-#     avoiding the Rust keyword `type`.
+# Surface: `affi receipt <emit|assemble|verify|show|inspect|diff|stats|graph|replay|model|conformance|diagnose|visualize|catalog>`.
 # =============================================================================
 
 affi: a owl:Ontology ;
     rdfs:label "affidavit CLI"@en ;
-    rdfs:comment "Provenance Layer CLI — emit, assemble, verify, show."@en ;
+    rdfs:comment "Provenance Layer CLI — emit, assemble, verify, show, and advanced DX verbs."@en ;
     dcterms:creator "Sean Chatman" ;
     owl:imports cnv: ;
     owl:versionInfo "26.6.14" .
@@ -38,21 +28,32 @@ affi: a owl:Ontology ;
 
 affi:ReceiptNoun a cnv:Noun ;
     cnv:hasNounName "receipt" ;
+    cnv:hasAlias "r" ;
     cnv:nounAbout "Assemble and certify provenance receipts" ;
-    cnv:hasVerbs affi:EmitVerb , affi:AssembleVerb , affi:VerifyVerb , affi:ShowVerb ;
-    rdfs:comment "The receipt noun: affi receipt <emit|assemble|verify|show>"@en .
+    cnv:hasVerbs affi:EmitVerb , affi:AssembleVerb , affi:VerifyVerb , affi:ShowVerb , 
+                 affi:InspectVerb , affi:DiffVerb , affi:StatsVerb , affi:GraphVerb , 
+                 affi:ReplayVerb , affi:ModelVerb , affi:ConformanceVerb , affi:DiagnoseVerb ,
+                 affi:VisualizeVerb , affi:CatalogVerb ;
+    rdfs:comment "The receipt noun: affi receipt <emit|assemble|verify|show|inspect|diff|stats|graph|replay|model|conformance|diagnose|visualize|catalog>"@en .
+
+# --- Shared Arguments ---
+
+affi:FormatArg a cnv:Argument ;
+    cnv:hasArgumentName "format" ;
+    cnv:argumentAbout "Output format: text (default) or json" ;
+    cnv:valueType "String" ;
+    cnv:required "false" ;
+    cnv:defaultValue "text" .
 
 # --- Verb: emit -------------------------------------------------------------
 affi:EmitVerb a cnv:Verb ;
     cnv:hasVerbName "emit" ;
+    cnv:hasAlias "e" ;
     cnv:verbAbout "Append one operation-event to the working receipt" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:TypeArg , affi:ObjectArg , affi:PayloadArg .
+    cnv:hasArguments affi:TypeArg , affi:ObjectArg , affi:PayloadArg , affi:FormatArg .
 
-# CLI flag `--type`. `type` is a Rust keyword, so the pack template raw-ident-
-# escapes the field to `r#type` (handler param), while the macro strips the `r#`
-# so the surfaced flag is `--type` (matches the R7 held convention).
 affi:TypeArg a cnv:Argument ;
     cnv:hasArgumentName "type" ;
     cnv:argumentAbout "The operation-event type" ;
@@ -74,10 +75,11 @@ affi:PayloadArg a cnv:Argument ;
 # --- Verb: assemble ---------------------------------------------------------
 affi:AssembleVerb a cnv:Verb ;
     cnv:hasVerbName "assemble" ;
+    cnv:hasAlias "a" ;
     cnv:verbAbout "Finalize the working receipt into an immutable receipt file" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:OutArg .
+    cnv:hasArguments affi:OutArg , affi:FormatArg .
 
 affi:OutArg a cnv:Argument ;
     cnv:hasArgumentName "out" ;
@@ -88,10 +90,11 @@ affi:OutArg a cnv:Argument ;
 # --- Verb: verify -----------------------------------------------------------
 affi:VerifyVerb a cnv:Verb ;
     cnv:hasVerbName "verify" ;
+    cnv:hasAlias "v" ;
     cnv:verbAbout "Run the certify pipeline over a receipt and print the verdict" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:VerifyReceiptArg .
+    cnv:hasArguments affi:VerifyReceiptArg , affi:FormatArg , affi:ProfileArg , affi:StrictArg .
 
 affi:VerifyReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -100,13 +103,28 @@ affi:VerifyReceiptArg a cnv:Argument ;
     cnv:required "true" ;
     cnv:positional 1 .
 
+affi:ProfileArg a cnv:Argument ;
+    cnv:hasArgumentName "profile" ;
+    cnv:argumentAbout "Conformance profile [default: core/v1]" ;
+    cnv:valueType "String" ;
+    cnv:required "false" ;
+    cnv:defaultValue "core/v1" .
+
+affi:StrictArg a cnv:Argument ;
+    cnv:hasArgumentName "strict" ;
+    cnv:argumentAbout "Treat warnings as failures" ;
+    cnv:valueType "bool" ;
+    cnv:required "false" ;
+    cnv:defaultValue "false" .
+
 # --- Verb: show -------------------------------------------------------------
 affi:ShowVerb a cnv:Verb ;
     cnv:hasVerbName "show" ;
+    cnv:hasAlias "s" ;
     cnv:verbAbout "Print a human-readable dump of a receipt chain" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ShowReceiptArg .
+    cnv:hasArguments affi:ShowReceiptArg , affi:FormatArg .
 
 affi:ShowReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -114,3 +132,246 @@ affi:ShowReceiptArg a cnv:Argument ;
     cnv:valueType "String" ;
     cnv:required "true" ;
     cnv:positional 1 .
+
+# --- Verb: inspect ----------------------------------------------------------
+affi:InspectVerb a cnv:Verb ;
+    cnv:hasVerbName "inspect" ;
+    cnv:hasAlias "i" ;
+    cnv:verbAbout "Detailed structural analysis of a receipt (event/object distribution)" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:InspectReceiptArg , affi:FormatArg .
+
+affi:InspectReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to inspect" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: diff -------------------------------------------------------------
+affi:DiffVerb a cnv:Verb ;
+    cnv:hasVerbName "diff" ;
+    cnv:hasAlias "d" ;
+    cnv:verbAbout "Compare two receipts and print their differences" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:ReceiptAArg , affi:ReceiptBArg , affi:FormatArg .
+
+affi:ReceiptAArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt-a" ;
+    cnv:argumentAbout "Path to the first receipt JSON" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+affi:ReceiptBArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt-b" ;
+    cnv:argumentAbout "Path to the second receipt JSON" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 2 .
+
+# --- Verb: stats ------------------------------------------------------------
+affi:StatsVerb a cnv:Verb ;
+    cnv:hasVerbName "stats" ;
+    cnv:verbAbout "One-shot aggregate stats for a receipt (counts + DFG size + conformance)" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:StatsReceiptArg , affi:FormatArg .
+
+affi:StatsReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to analyze" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: graph ------------------------------------------------------------
+affi:GraphVerb a cnv:Verb ;
+    cnv:hasVerbName "graph" ;
+    cnv:verbAbout "Discover the directly-follows graph from a receipt (wasm4pm)" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:GraphReceiptArg , affi:FormatArg .
+
+affi:GraphReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to graph" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: replay -----------------------------------------------------------
+affi:ReplayVerb a cnv:Verb ;
+    cnv:hasVerbName "replay" ;
+    cnv:verbAbout "Replay a receipt's event sequence step by step in lawful seq order" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:ReplayReceiptArg .
+
+affi:ReplayReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to replay" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: model ------------------------------------------------------------
+affi:ModelVerb a cnv:Verb ;
+    cnv:hasVerbName "model" ;
+    cnv:verbAbout "Discover a process model from a receipt's events (wasm4pm)" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:ModelReceiptArg .
+
+affi:ModelReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to model" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: conformance ------------------------------------------------------
+affi:ConformanceVerb a cnv:Verb ;
+    cnv:hasVerbName "conformance" ;
+    cnv:verbAbout "Compute fitness, activity coverage, and simplicity metrics" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:ConformanceReceiptArg .
+
+affi:ConformanceReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to evaluate" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: diagnose ---------------------------------------------------------
+affi:DiagnoseVerb a cnv:Verb ;
+    cnv:hasVerbName "diagnose" ;
+    cnv:verbAbout "Render verify outcomes as LSP-shaped diagnostics (lsp-max)" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:DiagnoseReceiptArg .
+
+affi:DiagnoseReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to diagnose" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: visualize --------------------------------------------------------
+affi:VisualizeVerb a cnv:Verb ;
+    cnv:hasVerbName "visualize" ;
+    cnv:verbAbout "Visualize receipt as graph (DOT or JSON)" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:VisualizeFormatArg , affi:VisualizeReceiptArg .
+
+affi:VisualizeFormatArg a cnv:Argument ;
+    cnv:hasArgumentName "format" ;
+    cnv:argumentAbout "Output format: dot or json" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:VisualizeReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt JSON to visualize" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: catalog ---------------------------------------------------------
+affi:CatalogVerb a cnv:Verb ;
+    cnv:hasVerbName "catalog" ;
+    cnv:verbAbout "List and search available receipt fixtures" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:FilterNameArg , affi:FilterEventsArg .
+
+affi:FilterNameArg a cnv:Argument ;
+    cnv:hasArgumentName "filter-name" ;
+    cnv:argumentAbout "Filter fixtures by name (substring match)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:FilterEventsArg a cnv:Argument ;
+    cnv:hasArgumentName "filter-events" ;
+    cnv:argumentAbout "Filter fixtures by exact event count" ;
+    cnv:valueType "usize" ;
+    cnv:required "false" .
+
+
+# ============================================================================
+# BENCH NOUN — surface `affi bench <verb>`.
+# ============================================================================
+
+affi:BenchNoun a cnv:Noun ;
+    cnv:hasNounName "bench" ;
+    cnv:nounAbout "Throughput, variance, and profiling benchmarks" ;
+    cnv:hasVerbs affi:ReceiptThroughputVerb , affi:VarianceVerb , affi:ProfileVerb ;
+    rdfs:comment "The bench noun: affi bench <receipt-throughput|variance|profile>"@en .
+
+# --- Verb: receipt-throughput -----------------------------------------------
+affi:ReceiptThroughputVerb a cnv:Verb ;
+    cnv:hasVerbName "receipt-throughput" ;
+    cnv:verbAbout "Measure end-to-end latency of the emit -> assemble -> verify pipeline" ;
+    cnv:belongsToNoun affi:BenchNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:BenchIterationsArg .
+
+# --- Verb: variance ---------------------------------------------------------
+affi:VarianceVerb a cnv:Verb ;
+    cnv:hasVerbName "variance" ;
+    cnv:verbAbout "Measure control-flow surprise (anomaly score) and its computation cost" ;
+    cnv:belongsToNoun affi:BenchNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:BenchReceiptArg , affi:BenchIterationsArg .
+
+# --- Verb: profile ----------------------------------------------------------
+affi:ProfileVerb a cnv:Verb ;
+    cnv:hasVerbName "profile" ;
+    cnv:verbAbout "Run a sustained workload for flamegraph profiling" ;
+    cnv:belongsToNoun affi:BenchNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:BenchReceiptArg , affi:BenchDurationArg .
+
+# --- Shared Arguments for Bench Noun ---
+
+affi:BenchIterationsArg a cnv:Argument ;
+    cnv:hasArgumentName "iterations" ;
+    cnv:argumentAbout "Number of iterations to run (default: 100)" ;
+    cnv:valueType "u32" ;
+    cnv:required "false" .
+
+affi:BenchReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Optional path to a receipt JSON to use as benchmark input" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:BenchDurationArg a cnv:Argument ;
+    cnv:hasArgumentName "duration" ;
+    cnv:argumentAbout "Duration in seconds to run the sustained workload" ;
+    cnv:valueType "u64" ;
+    cnv:required "false" .
+
+
+# ============================================================================
+# GOVERNANCE NOUN — surface `affi governance audit`.
+# ============================================================================
+
+affi:GovernanceNoun a cnv:Noun ;
+    cnv:hasNounName "governance" ;
+    cnv:nounAbout "Autonomous governance and rule enforcement" ;
+    cnv:hasVerbs affi:AuditVerb ;
+    rdfs:comment "The governance noun: affi governance audit"@en .
+
+# --- Verb: audit ------------------------------------------------------------
+affi:AuditVerb a cnv:Verb ;
+    cnv:hasVerbName "audit" ;
+    cnv:verbAbout "Run the Autonomous Governance Agent over the workspace" ;
+    cnv:belongsToNoun affi:GovernanceNoun ;
+    cnv:returnType "()" .
