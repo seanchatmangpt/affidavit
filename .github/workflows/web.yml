@@ -30,6 +30,10 @@ jobs:
   web:
     name: web (Node 22, typecheck + build)
     runs-on: ubuntu-latest
+    # Bound runaway runs: a clean cold build here is ~1-2 min, so a job that
+    # runs much longer is a hung step (e.g. a stalled npm ci on the runner),
+    # not real work. Fail fast instead of burning the 360-minute default.
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
