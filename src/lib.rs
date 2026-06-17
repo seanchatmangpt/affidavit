@@ -78,6 +78,7 @@ pub mod handlers;
 pub mod lsp;
 
 pub mod ocel;
+pub mod quality;
 
 #[cfg(feature = "predictive")]
 pub mod predict_maximalist;

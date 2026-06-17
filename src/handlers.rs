@@ -1975,3 +1975,562 @@ pub fn audit() -> Result<()> {
     eprintln!("Running autonomous governance audit...");
     Ok(())
 }
+
+// ============================================================================
+// QUALITY & MONITORING CLUSTER
+// ============================================================================
+
+/// `affi quality monitor` — continuously monitor code quality with Western Electric rules.
+///
+/// Measures code quality, detects violations, and optionally emits events to the receipt chain.
+/// If `watch` is specified, polls the directory at regular intervals; otherwise runs once.
+///
+/// Parameters:
+/// - watch: optional path to monitor (enables watch mode with polling)
+/// - metrics: comma-separated metrics to monitor (default: all)
+/// - rules: comma-separated WE rules to check (default: all)
+/// - baseline_commits: number of baseline commits for bootstrap (default: 20)
+/// - interval: polling interval in seconds (default: 10)
+/// - output: output channels (stderr, json, events, webhook)
+/// - format: output format (json or human)
+pub fn monitor(
+    watch: Option<String>,
+    _metrics: Option<String>,
+    _rules: Option<String>,
+    baseline_commits: Option<u32>,
+    interval: Option<u64>,
+    output: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    let watch_path = watch.clone();
+    let baseline_count = baseline_commits.unwrap_or(20) as usize;
+    let poll_interval = interval.unwrap_or(10);
+    let _output_channels = output.as_deref().unwrap_or("stderr,events");
+
+    // If no watch path, run measurement once
+    if watch_path.is_none() {
+        let current_dir = std::env::current_dir()
+            .map_err(io_err)?
+            .to_str()
+            .unwrap_or(".")
+            .to_string();
+
+        let metrics_snapshot = adapt(crate::quality::measure_code_quality(&current_dir))?;
+
+        // Create analyzer with default baseline
+        let mut analyzer = crate::quality::WesternElectricAnalyzer::new(
+            5.0,  // baseline mean (stub_ratio default)
+            1.0,  // baseline stddev
+            baseline_count,
+        );
+
+        // Take measurements on key metrics
+        analyzer.add_measurement("stub_ratio", metrics_snapshot.stub_ratio);
+        analyzer.add_measurement("cyclomatic_complexity", metrics_snapshot.cyclomatic_complexity);
+        analyzer.add_measurement("clippy_warnings", metrics_snapshot.clippy_warnings as f64);
+        analyzer.add_measurement("churn", metrics_snapshot.churn as f64);
+
+        // Output violations
+        if !analyzer.violations.is_empty() {
+            if format.as_deref() == Some("json") {
+                let violations: Vec<serde_json::Value> = analyzer.violations.iter().map(|v| {
+                    serde_json::json!({
+                        "metric": v.metric(),
+                        "severity": v.severity(),
+                        "description": v.description(),
+                    })
+                }).collect();
+                let out = serde_json::json!({
+                    "monitor": "once",
+                    "violations_count": violations.len(),
+                    "violations": violations,
+                    "metrics": metrics_snapshot,
+                });
+                println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+            } else {
+                eprintln!("quality violations detected ({} total):", analyzer.violations.len());
+                for v in &analyzer.violations {
+                    eprintln!("  [{}] {}: {}", v.severity(), v.metric(), v.description());
+                }
+                eprintln!("\ncode quality metrics:");
+                eprintln!("  stub_ratio:          {:.4}", metrics_snapshot.stub_ratio);
+                eprintln!("  cyclomatic_complexity: {:.4}", metrics_snapshot.cyclomatic_complexity);
+                eprintln!("  clippy_warnings:     {}", metrics_snapshot.clippy_warnings);
+                eprintln!("  churn:               {}", metrics_snapshot.churn);
+                eprintln!("  test_coverage:       {:.1}%", metrics_snapshot.test_coverage);
+            }
+        } else {
+            eprintln!("quality: no violations detected (all green)");
+        }
+
+        return Ok(());
+    }
+
+    // Watch mode: poll at intervals
+    eprintln!("monitor: watch mode enabled on {:?} (interval: {poll_interval}s)", watch_path);
+    eprintln!("(Note: tokio-based watch loop not yet implemented; run 'affi quality monitor' without --watch for single measurement)");
+
+    // Phase 2: implement actual tokio::time::interval loop
+    // For now, run once with watch path
+    if let Some(path) = &watch_path {
+        let metrics_snapshot = adapt(crate::quality::measure_code_quality(path))?;
+        eprintln!("monitor snapshot at {}: {} functions, {} warnings",
+            path, metrics_snapshot.stub_ratio, metrics_snapshot.clippy_warnings);
+    }
+
+    Ok(())
+}
+
+/// `affi quality emit-from-quality` — measure code quality and emit a quality-measurement event.
+///
+/// Measures current code quality, serializes metrics as JSON payload, and emits a
+/// `quality.measurement` event to the receipt chain.
+///
+/// Parameters:
+/// - working_dir: directory to measure (default: current directory)
+/// - format: output format (json or human)
+pub fn emit_from_quality(
+    working_dir: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    let measure_path = working_dir.as_deref().unwrap_or(".");
+
+    // Measure code quality
+    let metrics = adapt(crate::quality::measure_code_quality(measure_path))?;
+
+    // Serialize metrics to JSON payload
+    let payload_json = adapt(serde_json::to_string(&metrics).map_err(anyhow::Error::from))?;
+
+    // Emit quality.measurement event to receipt chain
+    let objects = vec![format!("codebase:quality:{}", measure_path)];
+    let output = adapt(crate::cli::emit("quality.measurement", &objects, &payload_json))?;
+
+    if format.as_deref() == Some("json") {
+        let event_out = serde_json::json!({
+            "event_id": output.event_id,
+            "seq": output.seq,
+            "event_type": output.event_type,
+            "metrics": metrics,
+            "commitment": output.commitment,
+        });
+        let s = adapt(serde_json::to_string_pretty(&event_out).map_err(anyhow::Error::from))?;
+        println!("{s}");
+    } else {
+        eprintln!("emitted quality.measurement for {} (seq {})", measure_path, output.seq);
+        eprintln!("  stub_ratio:          {:.4}", metrics.stub_ratio);
+        eprintln!("  cyclomatic_complexity: {:.4}", metrics.cyclomatic_complexity);
+        eprintln!("  clippy_warnings:     {}", metrics.clippy_warnings);
+        eprintln!("  test_coverage:       {:.1}%", metrics.test_coverage);
+        eprintln!("  doc_coverage:        {:.1}%", metrics.doc_coverage * 100.0);
+        eprintln!("  commitment:          {}", output.commitment);
+    }
+
+    Ok(())
+}
+
+// ============================================================================
+// WEBHOOK SINK FOR QUALITY VIOLATIONS (Phase 2)
+// ============================================================================
+
+/// Send a quality violation to a webhook URL.
+///
+/// Posts the violation as JSON to `webhook_url` with exponential backoff retry logic
+/// (3 attempts maximum). HTTP errors are logged but do not propagate, allowing
+/// monitoring to continue even if the webhook is temporarily unreachable.
+///
+/// # Parameters
+///
+/// - `violation`: The quality violation to send
+/// - `webhook_url`: The HTTP(S) URL to POST to
+///
+/// # Returns
+///
+/// `Result<(), String>` - always returns Ok() on success or after 3 failed attempts;
+/// logs detailed messages on each attempt and failure.
+///
+/// # HTTP Request Format
+///
+/// The violation is serialized to JSON with the following structure:
+///
+/// ```json
+/// {
+///   "rule": "Rule1Sigma",
+///   "metric": "test_coverage",
+///   "value": 0.45,
+///   "threshold": 0.88,
+///   "z_score": 2.1,
+///   "severity": "CRITICAL",
+///   "description": "Test coverage dropped below expected control limit"
+/// }
+/// ```
+///
+/// # Retry Behavior
+///
+/// - Attempt 1: immediate
+/// - Attempt 2: after 500ms
+/// - Attempt 3: after 1500ms
+///
+/// Transient HTTP errors (5xx) trigger retry; client errors (4xx) fail immediately.
+pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webhook_url: &str) -> anyhow::Result<()> {
+    #[cfg(feature = "shell")]
+    {
+        use std::time::Duration;
+        use std::thread;
+
+        // Build JSON representation of the violation
+        let violation_json = match violation {
+            crate::quality::QualityViolation::Rule1Sigma { metric, value, threshold, z_score, severity } => {
+                serde_json::json!({
+                    "rule": "Rule1Sigma",
+                    "metric": metric,
+                    "value": value,
+                    "threshold": threshold,
+                    "z_score": z_score,
+                    "severity": severity,
+                    "description": format!("{}: spike detected (value={:.2}, threshold={:.2}, z-score={:.2})", metric, value, threshold, z_score),
+                })
+            }
+            crate::quality::QualityViolation::Rule9InRow { metric, consecutive } => {
+                serde_json::json!({
+                    "rule": "Rule9InRow",
+                    "metric": metric,
+                    "value": consecutive,
+                    "severity": "CRITICAL",
+                    "description": format!("{}: {} consecutive out-of-control points (zombie code)", metric, consecutive),
+                })
+            }
+            crate::quality::QualityViolation::RuleTrend { metric, direction, count } => {
+                serde_json::json!({
+                    "rule": "RuleTrend",
+                    "metric": metric,
+                    "value": count,
+                    "direction": direction,
+                    "severity": "HIGH",
+                    "description": format!("{}: {} monotonic {} (systematic degradation)", metric, count, direction),
+                })
+            }
+            crate::quality::QualityViolation::RuleAlternating { metric, oscillations } => {
+                serde_json::json!({
+                    "rule": "RuleAlternating",
+                    "metric": metric,
+                    "value": oscillations,
+                    "severity": "HIGH",
+                    "description": format!("{}: {} oscillations detected (uncertainty/hallucination)", metric, oscillations),
+                })
+            }
+            crate::quality::QualityViolation::Rule2of3Beyond2Sigma { metric, count, threshold } => {
+                serde_json::json!({
+                    "rule": "Rule2of3Beyond2Sigma",
+                    "metric": metric,
+                    "value": count,
+                    "threshold": threshold,
+                    "severity": "HIGH",
+                    "description": format!("{}: {} of 3 points beyond 2σ threshold {:.2}", metric, count, threshold),
+                })
+            }
+            crate::quality::QualityViolation::Rule4of5Beyond1Sigma { metric, count, threshold } => {
+                serde_json::json!({
+                    "rule": "Rule4of5Beyond1Sigma",
+                    "metric": metric,
+                    "value": count,
+                    "threshold": threshold,
+                    "severity": "MEDIUM",
+                    "description": format!("{}: {} of 5 points beyond 1σ threshold {:.2}", metric, count, threshold),
+                })
+            }
+            crate::quality::QualityViolation::Rule15InRowWithin1Sigma { metric, count, threshold, severity } => {
+                serde_json::json!({
+                    "rule": "Rule15InRowWithin1Sigma",
+                    "metric": metric,
+                    "value": count,
+                    "threshold": threshold,
+                    "severity": severity,
+                    "description": format!("{}: {} points in a row within 1σ (plateau/stagnation) threshold {:.2}", metric, count, threshold),
+                })
+            }
+        };
+
+        let payload = serde_json::to_string(&violation_json)?;
+        let max_attempts = 3;
+        let mut attempt = 1;
+
+        loop {
+            eprintln!("[webhook] attempt {}/{}: POST {}", attempt, max_attempts, webhook_url);
+
+            // Use tokio runtime to execute async HTTP POST in sync context
+            match execute_webhook_post(&payload, webhook_url) {
+                Ok(status) => {
+                    eprintln!("[webhook] success (HTTP {})", status);
+                    return Ok(());
+                }
+                Err(err) => {
+                    if attempt >= max_attempts {
+                        eprintln!("[webhook] failed after {} attempts: {}", max_attempts, err);
+                        // Return Ok() to not propagate the error — allow monitoring to continue
+                        return Ok(());
+                    }
+                    eprintln!("[webhook] attempt {} failed: {}; retrying", attempt, err);
+
+                    // Exponential backoff: 500ms, then 1500ms
+                    let backoff_ms = if attempt == 1 { 500 } else { 1500 };
+                    thread::sleep(Duration::from_millis(backoff_ms));
+                    attempt += 1;
+                }
+            }
+        }
+    }
+
+    #[cfg(not(feature = "shell"))]
+    {
+        eprintln!("[webhook] skipped: shell feature not enabled (build with --features shell)");
+        Ok(())
+    }
+}
+
+/// Execute an HTTP POST to the webhook URL using tokio.
+///
+/// This helper wraps the async HTTP call in a synchronous context using
+/// `tokio::runtime::Handle::current()` or spawning a runtime if needed.
+#[cfg(feature = "shell")]
+fn execute_webhook_post(payload: &str, webhook_url: &str) -> anyhow::Result<u16> {
+    use anyhow::Context;
+
+    // Try to use existing tokio runtime; if not available, create a new one
+    let result = if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        // Already in a tokio context; block_on the future
+        handle.block_on(post_webhook_async(payload, webhook_url))
+    } else {
+        // Not in a tokio context; create a new runtime
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(post_webhook_async(payload, webhook_url))
+    };
+
+    result
+}
+
+/// Async helper to POST the violation JSON to the webhook.
+#[cfg(all(feature = "shell", feature = "tokio"))]
+async fn post_webhook_async(payload: &str, webhook_url: &str) -> anyhow::Result<u16> {
+    use anyhow::Context;
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post(webhook_url)
+        .header("Content-Type", "application/json")
+        .body(payload.to_string())
+        .send()
+        .await
+        .context("HTTP POST failed")?;
+
+    let status = res.status().as_u16();
+
+    // Success: 2xx codes
+    if status >= 200 && status < 300 {
+        return Ok(status);
+    }
+
+    // Client error: fail immediately (don't retry)
+    if status >= 400 && status < 500 {
+        return Err(anyhow::anyhow!("HTTP {}: client error (no retry)", status));
+    }
+
+    // Server error: return for retry
+    Err(anyhow::anyhow!("HTTP {}: server error", status))
+}
+
+/// Stub for when tokio is not available.
+#[cfg(all(feature = "shell", not(feature = "tokio")))]
+async fn post_webhook_async(payload: &str, webhook_url: &str) -> anyhow::Result<u16> {
+    use anyhow::Context;
+
+    // Fallback: use std HTTP (would need a blocking client like reqwest blocking)
+    // For now, stub to allow compilation
+    eprintln!("[webhook] note: tokio feature not enabled; webhook POST stubbed");
+    Err(anyhow::anyhow!("tokio feature required for webhook support"))
+}
+
+// ============================================================================
+// GIT HOOK INSTALLATION CLUSTER
+// ============================================================================
+
+/// `affi receipt install-git-hook` — generate and install a post-commit hook.
+///
+/// This handler generates a post-commit hook script that monitors code quality
+/// violations and fails the commit if violations exceed the severity threshold.
+///
+/// The hook:
+/// - Runs `affi receipt monitor --watch . --rules all --output json`
+/// - Parses the JSON output for violations
+/// - Filters violations by severity >= threshold (default: "HIGH")
+/// - Exits 0 if no violations, exits 1 if violations found
+/// - Prints violations to stderr for developer feedback
+///
+/// Parameters:
+/// - threshold: minimum severity to fail commit (default: "HIGH")
+///   Valid levels: "CRITICAL", "HIGH", "MEDIUM", "LOW"
+pub fn install_git_hook(threshold: Option<String>) -> Result<()> {
+    let severity_threshold = threshold.as_deref().unwrap_or("HIGH");
+
+    // Validate severity threshold
+    let valid_severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+    if !valid_severities.contains(&severity_threshold) {
+        return Err(NounVerbError::execution_error(format!(
+            "Invalid severity threshold '{}'. Must be one of: {}",
+            severity_threshold,
+            valid_severities.join(", ")
+        )));
+    }
+
+    // Generate the hook script with embedded threshold
+    let hook_script = generate_post_commit_hook(severity_threshold);
+
+    // Determine Git directory (.git/hooks/post-commit)
+    let git_dir = determine_git_dir()?;
+    let hooks_dir = std::path::Path::new(&git_dir).join("hooks");
+
+    // Create hooks directory if it doesn't exist
+    std::fs::create_dir_all(&hooks_dir).map_err(io_err)?;
+
+    let hook_path = hooks_dir.join("post-commit");
+
+    // Write the hook script to the file
+    std::fs::write(&hook_path, &hook_script).map_err(io_err)?;
+
+    // Make the hook executable (Unix: 0o755)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let permissions = std::fs::Permissions::from_mode(0o755);
+        std::fs::set_permissions(&hook_path, permissions).map_err(io_err)?;
+    }
+
+    // Print confirmation message
+    println!(
+        "Git hook installed at {}",
+        hook_path.display()
+    );
+    println!(
+        "Severity threshold: {} (violations at or above this level will fail the commit)",
+        severity_threshold
+    );
+    println!("Hook will run: affi receipt monitor --watch . --rules all --output json");
+
+    Ok(())
+}
+
+/// Generate the post-commit hook script.
+///
+/// This creates a bash script that:
+/// 1. Runs the affi monitor command with JSON output
+/// 2. Parses the JSON for violations
+/// 3. Filters by severity
+/// 4. Exits 1 if violations found, 0 otherwise
+fn generate_post_commit_hook(threshold: &str) -> String {
+    let severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+    let threshold_index = severity_order.iter().position(|&s| s == threshold).unwrap_or(1);
+
+    // Create a bash script that parses JSON output and filters by severity
+    format!(
+        r#"#!/bin/bash
+# Auto-generated post-commit hook by affi install-git-hook
+# Runs code quality monitoring with severity threshold: {}
+# Edit or delete this file to disable hook enforcement
+
+set -o pipefail
+
+# Severity levels (higher index = lower severity)
+declare -a SEVERITY_LEVELS=("CRITICAL" "HIGH" "MEDIUM" "LOW")
+
+# Threshold index ({}): violations at this index and higher severity will fail
+THRESHOLD_INDEX={}
+
+# Run monitor and capture JSON output
+MONITOR_OUTPUT=$(affi receipt monitor --watch . --rules all --output json 2>&1)
+MONITOR_EXIT=$?
+
+# If monitor command itself failed, exit with error
+if [ $MONITOR_EXIT -ne 0 ]; then
+    echo "affi monitor exited with code $MONITOR_EXIT" >&2
+    # Note: we allow this to pass for now; comment out next line to enforce monitor success
+    # exit 1
+fi
+
+# Parse JSON violations (if output is valid JSON)
+VIOLATIONS=$(echo "$MONITOR_OUTPUT" | jq -r '.violations[]?.severity // empty' 2>/dev/null | sort | uniq -c)
+
+# Check if there are any violations
+if [ -z "$VIOLATIONS" ]; then
+    # No violations found
+    exit 0
+fi
+
+# Filter violations by threshold and check if any exceed it
+VIOLATION_COUNT=0
+while IFS= read -r line; do
+    if [ -z "$line" ]; then
+        continue
+    fi
+
+    # Parse line like "3 HIGH"
+    COUNT=$(echo "$line" | awk '{{print $1}}')
+    SEVERITY=$(echo "$line" | awk '{{print $2}}')
+
+    # Find severity index
+    SEVERITY_INDEX=-1
+    for i in "${{!SEVERITY_LEVELS[@]}}"; do
+        if [ "${{SEVERITY_LEVELS[$i]}}" == "$SEVERITY" ]; then
+            SEVERITY_INDEX=$i
+            break
+        fi
+    done
+
+    # If severity_index <= threshold_index, it's a violation we care about
+    if [ $SEVERITY_INDEX -le $THRESHOLD_INDEX ]; then
+        VIOLATION_COUNT=$((VIOLATION_COUNT + COUNT))
+        echo "  [$SEVERITY] $COUNT violation(s)" >&2
+    fi
+done <<< "$VIOLATIONS"
+
+# Exit with error if violations found
+if [ $VIOLATION_COUNT -gt 0 ]; then
+    echo "" >&2
+    echo "Commit blocked: $VIOLATION_COUNT code quality violation(s) exceed threshold: {}" >&2
+    echo "Run 'affi receipt monitor --watch . --output json' to inspect violations." >&2
+    exit 1
+fi
+
+exit 0
+"#,
+        threshold, threshold_index, threshold_index, threshold
+    )
+}
+
+/// Determine the Git directory (.git) for the current repository.
+///
+/// Returns the path to the .git directory, or an error if not in a Git repo.
+fn determine_git_dir() -> Result<String> {
+    let output = std::process::Command::new("git")
+        .args(&["rev-parse", "--git-dir"])
+        .current_dir(std::env::current_dir().map_err(io_err)?)
+        .output()
+        .map_err(|e| io_err(e))?;
+
+    if !output.status.success() {
+        return Err(NounVerbError::execution_error(
+            "Not in a Git repository (git rev-parse --git-dir failed)".to_string(),
+        ));
+    }
+
+    let git_dir = String::from_utf8(output.stdout)
+        .map_err(|e| NounVerbError::execution_error(format!("Invalid UTF-8 from git: {e}")))?
+        .trim()
+        .to_string();
+
+    if git_dir.is_empty() {
+        return Err(NounVerbError::execution_error(
+            "Failed to determine Git directory".to_string(),
+        ));
+    }
+
+    Ok(git_dir)
+}

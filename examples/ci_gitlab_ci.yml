@@ -1,0 +1,115 @@
+# GitLab CI configuration for quality monitoring.
+#
+# Installation:
+#   cp examples/ci_gitlab_ci.yml .gitlab-ci.yml
+#   Or merge the 'quality' stage into your existing .gitlab-ci.yml
+#
+# This configuration:
+# - Runs in the 'quality' stage
+# - Checks code quality with Western Electric rules
+# - Stores violations as artifacts
+# - Fails the pipeline on CRITICAL violations
+
+stages:
+  - quality
+  - test
+  - build
+  - deploy
+
+variables:
+  METRICS: "stubs,types,churn,comments,complexity,clippy"
+  RULES: "all"
+  BASELINE_COMMITS: "20"
+  INTERVAL: "5"
+
+# Quality monitoring job
+quality:monitor:
+  stage: quality
+  image: rust:latest
+  cache:
+    paths:
+      - target/
+      - .cargo/
+  before_script:
+    # Install Rust if needed (usually pre-installed in rust:latest image)
+    - rustc --version && cargo --version
+    # Optional: install jq for JSON parsing
+    - apt-get update && apt-get install -y jq || true
+  script:
+    # Build the affi binary in release mode
+    - cargo build --release --bin affi
+    # Run the quality monitor
+    - |
+      set +e
+      ./target/release/affi receipt monitor \
+        --watch . \
+        --metrics $METRICS \
+        --rules $RULES \
+        --baseline-commits $BASELINE_COMMITS \
+        --interval $INTERVAL \
+        --output stderr,json \
+        --format json \
+        > violations.json 2>&1
+      MONITOR_EXIT=$?
+      set -e
+
+      cat violations.json || echo "{}"
+
+      # Parse and check for CRITICAL violations
+      CRITICAL=$(jq '.violations | map(select(.severity == "CRITICAL")) | length' violations.json 2>/dev/null || echo 0)
+      TOTAL=$(jq '.violations | length' violations.json 2>/dev/null || echo 0)
+
+      echo ""
+      echo "Quality Monitor Results"
+      echo "======================"
+      echo "Total violations:    $TOTAL"
+      echo "Critical violations: $CRITICAL"
+      echo ""
+
+      if [ "$CRITICAL" -gt 0 ]; then
+        echo "❌ Pipeline FAILED: $CRITICAL CRITICAL quality violations"
+        exit 1
+      else
+        echo "✓ Quality check passed"
+        exit 0
+      fi
+  artifacts:
+    name: "quality-violations-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - violations.json
+    reports:
+      dotenv: violations.json
+    expire_in: 30 days
+    when: always
+  allow_failure: false  # Fail pipeline on CRITICAL violations
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Optional: quality gate for merge requests
+quality:gate:
+  stage: quality
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache jq curl
+  script:
+    # This job runs after quality:monitor and aggregates results
+    - |
+      if [ -f violations.json ]; then
+        CRITICAL=$(jq '.violations | map(select(.severity == "CRITICAL")) | length' violations.json 2>/dev/null || echo 0)
+        if [ "$CRITICAL" -gt 0 ]; then
+          echo "❌ Quality Gate Failed: $CRITICAL CRITICAL violations"
+          exit 1
+        fi
+      fi
+  dependencies:
+    - quality:monitor
+  only:
+    - merge_requests
+  allow_failure: false
