@@ -2307,7 +2307,7 @@ fn execute_webhook_post(payload: &str, webhook_url: &str) -> anyhow::Result<u16>
 }
 
 /// Async helper to POST the violation JSON to the webhook.
-#[cfg(all(feature = "shell", feature = "tokio"))]
+#[cfg(all(feature = "shell", feature = "tokio", feature = "webhook"))]
 async fn post_webhook_async(payload: &str, webhook_url: &str) -> anyhow::Result<u16> {
     use anyhow::Context;
 
@@ -2336,13 +2336,13 @@ async fn post_webhook_async(payload: &str, webhook_url: &str) -> anyhow::Result<
     Err(anyhow::anyhow!("HTTP {}: server error", status))
 }
 
-/// Stub for when tokio is not available.
-#[cfg(all(feature = "shell", not(feature = "tokio")))]
+/// Stub for when tokio or webhook is not available.
+#[cfg(all(feature = "shell", not(all(feature = "tokio", feature = "webhook"))))]
 async fn post_webhook_async(payload: &str, webhook_url: &str) -> anyhow::Result<u16> {
     // Fallback: use std HTTP (would need a blocking client like reqwest blocking)
     // For now, stub to allow compilation
-    eprintln!("[webhook] note: tokio feature not enabled; webhook POST stubbed");
-    Err(anyhow::anyhow!("tokio feature required for webhook support"))
+    eprintln!("[webhook] note: tokio and/or webhook feature not enabled; webhook POST stubbed");
+    Err(anyhow::anyhow!("tokio and webhook features required for webhook support"))
 }
 
 // ============================================================================

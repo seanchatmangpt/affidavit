@@ -1002,7 +1002,7 @@ fn test_stubs() {
 /// Available only when the `file-watch` feature is enabled.
 #[cfg(feature = "file-watch")]
 pub mod file_watcher {
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::time::Duration;
     use std::sync::mpsc::Receiver;
     use anyhow::Result;
@@ -1052,7 +1052,7 @@ pub mod file_watcher {
             let (tx, rx) = mpsc::channel();
 
             // Create watcher with simple file-change handler
-            let mut watcher = notify::recommended_watcher(move |res| {
+            let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
                 match res {
                     Ok(event) => {
                         // Only report file modifications
