@@ -9,16 +9,16 @@
 //!
 //! # Post-Quantum Sealing Spec (PQ-SEAL-v1)
 //! 1. **Integrity:** The receipt uses a standard BLAKE3 rolling chain hash.
-//! 2. **Authentication (PQC):** The finalized chain hash is signed using 
+//! 2. **Authentication (PQC):** The finalized chain hash is signed using
 //!    ML-DSA (Dilithium), providing quantum-resistant existential unforgeability.
-//! 3. **Confidentiality/Binding (PQC):** An ephemeral secret is encapsulated 
-//!    using ML-KEM (Kyber) and bound to the receipt, allowing for 
+//! 3. **Confidentiality/Binding (PQC):** An ephemeral secret is encapsulated
+//!    using ML-KEM (Kyber) and bound to the receipt, allowing for
 //!    long-term auditability and non-repudiation by the specific issuer.
-//! 4. **Hybrid Binding:** The PqcSeal commits to both the BLAKE3 digest and 
+//! 4. **Hybrid Binding:** The PqcSeal commits to both the BLAKE3 digest and
 //!    the Kyber ciphertext, which are then signed by Dilithium.
 
+use crate::chain::{recompute_chain, ChainAssembler, ChainError};
 use crate::types::{OperationEvent, Receipt};
-use crate::chain::{ChainAssembler, ChainError, recompute_chain};
 use serde::{Deserialize, Serialize};
 
 /// Dilithium (ML-DSA) Signature.
@@ -99,9 +99,9 @@ impl QuantumResistantAssembler {
     /// Finalize the receipt and apply the hybrid PQC seal.
     pub fn finalize(self) -> Result<PqcReceipt, PqcError> {
         let base_receipt = self.inner.finalize();
-        
+
         // 1. Perform Kyber Encapsulation to generate a ciphertext and a shared secret.
-        // The shared secret could be used for further layers, but here we 
+        // The shared secret could be used for further layers, but here we
         // commit to the ciphertext in the seal.
         let (ciphertext, _shared_secret) = mock_kyber_encapsulate(&self.kyber_pk)?;
 
@@ -135,7 +135,9 @@ pub fn verify_pqc_receipt(
     // 1. Verify classical chain integrity
     let recomputed = recompute_chain(&receipt.base.events)?;
     if recomputed != receipt.base.chain_hash {
-        return Err(PqcError::Verification("Classical chain hash mismatch".into()));
+        return Err(PqcError::Verification(
+            "Classical chain hash mismatch".into(),
+        ));
     }
 
     // 2. Re-construct the signed message
@@ -215,7 +217,10 @@ mod tests {
         let d_pk = DilithiumPublicKey(b"mock-pk".to_vec());
         verify_pqc_receipt(&pqc_receipt, &d_pk).expect("PQC verification should pass");
 
-        tracing::info!("Quantum-Resistant Receipt Verified: {}", pqc_receipt.base.chain_hash);
+        tracing::info!(
+            "Quantum-Resistant Receipt Verified: {}",
+            pqc_receipt.base.chain_hash
+        );
     }
 
     #[test]

@@ -1,3 +1,4 @@
+#![cfg(feature = "core")]
 // Reference witness: PowlComposition<Inner, const DEPTH <= MAX_POWL_DEPTH> — the
 // composition-depth ceiling type law (COVERAGE.md §2 — POWL nesting ceiling).
 //

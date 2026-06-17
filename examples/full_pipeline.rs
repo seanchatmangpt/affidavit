@@ -1,3 +1,4 @@
+#![cfg(feature = "lsp")]
 //! Cross-product coherence: the whole provenance pipeline composing every
 //! affidavit module through ONE receipt.
 //!

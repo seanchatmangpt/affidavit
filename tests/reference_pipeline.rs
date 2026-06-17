@@ -1,3 +1,4 @@
+#![cfg(feature = "discovery")]
 // THE WORKED WHOLE (COVERAGE.md §1/§6): the discover-then-conform collapse,
 // witnessed as a real type-gated transition — NOT prose.
 //

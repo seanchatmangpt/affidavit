@@ -1,6 +1,6 @@
 [toolchain]
-# Pinned to the nightly used to format the tree so that CI (dtolnay/rust-toolchain@v1,
-# which reads this file) and local `cargo fmt --all -- --check` always agree.
-# Update this date when intentionally upgrading the formatter.
-channel = "nightly-2026-06-15"
+# Using latest nightly for formatting. This allows CI to use whatever nightly
+# is currently available without pinning to a specific date that may not exist
+# in the CI runner's environment. Local development uses the same (latest nightly).
+channel = "nightly"
 components = ["rustfmt", "clippy"]

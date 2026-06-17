@@ -107,8 +107,11 @@ fn create_receipt(events: &[(&str, &[(&str, &str)])]) -> Receipt {
     let mut counter = SeqCounter::new();
 
     for (ty, objects) in events {
-        let obj_refs = objects.iter().map(|(id, ot)| object_ref(id, ot)).collect();
-        let ev = build_event(ty, obj_refs, ty.as_bytes(), &mut counter).expect("build event");
+        let obj_refs = objects
+            .iter()
+            .map(|(id, ot)| object_ref(*id, *ot))
+            .collect();
+        let ev = build_event(*ty, obj_refs, ty.as_bytes(), &mut counter).expect("build event");
         asm.append(ev).expect("append");
     }
 

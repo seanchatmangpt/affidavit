@@ -78,6 +78,19 @@ pub mod handlers;
 pub mod lsp;
 
 pub mod ocel;
+pub mod quality;
+pub mod quality_correlation;
+pub mod quality_extended;
+pub mod quality_object_level;
+pub mod quality_ocel;
+
+// Software Bill of Materials (SBOM) — supply-chain provenance layer.
+pub mod sbom;
+pub mod sbom_artifacts;
+pub mod sbom_compliance;
+pub mod sbom_ocel;
+pub mod sbom_supply_chain;
+pub mod sbom_vulnerability;
 
 #[cfg(feature = "predictive")]
 pub mod predict_maximalist;

@@ -26,7 +26,11 @@ use std::path::PathBuf;
 /// is read from `payload` (a file path, or `-` for stdin) and its BLAKE3 digest
 /// becomes the commitment — the raw payload is never stored in the receipt.
 /// Returns the new event's details.
-pub fn emit(event_type: &str, objects: &[String], payload: &str) -> Result<crate::types::EmitOutput> {
+pub fn emit(
+    event_type: &str,
+    objects: &[String],
+    payload: &str,
+) -> Result<crate::types::EmitOutput> {
     if event_type.trim().is_empty() {
         bail!("--type must be a non-empty event_type");
     }
@@ -100,7 +104,6 @@ pub fn assemble(out: Option<&str>) -> Result<crate::types::AssembleOutput> {
         event_count,
     })
 }
-
 
 /// Run the certify pipeline over `receipt` and print per-stage outcomes plus
 /// the final verdict. Returns the process exit code (0 ACCEPT, non-zero REJECT).

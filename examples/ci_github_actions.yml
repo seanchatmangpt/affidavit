@@ -1,0 +1,141 @@
+# GitHub Actions workflow for quality monitoring.
+#
+# Installation:
+#   mkdir -p .github/workflows
+#   cp examples/ci_github_actions.yml .github/workflows/quality-monitor.yml
+#
+# This workflow:
+# - Runs on every push to main
+# - Checks code quality with Western Electric rules
+# - Fails the pipeline on CRITICAL violations
+# - Captures violations as job artifacts
+
+name: Quality Monitor
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  quality-monitor:
+    runs-on: ubuntu-latest
+    name: Code Quality Analysis
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for baseline commits
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build affi binary (release)
+        run: cargo build --release --bin affi
+
+      - name: Run quality monitor
+        id: monitor
+        run: |
+          set +e
+          OUTPUT=$(
+            ./target/release/affi receipt monitor \
+              --watch . \
+              --metrics stubs,types,churn,comments,complexity,clippy \
+              --rules all \
+              --baseline-commits 20 \
+              --interval 5 \
+              --output stderr,json \
+              --format json \
+              2>&1
+          )
+          EXIT_CODE=$?
+          set -e
+
+          echo "monitor_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          exit $EXIT_CODE
+
+      - name: Parse violations (JSON)
+        if: always()
+        run: |
+          echo "${{ steps.monitor.outputs.monitor_output }}" | jq . > violations.json || true
+          echo "=== Violations Report ==="
+          cat violations.json || echo "{}"
+
+      - name: Check for CRITICAL violations
+        if: always()
+        run: |
+          CRITICAL=$(cat violations.json | jq '.violations | map(select(.severity == "CRITICAL")) | length' 2>/dev/null || echo 0)
+          TOTAL=$(cat violations.json | jq '.violations | length' 2>/dev/null || echo 0)
+
+          echo "Total violations: $TOTAL"
+          echo "Critical violations: $CRITICAL"
+
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "❌ Pipeline FAILED: $CRITICAL CRITICAL quality violations"
+            exit 1
+          else
+            echo "✓ Quality check passed"
+            exit 0
+          fi
+
+      - name: Upload violations report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: quality-violations
+          path: violations.json
+          retention-days: 30
+
+      - name: Comment on PR with results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const violations = JSON.parse(fs.readFileSync('violations.json', 'utf8'));
+            const count = violations.violations?.length || 0;
+            const critical = violations.violations?.filter(v => v.severity === 'CRITICAL')?.length || 0;
+
+            let comment = '### Quality Monitor Report\n\n';
+            if (count === 0) {
+              comment += '✅ No quality violations detected\n';
+            } else {
+              comment += `⚠️ Found ${count} violations (${critical} CRITICAL)\n\n`;
+              comment += '| Metric | Severity | Description |\n';
+              comment += '|--------|----------|-------------|\n';
+              for (const v of violations.violations || []) {
+                comment += `| ${v.metric} | ${v.severity} | ${v.description} |\n`;
+              }
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

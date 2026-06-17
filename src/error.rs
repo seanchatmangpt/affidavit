@@ -152,7 +152,9 @@ pub enum SloViolation {
         threshold_pct: f64,
     },
     /// Availability fell below the defined threshold.
-    #[error("availability SLO breach: observed {observed_pct:.3}% < threshold {threshold_pct:.3}%")]
+    #[error(
+        "availability SLO breach: observed {observed_pct:.3}% < threshold {threshold_pct:.3}%"
+    )]
     Availability {
         /// Measured availability percentage.
         observed_pct: f64,

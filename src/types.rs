@@ -374,6 +374,152 @@ pub struct StatsOutput {
     pub object_type_histogram: std::collections::BTreeMap<String, usize>,
 }
 
+/// A single quality metric value with descriptive context.
+///
+/// Represents a numeric measurement of a code quality dimension, paired with
+/// a human-readable description explaining what the metric signifies.
+///
+/// # Examples
+///
+/// ```rust
+/// use affidavit::QualityMetricValue;
+/// let metric = QualityMetricValue {
+///     value: 0.92,
+///     description: "Proportion of code covered by tests".to_string(),
+/// };
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityMetricValue {
+    /// The numeric value of this metric.
+    pub value: f64,
+    /// Human-readable description of what this metric measures.
+    pub description: String,
+}
+
+/// A code quality snapshot emitted as an operation-event.
+///
+/// Represents a comprehensive set of quality measurements taken at a particular
+/// point in the receipt chain. Each metric is a `QualityMetricValue` capturing
+/// both the numeric value and its interpretation.
+///
+/// # Examples
+///
+/// ```rust
+/// use affidavit::{QualityMeasurement, QualityMetricValue};
+/// let measurement = QualityMeasurement {
+///     timestamp: 1718641799,
+///     stubs: QualityMetricValue {
+///         value: 5.0,
+///         description: "Number of stub functions".to_string(),
+///     },
+///     types: QualityMetricValue {
+///         value: 0.0,
+///         description: "Number of untyped bindings".to_string(),
+///     },
+///     churn: QualityMetricValue {
+///         value: 0.15,
+///         description: "Code churn ratio".to_string(),
+///     },
+///     comments: QualityMetricValue {
+///         value: 0.85,
+///         description: "Comment coverage ratio".to_string(),
+///     },
+///     complexity: QualityMetricValue {
+///         value: 4.2,
+///         description: "Average cyclomatic complexity".to_string(),
+///     },
+///     clippy_warnings: QualityMetricValue {
+///         value: 3.0,
+///         description: "Number of active Clippy warnings".to_string(),
+///     },
+///     rustfmt_violations: QualityMetricValue {
+///         value: 0.0,
+///         description: "Number of formatting violations".to_string(),
+///     },
+///     cargo_deny_issues: QualityMetricValue {
+///         value: 0.0,
+///         description: "Number of dependency audit issues".to_string(),
+///     },
+///     cargo_audit_vulnerabilities: QualityMetricValue {
+///         value: 0.0,
+///         description: "Number of known vulnerabilities in dependencies".to_string(),
+///     },
+///     test_coverage: QualityMetricValue {
+///         value: 0.92,
+///         description: "Proportion of code covered by tests".to_string(),
+///     },
+///     doc_coverage: QualityMetricValue {
+///         value: 0.88,
+///         description: "Proportion of public items with documentation".to_string(),
+///     },
+/// };
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityMeasurement {
+    /// Unix timestamp (seconds since epoch) when this snapshot was taken.
+    pub timestamp: u64,
+    /// Count and description of stub functions in the codebase.
+    pub stubs: QualityMetricValue,
+    /// Count and description of untyped bindings.
+    pub types: QualityMetricValue,
+    /// Ratio and description of code churn (changed lines / total lines).
+    pub churn: QualityMetricValue,
+    /// Ratio and description of comment coverage.
+    pub comments: QualityMetricValue,
+    /// Average cyclomatic complexity and description.
+    pub complexity: QualityMetricValue,
+    /// Count and description of active Clippy linter warnings.
+    pub clippy_warnings: QualityMetricValue,
+    /// Count and description of code formatting violations.
+    pub rustfmt_violations: QualityMetricValue,
+    /// Count and description of dependency audit issues detected by cargo-deny.
+    pub cargo_deny_issues: QualityMetricValue,
+    /// Count and description of known security vulnerabilities in dependencies.
+    pub cargo_audit_vulnerabilities: QualityMetricValue,
+    /// Ratio and description of test coverage (lines covered / total lines).
+    pub test_coverage: QualityMetricValue,
+    /// Ratio and description of documentation coverage for public items.
+    pub doc_coverage: QualityMetricValue,
+}
+
+/// A violation of Western Electric control chart rules detected in quality metrics.
+///
+/// Records instances where a quality metric violates statistical control rules
+/// (e.g., one or more standard deviations beyond a control limit, or sustained
+/// trends). Used to flag anomalies that may indicate quality degradation.
+///
+/// # Examples
+///
+/// ```rust
+/// use affidavit::QualityViolationEvent;
+/// let violation = QualityViolationEvent {
+///     rule: "Rule 1: beyond 1-sigma".to_string(),
+///     metric: "test_coverage".to_string(),
+///     value: 0.45,
+///     threshold: 0.88,
+///     z_score: 2.1,
+///     severity: "warning".to_string(),
+///     description: "Test coverage dropped below expected control limit".to_string(),
+/// };
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityViolationEvent {
+    /// Name of the Western Electric rule that was violated (e.g., "Rule 1: beyond 1-sigma").
+    pub rule: String,
+    /// Name of the quality metric affected (e.g., "test_coverage", "clippy_warnings").
+    pub metric: String,
+    /// The current numeric value of the metric that triggered the violation.
+    pub value: f64,
+    /// The control threshold that was exceeded.
+    pub threshold: f64,
+    /// The standardized z-score (number of standard deviations from mean).
+    pub z_score: f64,
+    /// Severity level of the violation ("info", "warning", "error").
+    pub severity: String,
+    /// Human-readable description of the violation and its implications.
+    pub description: String,
+}
+
 /// Produce deterministic, sorted-key JSON bytes for any serializable value.
 ///
 /// This is the canonical byte form used for content addressing and hashing:

@@ -7,23 +7,41 @@
 // Save baseline: cargo bench --bench variance -- --save-baseline main
 // Compare: cargo bench --bench variance -- --baseline main
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use affidavit::chain::ChainAssembler;
 use affidavit::discovery::{conformance_metrics, discover_dfg_summary, quality_metrics};
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 const EVENT_COUNTS: &[usize] = &[1, 5, 10, 50, 100];
 
 /// Activity sequences for sequential (predictable) receipts.
-const SEQUENTIAL_ACTIVITIES: &[&str] =
-    &["create", "transform", "validate", "audit", "release",
-      "archive", "review", "approve", "sign", "certify"];
+const SEQUENTIAL_ACTIVITIES: &[&str] = &[
+    "create",
+    "transform",
+    "validate",
+    "audit",
+    "release",
+    "archive",
+    "review",
+    "approve",
+    "sign",
+    "certify",
+];
 
 /// Activity sequences for interleaved (higher-surprise) receipts.
 /// Interleaving events that wouldn't normally co-occur drives higher surprise scores.
-const INTERLEAVED_ACTIVITIES: &[&str] =
-    &["release", "create", "certify", "transform", "archive",
-      "sign", "validate", "approve", "audit", "review"];
+const INTERLEAVED_ACTIVITIES: &[&str] = &[
+    "release",
+    "create",
+    "certify",
+    "transform",
+    "archive",
+    "sign",
+    "validate",
+    "approve",
+    "audit",
+    "review",
+];
 
 fn build_receipt_sequential(n: usize) -> affidavit::types::Receipt {
     let mut asm = ChainAssembler::new();
