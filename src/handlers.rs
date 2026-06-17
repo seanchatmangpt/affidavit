@@ -2293,8 +2293,6 @@ pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webh
 /// `tokio::runtime::Handle::current()` or spawning a runtime if needed.
 #[cfg(feature = "shell")]
 fn execute_webhook_post(payload: &str, webhook_url: &str) -> anyhow::Result<u16> {
-    use anyhow::Context;
-
     // Try to use existing tokio runtime; if not available, create a new one
     let result = if let Ok(handle) = tokio::runtime::Handle::try_current() {
         // Already in a tokio context; block_on the future
@@ -2341,8 +2339,6 @@ async fn post_webhook_async(payload: &str, webhook_url: &str) -> anyhow::Result<
 /// Stub for when tokio is not available.
 #[cfg(all(feature = "shell", not(feature = "tokio")))]
 async fn post_webhook_async(payload: &str, webhook_url: &str) -> anyhow::Result<u16> {
-    use anyhow::Context;
-
     // Fallback: use std HTTP (would need a blocking client like reqwest blocking)
     // For now, stub to allow compilation
     eprintln!("[webhook] note: tokio feature not enabled; webhook POST stubbed");
