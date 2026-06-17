@@ -57,6 +57,8 @@ pub fn bench_variance_on_receipt(path: &str, iterations: u32) -> Result<()> {
             let (_nodes, _edges, _s, _e) = crate::discovery::discover_dfg_summary(&receipt);
             let (_f, _a, _s) = crate::discovery::quality_metrics(&receipt);
         }
+        #[cfg(not(feature = "discovery"))]
+        let _ = &receipt;
     }
     let elapsed = start.elapsed();
 

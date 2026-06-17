@@ -11,7 +11,8 @@ use clap_noun_verb_macros::verb;
 
 /// Append one operation-event to the working receipt
 #[verb("emit", "receipt")]
-pub fn emit(r#type: String, object: Vec<String>, payload: String, format: Option<String>) -> Result<()> {
-    crate::handlers::emit(r#type, object, payload, format)
+pub fn emit(r#type: String, object: String, payload: String, format: Option<String>) -> Result<()> {
+    let objects = object.split(',').map(|s| s.trim().to_string()).collect::<Vec<_>>();
+    crate::handlers::emit(r#type, objects, payload, format)
 }
 

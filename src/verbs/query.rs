@@ -11,6 +11,6 @@ use clap_noun_verb_macros::verb;
 
 /// Query receipts by time range, event type, repo, or SPARQL expression
 #[verb("query", "receipt")]
-pub fn query(query: String, receipts_path: String, format: Option<String>) -> Result<()> {
-    crate::handlers::query(query, receipts_path, format)
+pub fn query(q: String, receipts_path: String, format: Option<String>) -> Result<()> {
+    crate::handlers::query(q, receipts_path, format)
 }

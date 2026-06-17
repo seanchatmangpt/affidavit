@@ -850,19 +850,19 @@ pub fn catalog(filter_name: Option<String>, filter_events: Option<usize>) -> Res
 // ============================================================================
 
 /// `affi receipt query` — query receipts by expression (SPARQL-lite DSL or key=value).
-pub fn query(query: String, receipts_path: String, format: Option<String>) -> Result<()> {
+pub fn query(q: String, receipts_path: String, format: Option<String>) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
     // Parse query: support `type=deploy`, `event_id=evt-0`, or `chain_hash=<hash>`
     let results: Vec<serde_json::Value> = receipts.iter().flat_map(|r| {
         r.events.iter().filter(|e| {
-            if let Some(rest) = query.strip_prefix("type=") {
+            if let Some(rest) = q.strip_prefix("type=") {
                 e.event_type == rest
-            } else if let Some(rest) = query.strip_prefix("event_id=") {
+            } else if let Some(rest) = q.strip_prefix("event_id=") {
                 e.id == rest
             } else {
                 // Substring match on event type
-                e.event_type.contains(query.as_str())
+                e.event_type.contains(q.as_str())
             }
         }).map(|e| serde_json::json!({
             "chain_hash": r.chain_hash,
@@ -877,7 +877,7 @@ pub fn query(query: String, receipts_path: String, format: Option<String>) -> Re
         println!("{}", adapt(serde_json::to_string_pretty(&results).map_err(anyhow::Error::from))?);
         return Ok(());
     }
-    eprintln!("query '{}': {} match(es)", query, results.len());
+    eprintln!("query '{}': {} match(es)", q, results.len());
     for r in &results {
         eprintln!("  [{}] {} {} objects={}", r["seq"], r["event_type"], r["event_id"], r["objects"]);
     }
@@ -890,7 +890,7 @@ pub fn timeline(receipts_path: String, start_time: Option<String>, end_time: Opt
 
     let mut entries: Vec<serde_json::Value> = receipts.iter().flat_map(|r| {
         r.events.iter().map(|e| serde_json::json!({
-            "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+            "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
             "seq": e.seq,
             "event_type": e.event_type,
             "event_id": e.id,
@@ -933,7 +933,7 @@ pub fn causality_chain(start_event: String, receipts_path: String, format: Optio
             }
             if found {
                 chain.push(serde_json::json!({
-                    "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+                    "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
                     "seq": event.seq,
                     "event_type": event.event_type,
                     "event_id": event.id,
@@ -977,7 +977,7 @@ pub fn search(pattern: String, receipts_path: String, format: Option<String>) ->
             );
             if haystack.contains(&pattern) {
                 matches.push(serde_json::json!({
-                    "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+                    "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
                     "seq": event.seq,
                     "event_type": event.event_type,
                     "event_id": event.id,
@@ -1031,7 +1031,7 @@ pub fn find_blast_radius(change_event: String, receipts_path: String, format: Op
                 .collect();
             if !overlap.is_empty() {
                 affected.push(serde_json::json!({
-                    "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+                    "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
                     "event_type": event.event_type,
                     "event_id": event.id,
                     "shared_objects": overlap,
@@ -1267,7 +1267,7 @@ pub fn anomaly_detect(receipts_path: String, sensitivity: Option<String>, format
     let anomalies: Vec<serde_json::Value> = receipts.iter().zip(counts.iter())
         .filter(|(_, &count)| (count - mean).abs() > threshold_multiplier * stddev)
         .map(|(r, &count)| serde_json::json!({
-            "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+            "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
             "event_count": count as usize,
             "mean": mean,
             "deviation": (count - mean).abs() / stddev.max(0.001),
@@ -1355,7 +1355,7 @@ pub fn trend_analysis(receipts_path: String, metric: String, time_range: Option<
                 .filter(|e| e.event_type.contains("incident")).count() as f64,
             _ => r.events.len() as f64,
         };
-        serde_json::json!({"index": i, "receipt": r.chain_hash.chars().take(12).collect::<String>(), "value": value})
+        serde_json::json!({"index": i, "receipt": r.chain_hash.0.chars().take(12).collect::<String>(), "value": value})
     }).collect();
 
     // Compute simple linear trend direction
@@ -1542,7 +1542,7 @@ pub fn license_compliance(receipts_path: String, license_policy: String, format:
         r.events.iter()
             .filter(|e| e.event_type.contains("license"))
             .map(|e| serde_json::json!({
-                "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+                "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
                 "event_type": e.event_type,
                 "event_id": e.id,
             }))
@@ -1584,14 +1584,14 @@ pub fn policy_enforce(receipts_path: String, policy_file: String, format: Option
 
         if approval_count < min_approvals as usize {
             violations.push(serde_json::json!({
-                "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+                "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
                 "violation": "insufficient-approvals",
                 "required": min_approvals, "found": approval_count,
             }));
         }
         if require_security_scan && !has_security_scan {
             violations.push(serde_json::json!({
-                "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+                "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
                 "violation": "missing-security-scan",
             }));
         }
@@ -1684,7 +1684,7 @@ pub fn dependency_matrix(receipts_path: String, output_matrix: Option<String>, f
     // Build object → receipt(s) mapping
     let mut object_map: HashMap<String, Vec<String>> = HashMap::new();
     for r in &receipts {
-        let receipt_id: String = r.chain_hash.chars().take(12).collect();
+        let receipt_id: String = r.chain_hash.0.chars().take(12).collect();
         for event in &r.events {
             for obj in &event.objects {
                 let obj_key = format!("{}:{}", obj.id, obj.obj_type);
@@ -1727,7 +1727,7 @@ pub fn bus_factor(receipts_path: String, format: Option<String>) -> Result<()> {
     // Group receipts by their unique object types (as proxy for "domain owner")
     let mut type_owners: HashMap<String, Vec<String>> = HashMap::new();
     for r in &receipts {
-        let receipt_id: String = r.chain_hash.chars().take(12).collect();
+        let receipt_id: String = r.chain_hash.0.chars().take(12).collect();
         let obj_types: std::collections::HashSet<String> = r.events.iter()
             .flat_map(|e| &e.objects)
             .map(|o| o.obj_type.clone())
@@ -1779,7 +1779,7 @@ pub fn orphaned_code(receipts_path: String, days: Option<u32>, format: Option<St
             !has_deploy || r.events.len() <= 1
         })
         .map(|r| serde_json::json!({
-            "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+            "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
             "events": r.events.len(),
             "event_types": r.events.iter().map(|e| &e.event_type).collect::<std::collections::HashSet<_>>()
                 .into_iter().collect::<Vec<_>>(),
@@ -1824,7 +1824,7 @@ pub fn explain_incident(incident_desc: String, receipts_path: String, format: Op
                     || e.objects.iter().any(|o| o.id.contains(kw) || o.obj_type.contains(kw))
             })
         }).map(|e| serde_json::json!({
-            "receipt": r.chain_hash.chars().take(16).collect::<String>(),
+            "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
             "seq": e.seq,
             "event_type": e.event_type,
             "event_id": e.id,
@@ -1875,7 +1875,7 @@ pub fn root_cause(effect_event: String, receipts_path: String, format: Option<St
         for event in &r.events {
             if event.id == effect_event || event.event_type == effect_event {
                 effect_seq = Some(event.seq);
-                effect_receipt_hash = Some(r.chain_hash.clone());
+                effect_receipt_hash = Some(r.chain_hash.0.clone());
                 break 'outer;
             }
         }
@@ -1888,7 +1888,7 @@ pub fn root_cause(effect_event: String, receipts_path: String, format: Option<St
 
     // Collect all events preceding the effect (potential causes)
     let preceding: Vec<serde_json::Value> = receipts.iter()
-        .filter(|r| effect_receipt_hash.as_deref().map(|h| r.chain_hash == h).unwrap_or(true))
+        .filter(|r| effect_receipt_hash.as_deref().map(|h| r.chain_hash.0 == h).unwrap_or(true))
         .flat_map(|r| {
             r.events.iter()
                 .filter(|e| e.seq < target_seq)
