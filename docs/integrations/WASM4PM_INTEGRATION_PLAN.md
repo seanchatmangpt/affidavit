@@ -455,11 +455,11 @@ Start with (1); Phase 2.2 can upgrade to (2).
 
 ## References
 
-- **Affidavit Phase 1:** `/Users/sac/affidavit/STATUS.md` (complete; emit/assemble/verify/show)
-- **wasm4pm-compat:** `/Users/sac/wasm4pm-compat/src/lib.rs` (structure-only, nightly)
-- **wasm4pm:** `/Users/sac/wasm4pm/wasm4pm/src/` (discovery, conformance, predictive engines)
-- **Chicago TDD:** `/Users/sac/.claude/rules/process-mining-chicago-tdd.md` (process law doctrine)
-- **Current tests:** `/Users/sac/affidavit/tests/*.rs` (41 passing; Phase 1 complete)
+- **Affidavit Phase 1:** `~/affidavit/STATUS.md` (complete; emit/assemble/verify/show)
+- **wasm4pm-compat:** `~/wasm4pm-compat/src/lib.rs` (structure-only, nightly)
+- **wasm4pm:** `~/wasm4pm/wasm4pm/src/` (discovery, conformance, predictive engines)
+- **Chicago TDD:** `~/.claude/rules/process-mining-chicago-tdd.md` (process law doctrine)
+- **Current tests:** `~/affidavit/tests/*.rs` (41 passing; Phase 1 complete)
 
 ---
 

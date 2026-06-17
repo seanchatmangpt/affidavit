@@ -155,7 +155,7 @@
 
 ## File Locations
 
-All planning documents are in `/Users/sac/affidavit/`:
+All planning documents are in `~/affidavit/`:
 
 ```
 WASM4PM_QUICK_REFERENCE.md              (11 KB) — one-pager

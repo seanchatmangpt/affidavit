@@ -431,7 +431,7 @@ Diagnostic {
   "method": "initialize",
   "params": {
     "clientInfo": { "name": "vscode", ... },
-    "rootUri": "file:///Users/sac/affidavit",
+    "rootUri": "file://~/affidavit",
     "capabilities": { ... }
   }
 }

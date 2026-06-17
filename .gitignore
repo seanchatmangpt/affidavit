@@ -21,4 +21,39 @@ debug/
 
 # OS / editor cruft
 .DS_Store
+.DS_Store?
 *.swp
+*.swo
+Thumbs.db
+
+# Environment / secrets — never commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets.json
+secrets.toml
+credentials.json
+
+# Editor / IDE
+.idea/
+.vscode/settings.json
+*.iml
+.vs/
+
+# Test / profiling artifacts
+*.profraw
+*.profdata
+flamegraph.svg
+perf.data
+perf.data.old
+criterion/
+
+# Thesis / generated output (not source)
+thesis/bibliography.bib
+thesis/chapters/*.tex
