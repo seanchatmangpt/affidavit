@@ -1,3 +1,4 @@
+#![cfg(feature = "discovery")]
 // Reference witness: wasm4pm EventLog::get_activities on a receipt-derived log —
 // the activity-set extraction the discovery engine runs (COVERAGE.md §2 —
 // activity extraction on the Shape-B log).

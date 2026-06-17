@@ -1,3 +1,4 @@
+#![cfg(feature = "lsp")]
 //! Capability: verdict -> editor diagnostics (the lsp-max integration).
 //!
 //! End-to-end witness, not a smoke test: a structurally forged receipt (seq

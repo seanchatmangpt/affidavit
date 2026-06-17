@@ -63,8 +63,8 @@ fn parse_verbs(ontology: &str) -> anyhow::Result<BTreeMap<String, Verb>> {
                 let mut args = Vec::new();
 
                 // Extract arguments from cnv:hasArguments
-                if let Some(args_section) = extract_arguments(&lines, i) {
-                    args = parse_arguments(&lines, &args_section, &ontology);
+                if let Some(args_section) = extract_arguments(&lines, i, ontology) {
+                    args = parse_arguments(&lines, &args_section, ontology);
                 }
 
                 verbs.insert(

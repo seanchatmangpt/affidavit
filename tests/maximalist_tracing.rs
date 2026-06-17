@@ -1,3 +1,4 @@
+#![cfg(feature = "otel")]
 //! COMBINATORIAL MAXIMALISM: Features 4.1/4.3 (Tracing/Baggage)
 //!
 //! Full OTel tracer instrumentation across the 7-stage verifier,

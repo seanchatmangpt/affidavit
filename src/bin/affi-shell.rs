@@ -259,7 +259,7 @@ mod shell_impl {
                             ));
                         }
                         tokio::task::spawn_blocking(move || {
-                            handlers::emit(None, payload, objects, r#type)
+                            handlers::emit(r#type, objects, payload, None)
                         })
                         .await?
                         .map_err(|e| anyhow!("{}", e))?;
@@ -276,7 +276,7 @@ mod shell_impl {
                         }
                         let receipt = args[2].clone();
                         tokio::task::spawn_blocking(move || {
-                            handlers::verify(None, None, None, receipt)
+                            handlers::verify(receipt, None, None, None)
                         })
                         .await?
                         .map_err(|e| anyhow!("{}", e))?;
@@ -286,7 +286,7 @@ mod shell_impl {
                             return Err(anyhow!("Usage: receipt show <receipt>"));
                         }
                         let receipt = args[2].clone();
-                        tokio::task::spawn_blocking(move || handlers::show(None, receipt))
+                        tokio::task::spawn_blocking(move || handlers::show(receipt, None))
                             .await?
                             .map_err(|e| anyhow!("{}", e))?;
                     }
@@ -295,7 +295,7 @@ mod shell_impl {
                             return Err(anyhow!("Usage: receipt inspect <receipt>"));
                         }
                         let receipt = args[2].clone();
-                        tokio::task::spawn_blocking(move || handlers::inspect(None, receipt))
+                        tokio::task::spawn_blocking(move || handlers::inspect(receipt, None))
                             .await?
                             .map_err(|e| anyhow!("{}", e))?;
                     }
@@ -304,7 +304,7 @@ mod shell_impl {
                             return Err(anyhow!("Usage: receipt stats <receipt>"));
                         }
                         let receipt = args[2].clone();
-                        tokio::task::spawn_blocking(move || handlers::stats(None, receipt))
+                        tokio::task::spawn_blocking(move || handlers::stats(receipt, None))
                             .await?
                             .map_err(|e| anyhow!("{}", e))?;
                     }
@@ -313,7 +313,7 @@ mod shell_impl {
                             return Err(anyhow!("Usage: receipt graph <receipt>"));
                         }
                         let receipt = args[2].clone();
-                        tokio::task::spawn_blocking(move || handlers::graph(None, receipt))
+                        tokio::task::spawn_blocking(move || handlers::graph(receipt, None))
                             .await?
                             .map_err(|e| anyhow!("{}", e))?;
                     }

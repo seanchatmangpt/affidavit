@@ -79,6 +79,10 @@ pub mod lsp;
 
 pub mod ocel;
 pub mod quality;
+pub mod quality_extended;
+pub mod quality_correlation;
+pub mod quality_ocel;
+pub mod quality_object_level;
 
 #[cfg(feature = "predictive")]
 pub mod predict_maximalist;

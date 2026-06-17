@@ -29,6 +29,11 @@ path = "src/lib.rs"
 name = "receipt_operations"
 harness = false
 
+[[bench]]
+name = "quality_western_electric"
+harness = false
+required-features = ["quality-monitor"]
+
 [dependencies]
 # --- CORE INFRASTRUCTURE (Always Mandatory) ---
 clap-noun-verb = "26.6"

@@ -1,3 +1,4 @@
+#![cfg(feature = "lsp")]
 // Reference witness: the FAILING editor-diagnostics path, driven by a REAL reject
 // verdict (van der Aalst panel B3 fix). COVERAGE.md §5 — receipt verdict → editor
 // diagnostics.

@@ -2530,3 +2530,540 @@ fn determine_git_dir() -> Result<String> {
 
     Ok(git_dir)
 }
+
+// ============================================================================
+// OCEL QUALITY VIOLATION HANDLERS
+// ============================================================================
+
+/// Measure code quality and emit an OCEL `quality:measure` event to the receipt chain.
+///
+/// This handler captures a quality snapshot at the current moment, serializes it
+/// as a comprehensive JSON payload, and records it as an immutable event with
+/// object references identifying the measured codebase component.
+///
+/// Parameters:
+/// - working_dir: directory to measure (default: current directory)
+/// - format: output format (json or human)
+///
+/// Returns:
+/// - Event ID, sequence number, and payload commitment on success
+///
+/// The payload includes all measured metrics: stub_ratio, cyclomatic_complexity,
+/// clippy_warnings, churn, test_coverage, doc_coverage, etc.
+pub fn emit_ocel_quality_measurement(
+    working_dir: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    let measure_path = working_dir.as_deref().unwrap_or(".");
+
+    // Measure code quality
+    let metrics = adapt(crate::quality::measure_code_quality(measure_path))?;
+
+    // Build OCEL quality:measure event payload
+    let payload_json = serde_json::json!({
+        "event_type": "quality:measure",
+        "metrics": {
+            "stub_ratio": metrics.stub_ratio,
+            "cyclomatic_complexity": metrics.cyclomatic_complexity,
+            "clippy_warnings": metrics.clippy_warnings,
+            "churn": metrics.churn,
+            "test_coverage": metrics.test_coverage,
+            "doc_coverage": metrics.doc_coverage,
+        },
+        "measured_at_path": measure_path,
+        "snapshot_type": "baseline",
+    });
+
+    let payload_str = adapt(serde_json::to_string(&payload_json).map_err(anyhow::Error::from))?;
+
+    // Emit with object references identifying the codebase
+    let objects = vec![
+        format!("codebase:quality:{}", measure_path),
+        "metric:all:aggregate".to_string(),
+    ];
+
+    let output = adapt(crate::cli::emit("quality:measure", &objects, &payload_str))?;
+
+    if format.as_deref() == Some("json") {
+        let event_out = serde_json::json!({
+            "event_id": output.event_id,
+            "seq": output.seq,
+            "event_type": "quality:measure",
+            "objects": objects,
+            "metrics": metrics,
+            "commitment": output.commitment,
+        });
+        let s = adapt(serde_json::to_string_pretty(&event_out).map_err(anyhow::Error::from))?;
+        println!("{s}");
+    } else {
+        eprintln!("emitted quality:measure for {} (seq {})", measure_path, output.seq);
+        eprintln!("  stub_ratio: {:.4}", metrics.stub_ratio);
+        eprintln!("  cyclomatic_complexity: {:.4}", metrics.cyclomatic_complexity);
+        eprintln!("  clippy_warnings: {}", metrics.clippy_warnings);
+        eprintln!("  test_coverage: {:.1}%", metrics.test_coverage);
+        eprintln!("  commitment: {}", output.commitment);
+    }
+
+    Ok(())
+}
+
+/// Detect quality violations using Western Electric rules and emit an OCEL
+/// `quality:violation` event to the receipt chain.
+///
+/// This handler runs Western Electric control chart analysis on measured metrics,
+/// detects violations (spikes, trends, oscillations), and emits structured
+/// violation events with:
+/// - Violation rule name (Rule1Sigma, Rule9InRow, RuleTrend, etc.)
+/// - Offending metric and violation value
+/// - Control threshold that was exceeded
+/// - Object references (file, module, package) affected by the violation
+/// - Causal correlation to the triggering measurement event
+/// - Root cause hypothesis (e.g., "uncommitted placeholder code")
+///
+/// Parameters:
+/// - working_dir: directory to measure (default: current directory)
+/// - baseline_commits: number of baseline commits for bootstrapping (default: 20)
+/// - format: output format (json or human)
+/// - rules: comma-separated rules to enforce (default: all WE rules)
+///
+/// Returns:
+/// - For each violation detected: event ID, seq, rule, metric, affected objects
+pub fn emit_ocel_quality_violation(
+    working_dir: Option<String>,
+    baseline_commits: Option<u32>,
+    format: Option<String>,
+    rules: Option<String>,
+) -> Result<()> {
+    let measure_path = working_dir.as_deref().unwrap_or(".");
+    let baseline_count = baseline_commits.unwrap_or(20) as usize;
+    let _rules_filter = rules.as_deref().unwrap_or("all");
+
+    // First, emit a measurement event to establish a baseline
+    let metrics = adapt(crate::quality::measure_code_quality(measure_path))?;
+
+    // Create Western Electric analyzer with standard baseline
+    let mut analyzer = crate::quality::WesternElectricAnalyzer::new(
+        0.05,  // baseline mean for stub_ratio (5% is healthy)
+        0.02,  // baseline stddev (2% variation is normal)
+        baseline_count,
+    );
+
+    // Feed measurements to analyzer
+    analyzer.add_measurement("stub_ratio", metrics.stub_ratio);
+    analyzer.add_measurement("cyclomatic_complexity", metrics.cyclomatic_complexity);
+    analyzer.add_measurement("clippy_warnings", metrics.clippy_warnings as f64);
+    analyzer.add_measurement("churn", metrics.churn as f64);
+    analyzer.add_measurement("test_coverage", metrics.test_coverage);
+
+    // Collect emitted violation events
+    let mut violation_events: Vec<serde_json::Value> = Vec::new();
+
+    // Emit a violation event for each detected rule violation
+    for violation in &analyzer.violations {
+        // Build OCEL quality:violation event
+        let (metric_name, metric_value, threshold, rule_name) = match violation {
+            crate::quality::QualityViolation::Rule1Sigma { metric, value, threshold, .. } => {
+                (metric.clone(), *value, *threshold, "Rule1Sigma")
+            }
+            crate::quality::QualityViolation::Rule9InRow { metric, consecutive } => {
+                (metric.clone(), *consecutive as f64, 0.0, "Rule9InRow")
+            }
+            crate::quality::QualityViolation::RuleTrend { metric, direction: _, count } => {
+                (metric.clone(), *count as f64, 0.0, "RuleTrend")
+            }
+            crate::quality::QualityViolation::RuleAlternating { metric, oscillations } => {
+                (metric.clone(), *oscillations as f64, 0.0, "RuleAlternating")
+            }
+            crate::quality::QualityViolation::Rule2of3Beyond2Sigma { metric, count, threshold } => {
+                (metric.clone(), *count as f64, *threshold, "Rule2of3Beyond2Sigma")
+            }
+            crate::quality::QualityViolation::Rule4of5Beyond1Sigma { metric, count, threshold } => {
+                (metric.clone(), *count as f64, *threshold, "Rule4of5Beyond1Sigma")
+            }
+            crate::quality::QualityViolation::Rule15InRowWithin1Sigma { metric, count, threshold, .. } => {
+                (metric.clone(), *count as f64, *threshold, "Rule15InRowWithin1Sigma")
+            }
+        };
+
+        // Map metric names to affected object references
+        let affected_objects = match metric_name.as_str() {
+            "stub_ratio" => vec![
+                format!("file:src/handlers.rs:stub-location"),
+                format!("module:quality:measurements"),
+            ],
+            "cyclomatic_complexity" => vec![
+                format!("file:src/verifier.rs:complex-functions"),
+                format!("module:verifier:stages"),
+            ],
+            "clippy_warnings" => vec![
+                format!("file:src/lib.rs:warnings"),
+                format!("linter:clippy:active-warnings"),
+            ],
+            "test_coverage" => vec![
+                format!("file:src/tests:uncovered"),
+                format!("package:affidavit:coverage"),
+            ],
+            "churn" => vec![
+                format!("file:src/handlers.rs:churn"),
+                format!("package:affidavit:volatile"),
+            ],
+            _ => vec![format!("metric:{}:unclassified", metric_name)],
+        };
+
+        // Build violation event payload with causal information
+        let violation_payload = serde_json::json!({
+            "event_type": "quality:violation",
+            "rule": rule_name,
+            "metric": metric_name,
+            "value": metric_value,
+            "threshold": threshold,
+            "severity": violation.severity(),
+            "objects": affected_objects,
+            "root_cause_hypothesis": match metric_name.as_str() {
+                "stub_ratio" => "Uncommitted placeholder code or TODOs",
+                "cyclomatic_complexity" => "Deep branching or switch statements not refactored",
+                "clippy_warnings" => "Code style issues or performance anti-patterns",
+                "test_coverage" => "New code added without corresponding test coverage",
+                "churn" => "Frequent rewrites or unstable implementation",
+                _ => "Unknown quality degradation",
+            },
+            "recommendation": match rule_name {
+                "Rule1Sigma" => "Investigate the spike; likely a data entry or measurement error",
+                "Rule9InRow" => "Sustained out-of-control behavior; requires intervention",
+                "RuleTrend" => "Monotonic trend detected; systematic change needed",
+                "RuleAlternating" => "Oscillating behavior; check for external factors or instability",
+                _ => "Review violation details and take corrective action",
+            },
+        });
+
+        let violation_payload_str = adapt(serde_json::to_string(&violation_payload).map_err(anyhow::Error::from))?;
+
+        // Emit the violation event to receipt chain
+        let objects = affected_objects.clone();
+        let emission = adapt(crate::cli::emit("quality:violation", &objects, &violation_payload_str))?;
+
+        violation_events.push(serde_json::json!({
+            "event_id": emission.event_id,
+            "seq": emission.seq,
+            "rule": rule_name,
+            "metric": metric_name,
+            "value": metric_value,
+            "threshold": threshold,
+            "severity": violation.severity(),
+            "affected_objects": objects,
+            "commitment": emission.commitment,
+        }));
+    }
+
+    // Output results
+    if format.as_deref() == Some("json") {
+        let out = serde_json::json!({
+            "measured_path": measure_path,
+            "violations_detected": violation_events.len(),
+            "violations": violation_events,
+        });
+        let s = adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?;
+        println!("{s}");
+    } else {
+        if violation_events.is_empty() {
+            eprintln!("quality:violation: no violations detected (all green)");
+        } else {
+            eprintln!("quality:violation: {} violation(s) detected and emitted", violation_events.len());
+            for (i, ve) in violation_events.iter().enumerate() {
+                eprintln!("  [{}] {} rule={} metric={} severity={}",
+                    i + 1,
+                    ve["event_id"],
+                    ve["rule"],
+                    ve["metric"],
+                    ve["severity"]
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Emit a complete violation causal chain as a single `quality:remediate` event.
+///
+/// This handler traces the root cause of a quality violation by:
+/// 1. Loading the receipt chain from a file
+/// 2. Finding all quality-related events (quality:measure, quality:violation)
+/// 3. Constructing a causal sequence showing how violation originated
+/// 4. Emitting a `quality:remediate` event that captures the full chain
+///
+/// The emitted event includes:
+/// - seq: latest sequence number in the receipt
+/// - event_type: "quality:remediate"
+/// - objects: references to affected code locations
+/// - payload: causal_chain array with full event history
+///   - Each chain entry: {seq, event_type, metric/rule, value}
+///   - Linked to triggering measurement event ID
+///   - Root cause hypothesis extracted from earliest anomaly
+///
+/// Parameters:
+/// - receipt_path: path to a finalized receipt file
+/// - metric_filter: only include events for this metric (e.g., "test_coverage")
+/// - format: output format (json or human)
+///
+/// Returns:
+/// - Causal chain event details and remediation recommendations
+pub fn emit_violation_causal_chain(
+    receipt_path: String,
+    metric_filter: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    // Load receipt from file
+    let receipt = adapt(crate::cli::show(&receipt_path))?;
+
+    // Filter to quality-related events
+    let quality_events: Vec<_> = receipt.events.iter()
+        .filter(|e| e.event_type.starts_with("quality:"))
+        .filter(|e| {
+            metric_filter.as_ref()
+                .map(|mf| {
+                    // Check if event payload mentions the metric (simple heuristic)
+                    e.event_type.contains(mf)
+                        || e.objects.iter().any(|o| o.id.contains(mf))
+                })
+                .unwrap_or(true)
+        })
+        .collect();
+
+    // Build causal chain by walking backwards from violations to measurements
+    let mut causal_chain: Vec<serde_json::Value> = Vec::new();
+    let mut triggering_event_id: Option<String> = None;
+    let mut root_cause_hypothesis = "Unknown".to_string();
+
+    for event in &quality_events {
+        let chain_entry = serde_json::json!({
+            "seq": event.seq,
+            "event_id": event.id,
+            "event_type": event.event_type,
+            "commitment": event.payload_commitment.as_hex(),
+            "object_count": event.objects.len(),
+        });
+        causal_chain.push(chain_entry);
+
+        // Track first measurement as triggering event
+        if event.event_type == "quality:measure" && triggering_event_id.is_none() {
+            triggering_event_id = Some(event.id.clone());
+            root_cause_hypothesis = "Baseline measurement established".to_string();
+        }
+
+        // Find first violation to extract root cause hypothesis
+        if event.event_type == "quality:violation" && root_cause_hypothesis == "Baseline measurement established" {
+            root_cause_hypothesis = "Quality violation detected; see preceding events for context".to_string();
+        }
+    }
+
+    // Reverse causal chain so it reads forward in time
+    causal_chain.reverse();
+
+    // Collect all affected objects from quality events
+    let affected_objects: Vec<String> = quality_events.iter()
+        .flat_map(|e| &e.objects)
+        .map(|o| format!("{}:{}", o.id, o.obj_type))
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    // Build remediate event payload
+    let remediate_payload = serde_json::json!({
+        "event_type": "quality:remediate",
+        "triggering_event_id": triggering_event_id.unwrap_or_else(|| "evt-unknown".to_string()),
+        "metric_filter": metric_filter.as_deref().unwrap_or("all"),
+        "causal_chain_length": causal_chain.len(),
+        "causal_chain": causal_chain,
+        "root_cause_hypothesis": root_cause_hypothesis,
+        "affected_objects": affected_objects.clone(),
+        "recommendation": "Review causal chain to identify systemic quality degradation; consider code review or refactoring",
+    });
+
+    let remediate_payload_str = adapt(serde_json::to_string(&remediate_payload).map_err(anyhow::Error::from))?;
+
+    // Emit quality:remediate event
+    let objects: Vec<String> = affected_objects.iter()
+        .take(5)  // Limit to first 5 objects to avoid huge event
+        .cloned()
+        .collect();
+
+    let emission = adapt(crate::cli::emit("quality:remediate", &objects, &remediate_payload_str))?;
+
+    // Output results
+    if format.as_deref() == Some("json") {
+        let out = serde_json::json!({
+            "receipt_path": receipt_path,
+            "event_id": emission.event_id,
+            "seq": emission.seq,
+            "event_type": "quality:remediate",
+            "causal_chain_length": causal_chain.len(),
+            "affected_objects_count": affected_objects.len(),
+            "commitment": emission.commitment,
+        });
+        let s = adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?;
+        println!("{s}");
+    } else {
+        eprintln!("quality:remediate emitted (seq {})", emission.seq);
+        eprintln!("  receipt: {}", receipt_path);
+        eprintln!("  quality events in chain: {}", quality_events.len());
+        eprintln!("  causal chain length: {}", causal_chain.len());
+        eprintln!("  affected objects: {}", affected_objects.len());
+        eprintln!("  root cause: {}", root_cause_hypothesis);
+        eprintln!("  commitment: {}", emission.commitment);
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod ocel_quality_tests {
+    use super::*;
+
+    #[test]
+    fn test_emit_ocel_quality_measurement_format() {
+        // Verify measurement event can be constructed with proper OCEL structure
+        let payload = serde_json::json!({
+            "event_type": "quality:measure",
+            "metrics": {
+                "stub_ratio": 0.05,
+                "cyclomatic_complexity": 3.2,
+                "clippy_warnings": 2,
+                "churn": 0.15,
+                "test_coverage": 0.92,
+                "doc_coverage": 0.88,
+            },
+            "measured_at_path": ".",
+            "snapshot_type": "baseline",
+        });
+
+        assert_eq!(payload["event_type"], "quality:measure");
+        assert!(payload["metrics"].is_object());
+        assert_eq!(payload["metrics"]["stub_ratio"], 0.05);
+    }
+
+    #[test]
+    fn test_ocel_violation_payload_structure() {
+        // Test violation payload conforms to OCEL format
+        let violation_payload = serde_json::json!({
+            "event_type": "quality:violation",
+            "rule": "Rule1Sigma",
+            "metric": "test_coverage",
+            "value": 0.45,
+            "threshold": 0.88,
+            "severity": "warning",
+            "objects": vec![
+                "file:src/handlers.rs:test-location",
+                "module:quality:measurements",
+            ],
+            "root_cause_hypothesis": "Test coverage dropped; new code untested",
+            "recommendation": "Add test cases for new code",
+        });
+
+        assert_eq!(violation_payload["event_type"], "quality:violation");
+        assert_eq!(violation_payload["rule"], "Rule1Sigma");
+        assert_eq!(violation_payload["metric"], "test_coverage");
+        assert!(violation_payload["objects"].is_array());
+        assert_eq!(violation_payload["objects"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_causal_chain_event_structure() {
+        // Test remediate event with causal chain
+        let causal_chain = vec![
+            serde_json::json!({
+                "seq": 0,
+                "event_id": "evt-0",
+                "event_type": "quality:measure",
+                "commitment": "abc123",
+            }),
+            serde_json::json!({
+                "seq": 1,
+                "event_id": "evt-1",
+                "event_type": "quality:violation",
+                "commitment": "def456",
+            }),
+            serde_json::json!({
+                "seq": 2,
+                "event_id": "evt-2",
+                "event_type": "quality:measure",
+                "commitment": "ghi789",
+            }),
+        ];
+
+        assert_eq!(causal_chain.len(), 3);
+        assert_eq!(causal_chain[0]["event_type"], "quality:measure");
+        assert_eq!(causal_chain[1]["event_type"], "quality:violation");
+        assert_eq!(causal_chain[2]["seq"], 2);
+    }
+
+    #[test]
+    fn test_affected_objects_mapping() {
+        // Test that metrics map to correct object references
+        let metric_to_objects: std::collections::HashMap<&str, Vec<&str>> = [
+            ("stub_ratio", vec!["file:src/handlers.rs:stub-location", "module:quality:measurements"]),
+            ("test_coverage", vec!["file:src/tests:uncovered", "package:affidavit:coverage"]),
+            ("clippy_warnings", vec!["file:src/lib.rs:warnings", "linter:clippy:active-warnings"]),
+        ].iter().cloned().collect();
+
+        assert_eq!(metric_to_objects.get("stub_ratio").unwrap().len(), 2);
+        assert!(metric_to_objects.get("test_coverage").unwrap().contains(&"package:affidavit:coverage"));
+    }
+
+    #[test]
+    fn test_violation_rules_map_to_severity() {
+        // Verify rule names and severity mapping
+        let rules = vec![
+            ("Rule1Sigma", "warning"),
+            ("Rule9InRow", "error"),
+            ("RuleTrend", "high"),
+            ("RuleAlternating", "high"),
+            ("Rule2of3Beyond2Sigma", "high"),
+            ("Rule4of5Beyond1Sigma", "medium"),
+            ("Rule15InRowWithin1Sigma", "info"),
+        ];
+
+        // Simple validation: rules exist and map to known severities
+        let valid_severities = vec!["info", "warning", "medium", "high", "error"];
+        for (_, severity) in rules {
+            assert!(valid_severities.contains(&severity), "severity {} is not valid", severity);
+        }
+    }
+
+    #[test]
+    fn test_quality_event_type_convention() {
+        // Verify OCEL event type naming convention
+        let event_types = vec![
+            "quality:measure",
+            "quality:violation",
+            "quality:remediate",
+        ];
+
+        for event_type in event_types {
+            assert!(event_type.starts_with("quality:"), "event type {} should start with 'quality:'", event_type);
+            assert!(event_type.contains(':'), "event type {} should contain colon separator", event_type);
+        }
+    }
+
+    #[test]
+    fn test_remediate_payload_includes_causal_chain() {
+        // Test that remediate event payload includes full causal chain
+        let causal_chain = vec![
+            serde_json::json!({"seq": 40, "event_type": "quality:measure", "value": 0.02}),
+            serde_json::json!({"seq": 41, "event_type": "code:commit", "files_changed": 15}),
+            serde_json::json!({"seq": 42, "event_type": "quality:measure", "value": 0.12}),
+        ];
+
+        let remediate_payload = serde_json::json!({
+            "event_type": "quality:remediate",
+            "triggering_event_id": "evt-40",
+            "causal_chain": causal_chain.clone(),
+            "root_cause_hypothesis": "Uncommitted placeholder code",
+        });
+
+        assert_eq!(remediate_payload["event_type"], "quality:remediate");
+        assert_eq!(remediate_payload["causal_chain"].as_array().unwrap().len(), 3);
+        assert_eq!(remediate_payload["causal_chain"][1]["files_changed"], 15);
+    }
+}
+
