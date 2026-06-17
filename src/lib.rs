@@ -86,6 +86,7 @@ pub mod quality_ocel;
 
 // Software Bill of Materials (SBOM) — supply-chain provenance layer.
 pub mod sbom;
+pub mod sbom_artifacts;
 pub mod sbom_compliance;
 pub mod sbom_ocel;
 pub mod sbom_supply_chain;
