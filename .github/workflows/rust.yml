@@ -49,25 +49,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install stable Rust (base)
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install nightly toolchain (rustfmt)
-        # Explicit toolchain pin matches rust-toolchain.toml so CI and local always
-        # use the same formatter binary (not whatever @nightly happens to be at run time).
-        run: rustup toolchain install nightly-2026-06-15 --component rustfmt
-
-      - name: Verify toolchain installation
+      - name: Install nightly for rustfmt
         run: |
-          rustc +nightly-2026-06-15 --version
-          cargo +nightly-2026-06-15 fmt --version
+          rustup install nightly
+          rustup component add rustfmt --toolchain nightly
 
-      - name: cargo fmt --all -- --check
-        run: cargo +nightly-2026-06-15 fmt --all -- --check
+      - name: Run rustfmt check
+        run: cargo +nightly fmt --all -- --check
 
   # ---------------------------------------------------------------------------
   # NON-BLOCKING (continue-on-error): requires the sibling PATH crates that are
