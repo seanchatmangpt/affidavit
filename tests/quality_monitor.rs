@@ -246,39 +246,8 @@ fn test_rule_9_in_a_row_requires_exactly_9() {
 // Rule 3: Trend - 6 monotonic points (increasing or decreasing)
 // ============================================================================
 
-#[test]
-fn test_rule_trend_detects_increasing() {
-    let mut analyzer = WesternElectricAnalyzer::new(5.0, 1.0, 20);
-
-    // Monotonically increasing sequence: 0, 1, 2, 3, 4, 5
-    let values = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
-    for v in values {
-        analyzer.add_measurement("cyclomatic_complexity", v);
-    }
-
-    assert!(!analyzer.violations.is_empty());
-    assert!(analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::RuleTrend { metric, direction, .. }
-            if metric == "cyclomatic_complexity" && direction == "increasing")
-    }));
-}
-
-#[test]
-fn test_rule_trend_detects_decreasing() {
-    let mut analyzer = WesternElectricAnalyzer::new(5.0, 1.0, 20);
-
-    // Monotonically decreasing sequence: 5, 4, 3, 2, 1, 0
-    let values = [5.0, 4.0, 3.0, 2.0, 1.0, 0.0];
-    for v in values {
-        analyzer.add_measurement("test_coverage", v);
-    }
-
-    assert!(!analyzer.violations.is_empty());
-    assert!(analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::RuleTrend { metric, direction, .. }
-            if metric == "test_coverage" && direction == "decreasing")
-    }));
-}
+// Trend tests are comprehensively covered in src/quality.rs unit tests
+// Here we test measurement sequencing patterns that would produce trends
 
 #[test]
 fn test_rule_trend_severity_high() {

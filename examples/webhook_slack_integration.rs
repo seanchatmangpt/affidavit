@@ -153,7 +153,10 @@ fn format_slack_message(violation: &serde_json::Value) -> serde_json::Value {
                 "text": description,
                 "fields": fields,
                 "footer": "affidavit quality monitor",
-                "ts": chrono::Utc::now().timestamp(),
+                "ts": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0),
             }
         ]
     })
@@ -193,7 +196,10 @@ fn format_violations_batch(violations: &[serde_json::Value]) -> serde_json::Valu
                 "title": format!("[{}] {}", severity, rule),
                 "text": v.get("description").and_then(|d| d.as_str()).unwrap_or(""),
                 "footer": "affidavit",
-                "ts": chrono::Utc::now().timestamp(),
+                "ts": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0),
             })
         })
         .collect();
