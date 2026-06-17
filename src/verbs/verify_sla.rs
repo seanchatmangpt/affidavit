@@ -11,6 +11,7 @@ use clap_noun_verb_macros::verb;
 
 /// Verify receipt meets SLA/SLO targets (e.g., 4h MTTR, 2-person approval)
 #[verb("verify-sla", "receipt")]
-pub fn verify_sla() -> Result<()> {
-    crate::handlers::verify_sla()
+pub fn verify_sla(receipt: String, sla_file: String, format: Option<String>) -> Result<()> {
+    crate::handlers::verify_sla(receipt, sla_file, format)
 }
+
