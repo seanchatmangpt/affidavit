@@ -1,0 +1,28 @@
+{
+  "vulnerabilities": [
+    {
+      "id": "CVE-2023-0464",
+      "description": "OpenSSL X.509 policy constraints denial of service.",
+      "cvss": { "base_score": 7.5, "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H" },
+      "affected_purls": ["pkg:cargo/openssl@0.10.55"],
+      "affected_cpes": ["cpe:2.3:a:openssl:openssl:0.10.55:*:*:*:*:*:*:*"],
+      "fixed_versions": ["0.10.57"]
+    },
+    {
+      "id": "RUSTSEC-2024-0001",
+      "description": "Hypothetical advisory affecting the log facade.",
+      "cvss": { "base_score": 4.3, "vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N" },
+      "affected_purls": ["pkg:cargo/log@0.4.20"],
+      "affected_cpes": [],
+      "fixed_versions": ["0.4.21"]
+    }
+  ],
+  "vex": [
+    {
+      "vuln_id": "RUSTSEC-2024-0001",
+      "component_bom_ref": "pkg:cargo/log@0.4.20",
+      "status": "NotAffected",
+      "justification": "vulnerable_code_not_in_execute_path"
+    }
+  ]
+}

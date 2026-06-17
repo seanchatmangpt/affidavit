@@ -104,7 +104,15 @@ affi:ReceiptNoun a cnv:Noun ;
         # Testing & diagnosis
         affi:TestVerb ,
         affi:ExplainIncidentVerb ,
-        affi:RootCauseVerb ;
+        affi:RootCauseVerb ,
+
+        # SBOM & supply-chain provenance (Fortune-5 solution architecture)
+        affi:EmitFromSbomVerb ,
+        affi:SbomNtiaVerb ,
+        affi:SbomComplianceVerb ,
+        affi:SbomScanVerb ,
+        affi:SbomBlastRadiusVerb ,
+        affi:SbomAttestVerb ;
     rdfs:comment "Receipt noun (maximalist): emit, assemble, verify, query, analyze, audit, and govern 300+ repos"@en .
 
 # --- Shared Arguments ---
@@ -1042,3 +1050,89 @@ affi:AuditVerb a cnv:Verb ;
     cnv:verbAbout "Run the Autonomous Governance Agent over the workspace" ;
     cnv:belongsToNoun affi:GovernanceNoun ;
     cnv:returnType "()" .
+
+
+# ============================================================================
+# SBOM & SUPPLY-CHAIN CLUSTER (Fortune-5 solution architecture requirement)
+# Verbs that ingest, certify, and analyze Software Bills of Materials.
+# Wrappers delegate to crate::handlers::sbom_*; the heavy lifting lives in
+# src/sbom*.rs (canonical model, OCEL, compliance, vulnerability, supply chain).
+# ============================================================================
+
+# --- Verb: emit-from-sbom ---------------------------------------------------
+affi:EmitFromSbomVerb a cnv:Verb ;
+    cnv:hasVerbName "emit-from-sbom" ;
+    cnv:verbAbout "Ingest an SPDX/CycloneDX SBOM and emit OCEL component/dependency events" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SbomPathArg , affi:FormatArg .
+
+affi:SbomPathArg a cnv:Argument ;
+    cnv:hasArgumentName "sbom-path" ;
+    cnv:argumentAbout "Path to an SPDX 2.3 or CycloneDX 1.5/1.6 JSON document" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+# --- Verb: sbom-ntia --------------------------------------------------------
+affi:SbomNtiaVerb a cnv:Verb ;
+    cnv:hasVerbName "sbom-ntia" ;
+    cnv:verbAbout "Certify an SBOM against the NTIA minimum elements (EO 14028)" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SbomPathArg , affi:FormatArg .
+
+# --- Verb: sbom-compliance --------------------------------------------------
+affi:SbomComplianceVerb a cnv:Verb ;
+    cnv:hasVerbName "sbom-compliance" ;
+    cnv:verbAbout "Assess an SBOM against NTIA/EO14028/SLSA/in-toto/CISA/C-SCRM frameworks" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SbomPathArg , affi:FrameworkArg , affi:FormatArg .
+
+affi:FrameworkArg a cnv:Argument ;
+    cnv:hasArgumentName "framework" ;
+    cnv:argumentAbout "Compliance framework or 'all' (ntia|eo14028|slsa|in-toto|cisa|cscrm|iso27001|soc2|vex|all)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+# --- Verb: sbom-scan --------------------------------------------------------
+affi:SbomScanVerb a cnv:Verb ;
+    cnv:hasVerbName "sbom-scan" ;
+    cnv:verbAbout "Correlate vulnerabilities/VEX against SBOM components and propagate risk" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SbomPathArg , affi:AdvisoriesPathArg , affi:FormatArg .
+
+affi:AdvisoriesPathArg a cnv:Argument ;
+    cnv:hasArgumentName "advisories-path" ;
+    cnv:argumentAbout "Path to a JSON file of vulnerabilities and optional VEX statements" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+# --- Verb: sbom-blast-radius ------------------------------------------------
+affi:SbomBlastRadiusVerb a cnv:Verb ;
+    cnv:hasVerbName "sbom-blast-radius" ;
+    cnv:verbAbout "Compute the supply-chain blast radius of a component (transitive dependents)" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SbomPathArg , affi:ComponentArg , affi:FormatArg .
+
+affi:ComponentArg a cnv:Argument ;
+    cnv:hasArgumentName "component" ;
+    cnv:argumentAbout "The bom-ref of the component to analyze" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+# --- Verb: sbom-attest ------------------------------------------------------
+affi:SbomAttestVerb a cnv:Verb ;
+    cnv:hasVerbName "sbom-attest" ;
+    cnv:verbAbout "Emit a SLSA-flavored provenance attestation linking SBOM address to receipt" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SbomPathArg , affi:AttestReceiptArg , affi:FormatArg .
+
+affi:AttestReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Optional receipt reference to bind the attestation to" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .

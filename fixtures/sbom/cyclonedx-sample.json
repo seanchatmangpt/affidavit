@@ -1,0 +1,77 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2024-03-10T12:00:00Z",
+    "authors": [{ "name": "Acme Build Bot" }],
+    "tools": [{ "vendor": "acme", "name": "cdxgen", "version": "10.1.0" }],
+    "component": {
+      "bom-ref": "pkg:cargo/affidavit@26.6.14",
+      "type": "application",
+      "name": "affidavit",
+      "version": "26.6.14",
+      "supplier": { "name": "Acme Corp" }
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:cargo/serde@1.0.197",
+      "type": "library",
+      "name": "serde",
+      "version": "1.0.197",
+      "purl": "pkg:cargo/serde@1.0.197",
+      "supplier": { "name": "serde-rs" },
+      "licenses": [{ "expression": "MIT OR Apache-2.0" }],
+      "hashes": [{ "alg": "SHA-256", "content": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2" }]
+    },
+    {
+      "bom-ref": "pkg:cargo/serde_json@1.0.114",
+      "type": "library",
+      "name": "serde_json",
+      "version": "1.0.114",
+      "purl": "pkg:cargo/serde_json@1.0.114",
+      "supplier": { "name": "serde-rs" },
+      "licenses": [{ "expression": "MIT OR Apache-2.0" }],
+      "hashes": [{ "alg": "SHA-256", "content": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3" }]
+    },
+    {
+      "bom-ref": "pkg:cargo/blake3@1.5.0",
+      "type": "library",
+      "name": "blake3",
+      "version": "1.5.0",
+      "purl": "pkg:cargo/blake3@1.5.0",
+      "supplier": { "name": "BLAKE3-team" },
+      "licenses": [{ "license": { "id": "CC0-1.0" } }],
+      "hashes": [{ "alg": "SHA-256", "content": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4" }]
+    },
+    {
+      "bom-ref": "pkg:cargo/log@0.4.20",
+      "type": "library",
+      "name": "log",
+      "version": "0.4.20",
+      "purl": "pkg:cargo/log@0.4.20",
+      "supplier": { "name": "rust-lang" },
+      "licenses": [{ "license": { "id": "MIT" } }],
+      "hashes": [{ "alg": "SHA-256", "content": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5" }]
+    },
+    {
+      "bom-ref": "pkg:cargo/openssl@0.10.55",
+      "type": "library",
+      "name": "openssl",
+      "version": "0.10.55",
+      "purl": "pkg:cargo/openssl@0.10.55",
+      "cpe": "cpe:2.3:a:openssl:openssl:0.10.55:*:*:*:*:*:*:*",
+      "supplier": { "name": "sfackler" },
+      "licenses": [{ "license": { "id": "Apache-2.0" } }],
+      "hashes": [{ "alg": "SHA-256", "content": "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6" }]
+    }
+  ],
+  "dependencies": [
+    { "ref": "pkg:cargo/affidavit@26.6.14", "dependsOn": ["pkg:cargo/serde@1.0.197", "pkg:cargo/blake3@1.5.0", "pkg:cargo/openssl@0.10.55"] },
+    { "ref": "pkg:cargo/serde_json@1.0.114", "dependsOn": ["pkg:cargo/serde@1.0.197"] },
+    { "ref": "pkg:cargo/serde@1.0.197", "dependsOn": ["pkg:cargo/log@0.4.20"] },
+    { "ref": "pkg:cargo/openssl@0.10.55", "dependsOn": ["pkg:cargo/log@0.4.20"] }
+  ]
+}
