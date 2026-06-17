@@ -1,0 +1,642 @@
+{
+  "portfolio": {
+    "owner": "seanchatmangpt",
+    "timestamp": 1718655600,
+    "total_repos": 312,
+    "monitoring_period_days": 90,
+    "repositories": [
+      {
+        "name": "affidavit",
+        "language": "rust",
+        "quality_history": [
+          {
+            "timestamp": 1718000000,
+            "stub_ratio": 0.02,
+            "type_coverage": 0.98,
+            "churn": 245,
+            "comment_ratio": 0.25,
+            "cyclomatic_complexity": 2.8,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 92.5,
+            "doc_coverage": 0.88,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1718086400,
+            "stub_ratio": 0.018,
+            "type_coverage": 0.987,
+            "churn": 312,
+            "comment_ratio": 0.26,
+            "cyclomatic_complexity": 2.9,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 93.2,
+            "doc_coverage": 0.89,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1718172800,
+            "stub_ratio": 0.12,
+            "type_coverage": 0.62,
+            "churn": 1847,
+            "comment_ratio": 0.15,
+            "cyclomatic_complexity": 6.2,
+            "clippy_warnings": 8,
+            "rustfmt_violations": 14,
+            "test_coverage": 58.3,
+            "doc_coverage": 0.42,
+            "violations": [
+              {
+                "rule": "Rule1Sigma",
+                "metric": "stub_ratio",
+                "value": 0.12,
+                "baseline_mean": 0.02,
+                "baseline_stddev": 0.01,
+                "z_score": 10.0,
+                "severity": "CRITICAL",
+                "description": "Stub ratio spike: 6x increase over baseline"
+              },
+              {
+                "rule": "Rule1Sigma",
+                "metric": "type_coverage",
+                "value": 0.62,
+                "baseline_mean": 0.985,
+                "baseline_stddev": 0.005,
+                "z_score": -65.0,
+                "severity": "CRITICAL",
+                "description": "Type coverage collapse: hallucination detected"
+              }
+            ],
+            "verdict": "REJECT"
+          }
+        ],
+        "status": "anomaly_detected",
+        "recommendation": "Audit recent commits for placeholder code and incomplete implementations"
+      },
+      {
+        "name": "chicago-tdd-tools",
+        "language": "rust",
+        "quality_history": [
+          {
+            "timestamp": 1718000000,
+            "stub_ratio": 0.05,
+            "type_coverage": 0.92,
+            "churn": 156,
+            "comment_ratio": 0.18,
+            "cyclomatic_complexity": 3.5,
+            "clippy_warnings": 2,
+            "rustfmt_violations": 0,
+            "test_coverage": 85.0,
+            "doc_coverage": 0.75,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1718086400,
+            "stub_ratio": 0.048,
+            "type_coverage": 0.924,
+            "churn": 189,
+            "comment_ratio": 0.19,
+            "cyclomatic_complexity": 3.6,
+            "clippy_warnings": 1,
+            "rustfmt_violations": 0,
+            "test_coverage": 86.2,
+            "doc_coverage": 0.76,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1718172800,
+            "stub_ratio": 0.051,
+            "type_coverage": 0.918,
+            "churn": 201,
+            "comment_ratio": 0.20,
+            "cyclomatic_complexity": 3.7,
+            "clippy_warnings": 2,
+            "rustfmt_violations": 0,
+            "test_coverage": 87.1,
+            "doc_coverage": 0.77,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1718259200,
+            "stub_ratio": 0.049,
+            "type_coverage": 0.921,
+            "churn": 178,
+            "comment_ratio": 0.21,
+            "cyclomatic_complexity": 3.5,
+            "clippy_warnings": 1,
+            "rustfmt_violations": 0,
+            "test_coverage": 88.0,
+            "doc_coverage": 0.78,
+            "verdict": "ACCEPT"
+          }
+        ],
+        "status": "healthy",
+        "baseline": {
+          "stub_ratio_mean": 0.0505,
+          "stub_ratio_stddev": 0.0015,
+          "type_coverage_mean": 0.9208,
+          "type_coverage_stddev": 0.003,
+          "test_coverage_mean": 86.575,
+          "test_coverage_stddev": 1.2
+        }
+      },
+      {
+        "name": "zombie-repo-abandoned",
+        "language": "python",
+        "quality_history": [
+          {
+            "timestamp": 1717500000,
+            "stub_ratio": 0.35,
+            "type_coverage": 0.45,
+            "churn": 0,
+            "comment_ratio": 0.05,
+            "cyclomatic_complexity": 8.2,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 12.0,
+            "doc_coverage": 0.08,
+            "verdict": "REJECT",
+            "note": "No commits in 30 days"
+          },
+          {
+            "timestamp": 1717586400,
+            "stub_ratio": 0.35,
+            "type_coverage": 0.45,
+            "churn": 0,
+            "comment_ratio": 0.05,
+            "cyclomatic_complexity": 8.2,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 12.0,
+            "doc_coverage": 0.08,
+            "verdict": "REJECT"
+          },
+          {
+            "timestamp": 1717672800,
+            "stub_ratio": 0.35,
+            "type_coverage": 0.45,
+            "churn": 0,
+            "comment_ratio": 0.05,
+            "cyclomatic_complexity": 8.2,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 12.0,
+            "doc_coverage": 0.08,
+            "verdict": "REJECT"
+          },
+          {
+            "timestamp": 1717759200,
+            "stub_ratio": 0.35,
+            "type_coverage": 0.45,
+            "churn": 0,
+            "comment_ratio": 0.05,
+            "cyclomatic_complexity": 8.2,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 12.0,
+            "doc_coverage": 0.08,
+            "verdict": "REJECT"
+          },
+          {
+            "timestamp": 1717845600,
+            "stub_ratio": 0.35,
+            "type_coverage": 0.45,
+            "churn": 0,
+            "comment_ratio": 0.05,
+            "cyclomatic_complexity": 8.2,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 12.0,
+            "doc_coverage": 0.08,
+            "verdict": "REJECT"
+          },
+          {
+            "timestamp": 1717932000,
+            "stub_ratio": 0.35,
+            "type_coverage": 0.45,
+            "churn": 0,
+            "comment_ratio": 0.05,
+            "cyclomatic_complexity": 8.2,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 12.0,
+            "doc_coverage": 0.08,
+            "verdict": "REJECT"
+          },
+          {
+            "timestamp": 1718018400,
+            "stub_ratio": 0.35,
+            "type_coverage": 0.45,
+            "churn": 0,
+            "comment_ratio": 0.05,
+            "cyclomatic_complexity": 8.2,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 12.0,
+            "doc_coverage": 0.08,
+            "verdict": "REJECT"
+          },
+          {
+            "timestamp": 1718104800,
+            "stub_ratio": 0.35,
+            "type_coverage": 0.45,
+            "churn": 0,
+            "comment_ratio": 0.05,
+            "cyclomatic_complexity": 8.2,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 12.0,
+            "doc_coverage": 0.08,
+            "verdict": "REJECT"
+          },
+          {
+            "timestamp": 1718191200,
+            "stub_ratio": 0.35,
+            "type_coverage": 0.45,
+            "churn": 0,
+            "comment_ratio": 0.05,
+            "cyclomatic_complexity": 8.2,
+            "clippy_warnings": 0,
+            "rustfmt_violations": 0,
+            "test_coverage": 12.0,
+            "doc_coverage": 0.08,
+            "verdict": "REJECT"
+          }
+        ],
+        "status": "zombie_code",
+        "violations": [
+          {
+            "rule": "Rule9InRow",
+            "metric": "verdict",
+            "consecutive": 9,
+            "severity": "CRITICAL",
+            "description": "9 consecutive REJECT verdicts—repo is stale or broken"
+          }
+        ],
+        "recommendation": "Archive or delete. No meaningful development in 90 days."
+      },
+      {
+        "name": "thrashing-repo-unstable",
+        "language": "go",
+        "quality_history": [
+          {
+            "timestamp": 1717932000,
+            "stub_ratio": 0.02,
+            "type_coverage": 0.96,
+            "churn": 100,
+            "comment_ratio": 0.20,
+            "cyclomatic_complexity": 2.5,
+            "clippy_warnings": 0,
+            "test_coverage": 88.0,
+            "doc_coverage": 0.82,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1718018400,
+            "stub_ratio": 0.08,
+            "type_coverage": 0.72,
+            "churn": 450,
+            "comment_ratio": 0.30,
+            "cyclomatic_complexity": 5.8,
+            "clippy_warnings": 5,
+            "test_coverage": 62.0,
+            "doc_coverage": 0.55,
+            "verdict": "REJECT"
+          },
+          {
+            "timestamp": 1718104800,
+            "stub_ratio": 0.03,
+            "type_coverage": 0.95,
+            "churn": 420,
+            "comment_ratio": 0.19,
+            "cyclomatic_complexity": 2.6,
+            "clippy_warnings": 1,
+            "test_coverage": 89.0,
+            "doc_coverage": 0.83,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1718191200,
+            "stub_ratio": 0.07,
+            "type_coverage": 0.68,
+            "churn": 480,
+            "comment_ratio": 0.32,
+            "cyclomatic_complexity": 6.1,
+            "clippy_warnings": 6,
+            "test_coverage": 61.0,
+            "doc_coverage": 0.54,
+            "verdict": "REJECT"
+          },
+          {
+            "timestamp": 1718277600,
+            "stub_ratio": 0.02,
+            "type_coverage": 0.97,
+            "churn": 410,
+            "comment_ratio": 0.18,
+            "cyclomatic_complexity": 2.4,
+            "clippy_warnings": 0,
+            "test_coverage": 90.0,
+            "doc_coverage": 0.84,
+            "verdict": "ACCEPT"
+          }
+        ],
+        "status": "thrashing",
+        "violations": [
+          {
+            "rule": "RuleAlternating",
+            "metric": "verdict",
+            "oscillations": 5,
+            "severity": "HIGH",
+            "description": "5 alternations between ACCEPT/REJECT—uncertain/unstable implementation"
+          },
+          {
+            "rule": "RuleAlternating",
+            "metric": "stub_ratio",
+            "oscillations": 4,
+            "severity": "HIGH",
+            "description": "Stub ratio wildly swinging: 0.02 → 0.08 → 0.03 → 0.07 → 0.02"
+          }
+        ],
+        "recommendation": "Code review required. Pattern suggests rework loop or architecture instability."
+      },
+      {
+        "name": "degrading-quality",
+        "language": "typescript",
+        "quality_history": [
+          {
+            "timestamp": 1717500000,
+            "stub_ratio": 0.01,
+            "type_coverage": 0.99,
+            "churn": 120,
+            "comment_ratio": 0.22,
+            "cyclomatic_complexity": 2.2,
+            "clippy_warnings": 0,
+            "test_coverage": 95.0,
+            "doc_coverage": 0.91,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1717586400,
+            "stub_ratio": 0.012,
+            "type_coverage": 0.988,
+            "churn": 145,
+            "comment_ratio": 0.21,
+            "cyclomatic_complexity": 2.3,
+            "clippy_warnings": 0,
+            "test_coverage": 94.2,
+            "doc_coverage": 0.90,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1717672800,
+            "stub_ratio": 0.018,
+            "type_coverage": 0.978,
+            "churn": 167,
+            "comment_ratio": 0.20,
+            "cyclomatic_complexity": 2.5,
+            "clippy_warnings": 1,
+            "test_coverage": 93.1,
+            "doc_coverage": 0.88,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1717759200,
+            "stub_ratio": 0.025,
+            "type_coverage": 0.965,
+            "churn": 189,
+            "comment_ratio": 0.19,
+            "cyclomatic_complexity": 2.8,
+            "clippy_warnings": 2,
+            "test_coverage": 91.8,
+            "doc_coverage": 0.86,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1717845600,
+            "stub_ratio": 0.035,
+            "type_coverage": 0.950,
+            "churn": 203,
+            "comment_ratio": 0.18,
+            "cyclomatic_complexity": 3.2,
+            "clippy_warnings": 3,
+            "test_coverage": 90.2,
+            "doc_coverage": 0.84,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1717932000,
+            "stub_ratio": 0.048,
+            "type_coverage": 0.932,
+            "churn": 228,
+            "comment_ratio": 0.17,
+            "cyclomatic_complexity": 3.7,
+            "clippy_warnings": 5,
+            "test_coverage": 88.5,
+            "doc_coverage": 0.81,
+            "verdict": "ACCEPT"
+          }
+        ],
+        "status": "degrading",
+        "violations": [
+          {
+            "rule": "RuleTrend",
+            "metric": "stub_ratio",
+            "direction": "increasing",
+            "count": 6,
+            "severity": "HIGH",
+            "description": "6-point monotonic increase in stub ratio: systematic degradation"
+          },
+          {
+            "rule": "RuleTrend",
+            "metric": "type_coverage",
+            "direction": "decreasing",
+            "count": 6,
+            "severity": "HIGH",
+            "description": "6-point monotonic decrease in type coverage"
+          }
+        ],
+        "recommendation": "Schedule refactoring sprint. Quality declining linearly—intervention needed before critical threshold."
+      },
+      {
+        "name": "early-warning-plateau",
+        "language": "rust",
+        "quality_history": [
+          {
+            "timestamp": 1717500000,
+            "stub_ratio": 0.082,
+            "type_coverage": 0.92,
+            "churn": 234,
+            "comment_ratio": 0.20,
+            "cyclomatic_complexity": 3.8,
+            "clippy_warnings": 2,
+            "test_coverage": 82.0,
+            "doc_coverage": 0.80,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1717586400,
+            "stub_ratio": 0.081,
+            "type_coverage": 0.921,
+            "churn": 245,
+            "comment_ratio": 0.21,
+            "cyclomatic_complexity": 3.9,
+            "clippy_warnings": 2,
+            "test_coverage": 82.2,
+            "doc_coverage": 0.81,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1717672800,
+            "stub_ratio": 0.083,
+            "type_coverage": 0.919,
+            "churn": 251,
+            "comment_ratio": 0.20,
+            "cyclomatic_complexity": 3.8,
+            "clippy_warnings": 3,
+            "test_coverage": 81.9,
+            "doc_coverage": 0.80,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1717759200,
+            "stub_ratio": 0.084,
+            "type_coverage": 0.918,
+            "churn": 256,
+            "comment_ratio": 0.19,
+            "cyclomatic_complexity": 3.9,
+            "clippy_warnings": 2,
+            "test_coverage": 81.8,
+            "doc_coverage": 0.80,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1717845600,
+            "stub_ratio": 0.082,
+            "type_coverage": 0.920,
+            "churn": 248,
+            "comment_ratio": 0.20,
+            "cyclomatic_complexity": 3.8,
+            "clippy_warnings": 3,
+            "test_coverage": 82.1,
+            "doc_coverage": 0.81,
+            "verdict": "ACCEPT"
+          }
+        ],
+        "status": "early_warning",
+        "violations": [
+          {
+            "rule": "Rule15InRowWithin1Sigma",
+            "metric": "stub_ratio",
+            "count": 5,
+            "threshold": 0.0823,
+            "severity": "INFO",
+            "description": "5 consecutive measurements within 1σ (plateau)—stagnation detected"
+          }
+        ],
+        "baseline": {
+          "stub_ratio_mean": 0.0820,
+          "stub_ratio_stddev": 0.0012
+        },
+        "recommendation": "Not urgent, but monitor. Code quality is not improving—consider optimization."
+      },
+      {
+        "name": "high-velocity-safe",
+        "language": "go",
+        "quality_history": [
+          {
+            "timestamp": 1718000000,
+            "stub_ratio": 0.015,
+            "type_coverage": 0.97,
+            "churn": 567,
+            "comment_ratio": 0.25,
+            "cyclomatic_complexity": 2.9,
+            "clippy_warnings": 1,
+            "test_coverage": 91.0,
+            "doc_coverage": 0.85,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1718086400,
+            "stub_ratio": 0.013,
+            "type_coverage": 0.972,
+            "churn": 612,
+            "comment_ratio": 0.26,
+            "cyclomatic_complexity": 3.0,
+            "clippy_warnings": 1,
+            "test_coverage": 91.8,
+            "doc_coverage": 0.86,
+            "verdict": "ACCEPT"
+          },
+          {
+            "timestamp": 1718172800,
+            "stub_ratio": 0.016,
+            "type_coverage": 0.968,
+            "churn": 645,
+            "comment_ratio": 0.24,
+            "cyclomatic_complexity": 3.1,
+            "clippy_warnings": 2,
+            "test_coverage": 92.1,
+            "doc_coverage": 0.87,
+            "verdict": "ACCEPT"
+          }
+        ],
+        "status": "healthy_highvelocity",
+        "recommendation": "Exemplar project. High velocity maintained with consistent quality. Safe to scale."
+      }
+    ],
+    "portfolio_summary": {
+      "healthy_repos": 287,
+      "warning_repos": 18,
+      "critical_repos": 7,
+      "aggregate_metrics": {
+        "mean_stub_ratio": 0.032,
+        "mean_type_coverage": 0.91,
+        "mean_test_coverage": 82.5,
+        "mean_doc_coverage": 0.79,
+        "repos_below_acceptable_quality": 12
+      },
+      "western_electric_violations_by_type": {
+        "Rule1Sigma": 14,
+        "Rule9InRow": 3,
+        "RuleTrend": 8,
+        "RuleAlternating": 4,
+        "Rule2of3Beyond2Sigma": 6,
+        "Rule4of5Beyond1Sigma": 9,
+        "Rule15InRowWithin1Sigma": 2
+      },
+      "action_items": [
+        {
+          "severity": "CRITICAL",
+          "repo": "affidavit",
+          "issue": "Stub ratio and type coverage spike—likely hallucination",
+          "action": "Audit commits for placeholder code; run code review"
+        },
+        {
+          "severity": "CRITICAL",
+          "repo": "zombie-repo-abandoned",
+          "issue": "9-in-a-row REJECT verdicts",
+          "action": "Archive or revitalize"
+        },
+        {
+          "severity": "HIGH",
+          "repo": "thrashing-repo-unstable",
+          "issue": "Alternating ACCEPT/REJECT pattern",
+          "action": "Architecture review; stabilize implementation"
+        },
+        {
+          "severity": "HIGH",
+          "repo": "degrading-quality",
+          "issue": "6-point monotonic degradation in stub ratio and type coverage",
+          "action": "Schedule refactoring; prevent further decay"
+        },
+        {
+          "severity": "MEDIUM",
+          "repo": "early-warning-plateau",
+          "issue": "Quality plateau at marginal threshold",
+          "action": "Monitor; consider optimization"
+        }
+      ]
+    }
+  }
+}
