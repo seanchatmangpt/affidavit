@@ -4,13 +4,13 @@
 // Thin verb wrapper auto-generated. The pack is authoritative for the CLI
 // *interface* only; the body delegates to a stable consumer-implemented handler.
 
-//! `receipt model` verb (auto-generated).
+//! `receipt verify-sla` verb (auto-generated).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-/// Discover a process model from a receipt's events (wasm4pm)
-#[verb("model", "receipt")]
-pub fn model(receipt: String) -> Result<()> {
-    crate::handlers::model(receipt)
+/// Verify receipt meets SLA/SLO targets (e.g., 4h MTTR, 2-person approval)
+#[verb("verify-sla", "receipt")]
+pub fn verify_sla() -> Result<()> {
+    crate::handlers::verify_sla()
 }

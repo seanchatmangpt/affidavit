@@ -4,13 +4,13 @@
 // Thin verb wrapper auto-generated. The pack is authoritative for the CLI
 // *interface* only; the body delegates to a stable consumer-implemented handler.
 
-//! `receipt model` verb (auto-generated).
+//! `receipt search` verb (auto-generated).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
-/// Discover a process model from a receipt's events (wasm4pm)
-#[verb("model", "receipt")]
-pub fn model(receipt: String) -> Result<()> {
-    crate::handlers::model(receipt)
+/// Full-text search over receipt payloads (grep-like)
+#[verb("search", "receipt")]
+pub fn search(pattern: String, receipts_path: String, format: Option<String>) -> Result<()> {
+    crate::handlers::search(pattern, receipts_path, format)
 }
