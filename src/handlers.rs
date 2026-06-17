@@ -3582,6 +3582,277 @@ pub fn emit_violation_causal_chain(
     Ok(())
 }
 
+// ============================================================================
+// SBOM & SUPPLY-CHAIN CLUSTER
+//
+// Six verbs that ingest, certify, and analyze Software Bills of Materials,
+// delegating to the canonical model in `crate::sbom` and the OCEL / compliance
+// / vulnerability / supply-chain modules built on top of it. Analysis verbs are
+// pure read→compute→print; `sbom-emit` and `sbom-attest` additionally append
+// real OCEL events to the working receipt chain.
+// ============================================================================
+
+/// Read and parse an SBOM file (SPDX or CycloneDX, auto-detected).
+fn load_sbom(sbom_path: &str) -> Result<crate::sbom::Sbom> {
+    let raw = std::fs::read_to_string(sbom_path).map_err(io_err)?;
+    crate::sbom::parse_sbom_json(&raw)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("sbom parse: {e}"))))
+}
+
+/// Append one event to the working receipt, staging the payload through a temp
+/// file (the canonical `crate::cli::emit` reads its payload from a path).
+fn emit_with_payload(
+    event_type: &str,
+    objects: &[String],
+    payload_bytes: &[u8],
+) -> Result<crate::types::EmitOutput> {
+    let digest = crate::types::Blake3Hash::from_bytes(payload_bytes).0;
+    let path = std::env::temp_dir().join(format!("affi-sbom-{digest}.payload"));
+    std::fs::write(&path, payload_bytes).map_err(io_err)?;
+    let result = crate::cli::emit(event_type, objects, path.to_str().unwrap_or("-"));
+    let _ = std::fs::remove_file(&path);
+    adapt(result)
+}
+
+/// Render an event's object refs as the canonical `id:type[:qualifier]` strings.
+fn object_strings(objects: &[crate::types::ObjectRef]) -> Vec<String> {
+    objects
+        .iter()
+        .map(|o| match &o.qualifier {
+            Some(q) => format!("{}:{}:{}", o.id, o.obj_type, q),
+            None => format!("{}:{}", o.id, o.obj_type),
+        })
+        .collect()
+}
+
+/// `affi receipt emit-from-sbom` — ingest an SBOM and append OCEL events.
+pub fn sbom_emit(sbom_path: String, format: Option<String>) -> Result<()> {
+    let sbom = load_sbom(&sbom_path)?;
+    let mut counter = crate::ocel::SeqCounter::new();
+    let events = crate::sbom_ocel::sbom_to_ocel_events(&sbom, &mut counter)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("sbom ocel: {e}"))))?;
+
+    let mut emitted = Vec::new();
+    for ev in &events {
+        let objects = object_strings(&ev.event.objects);
+        let payload = serde_json::to_vec(&ev.payload).unwrap_or_default();
+        let out = emit_with_payload(&ev.sbom_event_type, &objects, &payload)?;
+        emitted.push(out.seq);
+    }
+
+    if format.as_deref() == Some("json") {
+        let summary = serde_json::json!({
+            "sbom_path": sbom_path,
+            "format": sbom.format.tag(),
+            "components": sbom.components.len(),
+            "dependencies": sbom.dependencies.len(),
+            "events_emitted": emitted.len(),
+            "content_address": sbom.content_address().0,
+            "seqs": emitted,
+        });
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&summary).map_err(anyhow::Error::from))?
+        );
+        return Ok(());
+    }
+    println!(
+        "emit-from-sbom: {} components, {} deps -> {} OCEL events appended ({})",
+        sbom.components.len(),
+        sbom.dependencies.len(),
+        emitted.len(),
+        sbom.format.tag()
+    );
+    Ok(())
+}
+
+/// `affi receipt sbom-ntia` — certify NTIA minimum elements (EO 14028).
+pub fn sbom_ntia(sbom_path: String, format: Option<String>) -> Result<()> {
+    let sbom = load_sbom(&sbom_path)?;
+    let ntia = sbom.ntia_minimum_elements();
+    if format.as_deref() == Some("json") {
+        let out = serde_json::json!({
+            "sbom_path": sbom_path,
+            "conformant": ntia.is_conformant(),
+            "missing": ntia.missing(),
+            "elements": ntia,
+        });
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
+        return Ok(());
+    }
+    if ntia.is_conformant() {
+        println!("sbom-ntia: CONFORMANT — all 7 NTIA minimum elements present");
+    } else {
+        println!(
+            "sbom-ntia: NON-CONFORMANT — missing: {}",
+            ntia.missing().join(", ")
+        );
+    }
+    Ok(())
+}
+
+/// `affi receipt sbom-compliance` — assess against supply-chain frameworks.
+pub fn sbom_compliance(
+    sbom_path: String,
+    framework: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    let sbom = load_sbom(&sbom_path)?;
+    let which = framework.as_deref().unwrap_or("all").to_ascii_lowercase();
+
+    let results = crate::sbom_compliance::assess_all(&sbom)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("compliance: {e}"))))?;
+    let selected: Vec<_> = if which == "all" {
+        results
+    } else {
+        results
+            .into_iter()
+            .filter(|r| r.framework.to_ascii_lowercase().contains(&which))
+            .collect()
+    };
+
+    if format.as_deref() == Some("json") {
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&selected).map_err(anyhow::Error::from))?
+        );
+        return Ok(());
+    }
+    println!("sbom-compliance ({}):", sbom.format.tag());
+    for r in &selected {
+        let level = r
+            .level
+            .as_deref()
+            .map(|l| format!(" [{l}]"))
+            .unwrap_or_default();
+        println!(
+            "  {} {}{} — score {:.2} ({} satisfied, {} failed)",
+            if r.passed { "PASS" } else { "FAIL" },
+            r.framework,
+            level,
+            r.score(),
+            r.satisfied.len(),
+            r.failed.len()
+        );
+    }
+    Ok(())
+}
+
+/// `affi receipt sbom-scan` — correlate vulnerabilities/VEX and propagate risk.
+pub fn sbom_scan(
+    sbom_path: String,
+    advisories_path: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    let sbom = load_sbom(&sbom_path)?;
+
+    // Advisories file: { "vulnerabilities": [...], "vex": [...] }. Absent = empty.
+    let (vulns, vex) = match advisories_path.as_deref() {
+        Some(path) => {
+            let raw = std::fs::read_to_string(path).map_err(io_err)?;
+            let doc: serde_json::Value =
+                adapt(serde_json::from_str(&raw).map_err(anyhow::Error::from))?;
+            let vulns: Vec<crate::sbom_vulnerability::Vulnerability> = doc
+                .get("vulnerabilities")
+                .cloned()
+                .map(serde_json::from_value)
+                .transpose()
+                .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("advisories: {e}"))))?
+                .unwrap_or_default();
+            let vex: Vec<crate::sbom_vulnerability::VexStatement> = doc
+                .get("vex")
+                .cloned()
+                .map(serde_json::from_value)
+                .transpose()
+                .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("vex: {e}"))))?
+                .unwrap_or_default();
+            (vulns, vex)
+        }
+        None => (Vec::new(), Vec::new()),
+    };
+
+    let report = crate::sbom_vulnerability::build_report(&sbom, &vulns, &vex);
+    if format.as_deref() == Some("json") {
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&report).map_err(anyhow::Error::from))?
+        );
+        return Ok(());
+    }
+    println!(
+        "sbom-scan: {} components, {} matches ({} exploitable after VEX), max severity {}",
+        report.total_components,
+        report.total_matches,
+        report.exploitable_after_vex,
+        report.max_severity.tag()
+    );
+    Ok(())
+}
+
+/// `affi receipt sbom-blast-radius` — transitive dependents of a component.
+pub fn sbom_blast_radius(
+    sbom_path: String,
+    component: String,
+    format: Option<String>,
+) -> Result<()> {
+    let sbom = load_sbom(&sbom_path)?;
+    let graph = crate::sbom_supply_chain::DependencyGraph::from_sbom(&sbom);
+    let radius = crate::sbom_supply_chain::blast_radius(&graph, &component)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("blast-radius: {e}"))))?;
+
+    if format.as_deref() == Some("json") {
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&radius).map_err(anyhow::Error::from))?
+        );
+        return Ok(());
+    }
+    println!(
+        "sbom-blast-radius({}): {} directly impacted, {} transitively impacted",
+        component, radius.directly_impacted, radius.transitively_impacted
+    );
+    for r in &radius.impacted {
+        println!("  └ {r}");
+    }
+    Ok(())
+}
+
+/// `affi receipt sbom-attest` — emit a SLSA-flavored provenance attestation.
+pub fn sbom_attest(
+    sbom_path: String,
+    receipt: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    let sbom = load_sbom(&sbom_path)?;
+    let attestation = crate::sbom_supply_chain::attest_provenance(&sbom, receipt.as_deref());
+
+    // Append the attestation to the working receipt as an OCEL event.
+    let payload = serde_json::to_vec(&attestation).unwrap_or_default();
+    let objects = vec![format!("{}:sbom-document", attestation.sbom_address)];
+    let emitted = emit_with_payload("sbom:attest", &objects, &payload)?;
+
+    if format.as_deref() == Some("json") {
+        let out = serde_json::json!({
+            "attestation": attestation,
+            "event_seq": emitted.seq,
+            "event_id": emitted.event_id,
+        });
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
+        return Ok(());
+    }
+    println!(
+        "sbom-attest: provenance for {} ({} edges) -> event seq {}",
+        attestation.sbom_address, attestation.dependency_edges, emitted.seq
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod ocel_quality_tests {
     use super::*;
