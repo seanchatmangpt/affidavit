@@ -7,12 +7,10 @@
 // Save baseline: cargo bench --bench throughput -- --save-baseline main
 // Compare: cargo bench --bench throughput -- --baseline main
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
 use affidavit::chain::ChainAssembler;
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
 use affidavit::verifier::verify;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 const EVENT_COUNTS: &[usize] = &[1, 5, 10, 50, 100];
 

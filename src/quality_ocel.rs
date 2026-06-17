@@ -19,9 +19,9 @@
 //! Each violation links back to the triggering measurement via event ID references,
 //! creating a causal chain visible in the receipt.
 
-use crate::types::{Blake3Hash, ObjectRef, OperationEvent};
-use crate::quality::{CodeQualityMetrics, QualityViolation};
 use crate::error::OcelError;
+use crate::quality::{CodeQualityMetrics, QualityViolation};
+use crate::types::{Blake3Hash, ObjectRef, OperationEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -250,7 +250,9 @@ pub fn measure_to_ocel_event(
         return Err(OcelError::EmptyEventId);
     }
     if objects.is_empty() {
-        return Err(OcelError::MalformedObjectRef("no objects provided".to_string()));
+        return Err(OcelError::MalformedObjectRef(
+            "no objects provided".to_string(),
+        ));
     }
 
     let payload = serde_json::json!({
@@ -405,9 +407,12 @@ pub fn build_causal_chain(
     let measurement_event = event_log
         .iter()
         .find(|e| e.event.id == triggering_event_id)
-        .ok_or_else(|| OcelError::MalformedObjectRef(
-            format!("measurement event {} not found", triggering_event_id),
-        ))?;
+        .ok_or_else(|| {
+            OcelError::MalformedObjectRef(format!(
+                "measurement event {} not found",
+                triggering_event_id
+            ))
+        })?;
 
     if measurement_event.quality_event_type != "measure" {
         return Err(OcelError::MalformedObjectRef(
@@ -420,7 +425,10 @@ pub fn build_causal_chain(
         .iter()
         .find(|e| e.triggered_by_event_id.as_ref() == Some(&violation_event.event.id));
 
-    let mut event_sequence = vec![measurement_event.event.id.clone(), violation_event.event.id.clone()];
+    let mut event_sequence = vec![
+        measurement_event.event.id.clone(),
+        violation_event.event.id.clone(),
+    ];
     if let Some(rem) = &remediation {
         event_sequence.push(rem.event.id.clone());
     }
@@ -447,10 +455,18 @@ pub fn build_causal_chain(
         threshold,
         violation: violation_enum,
         remediation_action: remediation.and_then(|e| {
-            e.quality_payload.get("action").and_then(|v| v.as_str()).map(|s| s.to_string())
+            e.quality_payload
+                .get("action")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
         }),
         remediation_status: remediation
-            .and_then(|e| e.quality_payload.get("status").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .and_then(|e| {
+                e.quality_payload
+                    .get("status")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
             .unwrap_or_else(|| "pending".to_string()),
         event_sequence,
     })
@@ -482,11 +498,15 @@ pub fn build_causal_chain(
 ///     println!("{}: {} violations on {}", corr.metric, corr.object_count, corr.severity);
 /// }
 /// ```
-pub fn correlate_violations_across_objects(log: &OcelQualityLog) -> Result<Vec<ObjectCorrelation>, OcelError> {
+pub fn correlate_violations_across_objects(
+    log: &OcelQualityLog,
+) -> Result<Vec<ObjectCorrelation>, OcelError> {
     let mut correlations: BTreeMap<(String, String), ObjectCorrelation> = BTreeMap::new();
 
     for event in log.violations() {
-        let metric = event.quality_payload.get("metric")
+        let metric = event
+            .quality_payload
+            .get("metric")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
         let severity = event.severity.as_deref().unwrap_or("UNKNOWN");
@@ -546,13 +566,17 @@ pub struct ObjectCorrelation {
 }
 
 /// Parse a violation enum from JSON payload data.
-fn parse_violation_from_payload(payload: &serde_json::Value) -> Result<QualityViolation, OcelError> {
-    let metric = payload.get("metric")
+fn parse_violation_from_payload(
+    payload: &serde_json::Value,
+) -> Result<QualityViolation, OcelError> {
+    let metric = payload
+        .get("metric")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
 
-    let severity = payload.get("severity")
+    let severity = payload
+        .get("severity")
         .and_then(|v| v.as_str())
         .unwrap_or("UNKNOWN")
         .to_string();
@@ -686,7 +710,8 @@ mod tests {
             z_score: 4.5,
             severity: "CRITICAL".to_string(),
         };
-        let violation_event = violation_to_ocel_event("evt-1", 1, &violation, "evt-0", &objects).unwrap();
+        let violation_event =
+            violation_to_ocel_event("evt-1", 1, &violation, "evt-0", &objects).unwrap();
 
         let chain = build_causal_chain(&violation_event, &[measure_event]).unwrap();
 
@@ -717,7 +742,8 @@ mod tests {
             z_score: 4.5,
             severity: "CRITICAL".to_string(),
         };
-        let violation_event = violation_to_ocel_event("evt-1", 1, &violation, "evt-999", &objects).unwrap();
+        let violation_event =
+            violation_to_ocel_event("evt-1", 1, &violation, "evt-999", &objects).unwrap();
 
         let result = build_causal_chain(&violation_event, &[]);
 
@@ -765,7 +791,8 @@ mod tests {
             z_score: 4.5,
             severity: "CRITICAL".to_string(),
         };
-        let violation_event = violation_to_ocel_event("evt-1", 1, &violation, "evt-0", &objects).unwrap();
+        let violation_event =
+            violation_to_ocel_event("evt-1", 1, &violation, "evt-0", &objects).unwrap();
 
         log.add_event(measure_event);
         log.add_event(violation_event);
@@ -789,7 +816,8 @@ mod tests {
             z_score: 4.5,
             severity: "CRITICAL".to_string(),
         };
-        let violation_event = violation_to_ocel_event("evt-1", 1, &violation, "evt-0", &objects).unwrap();
+        let violation_event =
+            violation_to_ocel_event("evt-1", 1, &violation, "evt-0", &objects).unwrap();
 
         log.add_event(measure_event);
         log.add_event(violation_event);
@@ -812,7 +840,8 @@ mod tests {
             z_score: 4.5,
             severity: "CRITICAL".to_string(),
         };
-        let violation_event = violation_to_ocel_event("evt-1", 1, &violation, "evt-0", &objects).unwrap();
+        let violation_event =
+            violation_to_ocel_event("evt-1", 1, &violation, "evt-0", &objects).unwrap();
 
         log.add_event(measure_event);
         log.add_event(violation_event);
@@ -842,7 +871,8 @@ mod tests {
             z_score: 4.5,
             severity: "CRITICAL".to_string(),
         };
-        let violation1_event = violation_to_ocel_event("evt-1", 1, &violation1, "evt-0", &objects).unwrap();
+        let violation1_event =
+            violation_to_ocel_event("evt-1", 1, &violation1, "evt-0", &objects).unwrap();
 
         let violation2 = QualityViolation::Rule1Sigma {
             metric: "cyclomatic_complexity".to_string(),
@@ -851,7 +881,8 @@ mod tests {
             z_score: 3.2,
             severity: "HIGH".to_string(),
         };
-        let violation2_event = violation_to_ocel_event("evt-2", 2, &violation2, "evt-0", &objects).unwrap();
+        let violation2_event =
+            violation_to_ocel_event("evt-2", 2, &violation2, "evt-0", &objects).unwrap();
 
         log.add_event(measure_event);
         log.add_event(violation1_event);
@@ -861,7 +892,9 @@ mod tests {
 
         assert_eq!(correlations.len(), 2);
         assert!(correlations.iter().any(|c| c.metric == "stub_ratio"));
-        assert!(correlations.iter().any(|c| c.metric == "cyclomatic_complexity"));
+        assert!(correlations
+            .iter()
+            .any(|c| c.metric == "cyclomatic_complexity"));
     }
 
     #[test]
@@ -873,8 +906,7 @@ mod tests {
         let event2 = measure_to_ocel_event("evt-0", 0, &metrics, &objects).unwrap();
 
         assert_eq!(
-            event1.event.payload_commitment,
-            event2.event.payload_commitment,
+            event1.event.payload_commitment, event2.event.payload_commitment,
             "Commitment should be deterministic for identical inputs"
         );
     }
@@ -882,25 +914,34 @@ mod tests {
     #[test]
     fn test_violation_to_ocel_event_preserves_severity() {
         let violations = vec![
-            ("CRITICAL", QualityViolation::Rule1Sigma {
-                metric: "stub".to_string(),
-                value: 1.0,
-                threshold: 0.0,
-                z_score: 5.0,
-                severity: "CRITICAL".to_string(),
-            }),
-            ("MEDIUM", QualityViolation::Rule4of5Beyond1Sigma {
-                metric: "complexity".to_string(),
-                count: 4,
-                threshold: 10.0,
-            }),
+            (
+                "CRITICAL",
+                QualityViolation::Rule1Sigma {
+                    metric: "stub".to_string(),
+                    value: 1.0,
+                    threshold: 0.0,
+                    z_score: 5.0,
+                    severity: "CRITICAL".to_string(),
+                },
+            ),
+            (
+                "MEDIUM",
+                QualityViolation::Rule4of5Beyond1Sigma {
+                    metric: "complexity".to_string(),
+                    count: 4,
+                    threshold: 10.0,
+                },
+            ),
         ];
 
         let objects = make_test_objects();
 
         for (expected_severity, violation) in violations {
             let event = violation_to_ocel_event("evt-x", 1, &violation, "evt-0", &objects).unwrap();
-            assert_eq!(event.severity.as_deref().unwrap_or("UNKNOWN"), expected_severity);
+            assert_eq!(
+                event.severity.as_deref().unwrap_or("UNKNOWN"),
+                expected_severity
+            );
         }
     }
 }

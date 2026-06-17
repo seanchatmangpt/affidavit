@@ -93,7 +93,11 @@ fn load_receipts_from_path(path: &str) -> Result<Vec<Receipt>> {
     )))
 }
 
-fn print_json_or<F: FnOnce()>(format: &Option<String>, json_val: &impl serde::Serialize, fallback: F) -> Result<()> {
+fn print_json_or<F: FnOnce()>(
+    format: &Option<String>,
+    json_val: &impl serde::Serialize,
+    fallback: F,
+) -> Result<()> {
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(json_val).map_err(anyhow::Error::from))?;
         println!("{s}");
@@ -108,7 +112,12 @@ fn print_json_or<F: FnOnce()>(format: &Option<String>, json_val: &impl serde::Se
 // ============================================================================
 
 /// `affi receipt emit` — append one operation-event to the working receipt.
-pub fn emit(r#type: String, object: Vec<String>, payload: String, format: Option<String>) -> Result<()> {
+pub fn emit(
+    r#type: String,
+    object: Vec<String>,
+    payload: String,
+    format: Option<String>,
+) -> Result<()> {
     let output = adapt(crate::cli::emit(&r#type, &object, &payload))?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
@@ -163,7 +172,10 @@ pub fn emit_from_github(repo: String, event_type: String, format: Option<String>
         println!("{s}");
         return Ok(());
     }
-    println!("emitted github.{event_type} for {repo} (seq {})", output.seq);
+    println!(
+        "emitted github.{event_type} for {repo} (seq {})",
+        output.seq
+    );
     Ok(())
 }
 
@@ -178,13 +190,17 @@ pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>
         println!("{s}");
         return Ok(());
     }
-    println!("emitted gitlab.{event_type} for {repo} (seq {})", output.seq);
+    println!(
+        "emitted gitlab.{event_type} for {repo} (seq {})",
+        output.seq
+    );
     Ok(())
 }
 
 /// `affi receipt emit-from-cicd` — emit from CI/CD job outcome.
 pub fn emit_from_cicd(provider: String, job_status: String, format: Option<String>) -> Result<()> {
-    let payload = format!(r#"{{"source":"cicd","provider":"{provider}","job_status":"{job_status}"}}"#);
+    let payload =
+        format!(r#"{{"source":"cicd","provider":"{provider}","job_status":"{job_status}"}}"#);
     let objects = vec![format!("ci:{provider}:job")];
     let event_type = format!("cicd.{provider}.{job_status}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -198,8 +214,13 @@ pub fn emit_from_cicd(provider: String, job_status: String, format: Option<Strin
 }
 
 /// `affi receipt emit-from-monitoring` — emit from monitoring/alerting platform.
-pub fn emit_from_monitoring(provider: String, alert_type: String, format: Option<String>) -> Result<()> {
-    let payload = format!(r#"{{"source":"monitoring","provider":"{provider}","alert_type":"{alert_type}"}}"#);
+pub fn emit_from_monitoring(
+    provider: String,
+    alert_type: String,
+    format: Option<String>,
+) -> Result<()> {
+    let payload =
+        format!(r#"{{"source":"monitoring","provider":"{provider}","alert_type":"{alert_type}"}}"#);
     let objects = vec![format!("monitor:{provider}:alert")];
     let event_type = format!("monitoring.{provider}.{alert_type}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -213,8 +234,14 @@ pub fn emit_from_monitoring(provider: String, alert_type: String, format: Option
 }
 
 /// `affi receipt emit-from-cloud` — emit from cloud platform audit event.
-pub fn emit_from_cloud(provider: String, resource_type: String, format: Option<String>) -> Result<()> {
-    let payload = format!(r#"{{"source":"cloud","provider":"{provider}","resource_type":"{resource_type}"}}"#);
+pub fn emit_from_cloud(
+    provider: String,
+    resource_type: String,
+    format: Option<String>,
+) -> Result<()> {
+    let payload = format!(
+        r#"{{"source":"cloud","provider":"{provider}","resource_type":"{resource_type}"}}"#
+    );
     let objects = vec![format!("{resource_type}:{provider}:resource")];
     let event_type = format!("cloud.{provider}.{resource_type}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -228,8 +255,13 @@ pub fn emit_from_cloud(provider: String, resource_type: String, format: Option<S
 }
 
 /// `affi receipt emit-from-security` — emit from security scanner finding.
-pub fn emit_from_security(provider: String, vuln_type: String, format: Option<String>) -> Result<()> {
-    let payload = format!(r#"{{"source":"security","provider":"{provider}","vuln_type":"{vuln_type}"}}"#);
+pub fn emit_from_security(
+    provider: String,
+    vuln_type: String,
+    format: Option<String>,
+) -> Result<()> {
+    let payload =
+        format!(r#"{{"source":"security","provider":"{provider}","vuln_type":"{vuln_type}"}}"#);
     let objects = vec![format!("scan:{provider}:{vuln_type}")];
     let event_type = format!("security.{provider}.{vuln_type}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -260,12 +292,18 @@ pub fn assemble(out: Option<String>, format: Option<String>) -> Result<()> {
 }
 
 /// `affi receipt assemble-with-signature` — assemble and sign the receipt.
-pub fn assemble_with_signature(signing_method: Option<String>, out: Option<String>, format: Option<String>) -> Result<()> {
+pub fn assemble_with_signature(
+    signing_method: Option<String>,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let method = signing_method.as_deref().unwrap_or("sigstore");
     let output = adapt(crate::cli::assemble(out.as_deref()))?;
     if format.as_deref() == Some("json") {
-        println!(r#"{{"receipt_path":"{}","content_address":"{}","signing_method":"{}","signed":true}}"#,
-            output.receipt_path, output.content_address, method);
+        println!(
+            r#"{{"receipt_path":"{}","content_address":"{}","signing_method":"{}","signed":true}}"#,
+            output.receipt_path, output.content_address, method
+        );
         return Ok(());
     }
     println!("assembled receipt -> {}", output.receipt_path);
@@ -275,12 +313,18 @@ pub fn assemble_with_signature(signing_method: Option<String>, out: Option<Strin
 }
 
 /// `affi receipt assemble-and-notarize` — assemble and obtain external notarization.
-pub fn assemble_and_notarize(notary_provider: Option<String>, out: Option<String>, format: Option<String>) -> Result<()> {
+pub fn assemble_and_notarize(
+    notary_provider: Option<String>,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let provider = notary_provider.as_deref().unwrap_or("rfc3161");
     let output = adapt(crate::cli::assemble(out.as_deref()))?;
     if format.as_deref() == Some("json") {
-        println!(r#"{{"receipt_path":"{}","content_address":"{}","notary":"{}","notarized":true}}"#,
-            output.receipt_path, output.content_address, provider);
+        println!(
+            r#"{{"receipt_path":"{}","content_address":"{}","notary":"{}","notarized":true}}"#,
+            output.receipt_path, output.content_address, provider
+        );
         return Ok(());
     }
     println!("assembled receipt -> {}", output.receipt_path);
@@ -294,7 +338,12 @@ pub fn assemble_and_notarize(notary_provider: Option<String>, out: Option<String
 // ============================================================================
 
 /// `affi receipt verify` — run the certify pipeline and print the verdict.
-pub fn verify(receipt: String, format: Option<String>, _profile: Option<String>, _strict: Option<bool>) -> Result<()> {
+pub fn verify(
+    receipt: String,
+    format: Option<String>,
+    _profile: Option<String>,
+    _strict: Option<bool>,
+) -> Result<()> {
     let (code, verdict) = adapt(crate::cli::verify(&receipt))?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&verdict).map_err(anyhow::Error::from))?;
@@ -354,12 +403,19 @@ pub fn verify_family(receipts_dir: String, format: Option<String>) -> Result<()>
             "rejected": rejected,
             "results": results,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("verify-family: {accepted}/{total} receipts accepted, {rejected} rejected");
     for r in &results {
-        let mark = if r["accepted"].as_bool().unwrap_or(false) { "ACCEPT" } else { "REJECT" };
+        let mark = if r["accepted"].as_bool().unwrap_or(false) {
+            "ACCEPT"
+        } else {
+            "REJECT"
+        };
         eprintln!("  [{mark}] hash={} events={}", r["chain_hash"], r["events"]);
     }
     Ok(())
@@ -369,7 +425,8 @@ pub fn verify_family(receipts_dir: String, format: Option<String>) -> Result<()>
 pub fn verify_sla(receipt: String, sla_file: String, format: Option<String>) -> Result<()> {
     let parsed = adapt(crate::cli::show(&receipt))?;
     let sla_raw = std::fs::read_to_string(&sla_file).map_err(io_err)?;
-    let sla: serde_json::Value = adapt(serde_json::from_str(&sla_raw).map_err(anyhow::Error::from))?;
+    let sla: serde_json::Value =
+        adapt(serde_json::from_str(&sla_raw).map_err(anyhow::Error::from))?;
 
     let events = &parsed.events;
     let event_count = events.len();
@@ -392,7 +449,10 @@ pub fn verify_sla(receipt: String, sla_file: String, format: Option<String>) -> 
             "min_events_required": min_events,
             "ttl_note": ttl_note,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!(
@@ -400,7 +460,9 @@ pub fn verify_sla(receipt: String, sla_file: String, format: Option<String>) -> 
         if sla_ok { "PASS" } else { "FAIL" }
     );
     if !sla_ok {
-        return Err(NounVerbError::execution_error("SLA check failed: event count below minimum"));
+        return Err(NounVerbError::execution_error(
+            "SLA check failed: event count below minimum",
+        ));
     }
     Ok(())
 }
@@ -412,28 +474,65 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
     // Framework-specific additional checks (structural — real integration would be deeper)
     let framework_checks: Vec<(&str, bool, &str)> = match framework.to_lowercase().as_str() {
         "soc2" => vec![
-            ("access-control", verdict.accepted, "chain integrity proves authorized access"),
-            ("availability", !verdict.outcomes.is_empty(), "audit trail is present"),
+            (
+                "access-control",
+                verdict.accepted,
+                "chain integrity proves authorized access",
+            ),
+            (
+                "availability",
+                !verdict.outcomes.is_empty(),
+                "audit trail is present",
+            ),
         ],
         "gdpr" => vec![
-            ("data-integrity", verdict.accepted, "content-addressed chain is tamper-evident"),
-            ("audit-trail", !verdict.outcomes.is_empty(), "complete event log present"),
+            (
+                "data-integrity",
+                verdict.accepted,
+                "content-addressed chain is tamper-evident",
+            ),
+            (
+                "audit-trail",
+                !verdict.outcomes.is_empty(),
+                "complete event log present",
+            ),
         ],
         "hipaa" => vec![
-            ("access-control", verdict.accepted, "BLAKE3 chain verifies access integrity"),
-            ("audit-log", !verdict.outcomes.is_empty(), "provenance log present"),
+            (
+                "access-control",
+                verdict.accepted,
+                "BLAKE3 chain verifies access integrity",
+            ),
+            (
+                "audit-log",
+                !verdict.outcomes.is_empty(),
+                "provenance log present",
+            ),
         ],
         "pci-dss" => vec![
-            ("secure-deployment", verdict.accepted, "receipt chain integrity verified"),
-            ("change-management", !verdict.outcomes.is_empty(), "change events recorded"),
+            (
+                "secure-deployment",
+                verdict.accepted,
+                "receipt chain integrity verified",
+            ),
+            (
+                "change-management",
+                !verdict.outcomes.is_empty(),
+                "change events recorded",
+            ),
         ],
-        _ => vec![("generic-check", verdict.accepted, "basic chain verification")],
+        _ => vec![(
+            "generic-check",
+            verdict.accepted,
+            "basic chain verification",
+        )],
     };
 
     let all_pass = code == 0 && framework_checks.iter().all(|(_, ok, _)| *ok);
 
     if format.as_deref() == Some("json") {
-        let checks: Vec<serde_json::Value> = framework_checks.iter()
+        let checks: Vec<serde_json::Value> = framework_checks
+            .iter()
             .map(|(name, ok, note)| serde_json::json!({"check": name, "passed": ok, "note": note}))
             .collect();
         let out = serde_json::json!({
@@ -442,10 +541,20 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
             "compliant": all_pass,
             "checks": checks,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("verify-compliance [{framework}]: {}", if all_pass { "COMPLIANT" } else { "NON-COMPLIANT" });
+    eprintln!(
+        "verify-compliance [{framework}]: {}",
+        if all_pass {
+            "COMPLIANT"
+        } else {
+            "NON-COMPLIANT"
+        }
+    );
     for (name, ok, note) in &framework_checks {
         eprintln!("  {} {name}: {note}", if *ok { "PASS" } else { "FAIL" });
     }
@@ -456,7 +565,12 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
 }
 
 /// `affi receipt attest` — create a signed attestation (SLSA provenance).
-pub fn attest(receipt: String, attestation_type: Option<String>, out: Option<String>, format: Option<String>) -> Result<()> {
+pub fn attest(
+    receipt: String,
+    attestation_type: Option<String>,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let parsed = adapt(crate::cli::show(&receipt))?;
     let att_type = attestation_type.as_deref().unwrap_or("slsa-v1");
 
@@ -524,7 +638,12 @@ pub fn notarize(receipt: String, out: Option<String>, format: Option<String>) ->
 }
 
 /// `affi receipt sign` — sign a receipt with a key.
-pub fn sign(receipt: String, key_path: String, out: Option<String>, format: Option<String>) -> Result<()> {
+pub fn sign(
+    receipt: String,
+    key_path: String,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let parsed = adapt(crate::cli::show(&receipt))?;
     // Structural signing stub — production would use key_path with Ed25519/Sigstore
     let signed = serde_json::json!({
@@ -571,16 +690,30 @@ pub fn show(receipt: String, format: Option<String>) -> Result<()> {
         let objects = if event.objects.is_empty() {
             "(none)".to_string()
         } else {
-            event.objects.iter()
-                .map(|o| format!("{}:{}{}", o.id, o.obj_type,
-                    o.qualifier.as_ref().map(|q| format!("/{q}")).unwrap_or_default()))
+            event
+                .objects
+                .iter()
+                .map(|o| {
+                    format!(
+                        "{}:{}{}",
+                        o.id,
+                        o.obj_type,
+                        o.qualifier
+                            .as_ref()
+                            .map(|q| format!("/{q}"))
+                            .unwrap_or_default()
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join(", ")
         };
         let short_hash: String = event.payload_commitment.as_hex().chars().take(12).collect();
         eprintln!(
             "  [{seq:>3}] {ty} id={id} commit={commit} objects=[{objects}]",
-            seq = event.seq, ty = event.event_type, id = event.id, commit = short_hash
+            seq = event.seq,
+            ty = event.event_type,
+            id = event.id,
+            commit = short_hash
         );
     }
     eprintln!("chain hash: {}", parsed.chain_hash);
@@ -592,13 +725,15 @@ pub fn inspect(receipt: String, format: Option<String>) -> Result<()> {
     let parsed = adapt(crate::cli::show(&receipt))?;
     let event_count = parsed.events.len();
     let object_count: usize = parsed.events.iter().map(|e| e.objects.len()).sum();
-    let event_types: HashMap<&str, usize> = parsed.events.iter().fold(HashMap::new(), |mut m, e| {
-        *m.entry(e.event_type.as_str()).or_default() += 1;
-        m
-    });
+    let event_types: HashMap<&str, usize> =
+        parsed.events.iter().fold(HashMap::new(), |mut m, e| {
+            *m.entry(e.event_type.as_str()).or_default() += 1;
+            m
+        });
 
     if format.as_deref() == Some("json") {
-        let type_hist: serde_json::Value = event_types.iter()
+        let type_hist: serde_json::Value = event_types
+            .iter()
             .map(|(k, v)| (k.to_string(), serde_json::Value::from(*v)))
             .collect::<serde_json::Map<_, _>>()
             .into();
@@ -610,7 +745,10 @@ pub fn inspect(receipt: String, format: Option<String>) -> Result<()> {
             "object_ref_count": object_count,
             "event_type_histogram": type_hist,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("inspect: {receipt}");
@@ -642,22 +780,41 @@ pub fn diff(receipt_a: String, receipt_b: String, format: Option<String>) -> Res
         eprintln!("No differences found.");
     } else {
         for entry in &result.added {
-            eprintln!("+ [{seq}] {ty} (commit: {commit})",
-                seq = entry.seq, ty = entry.event_type, commit = entry.commitment_prefix);
+            eprintln!(
+                "+ [{seq}] {ty} (commit: {commit})",
+                seq = entry.seq,
+                ty = entry.event_type,
+                commit = entry.commitment_prefix
+            );
         }
         for entry in &result.removed {
-            eprintln!("- [{seq}] {ty} (commit: {commit})",
-                seq = entry.seq, ty = entry.event_type, commit = entry.commitment_prefix);
+            eprintln!(
+                "- [{seq}] {ty} (commit: {commit})",
+                seq = entry.seq,
+                ty = entry.event_type,
+                commit = entry.commitment_prefix
+            );
         }
         for m in &result.modified {
-            eprintln!("~ [{seq}] {old_ty} → {new_ty}",
-                seq = m.seq, old_ty = m.old.event_type, new_ty = m.new.event_type);
+            eprintln!(
+                "~ [{seq}] {old_ty} → {new_ty}",
+                seq = m.seq,
+                old_ty = m.old.event_type,
+                new_ty = m.new.event_type
+            );
             if m.old.commitment_prefix != m.new.commitment_prefix {
-                eprintln!("    commit {} → {}", m.old.commitment_prefix, m.new.commitment_prefix);
+                eprintln!(
+                    "    commit {} → {}",
+                    m.old.commitment_prefix, m.new.commitment_prefix
+                );
             }
         }
-        eprintln!("\n{} added, {} removed, {} modified",
-            result.added.len(), result.removed.len(), result.modified.len());
+        eprintln!(
+            "\n{} added, {} removed, {} modified",
+            result.added.len(),
+            result.removed.len(),
+            result.modified.len()
+        );
     }
     Ok(())
 }
@@ -678,7 +835,10 @@ pub fn stats(receipt: String, format: Option<String>) -> Result<()> {
                 "dfg_nodes": nodes, "dfg_edges": edges,
                 "fitness": fitness, "activity_coverage": activity_coverage, "simplicity": simplicity,
             });
-            println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+            println!(
+                "{}",
+                adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+            );
             return Ok(());
         }
         eprintln!("receipt stats:");
@@ -711,7 +871,10 @@ pub fn graph(receipt: String, format: Option<String>) -> Result<()> {
                 "nodes": nodes, "edges": edges,
                 "start_activities": starts, "end_activities": ends,
             });
-            println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+            println!(
+                "{}",
+                adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+            );
             return Ok(());
         }
         eprintln!("directly-follows graph (wasm4pm):");
@@ -724,7 +887,9 @@ pub fn graph(receipt: String, format: Option<String>) -> Result<()> {
     #[cfg(not(feature = "discovery"))]
     {
         let _ = (parsed, format);
-        Err(NounVerbError::execution_error("discovery feature not enabled"))
+        Err(NounVerbError::execution_error(
+            "discovery feature not enabled",
+        ))
     }
 }
 
@@ -736,14 +901,23 @@ pub fn replay(receipt: String) -> Result<()> {
         let objects = if event.objects.is_empty() {
             "(none)".to_string()
         } else {
-            event.objects.iter()
+            event
+                .objects
+                .iter()
                 .map(|o| format!("{}:{}", o.id, o.obj_type))
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        eprintln!("  step {seq}: {ty} → [{objects}]", seq = event.seq, ty = event.event_type);
+        eprintln!(
+            "  step {seq}: {ty} → [{objects}]",
+            seq = event.seq,
+            ty = event.event_type
+        );
     }
-    eprintln!("replay complete — {} steps in lawful seq order", parsed.events.len());
+    eprintln!(
+        "replay complete — {} steps in lawful seq order",
+        parsed.events.len()
+    );
     Ok(())
 }
 
@@ -764,7 +938,9 @@ pub fn model(receipt: String) -> Result<()> {
     #[cfg(not(feature = "discovery"))]
     {
         let _ = admitted;
-        Err(NounVerbError::execution_error("discovery feature not enabled"))
+        Err(NounVerbError::execution_error(
+            "discovery feature not enabled",
+        ))
     }
 }
 
@@ -788,7 +964,9 @@ pub fn conformance(receipt: String) -> Result<()> {
     #[cfg(not(feature = "discovery"))]
     {
         let _ = admitted;
-        Err(NounVerbError::execution_error("discovery feature not enabled"))
+        Err(NounVerbError::execution_error(
+            "discovery feature not enabled",
+        ))
     }
 }
 
@@ -804,7 +982,10 @@ pub fn diagnose(receipt: String) -> Result<()> {
         } else {
             eprintln!("{} diagnostic(s):", diagnostics.len());
             for d in &diagnostics {
-                eprintln!("  [{}:{}] {}", d.range.start.line, d.range.start.character, d.message);
+                eprintln!(
+                    "  [{}:{}] {}",
+                    d.range.start.line, d.range.start.character, d.message
+                );
             }
         }
         return Ok(());
@@ -823,7 +1004,11 @@ pub fn visualize(format: String, receipt: String) -> Result<()> {
     match format.to_lowercase().as_str() {
         "dot" => println!("{}", crate::visualize::to_dot(&graph)),
         "json" => println!("{}", adapt(crate::visualize::to_json(&graph))?),
-        _ => return Err(NounVerbError::execution_error(format!("Unsupported format: {format}"))),
+        _ => {
+            return Err(NounVerbError::execution_error(format!(
+                "Unsupported format: {format}"
+            )))
+        }
     }
     Ok(())
 }
@@ -874,28 +1059,44 @@ pub fn query(q: String, receipts_path: String, format: Option<String>) -> Result
     }).collect();
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&results).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&results).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("query '{}': {} match(es)", q, results.len());
     for r in &results {
-        eprintln!("  [{}] {} {} objects={}", r["seq"], r["event_type"], r["event_id"], r["objects"]);
+        eprintln!(
+            "  [{}] {} {} objects={}",
+            r["seq"], r["event_type"], r["event_id"], r["objects"]
+        );
     }
     Ok(())
 }
 
 /// `affi receipt timeline` — render event timeline across receipts.
-pub fn timeline(receipts_path: String, start_time: Option<String>, end_time: Option<String>, format: Option<String>) -> Result<()> {
+pub fn timeline(
+    receipts_path: String,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
-    let mut entries: Vec<serde_json::Value> = receipts.iter().flat_map(|r| {
-        r.events.iter().map(|e| serde_json::json!({
-            "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
-            "seq": e.seq,
-            "event_type": e.event_type,
-            "event_id": e.id,
-        }))
-    }).collect();
+    let mut entries: Vec<serde_json::Value> = receipts
+        .iter()
+        .flat_map(|r| {
+            r.events.iter().map(|e| {
+                serde_json::json!({
+                    "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
+                    "seq": e.seq,
+                    "event_type": e.event_type,
+                    "event_id": e.id,
+                })
+            })
+        })
+        .collect();
 
     // Sort by seq (monotonic ordering across receipts)
     entries.sort_by_key(|e| e["seq"].as_u64().unwrap_or(0));
@@ -906,20 +1107,31 @@ pub fn timeline(receipts_path: String, start_time: Option<String>, end_time: Opt
             "end_time": end_time,
             "events": entries,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("timeline ({} total events):", entries.len());
     for e in &entries {
-        eprintln!("  receipt={} seq={} {} ({})",
+        eprintln!(
+            "  receipt={} seq={} {} ({})",
             e["receipt"].as_str().unwrap_or("?"),
-            e["seq"], e["event_type"], e["event_id"]);
+            e["seq"],
+            e["event_type"],
+            e["event_id"]
+        );
     }
     Ok(())
 }
 
 /// `affi receipt causality-chain` — trace causal chain from a starting event.
-pub fn causality_chain(start_event: String, receipts_path: String, format: Option<String>) -> Result<()> {
+pub fn causality_chain(
+    start_event: String,
+    receipts_path: String,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
     // Walk forward from the start_event across all receipts (by seq order)
@@ -950,12 +1162,21 @@ pub fn causality_chain(start_event: String, receipts_path: String, format: Optio
     }
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&chain).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&chain).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("causality-chain from '{start_event}': {} step(s)", chain.len());
+    eprintln!(
+        "causality-chain from '{start_event}': {} step(s)",
+        chain.len()
+    );
     for (i, e) in chain.iter().enumerate() {
-        eprintln!("  {i}: {} → {} ({})", e["event_type"], e["receipt"], e["seq"]);
+        eprintln!(
+            "  {i}: {} → {} ({})",
+            e["event_type"], e["receipt"], e["seq"]
+        );
     }
     Ok(())
 }
@@ -973,7 +1194,12 @@ pub fn search(pattern: String, receipts_path: String, format: Option<String>) ->
                 "{} {} {}",
                 event.event_type,
                 event.id,
-                event.objects.iter().map(|o| format!("{}:{}", o.id, o.obj_type)).collect::<Vec<_>>().join(" ")
+                event
+                    .objects
+                    .iter()
+                    .map(|o| format!("{}:{}", o.id, o.obj_type))
+                    .collect::<Vec<_>>()
+                    .join(" ")
             );
             if haystack.contains(&pattern) {
                 matches.push(serde_json::json!({
@@ -988,18 +1214,28 @@ pub fn search(pattern: String, receipts_path: String, format: Option<String>) ->
     }
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&matches).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&matches).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("search '{}': {} match(es)", pattern, matches.len());
     for m in &matches {
-        eprintln!("  receipt={} seq={} {}", m["receipt"], m["seq"], m["event_type"]);
+        eprintln!(
+            "  receipt={} seq={} {}",
+            m["receipt"], m["seq"], m["event_type"]
+        );
     }
     Ok(())
 }
 
 /// `affi receipt find-blast-radius` — find downstream repos/services affected by a change.
-pub fn find_blast_radius(change_event: String, receipts_path: String, format: Option<String>) -> Result<()> {
+pub fn find_blast_radius(
+    change_event: String,
+    receipts_path: String,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
     // Find the change event and collect all receipts that share objects with it
@@ -1008,7 +1244,9 @@ pub fn find_blast_radius(change_event: String, receipts_path: String, format: Op
     for r in &receipts {
         for event in &r.events {
             if event.id == change_event || event.event_type == change_event {
-                change_objects = event.objects.iter()
+                change_objects = event
+                    .objects
+                    .iter()
                     .map(|o| format!("{}:{}", o.id, o.obj_type))
                     .collect();
                 break;
@@ -1023,10 +1261,13 @@ pub fn find_blast_radius(change_event: String, receipts_path: String, format: Op
 
     for r in &receipts {
         for event in &r.events {
-            let event_objects: Vec<String> = event.objects.iter()
+            let event_objects: Vec<String> = event
+                .objects
+                .iter()
                 .map(|o| format!("{}:{}", o.id, o.obj_type))
                 .collect();
-            let overlap: Vec<&String> = event_objects.iter()
+            let overlap: Vec<&String> = event_objects
+                .iter()
                 .filter(|o| change_objects.contains(o))
                 .collect();
             if !overlap.is_empty() {
@@ -1047,12 +1288,21 @@ pub fn find_blast_radius(change_event: String, receipts_path: String, format: Op
             "blast_radius": affected.len(),
             "affected": affected,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("blast-radius for '{change_event}': {} affected event(s)", affected.len());
+    eprintln!(
+        "blast-radius for '{change_event}': {} affected event(s)",
+        affected.len()
+    );
     for a in &affected {
-        eprintln!("  {} {} shared={}", a["receipt"], a["event_type"], a["shared_objects"]);
+        eprintln!(
+            "  {} {} shared={}",
+            a["receipt"], a["event_type"], a["shared_objects"]
+        );
     }
     Ok(())
 }
@@ -1062,20 +1312,30 @@ pub fn find_blast_radius(change_event: String, receipts_path: String, format: Op
 // ============================================================================
 
 /// `affi receipt dora-metrics` — compute DORA 4 Key Metrics.
-pub fn dora_metrics(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn dora_metrics(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let range = time_range.as_deref().unwrap_or("30d");
 
     let total_events: usize = receipts.iter().map(|r| r.events.len()).sum();
 
     // Count event types for DORA signals
-    let deploy_count: usize = receipts.iter().flat_map(|r| &r.events)
+    let deploy_count: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
         .filter(|e| e.event_type.contains("deploy") || e.event_type.contains("release"))
         .count();
-    let incident_count: usize = receipts.iter().flat_map(|r| &r.events)
+    let incident_count: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
         .filter(|e| e.event_type.contains("incident") || e.event_type.contains("failure"))
         .count();
-    let recovery_count: usize = receipts.iter().flat_map(|r| &r.events)
+    let recovery_count: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
         .filter(|e| e.event_type.contains("recover") || e.event_type.contains("resolve"))
         .count();
 
@@ -1087,7 +1347,11 @@ pub fn dora_metrics(receipts_path: String, time_range: Option<String>, format: O
     } else {
         0.0
     };
-    let mttr_events = if incident_count > 0 { recovery_count as f64 / incident_count as f64 } else { 1.0 };
+    let mttr_events = if incident_count > 0 {
+        recovery_count as f64 / incident_count as f64
+    } else {
+        1.0
+    };
 
     let metrics = serde_json::json!({
         "time_range": range,
@@ -1117,7 +1381,10 @@ pub fn dora_metrics(receipts_path: String, time_range: Option<String>, format: O
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&metrics).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&metrics).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("DORA Metrics [{range}] ({receipt_count} receipts, {total_events} events):");
@@ -1129,16 +1396,24 @@ pub fn dora_metrics(receipts_path: String, time_range: Option<String>, format: O
 }
 
 /// `affi receipt team-velocity` — compute team productivity metrics.
-pub fn team_velocity(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn team_velocity(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let range = time_range.as_deref().unwrap_or("30d");
 
     let total_receipts = receipts.len();
     let total_events: usize = receipts.iter().map(|r| r.events.len()).sum();
-    let pr_events: usize = receipts.iter().flat_map(|r| &r.events)
+    let pr_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
         .filter(|e| e.event_type.contains("pull_request") || e.event_type.contains("review"))
         .count();
-    let merge_events: usize = receipts.iter().flat_map(|r| &r.events)
+    let merge_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
         .filter(|e| e.event_type.contains("merge") || e.event_type.contains("assemble"))
         .count();
 
@@ -1153,25 +1428,43 @@ pub fn team_velocity(receipts_path: String, time_range: Option<String>, format: 
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&velocity).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&velocity).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("team-velocity [{range}]:");
     eprintln!("  receipts: {total_receipts}, events: {total_events}");
     eprintln!("  PR events: {pr_events}, merge events: {merge_events}");
-    eprintln!("  events/receipt: {:.2}", if total_receipts > 0 { total_events as f64 / total_receipts as f64 } else { 0.0 });
+    eprintln!(
+        "  events/receipt: {:.2}",
+        if total_receipts > 0 {
+            total_events as f64 / total_receipts as f64
+        } else {
+            0.0
+        }
+    );
     Ok(())
 }
 
 /// `affi receipt tech-debt` — analyze technical debt signals.
-pub fn tech_debt(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn tech_debt(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let range = time_range.as_deref().unwrap_or("30d");
 
-    let refactor_events: usize = receipts.iter().flat_map(|r| &r.events)
+    let refactor_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
         .filter(|e| e.event_type.contains("refactor") || e.event_type.contains("debt"))
         .count();
-    let churn_events: usize = receipts.iter().flat_map(|r| &r.events)
+    let churn_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
         .filter(|e| e.event_type.contains("revert") || e.event_type.contains("hotfix"))
         .count();
     let total_events: usize = receipts.iter().map(|r| r.events.len()).sum();
@@ -1189,7 +1482,10 @@ pub fn tech_debt(receipts_path: String, time_range: Option<String>, format: Opti
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("tech-debt [{range}]: {:.1}% debt ratio ({refactor_events} refactors, {churn_events} churns)", debt_ratio);
@@ -1198,14 +1494,26 @@ pub fn tech_debt(receipts_path: String, time_range: Option<String>, format: Opti
 }
 
 /// `affi receipt security-debt` — analyze security debt signals.
-pub fn security_debt(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn security_debt(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let range = time_range.as_deref().unwrap_or("30d");
 
-    let vuln_events: usize = receipts.iter().flat_map(|r| &r.events)
-        .filter(|e| e.event_type.contains("vuln") || e.event_type.contains("cve") || e.event_type.contains("security"))
+    let vuln_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
+        .filter(|e| {
+            e.event_type.contains("vuln")
+                || e.event_type.contains("cve")
+                || e.event_type.contains("security")
+        })
         .count();
-    let patch_events: usize = receipts.iter().flat_map(|r| &r.events)
+    let patch_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
         .filter(|e| e.event_type.contains("patch") || e.event_type.contains("remediat"))
         .count();
     let unpatched = vuln_events.saturating_sub(patch_events);
@@ -1218,7 +1526,10 @@ pub fn security_debt(receipts_path: String, time_range: Option<String>, format: 
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("security-debt [{range}]: {vuln_events} vulns, {patch_events} patched, {unpatched} unpatched");
@@ -1226,15 +1537,25 @@ pub fn security_debt(receipts_path: String, time_range: Option<String>, format: 
 }
 
 /// `affi receipt coverage-analysis` — analyze test coverage trends.
-pub fn coverage_analysis(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn coverage_analysis(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let range = time_range.as_deref().unwrap_or("30d");
 
-    let test_events: usize = receipts.iter().flat_map(|r| &r.events)
+    let test_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
         .filter(|e| e.event_type.contains("test") || e.event_type.contains("coverage"))
         .count();
     let total_events: usize = receipts.iter().map(|r| r.events.len()).sum();
-    let coverage_ratio = if total_events > 0 { test_events as f64 / total_events as f64 * 100.0 } else { 0.0 };
+    let coverage_ratio = if total_events > 0 {
+        test_events as f64 / total_events as f64 * 100.0
+    } else {
+        0.0
+    };
 
     let out = serde_json::json!({
         "time_range": range, "receipts": receipts.len(), "total_events": total_events,
@@ -1243,15 +1564,24 @@ pub fn coverage_analysis(receipts_path: String, time_range: Option<String>, form
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("coverage-analysis [{range}]: {test_events} test events ({coverage_ratio:.1}% of total)");
+    eprintln!(
+        "coverage-analysis [{range}]: {test_events} test events ({coverage_ratio:.1}% of total)"
+    );
     Ok(())
 }
 
 /// `affi receipt anomaly-detect` — detect anomalies in event patterns.
-pub fn anomaly_detect(receipts_path: String, sensitivity: Option<String>, format: Option<String>) -> Result<()> {
+pub fn anomaly_detect(
+    receipts_path: String,
+    sensitivity: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let sigma = sensitivity.as_deref().unwrap_or("2σ");
 
@@ -1262,16 +1592,26 @@ pub fn anomaly_detect(receipts_path: String, sensitivity: Option<String>, format
     let variance_val = counts.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n.max(1.0);
     let stddev = variance_val.sqrt();
 
-    let threshold_multiplier: f64 = if sigma.contains('3') { 3.0 } else if sigma.contains('1') { 1.0 } else { 2.0 };
+    let threshold_multiplier: f64 = if sigma.contains('3') {
+        3.0
+    } else if sigma.contains('1') {
+        1.0
+    } else {
+        2.0
+    };
 
-    let anomalies: Vec<serde_json::Value> = receipts.iter().zip(counts.iter())
+    let anomalies: Vec<serde_json::Value> = receipts
+        .iter()
+        .zip(counts.iter())
         .filter(|(_, &count)| (count - mean).abs() > threshold_multiplier * stddev)
-        .map(|(r, &count)| serde_json::json!({
-            "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
-            "event_count": count as usize,
-            "mean": mean,
-            "deviation": (count - mean).abs() / stddev.max(0.001),
-        }))
+        .map(|(r, &count)| {
+            serde_json::json!({
+                "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
+                "event_count": count as usize,
+                "mean": mean,
+                "deviation": (count - mean).abs() / stddev.max(0.001),
+            })
+        })
         .collect();
 
     let out = serde_json::json!({
@@ -1281,56 +1621,93 @@ pub fn anomaly_detect(receipts_path: String, sensitivity: Option<String>, format
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("anomaly-detect [{sigma}]: {}/{} receipts flagged (mean={mean:.1} events, stddev={stddev:.1})",
         anomalies.len(), receipts.len());
     for a in &anomalies {
-        eprintln!("  ANOMALY receipt={} events={} ({}σ deviation)",
-            a["receipt"], a["event_count"], a["deviation"]);
+        eprintln!(
+            "  ANOMALY receipt={} events={} ({}σ deviation)",
+            a["receipt"], a["event_count"], a["deviation"]
+        );
     }
     Ok(())
 }
 
 /// `affi receipt predict` — predict outcomes from historical receipt data.
-pub fn predict(receipts_path: String, prediction_type: String, _model: Option<String>, format: Option<String>) -> Result<()> {
+pub fn predict(
+    receipts_path: String,
+    prediction_type: String,
+    _model: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
     let total_receipts = receipts.len().max(1);
     let prediction = match prediction_type.as_str() {
         "ci-pass" => {
-            let test_events: usize = receipts.iter().flat_map(|r| &r.events)
-                .filter(|e| e.event_type.contains("test")).count();
-            let fail_events: usize = receipts.iter().flat_map(|r| &r.events)
-                .filter(|e| e.event_type.contains("fail")).count();
+            let test_events: usize = receipts
+                .iter()
+                .flat_map(|r| &r.events)
+                .filter(|e| e.event_type.contains("test"))
+                .count();
+            let fail_events: usize = receipts
+                .iter()
+                .flat_map(|r| &r.events)
+                .filter(|e| e.event_type.contains("fail"))
+                .count();
             let total_tests = (test_events + fail_events).max(1);
             let pass_rate = (total_tests - fail_events) as f64 / total_tests as f64;
             serde_json::json!({"prediction_type": "ci-pass", "predicted_pass_rate": pass_rate, "confidence": "low-historical-base"})
         }
         "deploy-success" => {
-            let deploy_events: usize = receipts.iter().flat_map(|r| &r.events)
-                .filter(|e| e.event_type.contains("deploy")).count();
-            let rollback_events: usize = receipts.iter().flat_map(|r| &r.events)
-                .filter(|e| e.event_type.contains("rollback")).count();
+            let deploy_events: usize = receipts
+                .iter()
+                .flat_map(|r| &r.events)
+                .filter(|e| e.event_type.contains("deploy"))
+                .count();
+            let rollback_events: usize = receipts
+                .iter()
+                .flat_map(|r| &r.events)
+                .filter(|e| e.event_type.contains("rollback"))
+                .count();
             let success_rate = if deploy_events > 0 {
                 (deploy_events - rollback_events.min(deploy_events)) as f64 / deploy_events as f64
-            } else { 1.0 };
+            } else {
+                1.0
+            };
             serde_json::json!({"prediction_type": "deploy-success", "predicted_success_rate": success_rate, "confidence": "low-historical-base"})
         }
         "mttr" => {
-            let incidents: usize = receipts.iter().flat_map(|r| &r.events)
-                .filter(|e| e.event_type.contains("incident")).count();
-            let recoveries: usize = receipts.iter().flat_map(|r| &r.events)
-                .filter(|e| e.event_type.contains("recover")).count();
-            let ratio = if incidents > 0 { recoveries as f64 / incidents as f64 } else { 1.0 };
+            let incidents: usize = receipts
+                .iter()
+                .flat_map(|r| &r.events)
+                .filter(|e| e.event_type.contains("incident"))
+                .count();
+            let recoveries: usize = receipts
+                .iter()
+                .flat_map(|r| &r.events)
+                .filter(|e| e.event_type.contains("recover"))
+                .count();
+            let ratio = if incidents > 0 {
+                recoveries as f64 / incidents as f64
+            } else {
+                1.0
+            };
             serde_json::json!({"prediction_type": "mttr", "recovery_ratio": ratio, "confidence": "low-historical-base"})
         }
-        other => serde_json::json!({"error": format!("Unknown prediction type: {other}")})
+        other => serde_json::json!({"error": format!("Unknown prediction type: {other}")}),
     };
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&prediction).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&prediction).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     eprintln!("predict [{prediction_type}] from {total_receipts} receipts: {prediction}");
@@ -1338,7 +1715,12 @@ pub fn predict(receipts_path: String, prediction_type: String, _model: Option<St
 }
 
 /// `affi receipt trend-analysis` — analyze metric trends over time.
-pub fn trend_analysis(receipts_path: String, metric: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn trend_analysis(
+    receipts_path: String,
+    metric: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let range = time_range.as_deref().unwrap_or("30d");
 
@@ -1360,9 +1742,21 @@ pub fn trend_analysis(receipts_path: String, metric: String, time_range: Option<
 
     // Compute simple linear trend direction
     let n = trend_points.len() as f64;
-    let last_val = trend_points.last().and_then(|p| p["value"].as_f64()).unwrap_or(0.0);
-    let first_val = trend_points.first().and_then(|p| p["value"].as_f64()).unwrap_or(0.0);
-    let trend_direction = if last_val > first_val { "increasing" } else if last_val < first_val { "decreasing" } else { "stable" };
+    let last_val = trend_points
+        .last()
+        .and_then(|p| p["value"].as_f64())
+        .unwrap_or(0.0);
+    let first_val = trend_points
+        .first()
+        .and_then(|p| p["value"].as_f64())
+        .unwrap_or(0.0);
+    let trend_direction = if last_val > first_val {
+        "increasing"
+    } else if last_val < first_val {
+        "decreasing"
+    } else {
+        "stable"
+    };
 
     let out = serde_json::json!({
         "metric": metric, "time_range": range, "receipts": n as usize,
@@ -1371,10 +1765,15 @@ pub fn trend_analysis(receipts_path: String, metric: String, time_range: Option<
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("trend-analysis [{metric}] [{range}]: {trend_direction} ({first_val:.1} → {last_val:.1})");
+    eprintln!(
+        "trend-analysis [{metric}] [{range}]: {trend_direction} ({first_val:.1} → {last_val:.1})"
+    );
     Ok(())
 }
 
@@ -1383,7 +1782,12 @@ pub fn trend_analysis(receipts_path: String, metric: String, time_range: Option<
 // ============================================================================
 
 /// `affi receipt soc2-audit` — generate SOC 2 audit trail.
-pub fn soc2_audit(receipts_path: String, soc2_type: Option<String>, out: Option<String>, format: Option<String>) -> Result<()> {
+pub fn soc2_audit(
+    receipts_path: String,
+    soc2_type: Option<String>,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let soc2_t = soc2_type.as_deref().unwrap_or("II");
 
@@ -1426,7 +1830,11 @@ pub fn soc2_audit(receipts_path: String, soc2_type: Option<String>, out: Option<
 }
 
 /// `affi receipt gdpr-proof` — generate GDPR compliance proof.
-pub fn gdpr_proof(receipts_path: String, out: Option<String>, format: Option<String>) -> Result<()> {
+pub fn gdpr_proof(
+    receipts_path: String,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
     let proof = serde_json::json!({
@@ -1495,8 +1903,11 @@ pub fn hipaa(receipts_path: String, out: Option<String>, format: Option<String>)
 pub fn pci_dss(receipts_path: String, out: Option<String>, format: Option<String>) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
-    let deploy_events: usize = receipts.iter().flat_map(|r| &r.events)
-        .filter(|e| e.event_type.contains("deploy")).count();
+    let deploy_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
+        .filter(|e| e.event_type.contains("deploy"))
+        .count();
 
     let proof = serde_json::json!({
         "regulation": "PCI-DSS",
@@ -1528,25 +1939,37 @@ pub fn pci_dss(receipts_path: String, out: Option<String>, format: Option<String
 }
 
 /// `affi receipt license-compliance` — check license compliance across receipts.
-pub fn license_compliance(receipts_path: String, license_policy: String, format: Option<String>) -> Result<()> {
+pub fn license_compliance(
+    receipts_path: String,
+    license_policy: String,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let policy_raw = std::fs::read_to_string(&license_policy).map_err(io_err)?;
-    let policy: serde_json::Value = adapt(serde_json::from_str(&policy_raw).map_err(anyhow::Error::from))?;
+    let policy: serde_json::Value =
+        adapt(serde_json::from_str(&policy_raw).map_err(anyhow::Error::from))?;
 
-    let allowed = policy["allowed_licenses"].as_array()
+    let allowed = policy["allowed_licenses"]
+        .as_array()
         .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
         .unwrap_or_default();
 
     // Extract license events from receipts
-    let license_events: Vec<serde_json::Value> = receipts.iter().flat_map(|r| {
-        r.events.iter()
-            .filter(|e| e.event_type.contains("license"))
-            .map(|e| serde_json::json!({
-                "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
-                "event_type": e.event_type,
-                "event_id": e.id,
-            }))
-    }).collect();
+    let license_events: Vec<serde_json::Value> = receipts
+        .iter()
+        .flat_map(|r| {
+            r.events
+                .iter()
+                .filter(|e| e.event_type.contains("license"))
+                .map(|e| {
+                    serde_json::json!({
+                        "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
+                        "event_type": e.event_type,
+                        "event_id": e.id,
+                    })
+                })
+        })
+        .collect();
 
     let out = serde_json::json!({
         "policy_file": license_policy,
@@ -1558,19 +1981,31 @@ pub fn license_compliance(receipts_path: String, license_policy: String, format:
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("license-compliance: {} license events in {} receipts (policy: {})",
-        license_events.len(), receipts.len(), license_policy);
+    eprintln!(
+        "license-compliance: {} license events in {} receipts (policy: {})",
+        license_events.len(),
+        receipts.len(),
+        license_policy
+    );
     Ok(())
 }
 
 /// `affi receipt policy-enforce` — enforce organizational policies.
-pub fn policy_enforce(receipts_path: String, policy_file: String, format: Option<String>) -> Result<()> {
+pub fn policy_enforce(
+    receipts_path: String,
+    policy_file: String,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let policy_raw = std::fs::read_to_string(&policy_file).map_err(io_err)?;
-    let policy: serde_json::Value = adapt(serde_json::from_str(&policy_raw).map_err(anyhow::Error::from))?;
+    let policy: serde_json::Value =
+        adapt(serde_json::from_str(&policy_raw).map_err(anyhow::Error::from))?;
 
     let min_approvals = policy["min_approvals"].as_u64().unwrap_or(0);
     let require_security_scan = policy["require_security_scan"].as_bool().unwrap_or(false);
@@ -1578,9 +2013,15 @@ pub fn policy_enforce(receipts_path: String, policy_file: String, format: Option
     let mut violations: Vec<serde_json::Value> = Vec::new();
 
     for r in &receipts {
-        let approval_count: usize = r.events.iter()
-            .filter(|e| e.event_type.contains("approve") || e.event_type.contains("review")).count();
-        let has_security_scan = r.events.iter().any(|e| e.event_type.contains("security") || e.event_type.contains("scan"));
+        let approval_count: usize = r
+            .events
+            .iter()
+            .filter(|e| e.event_type.contains("approve") || e.event_type.contains("review"))
+            .count();
+        let has_security_scan = r
+            .events
+            .iter()
+            .any(|e| e.event_type.contains("security") || e.event_type.contains("scan"));
 
         if approval_count < min_approvals as usize {
             violations.push(serde_json::json!({
@@ -1606,12 +2047,23 @@ pub fn policy_enforce(receipts_path: String, policy_file: String, format: Option
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("policy-enforce [{}]: {} — {} violation(s) in {} receipts",
-        policy_file, if compliant { "COMPLIANT" } else { "VIOLATIONS FOUND" },
-        violations.len(), receipts.len());
+    eprintln!(
+        "policy-enforce [{}]: {} — {} violation(s) in {} receipts",
+        policy_file,
+        if compliant {
+            "COMPLIANT"
+        } else {
+            "VIOLATIONS FOUND"
+        },
+        violations.len(),
+        receipts.len()
+    );
     if !compliant {
         std::process::exit(2);
     }
@@ -1623,7 +2075,11 @@ pub fn policy_enforce(receipts_path: String, policy_file: String, format: Option
 // ============================================================================
 
 /// `affi receipt portfolio-health` — assess health of the entire portfolio.
-pub fn portfolio_health(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn portfolio_health(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let range = time_range.as_deref().unwrap_or("30d");
 
@@ -1633,12 +2089,21 @@ pub fn portfolio_health(receipts_path: String, time_range: Option<String>, forma
     let active_receipts = receipts.iter().filter(|r| r.events.len() > 1).count();
     let stale_receipts = receipts.iter().filter(|r| r.events.len() <= 1).count();
 
-    let security_events: usize = receipts.iter().flat_map(|r| &r.events)
-        .filter(|e| e.event_type.contains("security") || e.event_type.contains("vuln")).count();
-    let deploy_events: usize = receipts.iter().flat_map(|r| &r.events)
-        .filter(|e| e.event_type.contains("deploy")).count();
-    let test_events: usize = receipts.iter().flat_map(|r| &r.events)
-        .filter(|e| e.event_type.contains("test")).count();
+    let security_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
+        .filter(|e| e.event_type.contains("security") || e.event_type.contains("vuln"))
+        .count();
+    let deploy_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
+        .filter(|e| e.event_type.contains("deploy"))
+        .count();
+    let test_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
+        .filter(|e| e.event_type.contains("test"))
+        .count();
 
     let health_score = {
         let active_ratio = active_receipts as f64 / total_receipts.max(1) as f64 * 40.0;
@@ -1666,18 +2131,27 @@ pub fn portfolio_health(receipts_path: String, time_range: Option<String>, forma
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("portfolio-health [{range}]: score={health_score:.1}/100 ({} receipts, {} events)",
-        total_receipts, total_events);
+    eprintln!(
+        "portfolio-health [{range}]: score={health_score:.1}/100 ({} receipts, {} events)",
+        total_receipts, total_events
+    );
     eprintln!("  active: {active_receipts}, stale: {stale_receipts}");
     eprintln!("  deploys: {deploy_events}, tests: {test_events}, security: {security_events}");
     Ok(())
 }
 
 /// `affi receipt dependency-matrix` — build dependency matrix across receipts.
-pub fn dependency_matrix(receipts_path: String, output_matrix: Option<String>, format: Option<String>) -> Result<()> {
+pub fn dependency_matrix(
+    receipts_path: String,
+    output_matrix: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let matrix_format = output_matrix.as_deref().unwrap_or("csv");
 
@@ -1688,22 +2162,34 @@ pub fn dependency_matrix(receipts_path: String, output_matrix: Option<String>, f
         for event in &r.events {
             for obj in &event.objects {
                 let obj_key = format!("{}:{}", obj.id, obj.obj_type);
-                object_map.entry(obj_key).or_default().push(receipt_id.clone());
+                object_map
+                    .entry(obj_key)
+                    .or_default()
+                    .push(receipt_id.clone());
             }
         }
     }
 
     // Shared objects = dependencies between receipts
-    let mut shared: Vec<serde_json::Value> = object_map.iter()
+    let mut shared: Vec<serde_json::Value> = object_map
+        .iter()
         .filter(|(_, receipts)| receipts.len() > 1)
         .map(|(obj, recs)| serde_json::json!({"object": obj, "shared_by": recs}))
         .collect();
-    shared.sort_by(|a, b| b["shared_by"].as_array().map(|a| a.len()).unwrap_or(0)
-        .cmp(&a["shared_by"].as_array().map(|a| a.len()).unwrap_or(0)));
+    shared.sort_by(|a, b| {
+        b["shared_by"]
+            .as_array()
+            .map(|a| a.len())
+            .unwrap_or(0)
+            .cmp(&a["shared_by"].as_array().map(|a| a.len()).unwrap_or(0))
+    });
 
     if format.as_deref() == Some("json") || matrix_format == "json" {
         let out = serde_json::json!({"matrix_format": matrix_format, "shared_objects": shared});
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     // CSV output
@@ -1711,7 +2197,7 @@ pub fn dependency_matrix(receipts_path: String, output_matrix: Option<String>, f
     for s in &shared {
         if let Some(recs) = s["shared_by"].as_array() {
             for i in 0..recs.len() {
-                for j in (i+1)..recs.len() {
+                for j in (i + 1)..recs.len() {
                     println!("{},{},{}", s["object"], recs[i], recs[j]);
                 }
             }
@@ -1728,7 +2214,9 @@ pub fn bus_factor(receipts_path: String, format: Option<String>) -> Result<()> {
     let mut type_owners: HashMap<String, Vec<String>> = HashMap::new();
     for r in &receipts {
         let receipt_id: String = r.chain_hash.0.chars().take(12).collect();
-        let obj_types: std::collections::HashSet<String> = r.events.iter()
+        let obj_types: std::collections::HashSet<String> = r
+            .events
+            .iter()
             .flat_map(|e| &e.objects)
             .map(|o| o.obj_type.clone())
             .collect();
@@ -1756,19 +2244,33 @@ pub fn bus_factor(receipts_path: String, format: Option<String>) -> Result<()> {
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     let high_risk = bus_factors.iter().filter(|b| b["risk"] == "HIGH").count();
-    eprintln!("bus-factor: {} object types, {} HIGH risk (single-receipt dependency)", bus_factors.len(), high_risk);
+    eprintln!(
+        "bus-factor: {} object types, {} HIGH risk (single-receipt dependency)",
+        bus_factors.len(),
+        high_risk
+    );
     for b in bus_factors.iter().filter(|b| b["risk"] == "HIGH").take(10) {
-        eprintln!("  HIGH RISK: {} (only {} receipt)", b["object_type"], b["bus_factor"]);
+        eprintln!(
+            "  HIGH RISK: {} (only {} receipt)",
+            b["object_type"], b["bus_factor"]
+        );
     }
     Ok(())
 }
 
 /// `affi receipt orphaned-code` — find receipts with no meaningful activity.
-pub fn orphaned_code(receipts_path: String, days: Option<u32>, format: Option<String>) -> Result<()> {
+pub fn orphaned_code(
+    receipts_path: String,
+    days: Option<u32>,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
     let threshold_days = days.unwrap_or(365);
 
@@ -1795,11 +2297,17 @@ pub fn orphaned_code(receipts_path: String, days: Option<u32>, format: Option<St
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("orphaned-code: {}/{} receipts orphaned (threshold: {threshold_days} days)",
-        orphaned.len(), receipts.len());
+    eprintln!(
+        "orphaned-code: {}/{} receipts orphaned (threshold: {threshold_days} days)",
+        orphaned.len(),
+        receipts.len()
+    );
     for o in &orphaned {
         eprintln!("  ORPHANED receipt={} events={}", o["receipt"], o["events"]);
     }
@@ -1811,7 +2319,11 @@ pub fn orphaned_code(receipts_path: String, days: Option<u32>, format: Option<St
 // ============================================================================
 
 /// `affi receipt explain-incident` — trace an incident to its root events.
-pub fn explain_incident(incident_desc: String, receipts_path: String, format: Option<String>) -> Result<()> {
+pub fn explain_incident(
+    incident_desc: String,
+    receipts_path: String,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
     // Search for events matching the incident description
@@ -1833,7 +2345,8 @@ pub fn explain_incident(incident_desc: String, receipts_path: String, format: Op
     }).collect();
 
     // Find the earliest related event as root cause candidate
-    let earliest = related_events.iter()
+    let earliest = related_events
+        .iter()
         .min_by_key(|e| e["seq"].as_u64().unwrap_or(u64::MAX));
 
     let out = serde_json::json!({
@@ -1850,12 +2363,22 @@ pub fn explain_incident(incident_desc: String, receipts_path: String, format: Op
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("explain-incident '{}': {} related event(s)", incident_desc, related_events.len());
+    eprintln!(
+        "explain-incident '{}': {} related event(s)",
+        incident_desc,
+        related_events.len()
+    );
     if let Some(e) = earliest {
-        eprintln!("  root candidate: seq={} {} ({})", e["seq"], e["event_type"], e["event_id"]);
+        eprintln!(
+            "  root candidate: seq={} {} ({})",
+            e["seq"], e["event_type"], e["event_id"]
+        );
     }
     for e in related_events.iter().take(10) {
         eprintln!("  seq={} {} {}", e["seq"], e["event_type"], e["event_id"]);
@@ -1864,7 +2387,11 @@ pub fn explain_incident(incident_desc: String, receipts_path: String, format: Op
 }
 
 /// `affi receipt root-cause` — RCA by walking event chain backwards.
-pub fn root_cause(effect_event: String, receipts_path: String, format: Option<String>) -> Result<()> {
+pub fn root_cause(
+    effect_event: String,
+    receipts_path: String,
+    format: Option<String>,
+) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
     // Find the effect event and walk backwards (lower seq numbers)
@@ -1917,12 +2444,21 @@ pub fn root_cause(effect_event: String, receipts_path: String, format: Option<St
     });
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
-    eprintln!("root-cause for '{effect_event}' (seq={target_seq}): {} preceding event(s)", preceding.len());
+    eprintln!(
+        "root-cause for '{effect_event}' (seq={target_seq}): {} preceding event(s)",
+        preceding.len()
+    );
     if let Some(root) = probable_root {
-        eprintln!("  probable root: seq={} {} ({})", root["seq"], root["event_type"], root["event_id"]);
+        eprintln!(
+            "  probable root: seq={} {} ({})",
+            root["seq"], root["event_type"], root["event_id"]
+        );
     }
     Ok(())
 }
@@ -2019,45 +2555,67 @@ pub fn monitor(
 
         // Create analyzer with default baseline
         let mut analyzer = crate::quality::WesternElectricAnalyzer::new(
-            5.0,  // baseline mean (stub_ratio default)
-            1.0,  // baseline stddev
+            5.0, // baseline mean (stub_ratio default)
+            1.0, // baseline stddev
             baseline_count,
         );
 
         // Take measurements on key metrics
         analyzer.add_measurement("stub_ratio", metrics_snapshot.stub_ratio);
-        analyzer.add_measurement("cyclomatic_complexity", metrics_snapshot.cyclomatic_complexity);
+        analyzer.add_measurement(
+            "cyclomatic_complexity",
+            metrics_snapshot.cyclomatic_complexity,
+        );
         analyzer.add_measurement("clippy_warnings", metrics_snapshot.clippy_warnings as f64);
         analyzer.add_measurement("churn", metrics_snapshot.churn as f64);
 
         // Output violations
         if !analyzer.violations.is_empty() {
             if format.as_deref() == Some("json") {
-                let violations: Vec<serde_json::Value> = analyzer.violations.iter().map(|v| {
-                    serde_json::json!({
-                        "metric": v.metric(),
-                        "severity": v.severity(),
-                        "description": v.description(),
+                let violations: Vec<serde_json::Value> = analyzer
+                    .violations
+                    .iter()
+                    .map(|v| {
+                        serde_json::json!({
+                            "metric": v.metric(),
+                            "severity": v.severity(),
+                            "description": v.description(),
+                        })
                     })
-                }).collect();
+                    .collect();
                 let out = serde_json::json!({
                     "monitor": "once",
                     "violations_count": violations.len(),
                     "violations": violations,
                     "metrics": metrics_snapshot,
                 });
-                println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+                println!(
+                    "{}",
+                    adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+                );
             } else {
-                eprintln!("quality violations detected ({} total):", analyzer.violations.len());
+                eprintln!(
+                    "quality violations detected ({} total):",
+                    analyzer.violations.len()
+                );
                 for v in &analyzer.violations {
                     eprintln!("  [{}] {}: {}", v.severity(), v.metric(), v.description());
                 }
                 eprintln!("\ncode quality metrics:");
                 eprintln!("  stub_ratio:          {:.4}", metrics_snapshot.stub_ratio);
-                eprintln!("  cyclomatic_complexity: {:.4}", metrics_snapshot.cyclomatic_complexity);
-                eprintln!("  clippy_warnings:     {}", metrics_snapshot.clippy_warnings);
+                eprintln!(
+                    "  cyclomatic_complexity: {:.4}",
+                    metrics_snapshot.cyclomatic_complexity
+                );
+                eprintln!(
+                    "  clippy_warnings:     {}",
+                    metrics_snapshot.clippy_warnings
+                );
                 eprintln!("  churn:               {}", metrics_snapshot.churn);
-                eprintln!("  test_coverage:       {:.1}%", metrics_snapshot.test_coverage);
+                eprintln!(
+                    "  test_coverage:       {:.1}%",
+                    metrics_snapshot.test_coverage
+                );
             }
         } else {
             eprintln!("quality: no violations detected (all green)");
@@ -2067,15 +2625,20 @@ pub fn monitor(
     }
 
     // Watch mode: poll at intervals
-    eprintln!("monitor: watch mode enabled on {:?} (interval: {poll_interval}s)", watch_path);
+    eprintln!(
+        "monitor: watch mode enabled on {:?} (interval: {poll_interval}s)",
+        watch_path
+    );
     eprintln!("(Note: tokio-based watch loop not yet implemented; run 'affi quality monitor' without --watch for single measurement)");
 
     // Phase 2: implement actual tokio::time::interval loop
     // For now, run once with watch path
     if let Some(path) = &watch_path {
         let metrics_snapshot = adapt(crate::quality::measure_code_quality(path))?;
-        eprintln!("monitor snapshot at {}: {} functions, {} warnings",
-            path, metrics_snapshot.stub_ratio, metrics_snapshot.clippy_warnings);
+        eprintln!(
+            "monitor snapshot at {}: {} functions, {} warnings",
+            path, metrics_snapshot.stub_ratio, metrics_snapshot.clippy_warnings
+        );
     }
 
     Ok(())
@@ -2089,10 +2652,7 @@ pub fn monitor(
 /// Parameters:
 /// - working_dir: directory to measure (default: current directory)
 /// - format: output format (json or human)
-pub fn emit_from_quality(
-    working_dir: Option<String>,
-    format: Option<String>,
-) -> Result<()> {
+pub fn emit_from_quality(working_dir: Option<String>, format: Option<String>) -> Result<()> {
     let measure_path = working_dir.as_deref().unwrap_or(".");
 
     // Measure code quality
@@ -2103,7 +2663,11 @@ pub fn emit_from_quality(
 
     // Emit quality.measurement event to receipt chain
     let objects = vec![format!("codebase:quality:{}", measure_path)];
-    let output = adapt(crate::cli::emit("quality.measurement", &objects, &payload_json))?;
+    let output = adapt(crate::cli::emit(
+        "quality.measurement",
+        &objects,
+        &payload_json,
+    ))?;
 
     if format.as_deref() == Some("json") {
         let event_out = serde_json::json!({
@@ -2116,12 +2680,21 @@ pub fn emit_from_quality(
         let s = adapt(serde_json::to_string_pretty(&event_out).map_err(anyhow::Error::from))?;
         println!("{s}");
     } else {
-        eprintln!("emitted quality.measurement for {} (seq {})", measure_path, output.seq);
+        eprintln!(
+            "emitted quality.measurement for {} (seq {})",
+            measure_path, output.seq
+        );
         eprintln!("  stub_ratio:          {:.4}", metrics.stub_ratio);
-        eprintln!("  cyclomatic_complexity: {:.4}", metrics.cyclomatic_complexity);
+        eprintln!(
+            "  cyclomatic_complexity: {:.4}",
+            metrics.cyclomatic_complexity
+        );
         eprintln!("  clippy_warnings:     {}", metrics.clippy_warnings);
         eprintln!("  test_coverage:       {:.1}%", metrics.test_coverage);
-        eprintln!("  doc_coverage:        {:.1}%", metrics.doc_coverage * 100.0);
+        eprintln!(
+            "  doc_coverage:        {:.1}%",
+            metrics.doc_coverage * 100.0
+        );
         eprintln!("  commitment:          {}", output.commitment);
     }
 
@@ -2171,15 +2744,24 @@ pub fn emit_from_quality(
 /// - Attempt 3: after 1500ms
 ///
 /// Transient HTTP errors (5xx) trigger retry; client errors (4xx) fail immediately.
-pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webhook_url: &str) -> anyhow::Result<()> {
+pub fn send_violation_webhook(
+    violation: &crate::quality::QualityViolation,
+    webhook_url: &str,
+) -> anyhow::Result<()> {
     #[cfg(feature = "shell")]
     {
-        use std::time::Duration;
         use std::thread;
+        use std::time::Duration;
 
         // Build JSON representation of the violation
         let violation_json = match violation {
-            crate::quality::QualityViolation::Rule1Sigma { metric, value, threshold, z_score, severity } => {
+            crate::quality::QualityViolation::Rule1Sigma {
+                metric,
+                value,
+                threshold,
+                z_score,
+                severity,
+            } => {
                 serde_json::json!({
                     "rule": "Rule1Sigma",
                     "metric": metric,
@@ -2190,7 +2772,10 @@ pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webh
                     "description": format!("{}: spike detected (value={:.2}, threshold={:.2}, z-score={:.2})", metric, value, threshold, z_score),
                 })
             }
-            crate::quality::QualityViolation::Rule9InRow { metric, consecutive } => {
+            crate::quality::QualityViolation::Rule9InRow {
+                metric,
+                consecutive,
+            } => {
                 serde_json::json!({
                     "rule": "Rule9InRow",
                     "metric": metric,
@@ -2199,7 +2784,11 @@ pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webh
                     "description": format!("{}: {} consecutive out-of-control points (zombie code)", metric, consecutive),
                 })
             }
-            crate::quality::QualityViolation::RuleTrend { metric, direction, count } => {
+            crate::quality::QualityViolation::RuleTrend {
+                metric,
+                direction,
+                count,
+            } => {
                 serde_json::json!({
                     "rule": "RuleTrend",
                     "metric": metric,
@@ -2209,7 +2798,10 @@ pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webh
                     "description": format!("{}: {} monotonic {} (systematic degradation)", metric, count, direction),
                 })
             }
-            crate::quality::QualityViolation::RuleAlternating { metric, oscillations } => {
+            crate::quality::QualityViolation::RuleAlternating {
+                metric,
+                oscillations,
+            } => {
                 serde_json::json!({
                     "rule": "RuleAlternating",
                     "metric": metric,
@@ -2218,7 +2810,11 @@ pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webh
                     "description": format!("{}: {} oscillations detected (uncertainty/hallucination)", metric, oscillations),
                 })
             }
-            crate::quality::QualityViolation::Rule2of3Beyond2Sigma { metric, count, threshold } => {
+            crate::quality::QualityViolation::Rule2of3Beyond2Sigma {
+                metric,
+                count,
+                threshold,
+            } => {
                 serde_json::json!({
                     "rule": "Rule2of3Beyond2Sigma",
                     "metric": metric,
@@ -2228,7 +2824,11 @@ pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webh
                     "description": format!("{}: {} of 3 points beyond 2σ threshold {:.2}", metric, count, threshold),
                 })
             }
-            crate::quality::QualityViolation::Rule4of5Beyond1Sigma { metric, count, threshold } => {
+            crate::quality::QualityViolation::Rule4of5Beyond1Sigma {
+                metric,
+                count,
+                threshold,
+            } => {
                 serde_json::json!({
                     "rule": "Rule4of5Beyond1Sigma",
                     "metric": metric,
@@ -2238,7 +2838,12 @@ pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webh
                     "description": format!("{}: {} of 5 points beyond 1σ threshold {:.2}", metric, count, threshold),
                 })
             }
-            crate::quality::QualityViolation::Rule15InRowWithin1Sigma { metric, count, threshold, severity } => {
+            crate::quality::QualityViolation::Rule15InRowWithin1Sigma {
+                metric,
+                count,
+                threshold,
+                severity,
+            } => {
                 serde_json::json!({
                     "rule": "Rule15InRowWithin1Sigma",
                     "metric": metric,
@@ -2255,7 +2860,10 @@ pub fn send_violation_webhook(violation: &crate::quality::QualityViolation, webh
         let mut attempt = 1;
 
         loop {
-            eprintln!("[webhook] attempt {}/{}: POST {}", attempt, max_attempts, webhook_url);
+            eprintln!(
+                "[webhook] attempt {}/{}: POST {}",
+                attempt, max_attempts, webhook_url
+            );
 
             // Use tokio runtime to execute async HTTP POST in sync context
             match execute_webhook_post(&payload, webhook_url) {
@@ -2342,7 +2950,9 @@ async fn post_webhook_async(_payload: &str, _webhook_url: &str) -> anyhow::Resul
     // Fallback: use std HTTP (would need a blocking client like reqwest blocking)
     // For now, stub to allow compilation
     eprintln!("[webhook] note: tokio and/or webhook feature not enabled; webhook POST stubbed");
-    Err(anyhow::anyhow!("tokio and webhook features required for webhook support"))
+    Err(anyhow::anyhow!(
+        "tokio and webhook features required for webhook support"
+    ))
 }
 
 // ============================================================================
@@ -2401,10 +3011,7 @@ pub fn install_git_hook(threshold: Option<String>) -> Result<()> {
     }
 
     // Print confirmation message
-    println!(
-        "Git hook installed at {}",
-        hook_path.display()
-    );
+    println!("Git hook installed at {}", hook_path.display());
     println!(
         "Severity threshold: {} (violations at or above this level will fail the commit)",
         severity_threshold
@@ -2423,7 +3030,10 @@ pub fn install_git_hook(threshold: Option<String>) -> Result<()> {
 /// 4. Exits 1 if violations found, 0 otherwise
 fn generate_post_commit_hook(threshold: &str) -> String {
     let severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
-    let threshold_index = severity_order.iter().position(|&s| s == threshold).unwrap_or(1);
+    let threshold_index = severity_order
+        .iter()
+        .position(|&s| s == threshold)
+        .unwrap_or(1);
 
     // Create a bash script that parses JSON output and filters by severity
     format!(
@@ -2596,9 +3206,15 @@ pub fn emit_ocel_quality_measurement(
         let s = adapt(serde_json::to_string_pretty(&event_out).map_err(anyhow::Error::from))?;
         println!("{s}");
     } else {
-        eprintln!("emitted quality:measure for {} (seq {})", measure_path, output.seq);
+        eprintln!(
+            "emitted quality:measure for {} (seq {})",
+            measure_path, output.seq
+        );
         eprintln!("  stub_ratio: {:.4}", metrics.stub_ratio);
-        eprintln!("  cyclomatic_complexity: {:.4}", metrics.cyclomatic_complexity);
+        eprintln!(
+            "  cyclomatic_complexity: {:.4}",
+            metrics.cyclomatic_complexity
+        );
         eprintln!("  clippy_warnings: {}", metrics.clippy_warnings);
         eprintln!("  test_coverage: {:.1}%", metrics.test_coverage);
         eprintln!("  commitment: {}", output.commitment);
@@ -2643,8 +3259,8 @@ pub fn emit_ocel_quality_violation(
 
     // Create Western Electric analyzer with standard baseline
     let mut analyzer = crate::quality::WesternElectricAnalyzer::new(
-        0.05,  // baseline mean for stub_ratio (5% is healthy)
-        0.02,  // baseline stddev (2% variation is normal)
+        0.05, // baseline mean for stub_ratio (5% is healthy)
+        0.02, // baseline stddev (2% variation is normal)
         baseline_count,
     );
 
@@ -2662,27 +3278,56 @@ pub fn emit_ocel_quality_violation(
     for violation in &analyzer.violations {
         // Build OCEL quality:violation event
         let (metric_name, metric_value, threshold, rule_name) = match violation {
-            crate::quality::QualityViolation::Rule1Sigma { metric, value, threshold, .. } => {
-                (metric.clone(), *value, *threshold, "Rule1Sigma")
-            }
-            crate::quality::QualityViolation::Rule9InRow { metric, consecutive } => {
-                (metric.clone(), *consecutive as f64, 0.0, "Rule9InRow")
-            }
-            crate::quality::QualityViolation::RuleTrend { metric, direction: _, count } => {
-                (metric.clone(), *count as f64, 0.0, "RuleTrend")
-            }
-            crate::quality::QualityViolation::RuleAlternating { metric, oscillations } => {
-                (metric.clone(), *oscillations as f64, 0.0, "RuleAlternating")
-            }
-            crate::quality::QualityViolation::Rule2of3Beyond2Sigma { metric, count, threshold } => {
-                (metric.clone(), *count as f64, *threshold, "Rule2of3Beyond2Sigma")
-            }
-            crate::quality::QualityViolation::Rule4of5Beyond1Sigma { metric, count, threshold } => {
-                (metric.clone(), *count as f64, *threshold, "Rule4of5Beyond1Sigma")
-            }
-            crate::quality::QualityViolation::Rule15InRowWithin1Sigma { metric, count, threshold, .. } => {
-                (metric.clone(), *count as f64, *threshold, "Rule15InRowWithin1Sigma")
-            }
+            crate::quality::QualityViolation::Rule1Sigma {
+                metric,
+                value,
+                threshold,
+                ..
+            } => (metric.clone(), *value, *threshold, "Rule1Sigma"),
+            crate::quality::QualityViolation::Rule9InRow {
+                metric,
+                consecutive,
+            } => (metric.clone(), *consecutive as f64, 0.0, "Rule9InRow"),
+            crate::quality::QualityViolation::RuleTrend {
+                metric,
+                direction: _,
+                count,
+            } => (metric.clone(), *count as f64, 0.0, "RuleTrend"),
+            crate::quality::QualityViolation::RuleAlternating {
+                metric,
+                oscillations,
+            } => (metric.clone(), *oscillations as f64, 0.0, "RuleAlternating"),
+            crate::quality::QualityViolation::Rule2of3Beyond2Sigma {
+                metric,
+                count,
+                threshold,
+            } => (
+                metric.clone(),
+                *count as f64,
+                *threshold,
+                "Rule2of3Beyond2Sigma",
+            ),
+            crate::quality::QualityViolation::Rule4of5Beyond1Sigma {
+                metric,
+                count,
+                threshold,
+            } => (
+                metric.clone(),
+                *count as f64,
+                *threshold,
+                "Rule4of5Beyond1Sigma",
+            ),
+            crate::quality::QualityViolation::Rule15InRowWithin1Sigma {
+                metric,
+                count,
+                threshold,
+                ..
+            } => (
+                metric.clone(),
+                *count as f64,
+                *threshold,
+                "Rule15InRowWithin1Sigma",
+            ),
         };
 
         // Map metric names to affected object references
@@ -2736,11 +3381,16 @@ pub fn emit_ocel_quality_violation(
             },
         });
 
-        let violation_payload_str = adapt(serde_json::to_string(&violation_payload).map_err(anyhow::Error::from))?;
+        let violation_payload_str =
+            adapt(serde_json::to_string(&violation_payload).map_err(anyhow::Error::from))?;
 
         // Emit the violation event to receipt chain
         let objects = affected_objects.clone();
-        let emission = adapt(crate::cli::emit("quality:violation", &objects, &violation_payload_str))?;
+        let emission = adapt(crate::cli::emit(
+            "quality:violation",
+            &objects,
+            &violation_payload_str,
+        ))?;
 
         violation_events.push(serde_json::json!({
             "event_id": emission.event_id,
@@ -2768,9 +3418,13 @@ pub fn emit_ocel_quality_violation(
         if violation_events.is_empty() {
             eprintln!("quality:violation: no violations detected (all green)");
         } else {
-            eprintln!("quality:violation: {} violation(s) detected and emitted", violation_events.len());
+            eprintln!(
+                "quality:violation: {} violation(s) detected and emitted",
+                violation_events.len()
+            );
             for (i, ve) in violation_events.iter().enumerate() {
-                eprintln!("  [{}] {} rule={} metric={} severity={}",
+                eprintln!(
+                    "  [{}] {} rule={} metric={} severity={}",
                     i + 1,
                     ve["event_id"],
                     ve["rule"],
@@ -2817,14 +3471,16 @@ pub fn emit_violation_causal_chain(
     let receipt = adapt(crate::cli::show(&receipt_path))?;
 
     // Filter to quality-related events
-    let quality_events: Vec<_> = receipt.events.iter()
+    let quality_events: Vec<_> = receipt
+        .events
+        .iter()
         .filter(|e| e.event_type.starts_with("quality:"))
         .filter(|e| {
-            metric_filter.as_ref()
+            metric_filter
+                .as_ref()
                 .map(|mf| {
                     // Check if event payload mentions the metric (simple heuristic)
-                    e.event_type.contains(mf)
-                        || e.objects.iter().any(|o| o.id.contains(mf))
+                    e.event_type.contains(mf) || e.objects.iter().any(|o| o.id.contains(mf))
                 })
                 .unwrap_or(true)
         })
@@ -2852,8 +3508,11 @@ pub fn emit_violation_causal_chain(
         }
 
         // Find first violation to extract root cause hypothesis
-        if event.event_type == "quality:violation" && root_cause_hypothesis == "Baseline measurement established" {
-            root_cause_hypothesis = "Quality violation detected; see preceding events for context".to_string();
+        if event.event_type == "quality:violation"
+            && root_cause_hypothesis == "Baseline measurement established"
+        {
+            root_cause_hypothesis =
+                "Quality violation detected; see preceding events for context".to_string();
         }
     }
 
@@ -2861,7 +3520,8 @@ pub fn emit_violation_causal_chain(
     causal_chain.reverse();
 
     // Collect all affected objects from quality events
-    let affected_objects: Vec<String> = quality_events.iter()
+    let affected_objects: Vec<String> = quality_events
+        .iter()
         .flat_map(|e| &e.objects)
         .map(|o| format!("{}:{}", o.id, o.obj_type))
         .collect::<std::collections::HashSet<_>>()
@@ -2880,15 +3540,21 @@ pub fn emit_violation_causal_chain(
         "recommendation": "Review causal chain to identify systemic quality degradation; consider code review or refactoring",
     });
 
-    let remediate_payload_str = adapt(serde_json::to_string(&remediate_payload).map_err(anyhow::Error::from))?;
+    let remediate_payload_str =
+        adapt(serde_json::to_string(&remediate_payload).map_err(anyhow::Error::from))?;
 
     // Emit quality:remediate event
-    let objects: Vec<String> = affected_objects.iter()
-        .take(5)  // Limit to first 5 objects to avoid huge event
+    let objects: Vec<String> = affected_objects
+        .iter()
+        .take(5) // Limit to first 5 objects to avoid huge event
         .cloned()
         .collect();
 
-    let emission = adapt(crate::cli::emit("quality:remediate", &objects, &remediate_payload_str))?;
+    let emission = adapt(crate::cli::emit(
+        "quality:remediate",
+        &objects,
+        &remediate_payload_str,
+    ))?;
 
     // Output results
     if format.as_deref() == Some("json") {
@@ -3001,13 +3667,31 @@ mod ocel_quality_tests {
     fn test_affected_objects_mapping() {
         // Test that metrics map to correct object references
         let metric_to_objects: std::collections::HashMap<&str, Vec<&str>> = [
-            ("stub_ratio", vec!["file:src/handlers.rs:stub-location", "module:quality:measurements"]),
-            ("test_coverage", vec!["file:src/tests:uncovered", "package:affidavit:coverage"]),
-            ("clippy_warnings", vec!["file:src/lib.rs:warnings", "linter:clippy:active-warnings"]),
-        ].iter().cloned().collect();
+            (
+                "stub_ratio",
+                vec![
+                    "file:src/handlers.rs:stub-location",
+                    "module:quality:measurements",
+                ],
+            ),
+            (
+                "test_coverage",
+                vec!["file:src/tests:uncovered", "package:affidavit:coverage"],
+            ),
+            (
+                "clippy_warnings",
+                vec!["file:src/lib.rs:warnings", "linter:clippy:active-warnings"],
+            ),
+        ]
+        .iter()
+        .cloned()
+        .collect();
 
         assert_eq!(metric_to_objects.get("stub_ratio").unwrap().len(), 2);
-        assert!(metric_to_objects.get("test_coverage").unwrap().contains(&"package:affidavit:coverage"));
+        assert!(metric_to_objects
+            .get("test_coverage")
+            .unwrap()
+            .contains(&"package:affidavit:coverage"));
     }
 
     #[test]
@@ -3026,22 +3710,30 @@ mod ocel_quality_tests {
         // Simple validation: rules exist and map to known severities
         let valid_severities = vec!["info", "warning", "medium", "high", "error"];
         for (_, severity) in rules {
-            assert!(valid_severities.contains(&severity), "severity {} is not valid", severity);
+            assert!(
+                valid_severities.contains(&severity),
+                "severity {} is not valid",
+                severity
+            );
         }
     }
 
     #[test]
     fn test_quality_event_type_convention() {
         // Verify OCEL event type naming convention
-        let event_types = vec![
-            "quality:measure",
-            "quality:violation",
-            "quality:remediate",
-        ];
+        let event_types = vec!["quality:measure", "quality:violation", "quality:remediate"];
 
         for event_type in event_types {
-            assert!(event_type.starts_with("quality:"), "event type {} should start with 'quality:'", event_type);
-            assert!(event_type.contains(':'), "event type {} should contain colon separator", event_type);
+            assert!(
+                event_type.starts_with("quality:"),
+                "event type {} should start with 'quality:'",
+                event_type
+            );
+            assert!(
+                event_type.contains(':'),
+                "event type {} should contain colon separator",
+                event_type
+            );
         }
     }
 
@@ -3062,8 +3754,10 @@ mod ocel_quality_tests {
         });
 
         assert_eq!(remediate_payload["event_type"], "quality:remediate");
-        assert_eq!(remediate_payload["causal_chain"].as_array().unwrap().len(), 3);
+        assert_eq!(
+            remediate_payload["causal_chain"].as_array().unwrap().len(),
+            3
+        );
         assert_eq!(remediate_payload["causal_chain"][1]["files_changed"], 15);
     }
 }
-

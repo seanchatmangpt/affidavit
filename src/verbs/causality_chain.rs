@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Trace causal event chain (X caused Y caused Z)
 #[verb("causality-chain", "receipt")]
-pub fn causality_chain(start_event: String, receipts_path: String, format: Option<String>) -> Result<()> {
+pub fn causality_chain(
+    start_event: String,
+    receipts_path: String,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::causality_chain(start_event, receipts_path, format)
 }

@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Compute team productivity metrics (PR review time, code review latency, rework)
 #[verb("team-velocity", "receipt")]
-pub fn team_velocity(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn team_velocity(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::team_velocity(receipts_path, time_range, format)
 }

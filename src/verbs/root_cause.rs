@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// RCA: find root cause by walking event chain backwards
 #[verb("root-cause", "receipt")]
-pub fn root_cause(effect_event: String, receipts_path: String, format: Option<String>) -> Result<()> {
+pub fn root_cause(
+    effect_event: String,
+    receipts_path: String,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::root_cause(effect_event, receipts_path, format)
 }

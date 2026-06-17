@@ -5,7 +5,6 @@
 /// - src/handlers.rs stubs (handler function signatures)
 ///
 /// Usage: cargo run --example codegen_maximalist_verbs
-
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
@@ -88,8 +87,7 @@ fn extract_verb_name(lines: &[&str], start_idx: usize) -> Option<String> {
     for i in (start_idx.saturating_sub(10))..start_idx {
         if let Some(name) = extract_field_at_line(lines[i], "cnv:hasVerbName") {
             return Some(
-                name
-                    .trim_matches(|c: char| c.is_whitespace() || c == '"' || c == ';')
+                name.trim_matches(|c: char| c.is_whitespace() || c == '"' || c == ';')
                     .to_string(),
             );
         }
@@ -145,16 +143,15 @@ fn extract_arguments(lines: &[&str], start_idx: usize, _ontology: &str) -> Optio
     None
 }
 
-fn parse_arguments(
-    lines: &[&str],
-    arg_names: &[String],
-    ontology: &str,
-) -> Vec<Argument> {
+fn parse_arguments(lines: &[&str], arg_names: &[String], ontology: &str) -> Vec<Argument> {
     let mut arguments = Vec::new();
 
     for arg_name in arg_names {
         // Find the argument definition in the ontology
-        if let Some(idx) = lines.iter().position(|l| l.contains(&format!("{} a cnv:Argument", arg_name))) {
+        if let Some(idx) = lines
+            .iter()
+            .position(|l| l.contains(&format!("{} a cnv:Argument", arg_name)))
+        {
             let arg_line_start = idx;
             let rust_name = to_rust_identifier(
                 extract_field(lines, arg_line_start, "cnv:hasArgumentName")
@@ -255,7 +252,7 @@ use crate::types::Receipt;
 use anyhow::Result;
 
 "#
-        .to_string();
+    .to_string();
 
     for (verb_name, verb) in verbs {
         let mut args = String::new();
@@ -266,16 +263,17 @@ use anyhow::Result;
 
         handler_code.push_str(&format!(
             "/// {}\npub fn {}({}) -> Result<()> {{\n    todo!(\"Implement {} handler\")\n}}\n\n",
-            verb.about, verb_name.replace('-', "_"), args, verb_name
+            verb.about,
+            verb_name.replace('-', "_"),
+            args,
+            verb_name
         ));
     }
 
     // Append to src/handlers.rs (or create if missing)
     let path = "src/handlers.rs";
     if Path::new(path).exists() {
-        println!(
-            "  ℹ️  handlers.rs already exists. Stubs generated to STDERR for reference:"
-        );
+        println!("  ℹ️  handlers.rs already exists. Stubs generated to STDERR for reference:");
         eprintln!("{}", handler_code);
     } else {
         fs::write(path, handler_code)?;
@@ -290,7 +288,7 @@ fn generate_verbs_mod(verbs: &BTreeMap<String, Verb>) -> anyhow::Result<()> {
 // Each verb is a thin wrapper that delegates to crate::handlers::*.
 
 "#
-        .to_string();
+    .to_string();
 
     for verb_name in verbs.keys() {
         mod_code.push_str(&format!("pub mod {};\n", verb_name.replace('-', "_")));

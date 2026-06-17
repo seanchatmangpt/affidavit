@@ -7,7 +7,7 @@
 //!
 //! Run with: cargo run --example portfolio_monitor_simulation --features shell
 
-use affidavit::quality::{CodeQualityMetrics, WesternElectricAnalyzer, QualityViolation};
+use affidavit::quality::{CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
@@ -101,7 +101,10 @@ fn main() -> anyhow::Result<()> {
 
     // Print warning repos
     if !warning_repos.is_empty() {
-        println!("⚠️  HIGH-SEVERITY VIOLATIONS ({} repos)", warning_repos.len());
+        println!(
+            "⚠️  HIGH-SEVERITY VIOLATIONS ({} repos)",
+            warning_repos.len()
+        );
         println!("──────────────────────────────────────");
         warning_repos.sort();
         warning_repos.dedup();
@@ -146,7 +149,10 @@ fn main() -> anyhow::Result<()> {
     println!("  Baseline: type_coverage = 0.91 ± 0.08");
     println!("  Baseline: test_coverage = 82.5 ± 6.2%");
     println!();
-    println!("  In Control:   {} repos", repos.len() - critical_repos.len() - warning_repos.len());
+    println!(
+        "  In Control:   {} repos",
+        repos.len() - critical_repos.len() - warning_repos.len()
+    );
     println!("  Warnings:     {} repos", warning_repos.len());
     println!("  Critical:     {} repos", critical_repos.len());
     println!();

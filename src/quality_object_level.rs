@@ -291,34 +291,80 @@ impl ObjectViolation {
     /// Get human-readable description of violation
     pub fn description(&self) -> String {
         match self {
-            Self::FileViolation { file_path, violation_type, value, threshold, .. } => {
+            Self::FileViolation {
+                file_path,
+                violation_type,
+                value,
+                threshold,
+                ..
+            } => {
                 format!(
                     "{}: {} (value={:.2}, threshold={:.2}) in file {}",
-                    violation_type, self.severity(), value, threshold, file_path
+                    violation_type,
+                    self.severity(),
+                    value,
+                    threshold,
+                    file_path
                 )
             }
-            Self::ModuleViolation { module_name, violation_type, mean_value, stddev_value, .. } => {
+            Self::ModuleViolation {
+                module_name,
+                violation_type,
+                mean_value,
+                stddev_value,
+                ..
+            } => {
                 format!(
                     "{}: {} (mean={:.2}, stddev={:.2}) in module {}",
-                    violation_type, self.severity(), mean_value, stddev_value, module_name
+                    violation_type,
+                    self.severity(),
+                    mean_value,
+                    stddev_value,
+                    module_name
                 )
             }
-            Self::PackageViolation { package_name, violation_type, current_score, threshold, .. } => {
+            Self::PackageViolation {
+                package_name,
+                violation_type,
+                current_score,
+                threshold,
+                ..
+            } => {
                 format!(
                     "{}: {} (score={:.2}, threshold={:.2}) in package {}",
-                    violation_type, self.severity(), current_score, threshold, package_name
+                    violation_type,
+                    self.severity(),
+                    current_score,
+                    threshold,
+                    package_name
                 )
             }
-            Self::APIBreakingChange { from_package, to_package, description, .. } => {
+            Self::APIBreakingChange {
+                from_package,
+                to_package,
+                description,
+                ..
+            } => {
                 format!(
                     "API Breaking Change: {} (from {} to {}): {}",
-                    self.severity(), from_package, to_package, description
+                    self.severity(),
+                    from_package,
+                    to_package,
+                    description
                 )
             }
-            Self::DependencyViolation { package_name, dependency_name, reason, .. } => {
+            Self::DependencyViolation {
+                package_name,
+                dependency_name,
+                reason,
+                ..
+            } => {
                 format!(
                     "Dependency Violation: {} (package={}, dependency={}): {}",
-                    self.severity(), package_name, dependency_name, reason
+                    self.severity(),
+                    package_name,
+                    dependency_name,
+                    reason
                 )
             }
         }
@@ -327,8 +373,8 @@ impl ObjectViolation {
 
 /// Measure quality metrics for a single file.
 pub fn measure_file_quality(path: &str) -> anyhow::Result<FileQualityMetrics> {
-    use std::fs;
     use regex::Regex;
+    use std::fs;
 
     let mut metrics = FileQualityMetrics::new(path.to_string());
 
@@ -443,9 +489,7 @@ pub fn measure_file_quality(path: &str) -> anyhow::Result<FileQualityMetrics> {
 }
 
 /// Aggregate file metrics into module-level metrics.
-pub fn aggregate_module_metrics(
-    files: &[FileQualityMetrics],
-) -> ModuleQualityMetrics {
+pub fn aggregate_module_metrics(files: &[FileQualityMetrics]) -> ModuleQualityMetrics {
     let mut result = ModuleQualityMetrics::new("aggregated".to_string());
 
     if files.is_empty() {
@@ -500,7 +544,10 @@ pub fn compute_package_health(modules: &[ModuleQualityMetrics]) -> PackageHealth
     let test_coverages: Vec<f64> = modules.iter().map(|m| m.mean_test_coverage).collect();
     let doc_coverages: Vec<f64> = modules.iter().map(|m| m.mean_doc_coverage).collect();
     let stub_ratios: Vec<f64> = modules.iter().map(|m| m.mean_stub_ratio).collect();
-    let complexities: Vec<f64> = modules.iter().map(|m| m.mean_cyclomatic_complexity).collect();
+    let complexities: Vec<f64> = modules
+        .iter()
+        .map(|m| m.mean_cyclomatic_complexity)
+        .collect();
 
     score.test_coverage = compute_mean(&test_coverages);
     score.doc_coverage = compute_mean(&doc_coverages) * 100.0;
@@ -538,7 +585,9 @@ pub fn detect_object_level_violations(
 
     // Check cyclomatic complexity (should be low)
     let complexity_threshold = baseline + 2.0 * stddev;
-    if object_metric.cyclomatic_complexity > complexity_threshold && object_metric.cyclomatic_complexity > 3.0 {
+    if object_metric.cyclomatic_complexity > complexity_threshold
+        && object_metric.cyclomatic_complexity > 3.0
+    {
         violations.push(ObjectViolation::FileViolation {
             file_path: object_metric.path.clone(),
             violation_type: "high_cyclomatic_complexity".to_string(),
@@ -590,11 +639,8 @@ fn compute_stddev(values: &[f64], mean: f64) -> f64 {
     if values.len() < 2 {
         return 0.0;
     }
-    let variance = values
-        .iter()
-        .map(|v| (v - mean).powi(2))
-        .sum::<f64>()
-        / (values.len() - 1) as f64;
+    let variance =
+        values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64;
     variance.sqrt()
 }
 

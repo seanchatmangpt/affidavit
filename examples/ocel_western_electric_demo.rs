@@ -18,9 +18,9 @@
 //! Run: `cargo run --example ocel_western_electric_demo --features shell`
 //! Output: JSON, human-readable report, receipt events
 
-use affidavit::quality::{CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer};
-use affidavit::ocel::{build_event, object_ref, qualified_object_ref, SeqCounter};
 use affidavit::chain::ChainAssembler;
+use affidavit::ocel::{build_event, object_ref, qualified_object_ref, SeqCounter};
+use affidavit::quality::{CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer};
 use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 
@@ -95,19 +95,19 @@ fn main() -> anyhow::Result<()> {
     ];
 
     let metrics_baseline = vec![
-        ("stub_ratio", 0.032, 0.025),           // Low with tight σ
-        ("type_coverage", 0.91, 0.08),          // High, consistent
-        ("churn", 120.0, 45.0),                 // Normal variability
-        ("comment_ratio", 0.22, 0.08),          // Good documentation
-        ("cyclomatic_complexity", 2.5, 0.7),    // Safe complexity
-        ("maintainability_index", 85.0, 12.0),  // Healthy
-        ("cognitive_complexity", 6.0, 2.5),     // Manageable
-        ("clippy_warnings", 3.0, 2.5),          // Few warnings
-        ("rustfmt_violations", 1.0, 1.5),       // Clean formatting
-        ("cargo_deny_issues", 0.5, 0.8),        // Minimal
+        ("stub_ratio", 0.032, 0.025),              // Low with tight σ
+        ("type_coverage", 0.91, 0.08),             // High, consistent
+        ("churn", 120.0, 45.0),                    // Normal variability
+        ("comment_ratio", 0.22, 0.08),             // Good documentation
+        ("cyclomatic_complexity", 2.5, 0.7),       // Safe complexity
+        ("maintainability_index", 85.0, 12.0),     // Healthy
+        ("cognitive_complexity", 6.0, 2.5),        // Manageable
+        ("clippy_warnings", 3.0, 2.5),             // Few warnings
+        ("rustfmt_violations", 1.0, 1.5),          // Clean formatting
+        ("cargo_deny_issues", 0.5, 0.8),           // Minimal
         ("cargo_audit_vulnerabilities", 0.2, 0.5), // Very rare
-        ("test_coverage", 82.5, 6.2),           // Good coverage
-        ("doc_coverage", 0.78, 0.15),           // Documentation complete
+        ("test_coverage", 82.5, 6.2),              // Good coverage
+        ("doc_coverage", 0.78, 0.15),              // Documentation complete
     ];
 
     println!("📈 Baseline metrics (mean ± 1σ):");
@@ -146,11 +146,11 @@ fn main() -> anyhow::Result<()> {
             // Synthesize values with controlled deviations for demo purposes
             // Some metrics will spike, some will trend, some will plateau
             metrics.stub_ratio = match repo.as_ref() {
-                "core-services" => 0.01 + (snapshot_idx as f64 * 0.02),   // Trending up
-                "api-gateway" => 0.15,  // Spike
+                "core-services" => 0.01 + (snapshot_idx as f64 * 0.02), // Trending up
+                "api-gateway" => 0.15,                                  // Spike
                 "data-pipeline" => 0.03,
                 "auth-provider" => 0.02,
-                "cache-layer" => 0.045,  // Elevated
+                "cache-layer" => 0.045, // Elevated
                 _ => 0.03,
             };
 
@@ -164,8 +164,8 @@ fn main() -> anyhow::Result<()> {
             };
 
             metrics.churn = match repo.as_ref() {
-                "core-services" => (85 + (snapshot_idx * 15)) as usize,  // Trending
-                "api-gateway" => 220,  // High churn (spike)
+                "core-services" => (85 + (snapshot_idx * 15)) as usize, // Trending
+                "api-gateway" => 220,                                   // High churn (spike)
                 "data-pipeline" => 110,
                 "auth-provider" => 60,
                 "cache-layer" => 135,
@@ -177,14 +177,14 @@ fn main() -> anyhow::Result<()> {
             metrics.maintainability_index = 84.0 - (snapshot_idx as f64 * 2.0);
             metrics.cognitive_complexity = 5.5 + (snapshot_idx as f64 * 0.8);
             metrics.clippy_warnings = match repo.as_ref() {
-                "api-gateway" => 8,  // Elevated
+                "api-gateway" => 8, // Elevated
                 "data-pipeline" => 5,
                 _ => 2,
             };
             metrics.rustfmt_violations = snapshot_idx as usize;
             metrics.cargo_deny_issues = 0;
             metrics.cargo_audit_vulnerabilities = 0;
-            metrics.test_coverage = 80.0 - (snapshot_idx as f64 * 1.5);  // Trending down
+            metrics.test_coverage = 80.0 - (snapshot_idx as f64 * 1.5); // Trending down
             metrics.doc_coverage = 0.75 + (snapshot_idx as f64 * 0.02);
             metrics.timestamp = timestamp;
 
@@ -192,7 +192,8 @@ fn main() -> anyhow::Result<()> {
 
             // Run all 7 WE rules on each metric
             for (metric_name, baseline_mean, baseline_stddev) in &metrics_baseline {
-                let mut analyzer = WesternElectricAnalyzer::new(*baseline_mean, *baseline_stddev, 20);
+                let mut analyzer =
+                    WesternElectricAnalyzer::new(*baseline_mean, *baseline_stddev, 20);
 
                 let value: f64 = match *metric_name {
                     "stub_ratio" => metrics.stub_ratio,
@@ -227,7 +228,11 @@ fn main() -> anyhow::Result<()> {
                 if violations_after > violations_before {
                     for i in violations_before..violations_after {
                         let violation = analyzer.violations[i].clone();
-                        let rule_name = format!("{:?}", violation).split('{').next().unwrap_or("Unknown").to_string();
+                        let rule_name = format!("{:?}", violation)
+                            .split('{')
+                            .next()
+                            .unwrap_or("Unknown")
+                            .to_string();
 
                         all_violations.push(ViolationContext {
                             repo_name: repo.to_string(),
@@ -271,9 +276,20 @@ fn main() -> anyhow::Result<()> {
         per_repo_metrics.insert(repo.to_string(), repo_metrics);
     }
 
-    println!("   ✓ Processed {} repos × 4 snapshots = {} metric measurements", repos.len(), repos.len() * 4);
-    println!("   ✓ Detected {} violations across {} metrics", all_violations.len(), metrics_baseline.len());
-    println!("   ✓ Detected {} rule storms (2+ rules firing)", rule_storms.len());
+    println!(
+        "   ✓ Processed {} repos × 4 snapshots = {} metric measurements",
+        repos.len(),
+        repos.len() * 4
+    );
+    println!(
+        "   ✓ Detected {} violations across {} metrics",
+        all_violations.len(),
+        metrics_baseline.len()
+    );
+    println!(
+        "   ✓ Detected {} rule storms (2+ rules firing)",
+        rule_storms.len()
+    );
     println!();
 
     // =========================================================================
@@ -286,10 +302,10 @@ fn main() -> anyhow::Result<()> {
 
     // Compute pairwise correlations (simplified: hand-picked expected correlations)
     let expected_correlations = vec![
-        ("stub_ratio", "test_coverage", -0.72),         // Higher stubs = lower coverage
+        ("stub_ratio", "test_coverage", -0.72), // Higher stubs = lower coverage
         ("cyclomatic_complexity", "maintainability_index", -0.81), // Higher complexity = worse MI
-        ("churn", "clippy_warnings", 0.68),             // High churn = more warnings
-        ("type_coverage", "doc_coverage", 0.45),        // Well-typed = better docs
+        ("churn", "clippy_warnings", 0.68),     // High churn = more warnings
+        ("type_coverage", "doc_coverage", 0.45), // Well-typed = better docs
         ("cognitive_complexity", "maintainability_index", -0.75), // Cognitive burden hurts MI
     ];
 
@@ -341,9 +357,18 @@ fn main() -> anyhow::Result<()> {
 
     // Hand-code expected causal chains based on quality domain knowledge
     let causal_map = vec![
-        ("high_churn", vec!["increased_clippy_warnings", "decreased_maintainability"]),
-        ("low_test_coverage", vec!["stub_stubs_remain", "high_cognitive_complexity"]),
-        ("spike_cyclomatic_complexity", vec!["reduced_maintainability_index", "lower_doc_coverage"]),
+        (
+            "high_churn",
+            vec!["increased_clippy_warnings", "decreased_maintainability"],
+        ),
+        (
+            "low_test_coverage",
+            vec!["stub_stubs_remain", "high_cognitive_complexity"],
+        ),
+        (
+            "spike_cyclomatic_complexity",
+            vec!["reduced_maintainability_index", "lower_doc_coverage"],
+        ),
     ];
 
     for (root_cause, consequents) in causal_map {
@@ -394,7 +419,11 @@ fn main() -> anyhow::Result<()> {
             &mut seq_counter,
         )?;
         ocel_events.push(repo_event);
-        println!("   Emitted: repo_quality_check for {} (evt-{})", repo, idx + 1);
+        println!(
+            "   Emitted: repo_quality_check for {} (evt-{})",
+            repo,
+            idx + 1
+        );
     }
 
     // Emit violation discovery events (top 5 by severity)
@@ -451,7 +480,10 @@ fn main() -> anyhow::Result<()> {
             &mut seq_counter,
         )?;
         ocel_events.push(storm_event);
-        println!("   Emitted: rule_storm_detected (evt-{})", repos.len() + 2 + rule_storms.len() + idx);
+        println!(
+            "   Emitted: rule_storm_detected (evt-{})",
+            repos.len() + 2 + rule_storms.len() + idx
+        );
     }
 
     // Emit analysis complete event
@@ -459,17 +491,21 @@ fn main() -> anyhow::Result<()> {
         "portfolio_analysis_completed",
         vec![
             object_ref("portfolio:main", "portfolio"),
-            qualified_object_ref(
-                "result:summary",
-                "analysis-result",
-                "final",
-            ),
+            qualified_object_ref("result:summary", "analysis-result", "final"),
         ],
-        format!("violations: {}, storms: {}", all_violations.len(), rule_storms.len()).as_bytes(),
+        format!(
+            "violations: {}, storms: {}",
+            all_violations.len(),
+            rule_storms.len()
+        )
+        .as_bytes(),
         &mut seq_counter,
     )?;
     ocel_events.push(complete_event);
-    println!("   Emitted: portfolio_analysis_completed (evt-{})", ocel_events.len() - 1);
+    println!(
+        "   Emitted: portfolio_analysis_completed (evt-{})",
+        ocel_events.len() - 1
+    );
     println!("   ✓ Total OCEL events generated: {}\n", ocel_events.len());
 
     // =========================================================================
@@ -504,7 +540,10 @@ fn main() -> anyhow::Result<()> {
     assembler.append(summary_event)?;
 
     let receipt = assembler.finalize();
-    println!("   ✓ Receipt chain assembled: {} events", receipt.events.len());
+    println!(
+        "   ✓ Receipt chain assembled: {} events",
+        receipt.events.len()
+    );
     println!("   ✓ Chain hash: {}", receipt.chain_hash.as_hex());
     println!();
 
@@ -517,7 +556,11 @@ fn main() -> anyhow::Result<()> {
     let mut rule_stats: HashMap<String, RuleStats> = HashMap::new();
 
     for violation in &all_violations {
-        let rule_name = format!("{:?}", violation.violation).split('{').next().unwrap_or("Unknown").to_string();
+        let rule_name = format!("{:?}", violation.violation)
+            .split('{')
+            .next()
+            .unwrap_or("Unknown")
+            .to_string();
         let severity = violation.violation.severity().to_string();
         let metric = violation.metric_name.clone();
 
@@ -645,8 +688,14 @@ fn main() -> anyhow::Result<()> {
     println!("Report Summary:");
     println!("─────────────");
     println!("  {} violations detected", all_violations.len());
-    println!("  {} critical violations", report["summary"]["critical_violations"]);
-    println!("  {} high-severity violations", report["summary"]["high_violations"]);
+    println!(
+        "  {} critical violations",
+        report["summary"]["critical_violations"]
+    );
+    println!(
+        "  {} high-severity violations",
+        report["summary"]["high_violations"]
+    );
     println!("  {} rule storms", rule_storms.len());
     println!("  {} causal chains identified", causal_chains.len());
     println!("  {} metric correlations", correlations.len());
@@ -674,16 +723,47 @@ fn main() -> anyhow::Result<()> {
     println!("║                      ANALYSIS COMPLETE                         ║");
     println!("╚════════════════════════════════════════════════════════════════╝\n");
 
-    println!("✓ Processed {} repos with {} metric types each", repos.len(), metrics_baseline.len());
-    println!("✓ Applied all 7 Western Electric rules to {} snapshots", repos.len() * 4);
+    println!(
+        "✓ Processed {} repos with {} metric types each",
+        repos.len(),
+        metrics_baseline.len()
+    );
+    println!(
+        "✓ Applied all 7 Western Electric rules to {} snapshots",
+        repos.len() * 4
+    );
     println!("✓ Detected {} violations (", all_violations.len());
-    println!("    {} CRITICAL,", all_violations.iter().filter(|v| v.violation.severity() == "CRITICAL").count());
-    println!("    {} HIGH,", all_violations.iter().filter(|v| v.violation.severity() == "HIGH").count());
-    println!("    {} MEDIUM)", all_violations.iter().filter(|v| v.violation.severity() == "MEDIUM").count());
-    println!("✓ Identified {} rule storms (2+ simultaneous violations)", rule_storms.len());
+    println!(
+        "    {} CRITICAL,",
+        all_violations
+            .iter()
+            .filter(|v| v.violation.severity() == "CRITICAL")
+            .count()
+    );
+    println!(
+        "    {} HIGH,",
+        all_violations
+            .iter()
+            .filter(|v| v.violation.severity() == "HIGH")
+            .count()
+    );
+    println!(
+        "    {} MEDIUM)",
+        all_violations
+            .iter()
+            .filter(|v| v.violation.severity() == "MEDIUM")
+            .count()
+    );
+    println!(
+        "✓ Identified {} rule storms (2+ simultaneous violations)",
+        rule_storms.len()
+    );
     println!("✓ Computed {} metric correlations", correlations.len());
     println!("✓ Built {} causal chains", causal_chains.len());
-    println!("✓ Tracked violations at {} object level", violations_by_object.len());
+    println!(
+        "✓ Tracked violations at {} object level",
+        violations_by_object.len()
+    );
     println!("✓ Generated {} OCEL events", ocel_events.len());
     println!("✓ Assembled receipt with {} events", receipt.events.len());
     println!("✓ Receipt chain: {}", &receipt.chain_hash.as_hex()[..16]);

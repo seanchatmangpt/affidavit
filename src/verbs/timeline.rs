@@ -11,6 +11,11 @@ use clap_noun_verb_macros::verb;
 
 /// Render event timeline across receipts with causality swimlanes
 #[verb("timeline", "receipt")]
-pub fn timeline(receipts_path: String, start_time: Option<String>, end_time: Option<String>, format: Option<String>) -> Result<()> {
+pub fn timeline(
+    receipts_path: String,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::timeline(receipts_path, start_time, end_time, format)
 }

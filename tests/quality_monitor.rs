@@ -8,7 +8,7 @@
 //! 5. Baseline bootstrap from initial measurements
 
 use affidavit::quality::{
-    CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer, measure_code_quality,
+    measure_code_quality, CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer,
 };
 use std::fs;
 use std::path::Path;
@@ -127,7 +127,11 @@ fn test_measure_code_quality_detects_stubs() {
 
     // with_stubs.rs has 3 stubs and ~5 functions (add, subtract, complex_feature, another_feature, dangerous_path)
     // stub_ratio should be > 0
-    assert!(metrics.stub_ratio > 0.0, "stub_ratio should detect stubs: {}", metrics.stub_ratio);
+    assert!(
+        metrics.stub_ratio > 0.0,
+        "stub_ratio should detect stubs: {}",
+        metrics.stub_ratio
+    );
 }
 
 #[test]
@@ -187,9 +191,10 @@ fn test_rule_1_sigma_below_mean() {
     analyzer.add_measurement("type_coverage", 0.5);
 
     assert!(!analyzer.violations.is_empty());
-    assert!(analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::Rule1Sigma { .. })
-    }));
+    assert!(analyzer
+        .violations
+        .iter()
+        .any(|v| { matches!(v, QualityViolation::Rule1Sigma { .. }) }));
 }
 
 // ============================================================================
@@ -220,9 +225,10 @@ fn test_rule_9_in_a_row_severity_critical() {
     }
 
     assert!(!analyzer.violations.is_empty());
-    let violation = analyzer.violations.iter().find(|v| {
-        matches!(v, QualityViolation::Rule9InRow { .. })
-    });
+    let violation = analyzer
+        .violations
+        .iter()
+        .find(|v| matches!(v, QualityViolation::Rule9InRow { .. }));
     assert!(violation.is_some());
     assert_eq!(violation.unwrap().severity(), "CRITICAL");
 }
@@ -236,9 +242,10 @@ fn test_rule_9_in_a_row_requires_exactly_9() {
         analyzer.add_measurement("test_metric", 10.0);
     }
 
-    let has_9_in_row = analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::Rule9InRow { .. })
-    });
+    let has_9_in_row = analyzer
+        .violations
+        .iter()
+        .any(|v| matches!(v, QualityViolation::Rule9InRow { .. }));
     assert!(!has_9_in_row, "Should not trigger with only 8 consecutive");
 }
 
@@ -257,9 +264,10 @@ fn test_rule_trend_severity_high() {
         analyzer.add_measurement("metric", 5.0 + i as f64);
     }
 
-    let trend_violation = analyzer.violations.iter().find(|v| {
-        matches!(v, QualityViolation::RuleTrend { .. })
-    });
+    let trend_violation = analyzer
+        .violations
+        .iter()
+        .find(|v| matches!(v, QualityViolation::RuleTrend { .. }));
     assert!(trend_violation.is_some());
     assert_eq!(trend_violation.unwrap().severity(), "HIGH");
 }
@@ -294,9 +302,10 @@ fn test_rule_alternating_severity_high() {
         analyzer.add_measurement("metric", v);
     }
 
-    let alt_violation = analyzer.violations.iter().find(|v| {
-        matches!(v, QualityViolation::RuleAlternating { .. })
-    });
+    let alt_violation = analyzer
+        .violations
+        .iter()
+        .find(|v| matches!(v, QualityViolation::RuleAlternating { .. }));
     assert!(alt_violation.is_some());
     assert_eq!(alt_violation.unwrap().severity(), "HIGH");
 }
@@ -316,9 +325,10 @@ fn test_rule_2_of_3_beyond_2_sigma() {
     analyzer.add_measurement("metric", 11.0); // within 2σ
 
     assert!(!analyzer.violations.is_empty());
-    assert!(analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::Rule2of3Beyond2Sigma { count: 2, .. })
-    }));
+    assert!(analyzer
+        .violations
+        .iter()
+        .any(|v| { matches!(v, QualityViolation::Rule2of3Beyond2Sigma { count: 2, .. }) }));
 }
 
 #[test]
@@ -331,9 +341,10 @@ fn test_rule_2_of_3_all_three_beyond_2_sigma() {
     analyzer.add_measurement("metric", 14.0);
 
     assert!(!analyzer.violations.is_empty());
-    assert!(analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::Rule2of3Beyond2Sigma { count: 3, .. })
-    }));
+    assert!(analyzer
+        .violations
+        .iter()
+        .any(|v| { matches!(v, QualityViolation::Rule2of3Beyond2Sigma { count: 3, .. }) }));
 }
 
 #[test]
@@ -344,9 +355,10 @@ fn test_rule_2_of_3_severity_high() {
     analyzer.add_measurement("metric", 13.5);
     analyzer.add_measurement("metric", 11.0);
 
-    let violation = analyzer.violations.iter().find(|v| {
-        matches!(v, QualityViolation::Rule2of3Beyond2Sigma { .. })
-    });
+    let violation = analyzer
+        .violations
+        .iter()
+        .find(|v| matches!(v, QualityViolation::Rule2of3Beyond2Sigma { .. }));
     assert!(violation.is_some());
     assert_eq!(violation.unwrap().severity(), "HIGH");
 }
@@ -368,9 +380,10 @@ fn test_rule_4_of_5_beyond_1_sigma() {
     analyzer.add_measurement("metric", 10.5); // within 1σ
 
     assert!(!analyzer.violations.is_empty());
-    assert!(analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::Rule4of5Beyond1Sigma { count: 4, .. })
-    }));
+    assert!(analyzer
+        .violations
+        .iter()
+        .any(|v| { matches!(v, QualityViolation::Rule4of5Beyond1Sigma { count: 4, .. }) }));
 }
 
 #[test]
@@ -385,9 +398,10 @@ fn test_rule_4_of_5_all_five_beyond_1_sigma() {
     analyzer.add_measurement("metric", 12.3);
 
     assert!(!analyzer.violations.is_empty());
-    assert!(analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::Rule4of5Beyond1Sigma { count: 5, .. })
-    }));
+    assert!(analyzer
+        .violations
+        .iter()
+        .any(|v| { matches!(v, QualityViolation::Rule4of5Beyond1Sigma { count: 5, .. }) }));
 }
 
 #[test]
@@ -400,9 +414,10 @@ fn test_rule_4_of_5_severity_medium() {
     analyzer.add_measurement("metric", 11.8);
     analyzer.add_measurement("metric", 10.5);
 
-    let violation = analyzer.violations.iter().find(|v| {
-        matches!(v, QualityViolation::Rule4of5Beyond1Sigma { .. })
-    });
+    let violation = analyzer
+        .violations
+        .iter()
+        .find(|v| matches!(v, QualityViolation::Rule4of5Beyond1Sigma { .. }));
     assert!(violation.is_some());
     assert_eq!(violation.unwrap().severity(), "MEDIUM");
 }
@@ -424,7 +439,10 @@ fn test_rule_15_in_row_within_1_sigma() {
 
     assert!(!analyzer.violations.is_empty());
     assert!(analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::Rule15InRowWithin1Sigma { count: 15, .. })
+        matches!(
+            v,
+            QualityViolation::Rule15InRowWithin1Sigma { count: 15, .. }
+        )
     }));
 }
 
@@ -438,9 +456,10 @@ fn test_rule_15_in_row_requires_exactly_15() {
         analyzer.add_measurement("metric", value);
     }
 
-    let has_15_in_row = analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::Rule15InRowWithin1Sigma { .. })
-    });
+    let has_15_in_row = analyzer
+        .violations
+        .iter()
+        .any(|v| matches!(v, QualityViolation::Rule15InRowWithin1Sigma { .. }));
     assert!(!has_15_in_row, "Should not trigger with only 14");
 }
 
@@ -453,9 +472,10 @@ fn test_rule_15_in_row_severity_info() {
         analyzer.add_measurement("metric", value);
     }
 
-    let violation = analyzer.violations.iter().find(|v| {
-        matches!(v, QualityViolation::Rule15InRowWithin1Sigma { .. })
-    });
+    let violation = analyzer
+        .violations
+        .iter()
+        .find(|v| matches!(v, QualityViolation::Rule15InRowWithin1Sigma { .. }));
     assert!(violation.is_some());
     assert_eq!(violation.unwrap().severity(), "INFO");
 }
@@ -487,8 +507,14 @@ fn test_baseline_bootstrap_calculates_mean_and_stddev() {
 
     assert_eq!(analyzer.baseline_mean, baseline_mean);
     assert_eq!(analyzer.baseline_stddev, baseline_stddev);
-    assert_eq!(analyzer.control_limits.0, baseline_mean - 3.0 * baseline_stddev);
-    assert_eq!(analyzer.control_limits.1, baseline_mean + 3.0 * baseline_stddev);
+    assert_eq!(
+        analyzer.control_limits.0,
+        baseline_mean - 3.0 * baseline_stddev
+    );
+    assert_eq!(
+        analyzer.control_limits.1,
+        baseline_mean + 3.0 * baseline_stddev
+    );
 }
 
 #[test]
@@ -519,8 +545,14 @@ fn test_multiple_rules_triggered_simultaneously() {
 
     // Should have multiple violations
     assert!(analyzer.violations.len() >= 2);
-    assert!(analyzer.violations.iter().any(|v| matches!(v, QualityViolation::Rule1Sigma { .. })));
-    assert!(analyzer.violations.iter().any(|v| matches!(v, QualityViolation::Rule9InRow { .. })));
+    assert!(analyzer
+        .violations
+        .iter()
+        .any(|v| matches!(v, QualityViolation::Rule1Sigma { .. })));
+    assert!(analyzer
+        .violations
+        .iter()
+        .any(|v| matches!(v, QualityViolation::Rule9InRow { .. })));
 }
 
 // ============================================================================
@@ -588,9 +620,10 @@ fn test_analyzer_with_negative_values() {
     analyzer.add_measurement("metric", -1.5); // z-score = 3.5
 
     assert!(!analyzer.violations.is_empty());
-    assert!(analyzer.violations.iter().any(|v| {
-        matches!(v, QualityViolation::Rule1Sigma { .. })
-    }));
+    assert!(analyzer
+        .violations
+        .iter()
+        .any(|v| { matches!(v, QualityViolation::Rule1Sigma { .. }) }));
 }
 
 #[test]

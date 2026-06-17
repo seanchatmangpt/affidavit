@@ -76,11 +76,7 @@ fn emit_violation_event(
                 "trigger",
             ),
             // Reference the trigger event (causal chain)
-            qualified_object_ref(
-                trigger_event_id.to_string(),
-                "operation-event",
-                "caused-by",
-            ),
+            qualified_object_ref(trigger_event_id.to_string(), "operation-event", "caused-by"),
         ],
         &payload,
         seq_counter,
@@ -152,11 +148,8 @@ fn e2e_ocel_quality_integration_full_lifecycle() -> Result<(), Box<dyn std::erro
 
         // Build a rolling window of 10 measurements to trigger rules
         for i in 0..=idx.min(9) {
-            let test_metrics = create_test_metrics(
-                i as u64,
-                0.1 + (i as f64 * 0.01),
-                0.9 - (i as f64 * 0.03),
-            );
+            let test_metrics =
+                create_test_metrics(i as u64, 0.1 + (i as f64 * 0.01), 0.9 - (i as f64 * 0.03));
             analyzer.add_measurement("type_coverage", test_metrics.type_coverage);
         }
 
@@ -191,7 +184,10 @@ fn e2e_ocel_quality_integration_full_lifecycle() -> Result<(), Box<dyn std::erro
     // Verify basic structure
     assert_eq!(receipt.format_version, "core/v1");
     assert_eq!(receipt.events.len(), total_events);
-    assert!(receipt.events.len() >= 10, "Should have at least 10 measurement events");
+    assert!(
+        receipt.events.len() >= 10,
+        "Should have at least 10 measurement events"
+    );
     assert!(
         receipt.events.len() >= 10 + all_violations.len(),
         "Should have measurement + violation events"
@@ -241,8 +237,7 @@ fn e2e_ocel_quality_integration_full_lifecycle() -> Result<(), Box<dyn std::erro
         assert_eq!(
             verdict.outcomes[i].stage, *stage_name,
             "Stage {} should be {}",
-            i,
-            stage_name
+            i, stage_name
         );
         assert!(
             verdict.outcomes[i].passed,
@@ -269,10 +264,16 @@ fn e2e_ocel_quality_integration_full_lifecycle() -> Result<(), Box<dyn std::erro
     // Check each violation event has proper object references
     for event in &receipt.events {
         if event.event_type.contains("violation") {
-            assert!(!event.objects.is_empty(), "Violation event must have objects");
+            assert!(
+                !event.objects.is_empty(),
+                "Violation event must have objects"
+            );
 
             // Every violation should reference the trigger metric
-            let has_metric_ref = event.objects.iter().any(|obj| obj.obj_type == "quality-metric");
+            let has_metric_ref = event
+                .objects
+                .iter()
+                .any(|obj| obj.obj_type == "quality-metric");
             assert!(
                 has_metric_ref,
                 "Violation event {} must reference a quality-metric object",
@@ -280,7 +281,10 @@ fn e2e_ocel_quality_integration_full_lifecycle() -> Result<(), Box<dyn std::erro
             );
 
             // Every violation should reference the trigger event
-            let has_event_ref = event.objects.iter().any(|obj| obj.obj_type == "operation-event");
+            let has_event_ref = event
+                .objects
+                .iter()
+                .any(|obj| obj.obj_type == "operation-event");
             assert!(
                 has_event_ref,
                 "Violation event {} must reference an operation-event object",
@@ -299,8 +303,7 @@ fn e2e_ocel_quality_integration_full_lifecycle() -> Result<(), Box<dyn std::erro
         if event.event_type.contains("violation") {
             // Find the "caused-by" reference
             let caused_by = event.objects.iter().find(|obj| {
-                obj.obj_type == "operation-event"
-                    && obj.qualifier.as_deref() == Some("caused-by")
+                obj.obj_type == "operation-event" && obj.qualifier.as_deref() == Some("caused-by")
             });
 
             if let Some(cause) = caused_by {
@@ -321,7 +324,10 @@ fn e2e_ocel_quality_integration_full_lifecycle() -> Result<(), Box<dyn std::erro
 
     // Check that all event types are non-empty
     for event in &receipt.events {
-        assert!(!event.event_type.trim().is_empty(), "Event type must not be empty");
+        assert!(
+            !event.event_type.trim().is_empty(),
+            "Event type must not be empty"
+        );
     }
 
     // Check that all objects have non-empty id and type
@@ -396,7 +402,10 @@ fn e2e_ocel_quality_integration_full_lifecycle() -> Result<(), Box<dyn std::erro
     println!("Total events: {}", total_events);
     println!("Measurement events: 10");
     println!("Violation events: {}", violation_event_count);
-    println!("All 7 WE rule violations detected: {}", all_violations.len());
+    println!(
+        "All 7 WE rule violations detected: {}",
+        all_violations.len()
+    );
     println!("Verification passed: {}", verdict.accepted);
     println!("Chain hash stable: true");
     println!("OCEL structure valid: true");
@@ -453,8 +462,7 @@ fn test_violation_causality_chain() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let trigger_event_id = "evt-0";
-    let violation_event =
-        emit_violation_event(&violation, trigger_event_id, &mut seq_counter)?;
+    let violation_event = emit_violation_event(&violation, trigger_event_id, &mut seq_counter)?;
 
     // Verify causality structure
     assert!(violation_event.event_type.contains("violation"));

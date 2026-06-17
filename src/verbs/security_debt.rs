@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Analyze security debt (unpatched vulns, CVE age, remediation lag)
 #[verb("security-debt", "receipt")]
-pub fn security_debt(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn security_debt(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::security_debt(receipts_path, time_range, format)
 }

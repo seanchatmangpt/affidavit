@@ -96,7 +96,11 @@ impl SimultaneousViolation {
 
     /// Get the maximum severity among violated metrics
     pub fn max_severity(&self) -> &str {
-        self.severities.iter().max_by_key(|s| severity_rank(s)).map(|s| s.as_str()).unwrap_or("UNKNOWN")
+        self.severities
+            .iter()
+            .max_by_key(|s| severity_rank(s))
+            .map(|s| s.as_str())
+            .unwrap_or("UNKNOWN")
     }
 
     /// Check if this is a compound violation (3+ metrics violated)
@@ -246,7 +250,9 @@ pub fn compute_metric_correlations(history: &[CodeQualityMetrics]) -> Vec<Metric
 ///
 /// # Returns
 /// Vector of simultaneous violation events
-pub fn detect_simultaneous_violations(violations: &[QualityViolation]) -> Vec<SimultaneousViolation> {
+pub fn detect_simultaneous_violations(
+    violations: &[QualityViolation],
+) -> Vec<SimultaneousViolation> {
     if violations.len() < 2 {
         return Vec::new();
     }
@@ -336,10 +342,25 @@ pub fn infer_root_cause(
 
     // Candidate causal metrics (commonly linked to violations)
     let candidates = vec![
-        ("stub_ratio", metrics.iter().map(|m| m.stub_ratio).collect::<Vec<_>>()),
-        ("type_coverage", metrics.iter().map(|m| m.type_coverage).collect::<Vec<_>>()),
-        ("churn", metrics.iter().map(|m| m.churn as f64).collect::<Vec<_>>()),
-        ("cyclomatic_complexity", metrics.iter().map(|m| m.cyclomatic_complexity).collect::<Vec<_>>()),
+        (
+            "stub_ratio",
+            metrics.iter().map(|m| m.stub_ratio).collect::<Vec<_>>(),
+        ),
+        (
+            "type_coverage",
+            metrics.iter().map(|m| m.type_coverage).collect::<Vec<_>>(),
+        ),
+        (
+            "churn",
+            metrics.iter().map(|m| m.churn as f64).collect::<Vec<_>>(),
+        ),
+        (
+            "cyclomatic_complexity",
+            metrics
+                .iter()
+                .map(|m| m.cyclomatic_complexity)
+                .collect::<Vec<_>>(),
+        ),
     ];
 
     let mut best_hypothesis = default_hypothesis(&affected_metric);
@@ -399,7 +420,11 @@ fn estimate_lag(causal: &[f64], affected: &[f64]) -> u64 {
 
     for lag in 0..=std::cmp::min(5, causal.len() - 1) {
         let shifted_causal: Vec<f64> = causal.iter().skip(lag).copied().collect();
-        let truncated_affected: Vec<f64> = affected.iter().take(affected.len() - lag).copied().collect();
+        let truncated_affected: Vec<f64> = affected
+            .iter()
+            .take(affected.len() - lag)
+            .copied()
+            .collect();
 
         let (r, _se) = pearson_correlation(&shifted_causal, &truncated_affected);
 
@@ -509,7 +534,8 @@ pub fn analyze_correlations(
         root_causes.push(infer_root_cause(history, violation));
     }
 
-    let amplified_severities = amplify_severity_for_correlated_violations(violations, &metric_correlations);
+    let amplified_severities =
+        amplify_severity_for_correlated_violations(violations, &metric_correlations);
 
     CorrelationAnalysis {
         metric_correlations,
@@ -536,7 +562,10 @@ mod tests {
         let a = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let b = vec![2.0, 4.0, 6.0, 8.0, 10.0]; // b = 2*a
         let (r, _se) = pearson_correlation(&a, &b);
-        assert!((r - 1.0).abs() < 0.01, "Perfect positive correlation should be 1.0");
+        assert!(
+            (r - 1.0).abs() < 0.01,
+            "Perfect positive correlation should be 1.0"
+        );
     }
 
     #[test]
@@ -544,7 +573,10 @@ mod tests {
         let a = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let b = vec![5.0, 4.0, 3.0, 2.0, 1.0]; // b = 6 - a
         let (r, _se) = pearson_correlation(&a, &b);
-        assert!((r - (-1.0)).abs() < 0.01, "Perfect negative correlation should be -1.0");
+        assert!(
+            (r - (-1.0)).abs() < 0.01,
+            "Perfect negative correlation should be -1.0"
+        );
     }
 
     #[test]
@@ -663,7 +695,11 @@ mod tests {
     fn test_simultaneous_violation_max_severity() {
         let sim = SimultaneousViolation::new(
             vec!["a".to_string(), "b".to_string(), "c".to_string()],
-            vec!["MEDIUM".to_string(), "CRITICAL".to_string(), "HIGH".to_string()],
+            vec![
+                "MEDIUM".to_string(),
+                "CRITICAL".to_string(),
+                "HIGH".to_string(),
+            ],
             vec![1000, 1050, 1100],
             300,
         );
@@ -724,7 +760,11 @@ mod tests {
     fn test_compute_metric_correlations_single_history() {
         let history = vec![CodeQualityMetrics::default()];
         let correlations = compute_metric_correlations(&history);
-        assert_eq!(correlations.len(), 0, "Single measurement cannot have correlations");
+        assert_eq!(
+            correlations.len(),
+            0,
+            "Single measurement cannot have correlations"
+        );
     }
 
     #[test]
@@ -741,16 +781,17 @@ mod tests {
         assert!(!correlations.is_empty());
 
         // Should find negative correlation between stub_ratio and type_coverage
-        let stub_type_corr = correlations
-            .iter()
-            .find(|c|
-                (c.metric_a == "stub_ratio" && c.metric_b == "type_coverage")
+        let stub_type_corr = correlations.iter().find(|c| {
+            (c.metric_a == "stub_ratio" && c.metric_b == "type_coverage")
                 || (c.metric_a == "type_coverage" && c.metric_b == "stub_ratio")
-            );
+        });
         assert!(stub_type_corr.is_some());
 
         if let Some(corr) = stub_type_corr {
-            assert!(corr.pearson_coefficient < -0.5, "Should detect negative correlation");
+            assert!(
+                corr.pearson_coefficient < -0.5,
+                "Should detect negative correlation"
+            );
         }
     }
 
@@ -775,7 +816,11 @@ mod tests {
             severity: "CRITICAL".to_string(),
         }];
         let simultaneous = detect_simultaneous_violations(&violations);
-        assert_eq!(simultaneous.len(), 0, "Single violation is not simultaneous");
+        assert_eq!(
+            simultaneous.len(),
+            0,
+            "Single violation is not simultaneous"
+        );
     }
 
     #[test]
@@ -995,11 +1040,20 @@ mod tests {
         let analysis = analyze_correlations(&history, &violations);
 
         // Should compute correlations
-        assert!(!analysis.metric_correlations.is_empty(), "Should compute pairwise correlations");
+        assert!(
+            !analysis.metric_correlations.is_empty(),
+            "Should compute pairwise correlations"
+        );
         // Simultaneous violations may or may not be detected based on timestamp hashing
         // but root causes and amplified severities should always be generated
-        assert!(!analysis.root_causes.is_empty(), "Should generate root cause hypotheses");
-        assert!(!analysis.amplified_severities.is_empty(), "Should amplify severities");
+        assert!(
+            !analysis.root_causes.is_empty(),
+            "Should generate root cause hypotheses"
+        );
+        assert!(
+            !analysis.amplified_severities.is_empty(),
+            "Should amplify severities"
+        );
         // Should have valid timestamp
         assert!(analysis.timestamp > 0, "Timestamp should be valid");
     }

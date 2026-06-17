@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Compute DORA 4 Key Metrics (deployment frequency, lead time, MTTR, change failure rate)
 #[verb("dora-metrics", "receipt")]
-pub fn dora_metrics(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn dora_metrics(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::dora_metrics(receipts_path, time_range, format)
 }

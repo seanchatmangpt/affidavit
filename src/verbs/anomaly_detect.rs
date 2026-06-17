@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Detect anomalies (unusual deploy timing, error rate spikes, latency changes)
 #[verb("anomaly-detect", "receipt")]
-pub fn anomaly_detect(receipts_path: String, sensitivity: Option<String>, format: Option<String>) -> Result<()> {
+pub fn anomaly_detect(
+    receipts_path: String,
+    sensitivity: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::anomaly_detect(receipts_path, sensitivity, format)
 }

@@ -11,6 +11,11 @@ use clap_noun_verb_macros::verb;
 
 /// Generate SOC 2 audit trail and compliance proof from receipts
 #[verb("soc2-audit", "receipt")]
-pub fn soc2_audit(receipts_path: String, soc2_type: Option<String>, out: Option<String>, format: Option<String>) -> Result<()> {
+pub fn soc2_audit(
+    receipts_path: String,
+    soc2_type: Option<String>,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::soc2_audit(receipts_path, soc2_type, out, format)
 }

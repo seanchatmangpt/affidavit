@@ -11,6 +11,11 @@ use clap_noun_verb_macros::verb;
 
 /// Analyze trends (deployment velocity, test coverage, incident rate)
 #[verb("trend-analysis", "receipt")]
-pub fn trend_analysis(receipts_path: String, metric: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn trend_analysis(
+    receipts_path: String,
+    metric: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::trend_analysis(receipts_path, metric, time_range, format)
 }

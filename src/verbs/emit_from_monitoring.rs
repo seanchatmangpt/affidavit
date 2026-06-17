@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Consume monitoring/observability events (Datadog, New Relic, Prometheus)
 #[verb("emit-from-monitoring", "receipt")]
-pub fn emit_from_monitoring(provider: String, alert_type: String, format: Option<String>) -> Result<()> {
+pub fn emit_from_monitoring(
+    provider: String,
+    alert_type: String,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::emit_from_monitoring(provider, alert_type, format)
 }

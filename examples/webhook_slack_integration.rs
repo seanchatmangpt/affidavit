@@ -94,10 +94,22 @@ fn create_sample_violation() -> serde_json::Value {
 /// - Attachments with detailed fields and color coding
 /// - Footer with timestamp and source attribution
 fn format_slack_message(violation: &serde_json::Value) -> serde_json::Value {
-    let rule = violation.get("rule").and_then(|v| v.as_str()).unwrap_or("Unknown");
-    let metric = violation.get("metric").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let severity = violation.get("severity").and_then(|v| v.as_str()).unwrap_or("UNKNOWN");
-    let description = violation.get("description").and_then(|v| v.as_str()).unwrap_or("No description");
+    let rule = violation
+        .get("rule")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Unknown");
+    let metric = violation
+        .get("metric")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let severity = violation
+        .get("severity")
+        .and_then(|v| v.as_str())
+        .unwrap_or("UNKNOWN");
+    let description = violation
+        .get("description")
+        .and_then(|v| v.as_str())
+        .unwrap_or("No description");
 
     // Color based on severity
     let color = match severity {
@@ -184,7 +196,10 @@ fn format_violations_batch(violations: &[serde_json::Value]) -> serde_json::Valu
         .iter()
         .map(|v| {
             let rule = v.get("rule").and_then(|r| r.as_str()).unwrap_or("Unknown");
-            let severity = v.get("severity").and_then(|s| s.as_str()).unwrap_or("UNKNOWN");
+            let severity = v
+                .get("severity")
+                .and_then(|s| s.as_str())
+                .unwrap_or("UNKNOWN");
             let color = match severity {
                 "CRITICAL" => "danger",
                 "HIGH" => "warning",

@@ -90,7 +90,9 @@ pub fn predict_next_with_model(
             vec![]
         }
     } else {
-        let last_event = trace_receipt.events.last()
+        let last_event = trace_receipt
+            .events
+            .last()
             .ok_or_else(|| PredictionError::Wasm4pm("Unexpected empty event list".to_string()))?;
         let last_activity = &last_event.event_type;
         let node_ids: Vec<&String> = dfg
@@ -192,7 +194,8 @@ mod tests {
     }
 
     #[test]
-    fn predicts_sequential_activity_with_full_confidence() -> Result<(), Box<dyn std::error::Error>> {
+    fn predicts_sequential_activity_with_full_confidence() -> Result<(), Box<dyn std::error::Error>>
+    {
         let model = test_receipt(&["A", "B", "C"]);
         let prefix = test_receipt(&["A"]);
 

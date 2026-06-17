@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Consume security events (Snyk, SonarQube, Trivy, GitHub Advanced Security)
 #[verb("emit-from-security", "receipt")]
-pub fn emit_from_security(provider: String, vuln_type: String, format: Option<String>) -> Result<()> {
+pub fn emit_from_security(
+    provider: String,
+    vuln_type: String,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::emit_from_security(provider, vuln_type, format)
 }

@@ -18,11 +18,9 @@
 //! Run with: cargo bench --bench quality_western_electric
 //! Flamegraph: cargo bench --bench quality_western_electric -- --profile-time=10
 
-use affidavit::quality::{
-    CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer,
-};
-use affidavit::ocel::{build_event, object_ref, SeqCounter};
 use affidavit::chain::ChainAssembler;
+use affidavit::ocel::{build_event, object_ref, SeqCounter};
+use affidavit::quality::{CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::collections::HashMap;
 
@@ -71,7 +69,8 @@ fn bench_rule_9_in_row_detection(c: &mut Criterion) {
                     let mut analyzer =
                         WesternElectricAnalyzer::new(black_box(10.0), black_box(2.0), 100);
                     for _ in 0..count {
-                        analyzer.add_measurement("test_metric", black_box(20.0)); // All OOC
+                        analyzer.add_measurement("test_metric", black_box(20.0));
+                        // All OOC
                     }
                     analyzer.violations.len()
                 })
@@ -219,9 +218,8 @@ fn bench_all_rules_simultaneous(c: &mut Criterion) {
                         WesternElectricAnalyzer::new(black_box(10.0), black_box(1.5), 100);
                     for i in 0..count {
                         // Generate varied pattern to trigger different rules
-                        let base = 10.0
-                            + (i as f64 * 0.05).sin()
-                            + if i % 8 == 0 { 5.0 } else { 0.0 };
+                        let base =
+                            10.0 + (i as f64 * 0.05).sin() + if i % 8 == 0 { 5.0 } else { 0.0 };
                         analyzer.add_measurement("metric", black_box(base));
                     }
                     analyzer.violations.len()
@@ -251,7 +249,8 @@ fn bench_rule_variants(c: &mut Criterion) {
                 &(sigma, window_size),
                 |b, &(s, w)| {
                     b.iter(|| {
-                        let mut analyzer = WesternElectricAnalyzer::new(black_box(10.0), black_box(*s), *w);
+                        let mut analyzer =
+                            WesternElectricAnalyzer::new(black_box(10.0), black_box(*s), *w);
                         for i in 0..100 {
                             let value = 10.0 + (i as f64 * 0.02).sin();
                             analyzer.add_measurement("metric", black_box(value));
@@ -438,14 +437,11 @@ fn bench_object_level_analysis(c: &mut Criterion) {
                     // Analyze correlations across objects
                     let mut stub_ratios: Vec<f64> =
                         object_metrics.values().map(|m| m.stub_ratio).collect();
-                    stub_ratios.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                    stub_ratios
+                        .sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-                    let mean =
-                        stub_ratios.iter().sum::<f64>() / stub_ratios.len().max(1) as f64;
-                    let variance = stub_ratios
-                        .iter()
-                        .map(|x| (x - mean).powi(2))
-                        .sum::<f64>()
+                    let mean = stub_ratios.iter().sum::<f64>() / stub_ratios.len().max(1) as f64;
+                    let variance = stub_ratios.iter().map(|x| (x - mean).powi(2)).sum::<f64>()
                         / stub_ratios.len().max(1) as f64;
                     let stddev = variance.sqrt();
 

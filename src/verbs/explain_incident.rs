@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Explain root cause of incident (trace from error to code change to PR)
 #[verb("explain-incident", "receipt")]
-pub fn explain_incident(incident_desc: String, receipts_path: String, format: Option<String>) -> Result<()> {
+pub fn explain_incident(
+    incident_desc: String,
+    receipts_path: String,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::explain_incident(incident_desc, receipts_path, format)
 }

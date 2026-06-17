@@ -6,11 +6,11 @@
 //! - Rule combination detection (rule storms)
 //! - Severity aggregation and multi-rule failure analysis
 
+use affidavit::quality::QualityViolation;
 use affidavit::quality_extended::{
-    detect_all_rule_variants, detect_rule_storms, compute_aggregate_severity,
+    compute_aggregate_severity, detect_all_rule_variants, detect_rule_storms,
     EnhancedWesternElectricAnalyzer, RuleVariant, WesternElectricConfig,
 };
-use affidavit::quality::QualityViolation;
 
 fn main() {
     println!("=== Extended Western Electric SPC Example ===\n");
@@ -27,7 +27,7 @@ fn main() {
     let metrics = vec![
         10.0, 10.2, 10.1, 10.5, 10.3, 11.2, // Within ±1σ
         11.8, 12.0, 12.1, 12.5, 10.0, 10.1, // Approaching 2σ
-        13.0, 13.2, 13.5, 9.5, 9.0,          // Crossing 3σ
+        13.0, 13.2, 13.5, 9.5, 9.0, // Crossing 3σ
     ];
 
     let variants = detect_all_rule_variants(&metrics, &config);
@@ -99,7 +99,11 @@ fn main() {
              Aggregate Severity: {}\n\
              Is Severe (3+ rules): {}\n\
              Summary: {}\n",
-            storm.metric, storm.rule_count, storm.aggregate_severity, storm.is_severe, storm.summary
+            storm.metric,
+            storm.rule_count,
+            storm.aggregate_severity,
+            storm.is_severe,
+            storm.summary
         );
     }
 
@@ -202,7 +206,12 @@ fn main() {
     println!("\nCyclomatic Complexity History (baseline=8.0, σ=2.0):");
     for (i, &value) in complexity_history.iter().enumerate() {
         let z_score = (value - 8.0) / 2.0;
-        println!("  Commit {}: value={:.1}, z-score={:.2}", i + 1, value, z_score);
+        println!(
+            "  Commit {}: value={:.1}, z-score={:.2}",
+            i + 1,
+            value,
+            z_score
+        );
         analyzer.add_measurement("cyclomatic_complexity", value);
     }
 

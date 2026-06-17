@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Build dependency matrix across all repos (who uses what library versions)
 #[verb("dependency-matrix", "receipt")]
-pub fn dependency_matrix(receipts_path: String, output_matrix: Option<String>, format: Option<String>) -> Result<()> {
+pub fn dependency_matrix(
+    receipts_path: String,
+    output_matrix: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::dependency_matrix(receipts_path, output_matrix, format)
 }

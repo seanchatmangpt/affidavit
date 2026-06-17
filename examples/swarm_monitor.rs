@@ -14,7 +14,7 @@
 
 use affidavit::chain::ChainAssembler;
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
-use affidavit::quality::{WesternElectricAnalyzer, QualityViolation};
+use affidavit::quality::{QualityViolation, WesternElectricAnalyzer};
 
 fn main() -> anyhow::Result<()> {
     eprintln!("=== Quality Monitor Example ===\n");
@@ -22,18 +22,12 @@ fn main() -> anyhow::Result<()> {
     // Step 1: Measure code quality from the affidavit repo itself
     eprintln!("Step 1: Measuring code quality from 'src' directory...");
     let metrics = affidavit::quality::measure_code_quality("src")?;
-    eprintln!(
-        "  stub_ratio:            {:.4}",
-        metrics.stub_ratio
-    );
+    eprintln!("  stub_ratio:            {:.4}", metrics.stub_ratio);
     eprintln!(
         "  cyclomatic_complexity: {:.4}",
         metrics.cyclomatic_complexity
     );
-    eprintln!(
-        "  clippy_warnings:       {}",
-        metrics.clippy_warnings
-    );
+    eprintln!("  clippy_warnings:       {}", metrics.clippy_warnings);
     eprintln!("  churn:                 {}", metrics.churn);
     eprintln!("  test_coverage:         {:.1}%\n", metrics.test_coverage);
 
@@ -44,19 +38,9 @@ fn main() -> anyhow::Result<()> {
     let baseline_stddev = 0.05;
     let window_size = 20;
 
-    let mut analyzer = WesternElectricAnalyzer::new(
-        baseline_mean,
-        baseline_stddev,
-        window_size,
-    );
-    eprintln!(
-        "  baseline_mean:     {:.4}",
-        analyzer.baseline_mean
-    );
-    eprintln!(
-        "  baseline_stddev:   {:.4}",
-        analyzer.baseline_stddev
-    );
+    let mut analyzer = WesternElectricAnalyzer::new(baseline_mean, baseline_stddev, window_size);
+    eprintln!("  baseline_mean:     {:.4}", analyzer.baseline_mean);
+    eprintln!("  baseline_stddev:   {:.4}", analyzer.baseline_stddev);
     eprintln!(
         "  control_limits:    ({:.4}, {:.4})\n",
         analyzer.control_limits.0, analyzer.control_limits.1
@@ -66,21 +50,21 @@ fn main() -> anyhow::Result<()> {
     // These are deliberately varied to trigger different rule violations
     eprintln!("Step 3: Adding synthetic measurements to rolling window...");
     let synthetic_measurements = vec![
-        0.08,  // 0: normal, within 1σ
-        0.09,  // 1: normal
-        0.11,  // 2: normal
-        0.10,  // 3: normal
-        0.10,  // 4: normal
-        0.11,  // 5: increasing trend start
-        0.13,  // 6: increasing trend
-        0.15,  // 7: increasing trend
-        0.17,  // 8: increasing trend
-        0.19,  // 9: increasing trend (triggers 6-point trend rule)
-        0.21,  // 10: high value, beyond 2σ
-        0.08,  // 11: alternating swing down
-        0.20,  // 12: alternating swing up
-        0.09,  // 13: alternating swing down
-        0.22,  // 14: spike, beyond 3σ (triggers Rule 1 spike)
+        0.08, // 0: normal, within 1σ
+        0.09, // 1: normal
+        0.11, // 2: normal
+        0.10, // 3: normal
+        0.10, // 4: normal
+        0.11, // 5: increasing trend start
+        0.13, // 6: increasing trend
+        0.15, // 7: increasing trend
+        0.17, // 8: increasing trend
+        0.19, // 9: increasing trend (triggers 6-point trend rule)
+        0.21, // 10: high value, beyond 2σ
+        0.08, // 11: alternating swing down
+        0.20, // 12: alternating swing up
+        0.09, // 13: alternating swing down
+        0.22, // 14: spike, beyond 3σ (triggers Rule 1 spike)
     ];
 
     for (i, &value) in synthetic_measurements.iter().enumerate() {
@@ -91,10 +75,7 @@ fn main() -> anyhow::Result<()> {
 
     // Step 4: Collect violations
     eprintln!("Step 4: Analyzing violations...");
-    eprintln!(
-        "Total violations detected: {}\n",
-        analyzer.violations.len()
-    );
+    eprintln!("Total violations detected: {}\n", analyzer.violations.len());
 
     if !analyzer.violations.is_empty() {
         eprintln!("Violations by severity:");
@@ -158,7 +139,8 @@ fn main() -> anyhow::Result<()> {
         "test_coverage": metrics.test_coverage,
         "doc_coverage": metrics.doc_coverage,
         "maintainability_index": metrics.maintainability_index,
-    }).to_string();
+    })
+    .to_string();
 
     let measurement_event = build_event(
         "quality.measurement",

@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Enforce organizational policies (2-person approval, segregation of duties)
 #[verb("policy-enforce", "receipt")]
-pub fn policy_enforce(receipts_path: String, policy_file: String, format: Option<String>) -> Result<()> {
+pub fn policy_enforce(
+    receipts_path: String,
+    policy_file: String,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::policy_enforce(receipts_path, policy_file, format)
 }

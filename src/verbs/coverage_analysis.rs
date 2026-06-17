@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Analyze test coverage trends across portfolio
 #[verb("coverage-analysis", "receipt")]
-pub fn coverage_analysis(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn coverage_analysis(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::coverage_analysis(receipts_path, time_range, format)
 }

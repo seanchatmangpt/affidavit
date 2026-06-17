@@ -97,10 +97,7 @@ pub enum QualityViolation {
     },
 
     /// 9-in-a-row: 9 consecutive out-of-control points
-    Rule9InRow {
-        metric: String,
-        consecutive: usize,
-    },
+    Rule9InRow { metric: String, consecutive: usize },
 
     /// Trend: 6 monotonic points (increasing or decreasing)
     RuleTrend {
@@ -110,10 +107,7 @@ pub enum QualityViolation {
     },
 
     /// Alternating: wild swings (up-down-up-down pattern)
-    RuleAlternating {
-        metric: String,
-        oscillations: usize,
-    },
+    RuleAlternating { metric: String, oscillations: usize },
 
     /// 2-of-3 beyond 2σ: early warning
     Rule2of3Beyond2Sigma {
@@ -165,26 +159,76 @@ impl QualityViolation {
 
     pub fn description(&self) -> String {
         match self {
-            Self::Rule1Sigma { metric, value, threshold, z_score, .. } => {
-                format!("{}: spike detected (value={:.2}, threshold={:.2}, z-score={:.2})", metric, value, threshold, z_score)
+            Self::Rule1Sigma {
+                metric,
+                value,
+                threshold,
+                z_score,
+                ..
+            } => {
+                format!(
+                    "{}: spike detected (value={:.2}, threshold={:.2}, z-score={:.2})",
+                    metric, value, threshold, z_score
+                )
             }
-            Self::Rule9InRow { metric, consecutive } => {
-                format!("{}: {} consecutive out-of-control points (zombie code)", metric, consecutive)
+            Self::Rule9InRow {
+                metric,
+                consecutive,
+            } => {
+                format!(
+                    "{}: {} consecutive out-of-control points (zombie code)",
+                    metric, consecutive
+                )
             }
-            Self::RuleTrend { metric, direction, count } => {
-                format!("{}: {} monotonic {} (systematic degradation)", metric, count, direction)
+            Self::RuleTrend {
+                metric,
+                direction,
+                count,
+            } => {
+                format!(
+                    "{}: {} monotonic {} (systematic degradation)",
+                    metric, count, direction
+                )
             }
-            Self::RuleAlternating { metric, oscillations } => {
-                format!("{}: {} oscillations detected (uncertainty/hallucination)", metric, oscillations)
+            Self::RuleAlternating {
+                metric,
+                oscillations,
+            } => {
+                format!(
+                    "{}: {} oscillations detected (uncertainty/hallucination)",
+                    metric, oscillations
+                )
             }
-            Self::Rule2of3Beyond2Sigma { metric, count, threshold } => {
-                format!("{}: {} of 3 points beyond 2σ threshold {:.2}", metric, count, threshold)
+            Self::Rule2of3Beyond2Sigma {
+                metric,
+                count,
+                threshold,
+            } => {
+                format!(
+                    "{}: {} of 3 points beyond 2σ threshold {:.2}",
+                    metric, count, threshold
+                )
             }
-            Self::Rule4of5Beyond1Sigma { metric, count, threshold } => {
-                format!("{}: {} of 5 points beyond 1σ threshold {:.2}", metric, count, threshold)
+            Self::Rule4of5Beyond1Sigma {
+                metric,
+                count,
+                threshold,
+            } => {
+                format!(
+                    "{}: {} of 5 points beyond 1σ threshold {:.2}",
+                    metric, count, threshold
+                )
             }
-            Self::Rule15InRowWithin1Sigma { metric, count, threshold, .. } => {
-                format!("{}: {} points in a row within 1σ (plateau/stagnation) threshold {:.2}", metric, count, threshold)
+            Self::Rule15InRowWithin1Sigma {
+                metric,
+                count,
+                threshold,
+                ..
+            } => {
+                format!(
+                    "{}: {} points in a row within 1σ (plateau/stagnation) threshold {:.2}",
+                    metric, count, threshold
+                )
             }
         }
     }
@@ -356,17 +400,21 @@ impl WesternElectricAnalyzer {
         }
 
         let last_3: Vec<f64> = self.rolling_window.iter().rev().take(3).copied().collect();
-        let beyond_2sigma = last_3.iter().filter(|&&v| {
-            let z = (v - self.baseline_mean).abs() / self.baseline_stddev;
-            z > 2.0
-        }).count();
+        let beyond_2sigma = last_3
+            .iter()
+            .filter(|&&v| {
+                let z = (v - self.baseline_mean).abs() / self.baseline_stddev;
+                z > 2.0
+            })
+            .count();
 
         if beyond_2sigma >= 2 {
-            self.violations.push(QualityViolation::Rule2of3Beyond2Sigma {
-                metric: metric.to_string(),
-                count: beyond_2sigma,
-                threshold: self.baseline_mean + 2.0 * self.baseline_stddev,
-            });
+            self.violations
+                .push(QualityViolation::Rule2of3Beyond2Sigma {
+                    metric: metric.to_string(),
+                    count: beyond_2sigma,
+                    threshold: self.baseline_mean + 2.0 * self.baseline_stddev,
+                });
         }
     }
 
@@ -377,17 +425,21 @@ impl WesternElectricAnalyzer {
         }
 
         let last_5: Vec<f64> = self.rolling_window.iter().rev().take(5).copied().collect();
-        let beyond_1sigma = last_5.iter().filter(|&&v| {
-            let z = (v - self.baseline_mean).abs() / self.baseline_stddev;
-            z > 1.0
-        }).count();
+        let beyond_1sigma = last_5
+            .iter()
+            .filter(|&&v| {
+                let z = (v - self.baseline_mean).abs() / self.baseline_stddev;
+                z > 1.0
+            })
+            .count();
 
         if beyond_1sigma >= 4 {
-            self.violations.push(QualityViolation::Rule4of5Beyond1Sigma {
-                metric: metric.to_string(),
-                count: beyond_1sigma,
-                threshold: self.baseline_mean + 1.0 * self.baseline_stddev,
-            });
+            self.violations
+                .push(QualityViolation::Rule4of5Beyond1Sigma {
+                    metric: metric.to_string(),
+                    count: beyond_1sigma,
+                    threshold: self.baseline_mean + 1.0 * self.baseline_stddev,
+                });
         }
     }
 
@@ -398,18 +450,22 @@ impl WesternElectricAnalyzer {
         }
 
         let last_15: Vec<f64> = self.rolling_window.iter().rev().take(15).copied().collect();
-        let within_1sigma = last_15.iter().filter(|&&v| {
-            let z = (v - self.baseline_mean).abs() / self.baseline_stddev;
-            z <= 1.0
-        }).count();
+        let within_1sigma = last_15
+            .iter()
+            .filter(|&&v| {
+                let z = (v - self.baseline_mean).abs() / self.baseline_stddev;
+                z <= 1.0
+            })
+            .count();
 
         if within_1sigma >= 15 {
-            self.violations.push(QualityViolation::Rule15InRowWithin1Sigma {
-                metric: metric.to_string(),
-                count: within_1sigma,
-                threshold: self.baseline_mean + 1.0 * self.baseline_stddev,
-                severity: "INFO".to_string(),
-            });
+            self.violations
+                .push(QualityViolation::Rule15InRowWithin1Sigma {
+                    metric: metric.to_string(),
+                    count: within_1sigma,
+                    threshold: self.baseline_mean + 1.0 * self.baseline_stddev,
+                    severity: "INFO".to_string(),
+                });
         }
     }
 }
@@ -461,7 +517,10 @@ pub fn measure_code_quality(src_path: &str) -> anyhow::Result<CodeQualityMetrics
                     // Count comment lines
                     for line in &lines {
                         let trimmed = line.trim();
-                        if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with("*") {
+                        if trimmed.starts_with("//")
+                            || trimmed.starts_with("/*")
+                            || trimmed.starts_with("*")
+                        {
                             comment_lines += 1;
                         }
                     }
@@ -472,7 +531,10 @@ pub fn measure_code_quality(src_path: &str) -> anyhow::Result<CodeQualityMetrics
                     function_count += content.matches("fn ").count();
 
                     // Type coverage (simple heuristic: count "->" in signatures)
-                    typed_function_count += content.matches("fn ").filter(|_| content.contains("->")).count();
+                    typed_function_count += content
+                        .matches("fn ")
+                        .filter(|_| content.contains("->"))
+                        .count();
 
                     // Doc coverage (/// comments)
                     doc_count += content.matches("///").count();
@@ -555,7 +617,10 @@ mod tests {
         let mut analyzer = WesternElectricAnalyzer::new(5.0, 1.0, 20);
         analyzer.add_measurement("test_metric", 8.5); // z-score > 3
         assert!(!analyzer.violations.is_empty());
-        assert!(matches!(analyzer.violations[0], QualityViolation::Rule1Sigma { .. }));
+        assert!(matches!(
+            analyzer.violations[0],
+            QualityViolation::Rule1Sigma { .. }
+        ));
     }
 
     #[test]
@@ -565,7 +630,10 @@ mod tests {
             analyzer.add_measurement("test_metric", 10.0); // All beyond ucl
         }
         assert!(!analyzer.violations.is_empty());
-        assert!(analyzer.violations.iter().any(|v| matches!(v, QualityViolation::Rule9InRow { .. })));
+        assert!(analyzer
+            .violations
+            .iter()
+            .any(|v| matches!(v, QualityViolation::Rule9InRow { .. })));
     }
 
     #[test]
@@ -575,7 +643,10 @@ mod tests {
             analyzer.add_measurement("test_metric", 5.0 + i as f64);
         }
         assert!(!analyzer.violations.is_empty());
-        assert!(analyzer.violations.iter().any(|v| matches!(v, QualityViolation::RuleTrend { .. })));
+        assert!(analyzer
+            .violations
+            .iter()
+            .any(|v| matches!(v, QualityViolation::RuleTrend { .. })));
     }
 
     #[test]
@@ -586,7 +657,10 @@ mod tests {
             analyzer.add_measurement("test_metric", v);
         }
         assert!(!analyzer.violations.is_empty());
-        assert!(analyzer.violations.iter().any(|v| matches!(v, QualityViolation::RuleAlternating { .. })));
+        assert!(analyzer
+            .violations
+            .iter()
+            .any(|v| matches!(v, QualityViolation::RuleAlternating { .. })));
     }
 
     // ========================================================================
@@ -602,10 +676,14 @@ mod tests {
         analyzer.add_measurement("metric", 11.0); // within 2σ
 
         assert!(!analyzer.violations.is_empty());
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule2of3Beyond2Sigma { count: 2, .. })
-        });
-        assert!(violation.is_some(), "Rule 2-of-3 beyond 2σ should be detected");
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule2of3Beyond2Sigma { count: 2, .. }));
+        assert!(
+            violation.is_some(),
+            "Rule 2-of-3 beyond 2σ should be detected"
+        );
     }
 
     #[test]
@@ -617,9 +695,10 @@ mod tests {
         analyzer.add_measurement("metric", 13.5);
 
         assert!(!analyzer.violations.is_empty());
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule2of3Beyond2Sigma { count: 3, .. })
-        });
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule2of3Beyond2Sigma { count: 3, .. }));
         assert!(violation.is_some());
     }
 
@@ -631,9 +710,10 @@ mod tests {
         analyzer.add_measurement("metric", 11.0);
         analyzer.add_measurement("metric", 11.5);
 
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule2of3Beyond2Sigma { .. })
-        });
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule2of3Beyond2Sigma { .. }));
         assert!(violation.is_none(), "Should not trigger with only 1 of 3");
     }
 
@@ -652,10 +732,14 @@ mod tests {
         analyzer.add_measurement("metric", 10.5); // within 1σ
 
         assert!(!analyzer.violations.is_empty());
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule4of5Beyond1Sigma { count: 4, .. })
-        });
-        assert!(violation.is_some(), "Rule 4-of-5 beyond 1σ should be detected");
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule4of5Beyond1Sigma { count: 4, .. }));
+        assert!(
+            violation.is_some(),
+            "Rule 4-of-5 beyond 1σ should be detected"
+        );
     }
 
     #[test]
@@ -669,9 +753,10 @@ mod tests {
         analyzer.add_measurement("metric", 12.3);
 
         assert!(!analyzer.violations.is_empty());
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule4of5Beyond1Sigma { count: 5, .. })
-        });
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule4of5Beyond1Sigma { count: 5, .. }));
         assert!(violation.is_some());
     }
 
@@ -685,9 +770,10 @@ mod tests {
         analyzer.add_measurement("metric", 10.0); // within
         analyzer.add_measurement("metric", 10.5); // within
 
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule4of5Beyond1Sigma { .. })
-        });
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule4of5Beyond1Sigma { .. }));
         assert!(violation.is_none(), "Should not trigger with only 3 of 5");
     }
 
@@ -707,9 +793,15 @@ mod tests {
 
         assert!(!analyzer.violations.is_empty());
         let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule15InRowWithin1Sigma { count: 15, .. })
+            matches!(
+                v,
+                QualityViolation::Rule15InRowWithin1Sigma { count: 15, .. }
+            )
         });
-        assert!(violation.is_some(), "Rule 15-in-a-row within 1σ should be detected");
+        assert!(
+            violation.is_some(),
+            "Rule 15-in-a-row within 1σ should be detected"
+        );
     }
 
     #[test]
@@ -721,10 +813,14 @@ mod tests {
             analyzer.add_measurement("metric", value);
         }
 
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule15InRowWithin1Sigma { .. })
-        });
-        assert!(violation.is_none(), "Should not trigger with only 14 measurements");
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule15InRowWithin1Sigma { .. }));
+        assert!(
+            violation.is_none(),
+            "Should not trigger with only 14 measurements"
+        );
     }
 
     #[test]
@@ -737,10 +833,14 @@ mod tests {
         }
         analyzer.add_measurement("metric", 20.0); // Far outlier
 
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule15InRowWithin1Sigma { .. })
-        });
-        assert!(violation.is_none(), "Sequence broken by outlier should not trigger");
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule15InRowWithin1Sigma { .. }));
+        assert!(
+            violation.is_none(),
+            "Sequence broken by outlier should not trigger"
+        );
     }
 
     // ========================================================================
@@ -789,13 +889,18 @@ fn test_stubs() {
     assert!(true);
 }
 "#,
-        ).expect("write test file");
+        )
+        .expect("write test file");
 
-        let metrics = measure_code_quality(src_dir.to_str().unwrap())
-            .expect("measure code quality");
+        let metrics =
+            measure_code_quality(src_dir.to_str().unwrap()).expect("measure code quality");
 
         // Should detect stubs: 3 stubs / ~7 functions = ~0.43
-        assert!(metrics.stub_ratio > 0.0, "stub_ratio should be > 0: {}", metrics.stub_ratio);
+        assert!(
+            metrics.stub_ratio > 0.0,
+            "stub_ratio should be > 0: {}",
+            metrics.stub_ratio
+        );
     }
 
     // ========================================================================
@@ -906,7 +1011,10 @@ fn test_stubs() {
         analyzer.add_measurement("metric", 5.0);
         analyzer.add_measurement("metric", 10.0);
 
-        assert!(analyzer.violations.is_empty(), "Zero stddev should produce no violations");
+        assert!(
+            analyzer.violations.is_empty(),
+            "Zero stddev should produce no violations"
+        );
     }
 
     #[test]
@@ -916,10 +1024,14 @@ fn test_stubs() {
         analyzer.add_measurement("large_metric", 1050000.0);
 
         assert!(!analyzer.violations.is_empty());
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule1Sigma { .. })
-        });
-        assert!(violation.is_some(), "Should detect spike even with large values");
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule1Sigma { .. }));
+        assert!(
+            violation.is_some(),
+            "Should detect spike even with large values"
+        );
     }
 
     #[test]
@@ -930,9 +1042,10 @@ fn test_stubs() {
         analyzer.add_measurement("negative_metric", 10.0);
 
         assert!(!analyzer.violations.is_empty());
-        let violation = analyzer.violations.iter().find(|v| {
-            matches!(v, QualityViolation::Rule1Sigma { .. })
-        });
+        let violation = analyzer
+            .violations
+            .iter()
+            .find(|v| matches!(v, QualityViolation::Rule1Sigma { .. }));
         assert!(violation.is_some());
     }
 
@@ -967,26 +1080,38 @@ fn test_stubs() {
     #[test]
     fn test_violation_metric_accessor_all_types() {
         let rules = vec![
-            (QualityViolation::Rule1Sigma {
-                metric: "stub_ratio".to_string(),
-                value: 1.0,
-                threshold: 2.0,
-                z_score: 4.0,
-                severity: "CRITICAL".to_string(),
-            }, "stub_ratio"),
-            (QualityViolation::Rule9InRow {
-                metric: "cyclo".to_string(),
-                consecutive: 9,
-            }, "cyclo"),
-            (QualityViolation::RuleTrend {
-                metric: "churn".to_string(),
-                direction: "increasing".to_string(),
-                count: 6,
-            }, "churn"),
-            (QualityViolation::RuleAlternating {
-                metric: "alt".to_string(),
-                oscillations: 8,
-            }, "alt"),
+            (
+                QualityViolation::Rule1Sigma {
+                    metric: "stub_ratio".to_string(),
+                    value: 1.0,
+                    threshold: 2.0,
+                    z_score: 4.0,
+                    severity: "CRITICAL".to_string(),
+                },
+                "stub_ratio",
+            ),
+            (
+                QualityViolation::Rule9InRow {
+                    metric: "cyclo".to_string(),
+                    consecutive: 9,
+                },
+                "cyclo",
+            ),
+            (
+                QualityViolation::RuleTrend {
+                    metric: "churn".to_string(),
+                    direction: "increasing".to_string(),
+                    count: 6,
+                },
+                "churn",
+            ),
+            (
+                QualityViolation::RuleAlternating {
+                    metric: "alt".to_string(),
+                    oscillations: 8,
+                },
+                "alt",
+            ),
         ];
 
         for (violation, expected_metric) in rules {
@@ -1002,10 +1127,10 @@ fn test_stubs() {
 /// Available only when the `file-watch` feature is enabled.
 #[cfg(feature = "file-watch")]
 pub mod file_watcher {
-    use std::path::PathBuf;
-    use std::time::Duration;
-    use std::sync::mpsc::Receiver;
     use anyhow::Result;
+    use std::path::PathBuf;
+    use std::sync::mpsc::Receiver;
+    use std::time::Duration;
 
     /// Notification event from file watcher.
     #[derive(Debug, Clone)]
@@ -1041,7 +1166,7 @@ pub mod file_watcher {
         ///
         /// Returns an error if the path doesn't exist or notify watch creation fails.
         pub fn new(path: &str, debounce_delay_ms: u64) -> Result<Self> {
-            use notify::{Watcher, RecursiveMode};
+            use notify::{RecursiveMode, Watcher};
             use std::sync::mpsc;
 
             let path_buf = PathBuf::from(path);
@@ -1052,25 +1177,26 @@ pub mod file_watcher {
             let (tx, rx) = mpsc::channel();
 
             // Create watcher with simple file-change handler
-            let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
-                match res {
-                    Ok(event) => {
-                        // Only report file modifications
-                        use notify::EventKind;
-                        match event.kind {
-                            EventKind::Modify(_) | EventKind::Create(_) => {
-                                if let Some(path) = event.paths.first() {
-                                    let _ = tx.send(Notification::FileChanged(path.clone()));
+            let mut watcher =
+                notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+                    match res {
+                        Ok(event) => {
+                            // Only report file modifications
+                            use notify::EventKind;
+                            match event.kind {
+                                EventKind::Modify(_) | EventKind::Create(_) => {
+                                    if let Some(path) = event.paths.first() {
+                                        let _ = tx.send(Notification::FileChanged(path.clone()));
+                                    }
                                 }
+                                _ => {}
                             }
-                            _ => {}
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Notification::Error(e.to_string()));
                         }
                     }
-                    Err(e) => {
-                        let _ = tx.send(Notification::Error(e.to_string()));
-                    }
-                }
-            })?;
+                })?;
 
             // Watch the directory recursively
             watcher.watch(&path_buf, RecursiveMode::Recursive)?;
@@ -1101,13 +1227,12 @@ pub mod file_watcher {
                         let debounce_duration = Duration::from_millis(self.debounce_delay_ms);
 
                         if elapsed >= debounce_duration {
-                            eprintln!(
-                                "[FileWatcher] Detected change: {}",
-                                path.display()
-                            );
+                            eprintln!("[FileWatcher] Detected change: {}", path.display());
 
                             // Measure quality
-                            match crate::quality::measure_code_quality(self.path.to_str().unwrap_or("src")) {
+                            match crate::quality::measure_code_quality(
+                                self.path.to_str().unwrap_or("src"),
+                            ) {
                                 Ok(metrics) => {
                                     eprintln!(
                                         "[Quality] stub_ratio={:.2}, type_coverage={:.2}, clippy_warnings={}",
@@ -1125,7 +1250,9 @@ pub mod file_watcher {
                     }
                     Ok(Notification::IntervalElapsed) => {
                         eprintln!("[FileWatcher] Periodic interval elapsed");
-                        match crate::quality::measure_code_quality(self.path.to_str().unwrap_or("src")) {
+                        match crate::quality::measure_code_quality(
+                            self.path.to_str().unwrap_or("src"),
+                        ) {
                             Ok(metrics) => {
                                 eprintln!(
                                     "[Quality] stub_ratio={:.2}, type_coverage={:.2}, clippy_warnings={}",

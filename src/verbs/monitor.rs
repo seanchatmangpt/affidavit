@@ -20,5 +20,13 @@ pub fn monitor(
     output: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
-    crate::handlers::monitor(watch, metrics, rules, baseline_commits, interval, output, format)
+    crate::handlers::monitor(
+        watch,
+        metrics,
+        rules,
+        baseline_commits,
+        interval,
+        output,
+        format,
+    )
 }

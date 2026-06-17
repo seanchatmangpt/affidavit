@@ -11,6 +11,11 @@ use clap_noun_verb_macros::verb;
 
 /// Run the certify pipeline over a receipt and print the verdict
 #[verb("verify", "receipt")]
-pub fn verify(receipt: String, format: Option<String>, profile: Option<String>, strict: Option<bool>) -> Result<()> {
+pub fn verify(
+    receipt: String,
+    format: Option<String>,
+    profile: Option<String>,
+    strict: Option<bool>,
+) -> Result<()> {
     crate::handlers::verify(receipt, format, profile, strict)
 }

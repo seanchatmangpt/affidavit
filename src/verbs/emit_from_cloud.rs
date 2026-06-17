@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Consume cloud platform events (AWS CloudTrail, GCP Audit Logs, Azure Activity)
 #[verb("emit-from-cloud", "receipt")]
-pub fn emit_from_cloud(provider: String, resource_type: String, format: Option<String>) -> Result<()> {
+pub fn emit_from_cloud(
+    provider: String,
+    resource_type: String,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::emit_from_cloud(provider, resource_type, format)
 }

@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Analyze technical debt (code churn, refactoring events, complexity trends)
 #[verb("tech-debt", "receipt")]
-pub fn tech_debt(receipts_path: String, time_range: Option<String>, format: Option<String>) -> Result<()> {
+pub fn tech_debt(
+    receipts_path: String,
+    time_range: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::tech_debt(receipts_path, time_range, format)
 }

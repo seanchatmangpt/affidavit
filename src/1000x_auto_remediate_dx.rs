@@ -30,13 +30,13 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use syn::{
     parse_file,
+    spanned::Spanned,
     visit::{self, Visit},
     ExprMethodCall, Lit,
-    spanned::Spanned,
 };
 use tracing::{info, warn};
 
-use crate::types::{Receipt};
+use crate::types::Receipt;
 use crate::verifier::verify;
 
 /// The core remediator that maps receipt failures back to source code.
@@ -58,9 +58,9 @@ impl AutoRemediator {
     pub fn remediate(&self) -> Result<String> {
         let receipt_text = fs::read_to_string(&self.receipt_path)
             .with_context(|| format!("reading receipt from {:?}", self.receipt_path))?;
-        let receipt: Receipt = serde_json::from_str(&receipt_text)
-            .with_context(|| "parsing receipt JSON")?;
-        
+        let receipt: Receipt =
+            serde_json::from_str(&receipt_text).with_context(|| "parsing receipt JSON")?;
+
         let verdict = verify(&receipt);
         if verdict.accepted {
             return Ok("Receipt is valid. No remediation needed.".to_string());
@@ -134,7 +134,11 @@ impl AutoRemediator {
             }
         }
 
-        let receipt_types: Vec<String> = receipt.events.iter().map(|e| e.event_type.clone()).collect();
+        let receipt_types: Vec<String> = receipt
+            .events
+            .iter()
+            .map(|e| e.event_type.clone())
+            .collect();
 
         // Check for missing append
         for (var, build) in &visitor.builds {
@@ -158,12 +162,15 @@ impl AutoRemediator {
     ) -> Result<String> {
         let lines: Vec<&str> = content.lines().collect();
         let build_line_idx = build.line - 1;
-        
+
         if build_line_idx + 1 < lines.len() {
             let next_line = lines[build_line_idx + 1];
-            let indent = next_line.chars().take_while(|c| c.is_whitespace()).collect::<String>();
+            let indent = next_line
+                .chars()
+                .take_while(|c| c.is_whitespace())
+                .collect::<String>();
             let mut new_content_lines = lines.clone();
-            
+
             // AI-Driven: detect if it's an .expect() or ? style
             let suffix = if content.contains("Result<") || content.contains("fn main() -> Result") {
                 "?"
@@ -173,7 +180,7 @@ impl AutoRemediator {
 
             let new_line = format!("{}asm.append({}){};", indent, var_name, suffix);
             new_content_lines.insert(build_line_idx + 1, &new_line);
-            
+
             let fixed = new_content_lines.join("\n");
             self.make_git_diff(file, content, &fixed)
         } else {
@@ -198,15 +205,15 @@ impl AutoRemediator {
             .output()?;
 
         let mut diff = String::from_utf8_lossy(&output.stdout).to_string();
-        
+
         // Clean up the temp paths in the diff
         let old_path = temp_old.path().to_str().unwrap();
         let new_path = temp_new.path().to_str().unwrap();
         let final_path = file.to_str().unwrap();
-        
+
         diff = diff.replace(old_path, &format!("a/{}", final_path));
         diff = diff.replace(new_path, &format!("b/{}", final_path));
-        
+
         Ok(diff)
     }
 }
@@ -245,26 +252,48 @@ impl<'ast, 'a> Visit<'ast> for ProvenanceVisitor<'a> {
                 let expr = match &*init.expr {
                     syn::Expr::Call(c) => Some(c),
                     syn::Expr::Try(t) => {
-                        if let syn::Expr::Call(c) = &*t.expr { Some(c) } else { None }
+                        if let syn::Expr::Call(c) = &*t.expr {
+                            Some(c)
+                        } else {
+                            None
+                        }
                     }
                     syn::Expr::MethodCall(m) => {
-                         // Could be build_event(...).expect(...)
-                         if m.method == "expect" || m.method == "unwrap" {
-                             if let syn::Expr::Call(c) = &*m.receiver { Some(c) } else { None }
-                         } else { None }
+                        // Could be build_event(...).expect(...)
+                        if m.method == "expect" || m.method == "unwrap" {
+                            if let syn::Expr::Call(c) = &*m.receiver {
+                                Some(c)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
                     }
                     _ => None,
                 };
 
                 if let Some(call) = expr {
                     if let syn::Expr::Path(ref p) = *call.func {
-                        if p.path.segments.last().map(|s| s.ident == "build_event").unwrap_or(false) {
-                            if let Some(syn::Expr::Lit(syn::ExprLit { lit: Lit::Str(ref s), .. })) = call.args.first() {
+                        if p.path
+                            .segments
+                            .last()
+                            .map(|s| s.ident == "build_event")
+                            .unwrap_or(false)
+                        {
+                            if let Some(syn::Expr::Lit(syn::ExprLit {
+                                lit: Lit::Str(ref s),
+                                ..
+                            })) = call.args.first()
+                            {
                                 if let syn::Pat::Ident(ref id) = local.pat {
-                                    self.builds.insert(id.ident.to_string(), BuildInfo {
-                                        line: call.span().start().line,
-                                        event_type: s.value(),
-                                    });
+                                    self.builds.insert(
+                                        id.ident.to_string(),
+                                        BuildInfo {
+                                            line: call.span().start().line,
+                                            event_type: s.value(),
+                                        },
+                                    );
                                 }
                             }
                         }

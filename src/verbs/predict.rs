@@ -11,6 +11,11 @@ use clap_noun_verb_macros::verb;
 
 /// Predict outcomes (CI pass rate, deploy success, MTTR) using historical data
 #[verb("predict", "receipt")]
-pub fn predict(receipts_path: String, prediction_type: String, model: Option<String>, format: Option<String>) -> Result<()> {
+pub fn predict(
+    receipts_path: String,
+    prediction_type: String,
+    model: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::predict(receipts_path, prediction_type, model, format)
 }

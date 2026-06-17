@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Check license compliance (GPL, SSPL, commercial licenses)
 #[verb("license-compliance", "receipt")]
-pub fn license_compliance(receipts_path: String, license_policy: String, format: Option<String>) -> Result<()> {
+pub fn license_compliance(
+    receipts_path: String,
+    license_policy: String,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::license_compliance(receipts_path, license_policy, format)
 }

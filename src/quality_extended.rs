@@ -96,12 +96,7 @@ impl WesternElectricConfig {
     }
 
     /// Set custom sigma levels for fine-grained control.
-    pub fn with_sigmas(
-        mut self,
-        primary: f64,
-        secondary: f64,
-        tertiary: f64,
-    ) -> Self {
+    pub fn with_sigmas(mut self, primary: f64, secondary: f64, tertiary: f64) -> Self {
         self.primary_sigma = primary;
         self.secondary_sigma = secondary;
         self.tertiary_sigma = tertiary;
@@ -271,12 +266,18 @@ impl RuleVariant {
                 format!("{}: 2-of-3 beyond 1σ (stricter warning)", m)
             }
             Self::Rule3of3Beyond2Sigma(m) => format!("{}: 3-of-3 beyond 2σ (strongest warning)", m),
-            Self::Rule4of5Beyond1Sigma(m) => format!("{}: 4-of-5 beyond 1σ (sustained deviation)", m),
+            Self::Rule4of5Beyond1Sigma(m) => {
+                format!("{}: 4-of-5 beyond 1σ (sustained deviation)", m)
+            }
             Self::Rule5of5Beyond1Sigma(m) => format!("{}: 5-of-5 beyond 1σ (all violations)", m),
             Self::Rule3of5Beyond1Sigma(m) => format!("{}: 3-of-5 beyond 1σ (earlier detection)", m),
             Self::Rule15InRowWithin1Sigma(m) => format!("{}: 15 in a row within 1σ (plateau)", m),
-            Self::Rule20InRowWithin1Sigma(m) => format!("{}: 20 in a row within 1σ (extended plateau)", m),
-            Self::Rule10InRowWithin1Sigma(m) => format!("{}: 10 in a row within 1σ (early stagnation)", m),
+            Self::Rule20InRowWithin1Sigma(m) => {
+                format!("{}: 20 in a row within 1σ (extended plateau)", m)
+            }
+            Self::Rule10InRowWithin1Sigma(m) => {
+                format!("{}: 10 in a row within 1σ (early stagnation)", m)
+            }
         }
     }
 
@@ -347,10 +348,17 @@ impl RuleStorm {
             "LOW".to_string()
         };
 
-        let rule_descriptions: Vec<String> = rules.iter().map(|r| {
-            // Extract rule name from variant
-            format!("{:?}", r).split('(').next().unwrap_or("Unknown").to_string()
-        }).collect();
+        let rule_descriptions: Vec<String> = rules
+            .iter()
+            .map(|r| {
+                // Extract rule name from variant
+                format!("{:?}", r)
+                    .split('(')
+                    .next()
+                    .unwrap_or("Unknown")
+                    .to_string()
+            })
+            .collect();
 
         let summary = if is_severe {
             format!(
@@ -447,7 +455,12 @@ impl AggregatedSeverity {
 
         let summary = format!(
             "Quality violations: {} total (C:{}, H:{}, M:{}, L:{}), {} metrics affected",
-            total_violations, critical_count, high_count, medium_count, low_count, affected_metrics_vec.len()
+            total_violations,
+            critical_count,
+            high_count,
+            medium_count,
+            low_count,
+            affected_metrics_vec.len()
         );
 
         Self {
@@ -534,25 +547,30 @@ impl EnhancedWesternElectricAnalyzer {
 
         // Check at 1σ
         if z_score > 1.0 {
-            self.detected_rules.push(RuleVariant::Rule1SigmaAt1(metric.to_string()));
+            self.detected_rules
+                .push(RuleVariant::Rule1SigmaAt1(metric.to_string()));
         }
 
         // Check at 2σ
         if z_score > 2.0 {
-            self.detected_rules.push(RuleVariant::Rule1SigmaAt2(metric.to_string()));
+            self.detected_rules
+                .push(RuleVariant::Rule1SigmaAt2(metric.to_string()));
         }
 
         // Check at 3σ
         if z_score > 3.0 {
-            self.detected_rules.push(RuleVariant::Rule1SigmaAt3(metric.to_string()));
+            self.detected_rules
+                .push(RuleVariant::Rule1SigmaAt3(metric.to_string()));
         }
 
         // Check custom thresholds
         for (rule_name, threshold) in &self.config.custom_thresholds {
             if z_score > *threshold && rule_name.starts_with("rule1_") {
                 let sigma_level = *threshold;
-                self.detected_rules
-                    .push(RuleVariant::Rule1SigmaAtCustom(metric.to_string(), sigma_level));
+                self.detected_rules.push(RuleVariant::Rule1SigmaAtCustom(
+                    metric.to_string(),
+                    sigma_level,
+                ));
             }
         }
     }
@@ -572,8 +590,7 @@ impl EnhancedWesternElectricAnalyzer {
                     continue;
                 }
 
-                let consecutive_out: usize =
-                    window.iter().filter(|&&v| v < lcl || v > ucl).count();
+                let consecutive_out: usize = window.iter().filter(|&&v| v < lcl || v > ucl).count();
 
                 // Check if all points in window are out-of-control
                 if consecutive_out == window_size {
@@ -646,7 +663,8 @@ impl EnhancedWesternElectricAnalyzer {
             let values: Vec<f64> = window.iter().copied().collect();
 
             for i in 1..values.len() {
-                if (values[i] > self.config.baseline_mean) != (values[i - 1] > self.config.baseline_mean)
+                if (values[i] > self.config.baseline_mean)
+                    != (values[i - 1] > self.config.baseline_mean)
                 {
                     alternations += 1;
                 }
@@ -931,7 +949,9 @@ mod tests {
         let config = WesternElectricConfig::new(10.0, 1.0);
         let metrics = vec![11.5]; // z-score = 1.5, triggers at 1σ
         let variants = detect_all_rule_variants(&metrics, &config);
-        assert!(variants.iter().any(|r| matches!(r, RuleVariant::Rule1SigmaAt1(_))));
+        assert!(variants
+            .iter()
+            .any(|r| matches!(r, RuleVariant::Rule1SigmaAt1(_))));
     }
 
     #[test]
@@ -939,7 +959,9 @@ mod tests {
         let config = WesternElectricConfig::new(10.0, 1.0);
         let metrics = vec![12.5]; // z-score = 2.5, triggers at 2σ
         let variants = detect_all_rule_variants(&metrics, &config);
-        assert!(variants.iter().any(|r| matches!(r, RuleVariant::Rule1SigmaAt2(_))));
+        assert!(variants
+            .iter()
+            .any(|r| matches!(r, RuleVariant::Rule1SigmaAt2(_))));
     }
 
     #[test]
@@ -947,7 +969,9 @@ mod tests {
         let config = WesternElectricConfig::new(10.0, 1.0);
         let metrics = vec![13.5]; // z-score = 3.5, triggers at 3σ
         let variants = detect_all_rule_variants(&metrics, &config);
-        assert!(variants.iter().any(|r| matches!(r, RuleVariant::Rule1SigmaAt3(_))));
+        assert!(variants
+            .iter()
+            .any(|r| matches!(r, RuleVariant::Rule1SigmaAt3(_))));
     }
 
     #[test]
@@ -1401,8 +1425,7 @@ mod tests {
 
     #[test]
     fn test_config_with_sigmas() {
-        let config = WesternElectricConfig::new(10.0, 1.0)
-            .with_sigmas(1.5, 2.5, 3.5);
+        let config = WesternElectricConfig::new(10.0, 1.0).with_sigmas(1.5, 2.5, 3.5);
         assert_eq!(config.primary_sigma, 1.5);
         assert_eq!(config.secondary_sigma, 2.5);
         assert_eq!(config.tertiary_sigma, 3.5);

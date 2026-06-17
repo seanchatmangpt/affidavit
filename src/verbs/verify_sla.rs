@@ -14,4 +14,3 @@ use clap_noun_verb_macros::verb;
 pub fn verify_sla(receipt: String, sla_file: String, format: Option<String>) -> Result<()> {
     crate::handlers::verify_sla(receipt, sla_file, format)
 }
-

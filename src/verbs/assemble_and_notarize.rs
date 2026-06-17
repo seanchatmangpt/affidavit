@@ -11,6 +11,10 @@ use clap_noun_verb_macros::verb;
 
 /// Assemble receipt and obtain timestamp notarization from external authority
 #[verb("assemble-and-notarize", "receipt")]
-pub fn assemble_and_notarize(notary_provider: Option<String>, out: Option<String>, format: Option<String>) -> Result<()> {
+pub fn assemble_and_notarize(
+    notary_provider: Option<String>,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
     crate::handlers::assemble_and_notarize(notary_provider, out, format)
 }
