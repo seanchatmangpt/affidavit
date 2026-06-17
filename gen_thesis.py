@@ -1,6 +1,6 @@
 import os
 
-filepath = "/Users/sac/affidavit/thesis/chapters/02_lit_review_formal.tex"
+filepath = "thesis/chapters/02_lit_review_formal.tex"
 os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
 content = """\\chapter{Literature Review: Formal Methods, Compiler Theory, and Typestate Enforcement}

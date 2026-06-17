@@ -32,9 +32,10 @@ fn handler_map() -> &'static BTreeMap<&'static str, (&'static str, u32)> {
 pub fn goto_definition_for_event_type(event_type: &str) -> Option<Location> {
     let (path, line) = handler_map().get(event_type)?;
 
-    // In a real environment, we would resolve the absolute path.
-    // For this implementation, we use a file:// URI relative to a presumed root.
-    let uri_str = format!("file:///Users/sac/affidavit/{}", path);
+    let workspace_root = std::env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+    let uri_str = format!("file://{}/{}", workspace_root, path);
     let uri = uri_str.parse().ok()?;
 
     Some(Location {

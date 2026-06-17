@@ -215,10 +215,10 @@ affidavit
 
 ## References
 
-- **clnrm Repository:** `/Users/sac/clnrm`
-- **affidavit Repository:** `/Users/sac/affidavit`
-- **clnrm-core Source:** `/Users/sac/clnrm/crates/clnrm-core/src`
-- **clnrm Public API:** `/Users/sac/clnrm/crates/clnrm-core/src/lib.rs`
+- **clnrm Repository:** `~/clnrm`
+- **affidavit Repository:** `~/affidavit`
+- **clnrm-core Source:** `~/clnrm/crates/clnrm-core/src`
+- **clnrm Public API:** `~/clnrm/crates/clnrm-core/src/lib.rs`
 
 ---
 

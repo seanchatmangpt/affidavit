@@ -59,7 +59,7 @@ def generate_entry(id_num):
 """
     return bib
 
-with open("/Users/sac/affidavit/thesis/bibliography.bib", "w") as f:
+with open("thesis/bibliography.bib", "w") as f:
     # 5000 entries should be a massive bibliography (approx 1MB of text)
     for i in range(5000):
         f.write(generate_entry(i) + "\n")

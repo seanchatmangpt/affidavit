@@ -367,8 +367,8 @@ cargo build -p affidavit-lsp --release 2>&1 | head -20
 ## Contact / Questions
 
 - **LSP Spec:** https://microsoft.github.io/language-server-protocol/
-- **lsp-max examples:** `/Users/sac/lsp-max/examples/`
-- **affidavit tests:** `/Users/sac/affidavit/tests/`
+- **lsp-max examples:** `~/lsp-max/examples/`
+- **affidavit tests:** `~/affidavit/tests/`
 
 ---
 

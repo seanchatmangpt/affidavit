@@ -351,11 +351,11 @@ A: Recompute chain hash: ~1ms per receipt (BLAKE3 is fast). Hover/completion: <1
 
 ## References
 
-- **lsp-max** (26.6.9): `/Users/sac/lsp-max/`
-- **lsp-types-max** (26.6.8): `/Users/sac/lsp-types-max/`
-- **affidavit** (26.6.14): `/Users/sac/affidavit/`
+- **lsp-max** (26.6.9): `~/lsp-max/`
+- **lsp-types-max** (26.6.8): `~/lsp-types-max/`
+- **affidavit** (26.6.14): `~/affidavit/`
 - **LSP Spec 3.18**: https://microsoft.github.io/language-server-protocol/
-- **lsp-max examples**: `/Users/sac/lsp-max/examples/` (justfile-lsp, wasm4pm-lsp, etc.)
+- **lsp-max examples**: `~/lsp-max/examples/` (justfile-lsp, wasm4pm-lsp, etc.)
 
 ---
 
