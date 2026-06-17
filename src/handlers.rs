@@ -2338,7 +2338,7 @@ async fn post_webhook_async(payload: &str, webhook_url: &str) -> anyhow::Result<
 
 /// Stub for when tokio or webhook is not available.
 #[cfg(all(feature = "shell", not(all(feature = "tokio", feature = "webhook"))))]
-async fn post_webhook_async(payload: &str, webhook_url: &str) -> anyhow::Result<u16> {
+async fn post_webhook_async(_payload: &str, _webhook_url: &str) -> anyhow::Result<u16> {
     // Fallback: use std HTTP (would need a blocking client like reqwest blocking)
     // For now, stub to allow compilation
     eprintln!("[webhook] note: tokio and/or webhook feature not enabled; webhook POST stubbed");
