@@ -1,6 +1,6 @@
 # Publishing Affidavit to crates.io
 
-**Version:** 26.6.14  
+**Version:** 26.6.17  
 **Date:** 2026-06-14  
 **Status:** Ready for Publication
 
@@ -19,8 +19,8 @@
 - [x] Release build succeeds
 
 ### Documentation
-- [x] README.md updated (v26.6.14, features, CLI examples)
-- [x] CHANGELOG.md created (v26.6.14 changes documented)
+- [x] README.md updated (v26.6.17, features, CLI examples)
+- [x] CHANGELOG.md created (v26.6.17 changes documented)
 - [x] RELEASE.md created (release notes, migration guide)
 - [x] INTEGRATIONS.md created (feature documentation)
 - [x] STATUS.md updated (phase completion, integration status)
@@ -29,7 +29,7 @@
 
 ### Metadata
 - [x] Cargo.toml complete:
-  - [x] Version: 26.6.14
+  - [x] Version: 26.6.17
   - [x] Description: Provenance Layer...
   - [x] License: MIT OR Apache-2.0
   - [x] Authors: Sean Chatman <xpointsh@gmail.com>
@@ -46,8 +46,8 @@
 
 ### Dependencies
 - [x] All dependencies published or local path resolved
-  - [x] clap-noun-verb (local, version 26.6.14)
-  - [x] clap-noun-verb-macros (local, version 26.6.14)
+  - [x] clap-noun-verb (local, version 26.6.17)
+  - [x] clap-noun-verb-macros (local, version 26.6.17)
   - [x] wasm4pm-compat (local, optional feature)
   - [x] Other deps: all on crates.io (linkme, serde, serde_json, blake3, anyhow, thiserror)
 - [x] Dev dependencies all on crates.io
@@ -75,7 +75,7 @@ cargo test
 cargo publish --dry-run
 ```
 
-Expected output: `Publishing affidavit v26.6.14 to registry index`
+Expected output: `Publishing affidavit v26.6.17 to registry index`
 
 ### Step 3: Publish to crates.io
 
@@ -93,10 +93,10 @@ cargo publish
 
 Expected output:
 ```
-    Uploading affidavit v26.6.14 to crates.io
+    Uploading affidavit v26.6.17 to crates.io
    Downloaded crates in preparation for uploading
-    Uploading affidavit v26.6.14 to crates.io
-     Uploaded affidavit v26.6.14 to crates.io
+    Uploading affidavit v26.6.17 to crates.io
+     Uploaded affidavit v26.6.17 to crates.io
       Waiting for crates.io index to be updated
 ```
 
@@ -107,7 +107,7 @@ curl https://crates.io/api/v1/crates/affidavit
 # Should return JSON with crate metadata
 
 # Check docs.rs
-open https://docs.rs/affidavit/26.6.14/affidavit/
+open https://docs.rs/affidavit/26.6.17/affidavit/
 
 # Verify installation
 cargo install affidavit
@@ -134,9 +134,9 @@ affi --version
 - opentelemetry-jaeger 0.19
 
 ### Local Paths (Must be published separately first)
-- **clap-noun-verb** v26.6.14 — Must publish to crates.io BEFORE affidavit
-- **clap-noun-verb-macros** v26.6.14 — Must publish to crates.io BEFORE clap-noun-verb
-- **wasm4pm-compat** v26.6.14 (optional, feature: `evidence`) — Publish separately or make it a git dep
+- **clap-noun-verb** v26.6.17 — Must publish to crates.io BEFORE affidavit
+- **clap-noun-verb-macros** v26.6.17 — Must publish to crates.io BEFORE clap-noun-verb
+- **wasm4pm-compat** v26.6.17 (optional, feature: `evidence`) — Publish separately or make it a git dep
 
 ### Resolution
 When publishing, we have two options:
@@ -152,9 +152,9 @@ When publishing, we have two options:
 Update Cargo.toml before publishing:
 ```toml
 [dependencies]
-clap-noun-verb = { git = "https://github.com/anthropics/clap-noun-verb.git", tag = "v26.6.14" }
-clap-noun-verb-macros = { git = "https://github.com/anthropics/clap-noun-verb.git", tag = "v26.6.14" }
-wasm4pm-compat = { git = "https://github.com/anthropics/wasm4pm-compat.git", tag = "v26.6.14", optional = true }
+clap-noun-verb = { git = "https://github.com/anthropics/clap-noun-verb.git", tag = "v26.6.17" }
+clap-noun-verb-macros = { git = "https://github.com/anthropics/clap-noun-verb.git", tag = "v26.6.17" }
+wasm4pm-compat = { git = "https://github.com/anthropics/wasm4pm-compat.git", tag = "v26.6.17", optional = true }
 ```
 
 Then publish affidavit. Later, convert back to crates.io versions after dependencies are published.
@@ -166,11 +166,11 @@ Then publish affidavit. Later, convert back to crates.io versions after dependen
 ### Update Documentation
 - [ ] Add badge to README.md: `[![Crates.io](https://img.shields.io/crates/v/affidavit.svg)](https://crates.io/crates/affidavit)`
 - [ ] Update installation instructions in README.md to use crates.io
-- [ ] Tag repository: `git tag v26.6.14`
-- [ ] Push tags: `git push origin v26.6.14`
+- [ ] Tag repository: `git tag v26.6.17`
+- [ ] Push tags: `git push origin v26.6.17`
 
 ### GitHub Release
-- [ ] Create GitHub Release for v26.6.14
+- [ ] Create GitHub Release for v26.6.17
 - [ ] Attach binary (if applicable): `target/release/affi`
 - [ ] Include release notes from RELEASE.md
 - [ ] Link to crates.io page
@@ -187,7 +187,7 @@ Then publish affidavit. Later, convert back to crates.io versions after dependen
 If a critical issue is found after publishing, you can yank the version:
 
 ```bash
-cargo yank --vers 26.6.14
+cargo yank --vers 26.6.17
 ```
 
 This prevents new users from depending on the broken version but allows existing users to keep using it.
@@ -233,7 +233,7 @@ After publishing, keep updated:
 
 This project uses semantic versioning:
 
-- **26.6.14** = Major.Minor.Patch
+- **26.6.17** = Major.Minor.Patch
   - 26 = Phase 1 + system version
   - 6 = Month (June)
   - 14 = Day (14th)
@@ -246,7 +246,7 @@ For future releases, use proper semver: `1.0.0`, `1.1.0`, `1.0.1`, etc.
 
 ✅ Publication is successful when:
 1. `cargo publish` completes with no errors
-2. crates.io shows affidavit v26.6.14 published
+2. crates.io shows affidavit v26.6.17 published
 3. `cargo search affidavit` returns the published version
 4. `cargo install affidavit` installs the binary successfully
 5. `docs.rs` hosts the generated documentation

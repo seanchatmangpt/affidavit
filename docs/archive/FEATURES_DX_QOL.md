@@ -1,4 +1,4 @@
-# DX/QOL Features v26.6.14+ — 80/20 Integration from Ecosystem Libraries
+# DX/QOL Features v26.6.17+ — 80/20 Integration from Ecosystem Libraries
 
 This document outlines 1000x DX/QOL improvements using **80% existing library code, 20% new glue**.
 

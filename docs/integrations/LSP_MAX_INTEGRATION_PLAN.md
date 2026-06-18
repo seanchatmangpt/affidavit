@@ -1,4 +1,4 @@
-# lsp-max Integration Plan — Affidavit v26.6.14
+# lsp-max Integration Plan — Affidavit v26.6.17
 
 **Objective:** Add LSP (Language Server Protocol) support for affidavit `.receipt.json` files, enabling IDE browsing of receipt structure, event chains, and BLAKE3 hashes.
 
@@ -428,7 +428,7 @@ The LSP server runs the same verifier that `affi verify` runs, but **non-blockin
 
 ## Roadmap
 
-### v26.6.14 (Current)
+### v26.6.17 (Current)
 - [x] Affidavit core (7-stage verifier, sealed receipt)
 - [ ] **Begin Phase 1** (indexing + diagnostics)
 
@@ -510,5 +510,5 @@ Once server is stable, create minimal client extension:
 
 **Document Status:** Planning phase  
 **Last Updated:** 2026-06-14  
-**Affidavit Version:** 26.6.14  
+**Affidavit Version:** 26.6.17  
 **lsp-max Version:** 26.6.9  

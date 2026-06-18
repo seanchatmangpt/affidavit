@@ -38,7 +38,7 @@ Documentation for ecosystem integrations:
 - [Index](integrations/WASM4PM_INDEX.md)
 
 ### Canonicalization (CLNRM)
-- [Integration Plan](integrations/CLNRM_INTEGRATION_PLAN_26.6.14.md)
+- [Integration Plan](integrations/CLNRM_INTEGRATION_PLAN_26.6.17.md)
 - [Integration README](integrations/CLNRM_INTEGRATION_README.md)
 - [Integration Examples](integrations/CLNRM_INTEGRATION_EXAMPLES.md)
 - [Public API Surface](integrations/CLNRM_PUBLIC_API_SURFACE.md)

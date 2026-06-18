@@ -41,7 +41,7 @@ Integration with CLNRM for receipt normalization and comparison.
 
 **Files:**
 - `CLNRM_INTEGRATION_README.md` — Quick start
-- `CLNRM_INTEGRATION_PLAN_26.6.14.md` — Implementation plan
+- `CLNRM_INTEGRATION_PLAN_26.6.17.md` — Implementation plan
 - `CLNRM_INTEGRATION_EXAMPLES.md` — Working examples
 - `CLNRM_PUBLIC_API_SURFACE.md` — Public API reference
 
@@ -89,4 +89,4 @@ Overview of all integration points and extension mechanisms.
 
 ---
 
-*Integration documentation for affidavit v26.6.14+*
+*Integration documentation for affidavit v26.6.17+*

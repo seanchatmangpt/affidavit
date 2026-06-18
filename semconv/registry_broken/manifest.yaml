@@ -4,7 +4,7 @@
 # witnessing test's success assertion is not constant-true.
 name: affidavit_broken
 registry_uri: urn:affidavit:registry:broken
-version: 26.6.14
+version: 26.6.17
 semconv_version: 1.27.0
 schema_url: https://affidavit.dev/schemas/broken
 schema_base_url: https://affidavit.dev/schemas/

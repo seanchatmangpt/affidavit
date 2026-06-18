@@ -7,13 +7,13 @@
 // must never be presented as a real captured payload_commitment or chain_hash.
 //
 // The real affidavit chain uses a rolling BLAKE3:
-//   h0   = blake3("affidavit-v26.6.14-genesis")
+//   h0   = blake3("affidavit-v26.6.17-genesis")
 //   h_n  = blake3( hex(h_{n-1}) ++ canonicalBytes(event_n) )
 // We mirror that *structure* (fold prev-hash into the next link) so the
 // tamper-propagation property is faithfully demonstrated, without claiming to
 // compute the real hash.
 
-export const GENESIS_LABEL = "affidavit-v26.6.14-genesis";
+export const GENESIS_LABEL = "affidavit-v26.6.17-genesis";
 
 export interface ObjectRef {
   id: string;

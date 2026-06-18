@@ -3,7 +3,7 @@
 **Project:** affidavit (DX/QOL 1000x Initiative)  
 **Phase:** 5 of 5  
 **Branch:** `claude/zen-cerf-oq87br`  
-**Version:** 26.6.14  
+**Version:** 26.6.17  
 **Last Updated:** 2026-06-14  
 **Status:** Pre-implementation — definition locked, implementation pending
 

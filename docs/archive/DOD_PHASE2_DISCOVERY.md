@@ -1,7 +1,7 @@
 # Definition of Done — Phase 2: Process Discovery & IDE Integration
 
 **Project:** affidavit — Provenance Layer  
-**Version:** 26.6.14  
+**Version:** 26.6.17  
 **Branch:** `claude/zen-cerf-oq87br`  
 **Phase:** 2 of the DX/QOL 1000x initiative  
 **Author:** Sean Chatman (xpointsh@gmail.com)  

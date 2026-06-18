@@ -3,7 +3,7 @@
 **Project:** affidavit — Provenance Layer  
 **Phase:** 3 of the DX/QOL 1000x Initiative  
 **Branch:** `claude/zen-cerf-oq87br`  
-**Version:** 26.6.14  
+**Version:** 26.6.17  
 **Date:** 2026-06-14  
 **Priority:** P2 — Quality Assurance  
 **Estimated Effort:** 16 hours across 5 features  
@@ -1888,4 +1888,4 @@ The following checklist must be fully checked before Phase 3 is marked **DONE** 
 ---
 
 *End of Definition of Done — Phase 3: Test Generation & Mutation Testing*  
-*Branch: `claude/zen-cerf-oq87br` | Version: 26.6.14 | Date: 2026-06-14*
+*Branch: `claude/zen-cerf-oq87br` | Version: 26.6.17 | Date: 2026-06-14*

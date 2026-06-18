@@ -2,7 +2,7 @@
 ## affidavit DX/QOL 1000x Initiative
 
 **Branch:** `claude/zen-cerf-oq87br`  
-**Version:** 26.6.14  
+**Version:** 26.6.17  
 **Phase:** 1 of 6  
 **Theme:** Receipt Inspection & Visualization  
 **Author:** Sean Chatman <xpointsh@gmail.com>  
@@ -1216,4 +1216,4 @@ Files expected to be created or modified in Phase 1:
 ---
 
 *Definition of Done — Phase 1: Receipt Inspection*  
-*affidavit v26.6.14 | branch: `claude/zen-cerf-oq87br` | 2026-06-14*
+*affidavit v26.6.17 | branch: `claude/zen-cerf-oq87br` | 2026-06-14*

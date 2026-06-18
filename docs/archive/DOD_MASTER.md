@@ -2,7 +2,7 @@
 # affidavit DX/QOL 1000x Initiative
 
 **Project:** affidavit Provenance Layer — DX/QOL 1000x Feature Expansion  
-**Version:** 26.6.14  
+**Version:** 26.6.17  
 **Branch:** `claude/zen-cerf-oq87br`  
 **Owner:** Sean Chatman (xpointsh@gmail.com)  
 **Last Updated:** 2026-06-14  
@@ -82,7 +82,7 @@ Benchmarking:           [░░░░░] 0/5   (0%)
 | New bench files | 2 |
 | Rollout duration | 5 weeks |
 
-### Baseline: What Exists Today (v26.6.14)
+### Baseline: What Exists Today (v26.6.17)
 
 The following are **already complete** and are NOT tracked as DX/QOL initiative features:
 
@@ -321,7 +321,7 @@ The following are **already complete** and are NOT tracked as DX/QOL initiative 
 ### Feature Dependency Graph
 
 ```
-LAYER 0 — Always Available (baseline v26.6.14)
+LAYER 0 — Always Available (baseline v26.6.17)
   ┌──────────────────────────────────────────────────────────────────┐
   │  emit · assemble · verify · show · inspect(✅)                   │
   │  7-stage verifier · BLAKE3 chain · OTel basic · chicago-tdd asm │
@@ -418,7 +418,7 @@ B.1 throughput → B.5 baselines → [done in Week 3]
 
 | Gate | Command | Current | Target | Notes |
 |------|---------|---------|--------|-------|
-| Compile (debug) | `cargo build` | ✅ | ✅ | Passes on v26.6.14 |
+| Compile (debug) | `cargo build` | ✅ | ✅ | Passes on v26.6.17 |
 | Compile (all features) | `cargo build --all-features` | 🔲 | ✅ | Run after Phase 1 complete |
 | Test suite | `cargo test --all` | ✅ 59 tests | ✅ | Must stay green throughout |
 | Clippy | `cargo clippy --all-targets --all-features` | ✅ | ✅ | `#![deny(clippy::print_stdout)]` in effect |

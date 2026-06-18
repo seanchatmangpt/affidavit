@@ -1,6 +1,6 @@
 # affidavit — Definition of Done: CI/CD Pipeline Integration Requirements & Configuration
 
-**Version:** 26.6.14  
+**Version:** 26.6.17  
 **Branch:** `claude/zen-cerf-oq87br`  
 **Initiative:** DX/QOL 1000x (5 phases, 22 features)  
 **Repo:** `seanchatmangpt/affidavit`
@@ -501,7 +501,7 @@ echo "PASS: $PASS | FAIL: $FAIL"
 
 1. `cargo doc --all-features --no-deps` produces **zero warnings** — rustdoc warnings are promoted to errors via `RUSTDOCFLAGS="-D warnings"`.
 2. Every `examples/*.sh` script exits code 0 when run against the built binary.
-3. `CHANGELOG.md` contains an entry for the current version (`26.6.14`).
+3. `CHANGELOG.md` contains an entry for the current version (`26.6.17`).
 4. `CLAUDE.md` architecture section is up to date (verified by checking that all `src/verbs/*.rs` files are listed).
 
 ### 6.2 Documentation Check Commands
@@ -1520,7 +1520,7 @@ The DX/QOL 1000x initiative is **done** when every item in this checklist passes
 - [ ] `RUSTDOCFLAGS="-D warnings" cargo doc --all-features --no-deps` — zero doc warnings
 - [ ] `examples/golden_run.sh` — exits 0 (ACCEPT + REJECT both work)
 - [ ] All other `examples/*.sh` scripts — each exits 0
-- [ ] `CHANGELOG.md` contains entry for current version (`26.6.14`)
+- [ ] `CHANGELOG.md` contains entry for current version (`26.6.17`)
 - [ ] `CLAUDE.md` architecture section lists all files in `src/verbs/*.rs`
 - [ ] `scripts/check-claude-md.sh` — exits 0
 
@@ -1606,4 +1606,4 @@ Branch protection rule for: main
 
 ---
 
-*Last updated: 2026-06-14 | affidavit v26.6.14 | DX/QOL 1000x initiative*
+*Last updated: 2026-06-14 | affidavit v26.6.17 | DX/QOL 1000x initiative*

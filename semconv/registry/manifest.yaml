@@ -6,9 +6,9 @@
 # tests/otel_weaver_registry.rs asserts that check exits 0.
 name: affidavit
 registry_uri: urn:affidavit:registry
-version: 26.6.14
+version: 26.6.17
 semconv_version: 1.27.0
-schema_url: https://affidavit.dev/schemas/26.6.14
+schema_url: https://affidavit.dev/schemas/26.6.17
 schema_base_url: https://affidavit.dev/schemas/
 description: OpenTelemetry semantic-convention registry for the affidavit receipt pipeline.
 

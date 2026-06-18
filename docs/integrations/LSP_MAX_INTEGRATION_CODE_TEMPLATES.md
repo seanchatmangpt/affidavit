@@ -773,7 +773,7 @@ pub fn handle(text: &str, pos: lsp_types_max::Position, index: &ReceiptIndex) ->
 ```toml
 [package]
 name = "affidavit-lsp"
-version = "26.6.14"
+version = "26.6.17"
 edition = "2021"
 description = "LSP server for affidavit receipt.json files"
 license = "MIT OR Apache-2.0"

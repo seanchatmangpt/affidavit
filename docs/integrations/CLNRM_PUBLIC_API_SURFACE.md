@@ -1,7 +1,7 @@
 # clnrm-core Public API Surface for affidavit Integration
 
 **Extracted:** 2026-06-14  
-**Version:** clnrm-core 26.6.14  
+**Version:** clnrm-core 26.6.17  
 **Scope:** Three capabilities for 80/20 integration (templates, validators, mutations)
 
 ---

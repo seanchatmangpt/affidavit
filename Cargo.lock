@@ -29,7 +29,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "affidavit"
-version = "26.6.14"
+version = "26.6.17"
 dependencies = [
  "anyhow",
  "assert_cmd",

@@ -9,7 +9,7 @@
 
 [project]
 name = "affidavit"
-version = "26.6.14"
+version = "26.6.17"
 description = "Provenance Layer CLI — affi receipt {emit,assemble,verify,show} wiring rendered from the cnv ontology via the authoritative clap-noun-verb pack."
 
 # --- pack declaration --------------------------------------------------------

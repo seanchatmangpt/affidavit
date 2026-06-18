@@ -74,14 +74,31 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-| Command | Description |
-| :--- | :--- |
-| `affi emit` | Record a new operation-event. |
-| `affi assemble` | Finalize and seal the current receipt. |
-| `affi verify` | Run the certify pipeline against a receipt. |
-| `affi receipt model` | Generate architectural models from provenance. |
-| `affi receipt conform`| Score a receipt against process laws. |
-| `affi shell` | Enter the interactive provenance REPL. |
+Affidavit v26.6.17 expanded the CLI ontology to encompass **59 canonical verbs**, generating a massive CLI surface capable of advanced provenance, auditing, and analysis workflows.
+
+**Core Verbs (The Provenance Loop):**
+- `affi emit` — Record a new operation-event.
+- `affi assemble` — Finalize and seal the current receipt.
+- `affi verify` — Run the certify pipeline against a receipt.
+- `affi show` — Inspect receipt details.
+
+**Western Electric Quality (Real-Time Monitoring):**
+- `affi quality monitor` — Start Western Electric live statistical process control monitoring.
+- `affi quality portfolio` — Analyze portfolio health across repositories.
+- `affi quality trend-analysis` — Display historical degradation metrics.
+
+**SBOM & Supply Chain Provenance:**
+- `affi sbom scan` — Generate SBOM representation (SPDX/CycloneDX).
+- `affi sbom attest` — Sign and bind an SBOM to the cryptographic provenance chain.
+- `affi sbom blast-radius` — Calculate vulnerability risk propagation in the dependency graph.
+- `affi sbom compliance` — Run NTIA minimum-element compliance verification.
+
+**Advanced Auditing:**
+- `affi receipt model` — Generate architectural models from provenance.
+- `affi causality-chain` — Track root cause and event lineage.
+- `affi security-debt` — Calculate pending remediation metrics.
+
+*(For the complete list of all 59 capabilities, run `affi --help` or enter the interactive provenance REPL using `affi shell`)*
 
 ---
 

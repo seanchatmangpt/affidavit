@@ -49,7 +49,7 @@ to them.)
 | [`../README.md`](../README.md) | Project overview: doctrine, install/build, CLI surface, the golden run, determinism, and source layout. |
 | [`../STATUS.md`](../STATUS.md) | Current status report: phase completion, test counts, per-library integration status (wired vs. planned), and known residuals. |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | Notable changes per version. |
-| [`../ACCOMPLISHMENTS_v26614.md`](../ACCOMPLISHMENTS_v26614.md) | Narrative of what was accomplished in the v26.6.14 session. |
+| [`../ACCOMPLISHMENTS_v26614.md`](../ACCOMPLISHMENTS_v26614.md) | Narrative of what was accomplished in the v26.6.17 session. |
 
 ### Architecture & doctrine
 
@@ -106,7 +106,7 @@ to them.)
 | Doc | What it is |
 | --- | --- |
 | [`../CLNRM_INTEGRATION_README.md`](../CLNRM_INTEGRATION_README.md) | Quick-reference entry point for the clnrm integration. |
-| [`../CLNRM_INTEGRATION_PLAN_26.6.14.md`](../CLNRM_INTEGRATION_PLAN_26.6.14.md) | The clnrm-core integration plan (library-only, 80/20). |
+| [`../CLNRM_INTEGRATION_PLAN_26.6.17.md`](../CLNRM_INTEGRATION_PLAN_26.6.17.md) | The clnrm-core integration plan (library-only, 80/20). |
 | [`../CLNRM_INTEGRATION_EXAMPLES.md`](../CLNRM_INTEGRATION_EXAMPLES.md) | Copy-paste code snippets for integrating clnrm-core. |
 | [`../CLNRM_PUBLIC_API_SURFACE.md`](../CLNRM_PUBLIC_API_SURFACE.md) | The clnrm-core public API surface relevant to Affidavit (templates, validators, mutations). |
 
@@ -114,7 +114,7 @@ to them.)
 
 | Doc | What it is |
 | --- | --- |
-| [`../RELEASE.md`](../RELEASE.md) | Release notes for v26.6.14. |
+| [`../RELEASE.md`](../RELEASE.md) | Release notes for v26.6.17. |
 | [`../PUBLISHING.md`](../PUBLISHING.md) | How to publish Affidavit to crates.io (checklist and metadata). |
 
 ### Coverage & provenance logs

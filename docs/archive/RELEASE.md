@@ -1,14 +1,14 @@
-# Affidavit v26.6.14 Release Notes
+# Affidavit v26.6.17 Release Notes
 
 **Release Date:** 2026-06-14  
-**Version:** 26.6.14  
+**Version:** 26.6.17  
 **Status:** Release Candidate - Ready for crates.io
 
 ---
 
 ## Release Summary
 
-Affidavit v26.6.14 completes **Phase 1 of ARDPRD** (Artifact Provenance Document) and is ready for publication to crates.io. This release includes:
+Affidavit v26.6.17 completes **Phase 1 of ARDPRD** (Artifact Provenance Document) and is ready for publication to crates.io. This release includes:
 
 1. ✅ Receipt sealing mechanism (ADR-2/3)
 2. ✅ Deterministic BLAKE3 chain assembly
@@ -20,7 +20,7 @@ Affidavit v26.6.14 completes **Phase 1 of ARDPRD** (Artifact Provenance Document
 
 ---
 
-## What's New in 26.6.14
+## What's New in 26.6.17
 
 ### Core Features
 - **Receipt Sealing**: Private `_seal` field makes struct-literal construction unconstructable (E0451)
@@ -86,7 +86,7 @@ N/A - First release.
 ### From crates.io (after publishing)
 ```toml
 [dependencies]
-affidavit = "26.6.14"
+affidavit = "26.6.17"
 ```
 
 ### From Source
@@ -233,6 +233,6 @@ Built with:
 
 ---
 
-**Affidavit v26.6.14 is ready for production use within Phase 1 scope (artifact provenance).**
+**Affidavit v26.6.17 is ready for production use within Phase 1 scope (artifact provenance).**
 
 *Last Updated: 2026-06-14*

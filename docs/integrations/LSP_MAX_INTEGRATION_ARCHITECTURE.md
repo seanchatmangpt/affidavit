@@ -453,7 +453,7 @@ Diagnostic {
         "triggerCharacters": ["\""]
       }
     },
-    "serverInfo": { "name": "affidavit-lsp", "version": "26.6.14" }
+    "serverInfo": { "name": "affidavit-lsp", "version": "26.6.17" }
   }
 }
 ```

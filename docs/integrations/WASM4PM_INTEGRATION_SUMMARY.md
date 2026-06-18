@@ -1,6 +1,6 @@
 # wasm4pm Integration Plan — Executive Summary
 
-**Project:** Affidavit v26.6.14 + wasm4pm Phase 2  
+**Project:** Affidavit v26.6.17 + wasm4pm Phase 2  
 **Date:** 2026-06-14  
 **Status:** Planning complete; ready for implementation  
 **Effort:** ~3–4 days of development work  
@@ -235,7 +235,7 @@ cargo test --features conformance
 cargo test --features predictive
 
 # Documentation updated
-# Bumps: v26.6.14 → v26.7.0 (Phase 2 complete)
+# Bumps: v26.6.17 → v26.7.0 (Phase 2 complete)
 ```
 
 ---

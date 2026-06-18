@@ -2,7 +2,7 @@
 
 **Project:** affidavit DX/QOL 1000x Initiative  
 **Branch:** `claude/zen-cerf-oq87br`  
-**Version:** 26.6.14  
+**Version:** 26.6.17  
 **Date:** 2026-06-14  
 **Doctrine:** Certify, don't decide.
 
@@ -1532,11 +1532,11 @@ Covered by UAT-DIS-007.
 
 ## 5. Regression Test Scenarios
 
-These tests must pass to prove that the DX/QOL 1000x initiative introduced no regressions against the v26.6.14 baseline.
+These tests must pass to prove that the DX/QOL 1000x initiative introduced no regressions against the v26.6.17 baseline.
 
 ### 5.1 Existing Test Suite Must Still Pass
 
-**Requirement:** All tests that passed on `main` at v26.6.14 must pass on `claude/zen-cerf-oq87br`.
+**Requirement:** All tests that passed on `main` at v26.6.17 must pass on `claude/zen-cerf-oq87br`.
 
 **Verification:**
 
@@ -1546,7 +1546,7 @@ cargo test --all 2>&1 | tail -10
 # Expected: "test result: ok. N passed; 0 failed; 0 ignored"
 ```
 
-**Known test count at v26.6.14 (CLAUDE.md documented):**
+**Known test count at v26.6.17 (CLAUDE.md documented):**
 
 | Suite | Count | Location |
 |---|---|---|
@@ -1578,9 +1578,9 @@ bash examples/golden_run.sh
 - The honest receipt's ACCEPT exit code is `0`
 - The tampered receipt's exit code is non-zero
 
-### 5.3 Receipt Sealed at v26.6.14 Verifies at v26.6.14+
+### 5.3 Receipt Sealed at v26.6.17 Verifies at v26.6.17+
 
-**Requirement:** A receipt assembled with `affi` at `main` (v26.6.14) must verify cleanly with `affi` built from `claude/zen-cerf-oq87br`.
+**Requirement:** A receipt assembled with `affi` at `main` (v26.6.17) must verify cleanly with `affi` built from `claude/zen-cerf-oq87br`.
 
 **Verification:**
 
@@ -1602,7 +1602,7 @@ cargo build --release
 - stderr contains `"verdict: ACCEPT"`
 - The `chain_hash` in `/tmp/v26614-reference.json` matches the value computed at assembly time (determinism cross-version guarantee)
 
-**Notes:** The genesis seed `b"affidavit-v26.6.14-genesis"` is pinned in `src/chain.rs::GENESIS_SEED`. Any change to this constant is a **breaking change** and requires a major version bump.
+**Notes:** The genesis seed `b"affidavit-v26.6.17-genesis"` is pinned in `src/chain.rs::GENESIS_SEED`. Any change to this constant is a **breaking change** and requires a major version bump.
 
 ### 5.4 All Dispatch Tests Still Route Correctly
 
@@ -2053,4 +2053,4 @@ The following conditions **must be remediated** before DoD sign-off will be gran
 
 *This specification is the authoritative Definition of Done for the affidavit DX/QOL 1000x initiative on branch `claude/zen-cerf-oq87br`. All UAT scenarios must pass before the branch may be merged to `main`.*
 
-*Document version: 26.6.14 | Maintained by: Sean Chatman (xpointsh@gmail.com)*
+*Document version: 26.6.17 | Maintained by: Sean Chatman (xpointsh@gmail.com)*

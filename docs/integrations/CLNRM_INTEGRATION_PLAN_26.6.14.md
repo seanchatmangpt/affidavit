@@ -1,4 +1,4 @@
-# clnrm Integration Plan for affidavit v26.6.14
+# clnrm Integration Plan for affidavit v26.6.17
 
 **Date:** 2026-06-14  
 **Scope:** 80/20 integration focusing on clnrm-core public API only (no workspace consumption)  
@@ -396,7 +396,7 @@ fn test_adversarial_receipt_rejection() {
 
 # clnrm-core for template, validation, chaos integration
 clnrm-core = { path = "../clnrm/crates/clnrm-core" }
-# Alternative (when published): { version = "26.6.14" }
+# Alternative (when published): { version = "26.6.17" }
 
 # Supporting libraries clnrm-core requires (already in scope)
 tokio = { version = "1.0", features = ["full"] }
@@ -448,7 +448,7 @@ affidavit/
 │   ├── clnrm_adversarial_witness.rs   # NEW: Mutation witness
 │   └── ...existing...
 │
-└── CLNRM_INTEGRATION_PLAN_26.6.14.md  # This file
+└── CLNRM_INTEGRATION_PLAN_26.6.17.md  # This file
 ```
 
 ---
@@ -637,7 +637,7 @@ fn test_adversarial_corpus_all_rejected() {
 - [ ] Update main README with clnrm integration section
 - [ ] Add rustdoc comments to all public APIs
 - [ ] Run full test suite; ensure no regressions
-- [ ] Archive this plan as `/affidavit/CLNRM_INTEGRATION_PLAN_26.6.14.md`
+- [ ] Archive this plan as `/affidavit/CLNRM_INTEGRATION_PLAN_26.6.17.md`
 
 ---
 
@@ -645,7 +645,7 @@ fn test_adversarial_corpus_all_rejected() {
 
 | Risk | Mitigation |
 |------|-----------|
-| clnrm-core API instability | Use pinned version `26.6.14`; path dependency during dev |
+| clnrm-core API instability | Use pinned version `26.6.17`; path dependency during dev |
 | Bloated dependency tree | Consume clnrm-core only; ignore cli/lsp/workspace |
 | Validator type incompatibility | Adapter layer in `validators.rs` provides translation |
 | Test flakiness from chaos | Use deterministic seed; generate fixed corpus |

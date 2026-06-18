@@ -1,6 +1,6 @@
 # COMBINATORIAL MAXIMALISM: Affidavit 1000x Documentation
 
-**The Provenance Layer.** `affi` CLI · v26.6.14 · **1000x Initiative Complete**
+**The Provenance Layer.** `affi` CLI · v26.6.17 · **1000x Initiative Complete**
 
 `affidavit` is a high-performance provenance engine that assembles and certifies content-addressed chains of operation-events. This documentation reflects the completion of the **1000x Initiative**, a massive expansion of the project's capabilities through deep integration with the Rust ecosystem.
 
@@ -165,7 +165,7 @@ affi bench profile --feature=flamegraph
 **Benefit:** Identify bottlenecks in the BLAKE3 chain-hashing logic.
 
 ### 3.5 Baselines
-**Tutorial:** Compare current performance against the "Gold Standard" v26.6.14 baseline.
+**Tutorial:** Compare current performance against the "Gold Standard" v26.6.17 baseline.
 **Benefit:** Guarantee that `affidavit` remains the fastest provenance layer in the ecosystem.
 
 ---

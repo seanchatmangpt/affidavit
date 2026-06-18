@@ -638,7 +638,7 @@ fn test_template_generation_succeeds() {
 
 [package]
 name = "affidavit"
-version = "26.6.14"
+version = "26.6.17"
 edition = "2021"
 
 [dependencies]
@@ -656,7 +656,7 @@ tempfile = "3"  # NEW: for test files
 
 # NEW: clnrm-core integration (path dependency during development)
 clnrm-core = { path = "../clnrm/crates/clnrm-core" }
-# Alternative when published: { version = "26.6.14" }
+# Alternative when published: { version = "26.6.17" }
 
 # clnrm-core dependencies (re-export)
 tokio = { version = "1.0", features = ["full"] }

@@ -57,7 +57,7 @@ export interface Receipt {
 // ── Constants (must match src/chain.rs) ───────────────────────────────────────
 
 /** GENESIS_SEED = ASCII bytes of this exact string (binds chains to the release). */
-export const GENESIS_SEED_STRING = "affidavit-v26.6.14-genesis";
+export const GENESIS_SEED_STRING = "affidavit-v26.6.17-genesis";
 
 /** The format version this verifier certifies (src/chain.rs FORMAT_VERSION). */
 export const STANDARD_VERSION = "core/v1";

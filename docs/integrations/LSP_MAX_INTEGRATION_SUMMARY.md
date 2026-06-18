@@ -1,7 +1,7 @@
 # lsp-max Integration — Executive Summary
 
 **Date:** 2026-06-14  
-**Version:** Affidavit v26.6.14, lsp-max v26.6.9  
+**Version:** Affidavit v26.6.17, lsp-max v26.6.9  
 **Status:** Planning complete; ready for Phase 1 implementation
 
 ---
@@ -353,7 +353,7 @@ A: Recompute chain hash: ~1ms per receipt (BLAKE3 is fast). Hover/completion: <1
 
 - **lsp-max** (26.6.9): `~/lsp-max/`
 - **lsp-types-max** (26.6.8): `~/lsp-types-max/`
-- **affidavit** (26.6.14): `~/affidavit/`
+- **affidavit** (26.6.17): `~/affidavit/`
 - **LSP Spec 3.18**: https://microsoft.github.io/language-server-protocol/
 - **lsp-max examples**: `~/lsp-max/examples/` (justfile-lsp, wasm4pm-lsp, etc.)
 

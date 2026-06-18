@@ -1,6 +1,6 @@
 # Definition of Done — Phase 4: OpenTelemetry & Observability
 
-**Project:** affidavit v26.6.14  
+**Project:** affidavit v26.6.17  
 **Branch:** `claude/zen-cerf-oq87br`  
 **Phase:** 4 of the DX/QOL 1000x initiative  
 **Date:** 2026-06-14  
@@ -1397,4 +1397,4 @@ Phase 4 is done when **every item below is checked**:
 ---
 
 *Definition of Done — Phase 4: OpenTelemetry & Observability*  
-*affidavit v26.6.14 | Branch: `claude/zen-cerf-oq87br` | 2026-06-14*
+*affidavit v26.6.17 | Branch: `claude/zen-cerf-oq87br` | 2026-06-14*

@@ -2,7 +2,7 @@
 
 **Status:** Plan Ready  
 **Date:** 2026-06-14  
-**Version:** affidavit 26.6.14 + clnrm-core 26.6.14
+**Version:** affidavit 26.6.17 + clnrm-core 26.6.17
 
 ---
 
@@ -20,7 +20,7 @@ Affidavit (the Provenance Layer) is integrating **three capabilities from clnrm-
 
 ## Three Integration Documents
 
-### 1. **CLNRM_INTEGRATION_PLAN_26.6.14.md** (This Folder)
+### 1. **CLNRM_INTEGRATION_PLAN_26.6.17.md** (This Folder)
 **The Master Plan**
 - Executive summary
 - 80/20 scope (clnrm-core only, no workspace)
@@ -129,7 +129,7 @@ affidavit/
 │   ├── clnrm_validator_witness.rs              # NEW: Validator test
 │   └── clnrm_adversarial_witness.rs            # NEW: Mutation test
 └── docs/
-    └── CLNRM_INTEGRATION_PLAN_26.6.14.md      # (this folder)
+    └── CLNRM_INTEGRATION_PLAN_26.6.17.md      # (this folder)
 ```
 
 ---
@@ -157,7 +157,7 @@ test result: ok. 8 passed; 0 failed; 0 ignored
 
 ```
 affidavit
-├── clnrm-core (26.6.14)
+├── clnrm-core (26.6.17)
 │   ├── tokio
 │   ├── serde/serde_json
 │   ├── tracing
@@ -197,10 +197,10 @@ affidavit
 **A:** 80/20: Only three capabilities are needed for receipt verification. The full workspace adds CLI, LSP, and Docker complexity that affidavit doesn't need. We consume clnrm-core as a library only.
 
 ### Q: Can I use this with published clnrm-core on crates.io?
-**A:** Yes! During development, use path dependency `{ path = "../clnrm/crates/clnrm-core" }`. When clnrm-core is published, change to `{ version = "26.6.14" }`.
+**A:** Yes! During development, use path dependency `{ path = "../clnrm/crates/clnrm-core" }`. When clnrm-core is published, change to `{ version = "26.6.17" }`.
 
 ### Q: What if clnrm-core API changes?
-**A:** We've pinned to 26.6.14. Use `Cargo.lock` to lock transitive dependencies. If upgrading clnrm-core, update adapters in `validators.rs` (a light layer).
+**A:** We've pinned to 26.6.17. Use `Cargo.lock` to lock transitive dependencies. If upgrading clnrm-core, update adapters in `validators.rs` (a light layer).
 
 ### Q: Do I need to understand clnrm internals?
 **A:** No. The public API surface is documented. Treat clnrm-core as a black box that validates spans, generates templates, and produces mutations.
@@ -237,7 +237,7 @@ affidavit
 
 ## Next Steps
 
-1. **Read** `CLNRM_INTEGRATION_PLAN_26.6.14.md` (Executive Summary)
+1. **Read** `CLNRM_INTEGRATION_PLAN_26.6.17.md` (Executive Summary)
 2. **Reference** `CLNRM_PUBLIC_API_SURFACE.md` (API Types)
 3. **Code** from `CLNRM_INTEGRATION_EXAMPLES.md` (Copy-paste)
 4. **Test** with provided witness tests

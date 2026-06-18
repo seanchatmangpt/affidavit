@@ -1,4 +1,4 @@
-# Library Integrations — Affidavit v26.6.14 (1000x Complete)
+# Library Integrations — Affidavit v26.6.17 (1000x Complete)
 
 This document describes how Affidavit integrates with the ecosystem libraries to deliver its 30+ maximalist features.
 
@@ -120,7 +120,7 @@ cargo bench --features otel
 When ready to publish:
 
 ```bash
-# Update version in Cargo.toml (already at 26.6.14)
+# Update version in Cargo.toml (already at 26.6.17)
 # Update CHANGELOG.md with release notes
 # Ensure all tests pass
 cargo test --all
@@ -136,7 +136,7 @@ cargo publish
 
 ## Integration Roadmap
 
-### Phase 1 ✅ Complete (v26.6.14)
+### Phase 1 ✅ Complete (v26.6.17)
 - [x] Core receipt sealing (private _seal field)
 - [x] Deterministic BLAKE3 chain
 - [x] 7-stage verifier pipeline
@@ -193,5 +193,5 @@ cargo bench -- --sample-size 100 --measurement-time 30
 ---
 
 **Last updated:** 2026-06-14  
-**Affidavit version:** 26.6.14  
+**Affidavit version:** 26.6.17  
 **Phase:** 1 complete; Phase 2 standing

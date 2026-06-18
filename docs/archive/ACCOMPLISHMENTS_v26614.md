@@ -1,4 +1,4 @@
-# Affidavit v26.6.14+ Accomplishments
+# Affidavit v26.6.17+ Accomplishments
 
 **Session Date:** 2026-06-14  
 **Scope:** Full library integration + ARDPRD architectural seam + DX/QOL features (80/20)
@@ -129,7 +129,7 @@
 
 ## 5. Key Architectural Decisions Made
 
-| ADR | Decision | v26.6.14+ Status |
+| ADR | Decision | v26.6.17+ Status |
 |-----|----------|------------------|
 | ADR-1 | Typestate, not library | ✅ Evidence<Receipt, Admitted, W> integrated |
 | ADR-2 | Seal is value-level (not const-generic) | ✅ Private _seal field enforces E0451 |
@@ -159,7 +159,7 @@
 
 ---
 
-## 7. What's Not in v26.6.14+ (Honest Residuals)
+## 7. What's Not in v26.6.17+ (Honest Residuals)
 
 ### Phase 2 Standing Condition (Not a milestone)
 - Boundary-trace β (reasoning provenance) — Requires whoever holds the missing axiom
@@ -178,7 +178,7 @@
 
 ## 8. Metrics: How Much Is This Worth?
 
-### Before v26.6.14+:
+### Before v26.6.17+:
 - Receipts: bare `struct Receipt` (no typestate)
 - Tests: hand-written (100+ lines per receipt pattern)
 - Benchmarks: 0 measured (harness misconfigured)
@@ -186,7 +186,7 @@
 - Libraries integrated: 2/7 (ggen, clap-noun-verb)
 - Features: emit, assemble, verify, show (4 verbs)
 
-### After v26.6.14+:
+### After v26.6.17+:
 - Receipts: `Evidence<Receipt, Admitted, AffidavitReceiptChain>` (typestate enforced)
 - Tests: fixture-driven (10 lines per pattern, 90% code reuse)
 - Benchmarks: Real measurements, regression-failure ready
@@ -216,5 +216,5 @@
 
 ---
 
-**v26.6.14+ is ARDPRD Phase 1 complete + architectural seam + first DX/QOL wave. Ready for Phase 2.**
+**v26.6.17+ is ARDPRD Phase 1 complete + architectural seam + first DX/QOL wave. Ready for Phase 2.**
 

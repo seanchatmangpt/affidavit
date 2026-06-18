@@ -1,8 +1,8 @@
-# wasm4pm Integration Plan v26.6.14
+# wasm4pm Integration Plan v26.6.17
 
 **Date:** 2026-06-14  
-**Affidavit Version:** 26.6.14  
-**wasm4pm-compat:** 26.6.14 (stable, nightly-required)  
+**Affidavit Version:** 26.6.17  
+**wasm4pm-compat:** 26.6.17 (stable, nightly-required)  
 **wasm4pm:** 26.6.12 (workspace with discovery/conformance/predictive engines)
 
 ---

@@ -204,7 +204,7 @@ Total: 82 KB of planning
 - [ ] All tests pass: `cargo test --all-features`
 - [ ] Stable Rust unaffected: `cargo test` (no features)
 - [ ] Documentation updated: INTEGRATIONS.md
-- [ ] Version bumped: v26.6.14 → v26.7.0
+- [ ] Version bumped: v26.6.17 → v26.7.0
 
 ---
 
@@ -293,9 +293,9 @@ Total: 82 KB of planning
 
 ## Version Info
 
-- **Affidavit:** v26.6.14
+- **Affidavit:** v26.6.17
 - **wasm4pm:** 26.6.12 (workspace)
-- **wasm4pm-compat:** 26.6.14 (nightly-required)
+- **wasm4pm-compat:** 26.6.17 (nightly-required)
 - **Planning date:** 2026-06-14
 - **Phase 1 status:** Complete (emit/assemble/verify/show, 41 tests passing)
 - **Phase 2 status:** Planning complete; ready for implementation
