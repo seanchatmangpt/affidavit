@@ -5,10 +5,10 @@
 // compile; collapse a variant → assertion fails):
 //   1. The four quality dimensions (+F1) are each constructed and distinct.
 //   2. The soundness lattice progresses Unknown → Claimed → Witnessed.
-//   3. OCEL→XES flattening loss is FIRST-CLASS: a flatten that drops non-case
-//      object types is recorded in a named LossReport, never silent. This is the
-//      convergence/divergence problem rendered as a named loss (the reason OCEL
-//      exists), in the crate's actual vocabulary.
+//   3. OCEL projection loss is FIRST-CLASS: a case-type projection that drops
+//      non-selected object types is recorded in a named LossReport, never silent.
+//      This is the convergence/divergence problem rendered as a named loss (the
+//      reason OCEL exists), in the crate's actual vocabulary.
 
 use wasm4pm_compat::conformance::QualityDimension;
 use wasm4pm_compat::law::SoundnessState;
@@ -69,28 +69,27 @@ fn soundness_lattice_progresses_unknown_to_witnessed() {
 }
 
 #[test]
-fn ocel_to_xes_flattening_loss_is_named_not_silent() {
-    // The convergence/divergence problem: flattening an object-centric log to a
-    // single XES case notion DROPS links to non-case object types. The crate
-    // makes this loss FIRST-CLASS — a named LossReport under an explicit policy,
-    // never a silent flatten. We construct the exact loss the OCEL literature
-    // warns about.
+fn ocel_projection_loss_is_named_not_silent() {
+    // The convergence/divergence problem: a case-type projection DROPS links to
+    // non-selected object types. The crate makes this loss FIRST-CLASS — a named
+    // LossReport under an explicit policy, never a silent drop. We construct the
+    // exact loss the OCEL literature warns about.
     enum Ocel {}
-    enum Xes {}
-    let report = LossReport::<Ocel, Xes, Vec<&str>>::new(
-        ProjectionName("ocel-flatten-to-xes:by-order"),
+    enum Target {}
+    let report = LossReport::<Ocel, Target, Vec<&str>>::new(
+        ProjectionName("ocel-project:by-order"),
         LossPolicy::AllowLossWithReport,
-        vec!["item", "invoice"], // non-case object types dropped by flattening
+        vec!["item", "invoice"], // non-selected object types dropped by projection
     );
 
     // The loss is recorded, not silent.
     assert_eq!(report.policy, LossPolicy::AllowLossWithReport);
-    assert_eq!(report.projection.0, "ocel-flatten-to-xes:by-order");
+    assert_eq!(report.projection.0, "ocel-project:by-order");
     let lost = report.into_lost();
     assert_eq!(
         lost,
         vec!["item", "invoice"],
-        "flattening must name exactly the object types it dropped (convergence/divergence made explicit)"
+        "projection must name exactly the object types it dropped (convergence/divergence made explicit)"
     );
 }
 

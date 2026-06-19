@@ -3,13 +3,13 @@
 // at the type level (COVERAGE.md §2 — witness markers + family gating).
 //
 // `Witness` markers are how `Admission<T, W>` and `Evidence<_, _, W>` are made
-// family-typed: an Ocel20-witnessed value cannot be silently mistaken for an
-// Xes1849-witnessed one. This exercises the const metadata of several markers and
-// confirms their FAMILY classification matches the taxonomy (Standard vs Paper vs
-// ApiGrammar) — failing-when-fake: a wrong KEY/FAMILY const fails the assertion.
+// family-typed. This exercises the const metadata of the OCEL-2.0, POWL, and
+// pm4py markers and confirms their FAMILY classification matches the taxonomy
+// (Standard vs Paper vs ApiGrammar) — failing-when-fake: a wrong KEY/FAMILY
+// const fails the assertion.
 
 use wasm4pm_compat::witness::{
-    Ocel20, Pm4pyApiGrammar, PowlPaper, Witness, WitnessFamily, Xes1849,
+    Ocel20, Pm4pyApiGrammar, PowlPaper, Witness, WitnessFamily,
 };
 
 #[test]
@@ -22,14 +22,6 @@ fn standard_family_markers_carry_correct_metadata() {
     );
     assert_eq!(Ocel20::TITLE, "OCEL 2.0");
     assert_eq!(Ocel20::YEAR, Some(2023));
-
-    assert_eq!(Xes1849::KEY, "xes-1849-2016");
-    assert_eq!(
-        Xes1849::FAMILY,
-        WitnessFamily::Standard,
-        "XES is a Standard"
-    );
-    assert_eq!(Xes1849::YEAR, Some(2016));
 }
 
 #[test]
@@ -49,6 +41,5 @@ fn family_classification_distinguishes_marker_kinds() {
     );
 
     // Keys are distinct — markers are not interchangeable.
-    assert_ne!(Ocel20::KEY, Xes1849::KEY);
     assert_ne!(Ocel20::KEY, PowlPaper::KEY);
 }

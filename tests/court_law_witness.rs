@@ -36,8 +36,6 @@ use wasm4pm_compat::process_tree::{
     ProcessTree, ProcessTreeNode, ProcessTreeNodeId, ProcessTreeOperator, ProcessTreeRefusal,
 };
 use wasm4pm_compat::receipt::{Digest, ReceiptChain, ReceiptEnvelope, ReceiptRefusal, ReplayHint};
-use wasm4pm_compat::xes::{XesEvent, XesExtension, XesLog, XesRefusal, XesTrace};
-
 fn log(objects: Vec<Object>, events: Vec<OcelEvent>, e2o: Vec<EventObjectLink>) -> OcelLog {
     OcelLog::new(
         objects,
@@ -389,108 +387,6 @@ fn petri_court_admits_net_with_final_marking() {
     assert_eq!(wf.validate(), Ok(()), "a WfNet with a final marking admits");
 }
 
-// ── XesRefusal — the classical (case-centric) event-log standard ──
-// XesLog::validate fires a family of named laws. Four reached against real
-// violations; the positive control admits a well-formed log.
-
-#[test]
-fn xes_court_refuses_missing_log_name() {
-    let log = XesLog::new(
-        "",
-        [],
-        [XesTrace::new(
-            "c",
-            [XesEvent::new().with("concept:name", "a")],
-        )],
-    );
-    assert_eq!(log.validate(), Err(XesRefusal::MissingLogName));
-}
-
-#[test]
-fn xes_court_refuses_no_traces() {
-    let log = XesLog::new("l", [], []);
-    assert_eq!(log.validate(), Err(XesRefusal::NoTraces));
-}
-
-#[test]
-fn xes_court_refuses_empty_trace() {
-    let log = XesLog::new("l", [], [XesTrace::new("c", [])]);
-    assert_eq!(log.validate(), Err(XesRefusal::EmptyTrace));
-}
-
-#[test]
-fn xes_court_refuses_missing_concept_name() {
-    // Event with no concept:name attribute.
-    let log = XesLog::new("l", [], [XesTrace::new("c", [XesEvent::new()])]);
-    assert_eq!(log.validate(), Err(XesRefusal::MissingConceptName));
-}
-
-#[test]
-fn xes_court_refuses_invalid_extension() {
-    // An extension with an empty prefix is structurally invalid.
-    let log = XesLog::new(
-        "l",
-        [XesExtension::new("Concept", "", "uri")], // empty prefix
-        [XesTrace::new(
-            "c",
-            [XesEvent::new().with("concept:name", "a")],
-        )],
-    );
-    assert_eq!(log.validate(), Err(XesRefusal::InvalidExtension));
-}
-
-#[test]
-fn xes_court_refuses_missing_trace_name() {
-    // A trace with an empty name (log name present, concept ext declared).
-    let log = XesLog::new(
-        "l",
-        [XesExtension::new("Concept", "concept", "uri")],
-        [XesTrace::new(
-            "",
-            [XesEvent::new().with("concept:name", "a")],
-        )], // empty trace name
-    );
-    assert_eq!(log.validate(), Err(XesRefusal::MissingTraceName));
-}
-
-#[test]
-fn xes_court_refuses_undeclared_extension_prefix() {
-    // `concept:name` is namespaced; with no declared `concept` extension, the
-    // prefix is undeclared and the court refuses by name.
-    let log = XesLog::new(
-        "l",
-        [], // no extensions declared
-        [XesTrace::new(
-            "c",
-            [XesEvent::new().with("concept:name", "create")],
-        )],
-    );
-    assert_eq!(log.validate(), Err(XesRefusal::UndeclaredExtensionPrefix));
-}
-
-#[test]
-fn xes_court_admits_well_formed_log() {
-    // Positive control: declare the `concept` extension so the namespaced
-    // `concept:name` key references a declared prefix.
-    let log = XesLog::new(
-        "l",
-        [XesExtension::new(
-            "Concept",
-            "concept",
-            "http://www.xes-standard.org/concept.xesext",
-        )],
-        [XesTrace::new(
-            "c",
-            [XesEvent::new().with("concept:name", "create")],
-        )],
-    );
-    assert_eq!(
-        log.validate(),
-        Ok(()),
-        "a named log with a declared extension admits"
-    );
-}
-
 // ── PowlRefusal — POWL (partially-ordered workflow language) choice arity ──
 // A choice node with fewer than two branches degrades to a trivial projection;
 // the court refuses it by name, carrying the arity data in the variant.
@@ -662,7 +558,7 @@ fn interop_court_refuses_dimension_shape_mismatch() {
 
 #[test]
 fn interop_court_admits_grounded_flat_artifact() {
-    let g = ArtifactGrounding::<()>::new(Pm4pyShape::EventLog, "xes:fixture-1");
+    let g = ArtifactGrounding::<()>::new(Pm4pyShape::EventLog, "ocel:fixture-1");
     assert_eq!(g.admit_flat(), Ok(()), "a grounded flat artifact admits");
 }
 
