@@ -50,8 +50,8 @@ fn orphaned_event_receipt() -> Receipt {
     asm.append(ev0).expect("append");
 
     // Second event has NO objects — this is the orphan.
-    let ev1 = build_event("certify-stage-1", vec![], b"payload-1", &mut counter)
-        .expect("build event");
+    let ev1 =
+        build_event("certify-stage-1", vec![], b"payload-1", &mut counter).expect("build event");
     asm.append(ev1).expect("append");
 
     asm.finalize()
@@ -77,9 +77,7 @@ fn soc2_orphaned_event_fails_with_coverage_code() {
     let receipt = orphaned_event_receipt();
     let err = soc2_gate(&receipt).expect_err("orphaned event must fail SOC 2 gate");
     assert!(
-        err.violations
-            .iter()
-            .any(|v| v.code == "SOC2-ORPHAN"),
+        err.violations.iter().any(|v| v.code == "SOC2-ORPHAN"),
         "expected SOC2-ORPHAN violation, got: {:?}",
         err.violations
     );
@@ -117,7 +115,7 @@ fn gdpr_orphaned_event_fails_with_orphan_code() {
 #[test]
 fn gdpr_continuity_gap_fails_pipeline() {
     use affidavit::chain::recompute_chain;
-    use affidavit::types::{Blake3Hash, OperationEvent, ObjectRef};
+    use affidavit::types::{Blake3Hash, ObjectRef, OperationEvent};
 
     // Build two events with a seq gap: seq 0 then seq 2 (skipping 1).
     let ev0 = OperationEvent {
@@ -184,7 +182,7 @@ fn pci_dss_conforming_receipt_passes() {
 #[test]
 fn pci_dss_continuity_gap_fails_with_skip_code() {
     use affidavit::chain::recompute_chain;
-    use affidavit::types::{Blake3Hash, OperationEvent, ObjectRef};
+    use affidavit::types::{Blake3Hash, ObjectRef, OperationEvent};
 
     let ev0 = OperationEvent {
         id: "evt-0".to_string(),

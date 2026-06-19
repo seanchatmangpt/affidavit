@@ -1802,10 +1802,16 @@ pub fn soc2_audit(
         }
         let violations: Vec<serde_json::Value> = match &gate {
             Ok(()) => vec![],
-            Err(e) => e.violations.iter().map(|v| serde_json::json!({
-                "code": v.code,
-                "detail": v.detail,
-            })).collect(),
+            Err(e) => e
+                .violations
+                .iter()
+                .map(|v| {
+                    serde_json::json!({
+                        "code": v.code,
+                        "detail": v.detail,
+                    })
+                })
+                .collect(),
         };
         gate_results.push(serde_json::json!({
             "chain_hash": r.chain_hash,
@@ -1867,10 +1873,16 @@ pub fn gdpr_proof(
         }
         let violations: Vec<serde_json::Value> = match &gate {
             Ok(()) => vec![],
-            Err(e) => e.violations.iter().map(|v| serde_json::json!({
-                "code": v.code,
-                "detail": v.detail,
-            })).collect(),
+            Err(e) => e
+                .violations
+                .iter()
+                .map(|v| {
+                    serde_json::json!({
+                        "code": v.code,
+                        "detail": v.detail,
+                    })
+                })
+                .collect(),
         };
         gate_results.push(serde_json::json!({
             "chain_hash": r.chain_hash,
@@ -1929,10 +1941,16 @@ pub fn hipaa(receipts_path: String, out: Option<String>, format: Option<String>)
         }
         let violations: Vec<serde_json::Value> = match &gate {
             Ok(()) => vec![],
-            Err(e) => e.violations.iter().map(|v| serde_json::json!({
-                "code": v.code,
-                "detail": v.detail,
-            })).collect(),
+            Err(e) => e
+                .violations
+                .iter()
+                .map(|v| {
+                    serde_json::json!({
+                        "code": v.code,
+                        "detail": v.detail,
+                    })
+                })
+                .collect(),
         };
         gate_results.push(serde_json::json!({
             "chain_hash": r.chain_hash,
@@ -1990,10 +2008,16 @@ pub fn pci_dss(receipts_path: String, out: Option<String>, format: Option<String
         }
         let violations: Vec<serde_json::Value> = match &gate {
             Ok(()) => vec![],
-            Err(e) => e.violations.iter().map(|v| serde_json::json!({
-                "code": v.code,
-                "detail": v.detail,
-            })).collect(),
+            Err(e) => e
+                .violations
+                .iter()
+                .map(|v| {
+                    serde_json::json!({
+                        "code": v.code,
+                        "detail": v.detail,
+                    })
+                })
+                .collect(),
         };
         gate_results.push(serde_json::json!({
             "chain_hash": r.chain_hash,
