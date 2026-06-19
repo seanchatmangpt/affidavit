@@ -33,7 +33,11 @@ fn ocel_attribute_value_union_is_constructible_and_tagged() {
         }
     }
     let kinds: std::collections::BTreeSet<&str> = values.iter().map(tag).collect();
-    assert_eq!(kinds.len(), 5, "five non-temporal value kinds must each produce a distinct tag");
+    assert_eq!(
+        kinds.len(),
+        5,
+        "five non-temporal value kinds must each produce a distinct tag"
+    );
 }
 
 #[test]
@@ -59,5 +63,8 @@ fn ocel_attribute_value_null_is_distinct() {
     // Null is its own variant — not a zero-value alias for Integer or any other.
     let v = V::Null;
     assert!(matches!(v, V::Null), "V::Null must match V::Null");
-    assert!(!matches!(v, V::Integer(_)), "V::Null must not match V::Integer(_)");
+    assert!(
+        !matches!(v, V::Integer(_)),
+        "V::Null must not match V::Integer(_)"
+    );
 }
