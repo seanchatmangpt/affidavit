@@ -63,6 +63,7 @@
 
 pub mod admission;
 pub mod bench;
+pub mod breed_conformance;
 pub mod catalog;
 pub mod chain;
 pub mod cli;
