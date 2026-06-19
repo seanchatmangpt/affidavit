@@ -15,16 +15,16 @@ fn loss_chain_tracks_lossless_then_lossy() {
     assert!(chain.is_lossless(), "an empty loss chain is lossless");
     assert_eq!(chain.len(), 0);
 
-    // Summarise a lossy OCEL→XES flatten into a NamedLoss and record it.
+    // Summarise a lossy OCEL projection into a NamedLoss and record it.
     enum Ocel {}
-    enum Xes {}
-    let report = LossReport::<Ocel, Xes, Vec<&str>>::new(
-        ProjectionName("ocel-flatten-to-xes:by-order"),
+    enum Target {}
+    let report = LossReport::<Ocel, Target, Vec<&str>>::new(
+        ProjectionName("ocel-project:by-order"),
         LossPolicy::AllowLossWithReport,
         vec!["item", "invoice"],
     );
     let step = report.summary("DroppedObjectTypeLinks");
-    assert_eq!(step.projection().as_str(), "ocel-flatten-to-xes:by-order");
+    assert_eq!(step.projection().as_str(), "ocel-project:by-order");
     assert_eq!(step.category(), "DroppedObjectTypeLinks");
 
     chain.push(step);

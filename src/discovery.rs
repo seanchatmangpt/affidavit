@@ -24,7 +24,7 @@ use wasm4pm::models::{AttributeValue, Event, EventLog, Trace};
 use wasm4pm::process_tree::discover_simple_process_tree_from_log;
 
 /// The activity key used when projecting receipt events into the event log
-/// (the OCEL / XES convention).
+/// (the OCEL convention).
 pub const ACTIVITY_KEY: &str = "concept:name";
 
 /// Project an affidavit [`Receipt`] into a `wasm4pm` [`EventLog`]: the receipt's

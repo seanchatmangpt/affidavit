@@ -1,41 +1,61 @@
-// Reference witness: the XES extension declaration + trace-attribute surface
-// (COVERAGE.md §2 — XES extension/attribute accessors; complements XesRefusal).
+// Reference witness: the OCEL-2.0 type schema declaration and typed attribute
+// builder surface (COVERAGE.md §2 — OCEL type schema and attribute builders).
 //
-// XesExtension declares a (name, prefix, uri) triple — the namespace declaration
-// that makes a `prefix:key` attribute lawful. XesTraceAttributes is a key→value
-// bag with a `concept:name` convenience accessor. This witnesses the accessors
-// and the with/get attribute round-trip.
+// OCELType declares an object/event type with a named list of OCELTypeAttribute
+// schema entries (name + value_type string). OcelAttribute::{string,integer,boolean}
+// are ergonomic builders that carry the key and land the value in the correct
+// OcelAttributeValue variant. This witnesses both layers and their round-trips.
 
-use wasm4pm_compat::xes::{XesExtension, XesTraceAttributes};
+use wasm4pm_compat::ocel::{OcelAttribute, OcelAttributeValue as V, OCELType, OCELTypeAttribute};
 
 #[test]
-fn xes_extension_exposes_name_prefix_uri() {
-    let ext = XesExtension::new(
-        "Concept",
-        "concept",
-        "http://www.xes-standard.org/concept.xesext",
-    );
-    assert_eq!(ext.name(), "Concept");
+fn ocel_type_declares_attribute_schema() {
+    let order_type = OCELType {
+        name: "order".to_string(),
+        attributes: vec![
+            OCELTypeAttribute {
+                name: "total".to_string(),
+                value_type: "float".to_string(),
+            },
+            OCELTypeAttribute {
+                name: "priority".to_string(),
+                value_type: "boolean".to_string(),
+            },
+        ],
+    };
+
+    assert_eq!(order_type.name, "order", "the declared object type name");
+    assert_eq!(order_type.attributes.len(), 2, "two attribute declarations");
+    assert_eq!(order_type.attributes[0].name, "total");
     assert_eq!(
-        ext.prefix(),
-        "concept",
-        "the prefix that lawful namespaced keys must reference"
+        order_type.attributes[0].value_type,
+        "float",
+        "first attribute's declared value type"
     );
-    assert_eq!(ext.uri(), "http://www.xes-standard.org/concept.xesext");
+    assert_eq!(order_type.attributes[1].name, "priority");
+    assert_eq!(order_type.attributes[1].value_type, "boolean");
 }
 
 #[test]
-fn xes_trace_attributes_round_trip() {
-    let attrs = XesTraceAttributes::new()
-        .with("concept:name", "case-1")
-        .with("cost:total", "42");
-    assert_eq!(attrs.get("concept:name"), Some("case-1"));
-    assert_eq!(attrs.get("cost:total"), Some("42"));
-    assert_eq!(attrs.get("absent"), None, "unset key → None");
-    // The concept:name convenience accessor.
-    assert_eq!(
-        attrs.concept_name(),
-        Some("case-1"),
-        "concept:name surfaced via accessor"
+fn ocel_attribute_builders_round_trip() {
+    let s = OcelAttribute::string("actor", "alice");
+    assert_eq!(s.key, "actor");
+    assert!(
+        matches!(&s.value, V::String(x) if x == "alice"),
+        "string builder → String variant"
+    );
+
+    let i = OcelAttribute::integer("count", 3);
+    assert_eq!(i.key, "count");
+    assert!(
+        matches!(i.value, V::Integer(3)),
+        "integer builder → Integer variant"
+    );
+
+    let b = OcelAttribute::boolean("active", true);
+    assert_eq!(b.key, "active");
+    assert!(
+        matches!(b.value, V::Boolean(true)),
+        "boolean builder → Boolean variant"
     );
 }
