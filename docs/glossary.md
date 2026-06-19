@@ -69,7 +69,7 @@ the same events always yield the same content address.
 
 The fixed byte string that seeds the rolling chain hash, binding every chain to
 this release of the tool. In `src/chain.rs` it is
-`GENESIS_SEED = b"affidavit-v26.6.17-genesis"`, and `chain_hash_0 =
+`GENESIS_SEED = b"affidavit-v26.6.19-genesis"`, and `chain_hash_0 =
 blake3(GENESIS_SEED)`. An empty receipt's chain hash equals the genesis hash.
 
 ### Profile (core/v1)

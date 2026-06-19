@@ -19,7 +19,7 @@ use crate::types::{canonical_bytes, Blake3Hash, OperationEvent, Receipt};
 pub const FORMAT_VERSION: &str = "core/v1";
 
 /// Genesis seed for the rolling chain hash. Binds chains to this release.
-pub const GENESIS_SEED: &[u8] = b"affidavit-v26.6.14-genesis";
+pub const GENESIS_SEED: &[u8] = b"affidavit-v26.6.19-genesis";
 
 /// Default on-disk path for the in-progress working receipt.
 pub const WORKING_PATH: &str = ".affi/working.json";

@@ -1,6 +1,6 @@
 # affidavit — Provenance Layer Documentation
 
-**Version:** 26.6.17  
+**Version:** 26.6.19  
 **Project:** Receipt Assembly & Certification  
 **Language:** Rust (2021 edition)  
 **License:** MIT OR Apache-2.0
@@ -563,5 +563,5 @@ MIT OR Apache-2.0
 
 ---
 
-**Last Updated:** 2026-06-14  
+**Last Updated:** 2026-06-19  
 **Maintained by:** Sean Chatman (xpointsh@gmail.com)

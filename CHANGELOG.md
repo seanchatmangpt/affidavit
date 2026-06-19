@@ -2,6 +2,21 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.6.19] — 2026-06-19
+
+### Changed
+- **Version bump**: Updated to v26.6.19 in `Cargo.toml`, `CLAUDE.md`, `docs/INDEX.md`, and all versioned references.
+- **Genesis seed**: Updated from `affidavit-v26.6.14-genesis` to `affidavit-v26.6.19-genesis` in `src/chain.rs` and `docs/glossary.md`. Receipts assembled under prior versions will fail `chain_integrity` (stage 3) when verified with v26.6.19 — this is the intended breaking boundary between release generations.
+- **Documentation cohesion**: Standardized version strings across README, CLAUDE.md, glossary, INDEX, and integration docs. Fixed placeholder GitHub URL to `https://github.com/anthropics/affidavit`.
+
+### Fixed
+- CLI surface wording in README now accurately reflects 59 canonical verbs without implying the count was newly added in this patch.
+- Removed stale `your-repo` placeholder from installation instructions.
+
+### Internal
+- Added `docs/archive/ACCOMPLISHMENTS_v26619.md` release summary.
+- All doc timestamps synchronized to 2026-06-19.
+
 ## [26.6.17] — 2026-06-17
 
 ### Added

@@ -38,7 +38,7 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 Ensure you have the latest stable Rust toolchain installed.
 
 ```bash
-git clone https://github.com/your-repo/affidavit
+git clone https://github.com/anthropics/affidavit
 cd affidavit
 cargo build --release --all-features
 ```
@@ -74,7 +74,7 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-Affidavit v26.6.17 expanded the CLI ontology to encompass **59 canonical verbs**, generating a massive CLI surface capable of advanced provenance, auditing, and analysis workflows.
+Affidavit v26.6.19 ships **59 canonical verbs**, generating a comprehensive CLI surface capable of advanced provenance, auditing, and analysis workflows.
 
 **Core Verbs (The Provenance Loop):**
 - `affi emit` — Record a new operation-event.
