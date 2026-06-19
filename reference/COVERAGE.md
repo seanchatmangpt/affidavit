@@ -102,7 +102,7 @@ Status legend:
 | `ObjectLifecyclePhase` (Created/Active/Modified/Archived/Deleted) | 🟢 | object-lifecycle phase census |
 | `CausalConsistency` (Consistent/HasCycles/HasContradictions/Unknown) | 🟢 | cross-object causality verdict lattice census |
 | `TemporalOrder` (Before/After/Concurrent/Unknown) | 🟢 | pairwise temporal relation census |
-| `XesLifecycleTransition` (14 transitions) | 🟢 | XES event-lifecycle vocabulary census (exhaustive) |
+| `OCELAttributeValue` (6 variants, closed-alphabet census) | 🟢 | OCEL attribute value type census (`tests/reference_ocel_attr_value_vocab.rs`): all 5 non-temporal variants constructible and distinct; integer/string builders map to correct variant; Null is its own variant, not a zero alias. Complements the recursive variant census in §2.3aq. |
 
 ### 2.3e Shape taxonomy + verdict vocabulary
 
@@ -217,7 +217,7 @@ Note: `PredictionRefusal` (the prediction *refusal* enum) remains ⚠️ GHOST (
 
 | Type | Status | Witness (`tests/reference_witness_family.rs`) |
 |---|---|---|
-| `Witness` trait + markers (`Ocel20`, `Xes1849`, `PowlPaper`, `Pm4pyApiGrammar`) + `WitnessFamily` | 🟢 | each marker's `KEY`/`FAMILY`/`TITLE`/`YEAR` consts exercised; family classification (Standard vs Paper vs ApiGrammar) asserted; keys distinct — markers are not interchangeable (the basis for family-typed `Admission<T,W>`/`Evidence<_,_,W>`). |
+| `Witness` trait + markers (`Ocel20`, `PowlPaper`, `Pm4pyApiGrammar`) + `WitnessFamily` | 🟢 | `Ocel20`/`PowlPaper`/`Pm4pyApiGrammar`: `KEY`/`FAMILY`/`TITLE`/`YEAR` consts exercised; family classification (Standard vs Paper vs ApiGrammar) asserted; keys distinct (markers are not interchangeable — the basis for family-typed `Admission<T,W>`/`Evidence<_,_,W>`). `Xes1849` is an upstream marker in wasm4pm-compat but is no longer witnessed in affidavit's test suite. |
 
 ### 2.3u Conformance metric carriers + verdict container
 
@@ -238,12 +238,12 @@ Note: `PredictionRefusal` (the prediction *refusal* enum) remains ⚠️ GHOST (
 |---|---|---|
 | `loss::{LossChain, NamedLoss}` + `LossReport::{summary, is_lossless}` | 🟢 | empty chain is lossless; a recorded NamedLoss (with projection + category accessors) makes it lossy and is retained (not silent); a no-dropped-items report is lossless vs a dropped-items report lossy. Loss is first-class and tracked. |
 
-### 2.5c Named flatten projection + artifact grounding
+### 2.5c Artifact grounding + interop projection surface
 
 | Type | Status | Witness (`tests/reference_interop_projection.rs`) |
 |---|---|---|
-| `interop::OcelToXesProjection` (the convergence/divergence projection) | 🟢 | carries its chosen case notion (`case_type`) — the choice that causes convergence/divergence — under a stable `PROJECTION_NAME`; different case notions are different flattening choices. |
-| `interop::ArtifactGrounding` (positive) | 🟢 | grounded (evidence-backed) vs ungrounded distinguished; Pm4pyShape object-centric vs flat classification — the bases of `UngroundedArtifact` / `FlatClaimOverObjectCentric`. |
+| `interop::OcelToXesProjection` (the OCEL→XES flatten projection) | 🔴 OPEN | exported by wasm4pm-compat; no longer witnessed in affidavit's test suite (removed in OCEL unification). |
+| `interop::ArtifactGrounding` (positive) | 🟢 | grounded (evidence-backed) vs ungrounded distinguished; `Pm4pyShape` object-centric vs flat classification — the bases of `UngroundedArtifact` / `FlatClaimOverObjectCentric`. |
 
 ### 2.3w Conformance verdict + deviation diagnostics
 
@@ -349,17 +349,19 @@ Note: `PredictionRefusal` (the prediction *refusal* enum) remains ⚠️ GHOST (
 |---|---|---|
 | `eventlog::Event` (optionals) | 🟢 | only explicitly-set perspectives are present: a bare event returns None for time/resource/lifecycle (no fabricated defaults); partial sets honoured. Complements the all-perspectives positive witness. |
 
-### 2.3am XES extension + trace-attribute surface
+### 2.3am OCEL-2.0 type schema + attribute builder surface
 
-| Type | Status | Witness (`tests/reference_xes_attributes.rs`) |
+| Type | Status | Witness (`tests/reference_ocel_type_attrs.rs`) |
 |---|---|---|
-| `xes::{XesExtension, XesTraceAttributes}` | 🟢 | extension exposes name/prefix/uri (the namespace declaration that makes `prefix:key` lawful); trace attributes with/get round-trip + `concept:name` accessor; unset key → None. Complements XesRefusal. |
+| `ocel::{OCELType, OCELTypeAttribute}` (schema layer) | 🟢 | an object type with two typed attribute declarations (name + value_type string); attribute count, names, and value_types read back. Distinct from per-instance values. |
+| `ocel::{OcelAttribute, OcelAttributeValue}` (builder layer) | 🟢 | `OcelAttribute::string/integer/boolean` builders: key field and value variant verified (String/Integer/Boolean). The `OcelAttribute` builder API (distinct from the `OCELEventAttribute` OCEL-2.0 layer). |
 
-### 2.3an XesEvent standard-attribute accessors
+### 2.3an OCEL event identity + typed event-attribute builders
 
-| Type | Status | Witness (`tests/reference_xes_event.rs`) |
+| Type | Status | Witness (`tests/reference_ocel_event.rs`) |
 |---|---|---|
-| `xes::XesEvent` (standard accessors) | 🟢 | concept:name / time:timestamp / org:resource / lifecycle:transition surfaced; `lifecycle_transition()` parses the raw string into typed `XesLifecycleTransition::Complete`; unset standard keys → None; arbitrary attributes still readable. |
+| `ocel::OCELEvent` (identity) | 🟢 | `OCELEvent::new(id, event_type)` carries its `id` and `event_type` fields verbatim. |
+| `ocel::OCELEventAttribute` (typed builders) | 🟢 | string/integer builders map to `V::String`/`V::Integer`; `V::Boolean` is directly constructible. Complements the builder coverage in §2.3aq. |
 
 ### 2.3ao ocel OcelEvent / Object builders
 
@@ -440,11 +442,12 @@ Note: `PredictionRefusal` (the prediction *refusal* enum) remains ⚠️ GHOST (
 |---|---|---|
 | `powl::{OrderEdge, PowlNodeKind::PartialOrder}` | 🟢 | OrderEdge carries from/to (predecessor→successor); a valid acyclic partial order (a before b) admits via `validate()`. POWL's distinguishing partial-order feature; complements the Choice/Loop witnesses. |
 
-### 2.3ba XesLog / XesTrace accessor surface
+### 2.3ba OCEL log event and object sets
 
-| Type | Status | Witness (`tests/reference_xes_log.rs`) |
+| Type | Status | Witness (`tests/reference_ocel_log.rs`) |
 |---|---|---|
-| `xes::{XesLog, XesTrace}` (accessors) | 🟢 | log name/extensions/traces + per-trace name/len/events read back from a constructed multi-trace log. Complements the XesRefusal validate witnesses. |
+| `ocel::{OCEL, OCELEvent, OCELObject}` (log surface) | 🟢 | log constructed with 2 events + 3 objects across 2 types; `event_set().len()`, `object_set().len()`, `count_objects_of_type()` reflect the construction; event `id`/`event_type` and object `id`/`object_type` identity verified. |
+| `ocel::OCELRelationship` (e2o links) | 🟢 | `e1` linked to two objects via `OCELRelationship`; `log.e2o("e1").len() == 2`; `e2` with no links returns empty. Complements the full-log composite witness (§2.3bl). |
 
 ### 2.3bb BPMN leaf component accessors
 
@@ -649,11 +652,11 @@ Note: `PredictionRefusal` (the prediction *refusal* enum) remains ⚠️ GHOST (
 |---|---|---|
 | `wasm4pm_compat::causality::{CausallyOrderedEvidence, VerifyCausalConsistency, ConsistencyVerified, UnknownVerifier}` | 🟢 | the causal-consistency analogue of the receipt's `admit()` sealing law: `ConsistencyVerified<T>` has a `pub(crate)` constructor, so external code cannot mint a "verified" verdict by fiat — the only public door is `VerifyCausalConsistency::verify`. Witnessed: `CausallyOrderedEvidence` wraps its payload; running the public `UnknownVerifier` yields a verdict that is honestly `Unknown` (the trivial verifier refuses to over-claim `Consistent`); `is_consistent()` reflects it. Non-forgeability proven by the absence of any non-verifier path. |
 
-### 2.3ch The full XES lifecycle-transition vocabulary
+### 2.3ch OCEL-2.0 attribute value type census (closed-alphabet)
 
-| Type | Status | Witness (`tests/reference_xes_lifecycle_vocab.rs`) |
+| Type | Status | Witness (`tests/reference_ocel_attr_value_vocab.rs`) |
 |---|---|---|
-| `wasm4pm_compat::xes::XesLifecycleTransition` (all 14 variants) | 🟢 | exhaustive (was 1 of 14, Complete only): every variant round-trips `variant → as_str() → parse() → same variant` (a typo in either match arm breaks it); the alphabet is proven **closed** (`parse("custom")`/`""`/`"Complete"` → `None`, case-sensitive); and a no-wildcard `is_terminal` taxonomy fixes the 5 end-states (Complete/Abort/Withdraw/ManualSkip/AutoSkip) vs the 9 non-terminal. The interval alphabet underlying duration/waiting-time mining. |
+| `ocel::OCELAttributeValue` (non-temporal variants) | 🟢 | exhaustive closed-alphabet check on the OCEL typed value union: all 5 non-temporal variants (Integer/Float/Boolean/String/Null) constructible and carry distinct tags; `OCELEventAttribute` string/integer builders land in the correct variant; `V::Null` is its own variant, not a zero-value alias. The `V::Time` chrono-backed variant is noted but not constructed (compiler-gated). |
 
 ### 2.3ci The process-tree operator-node arity law (negative side)
 
@@ -672,7 +675,7 @@ Note: `PredictionRefusal` (the prediction *refusal* enum) remains ⚠️ GHOST (
 
 | Type | Status | Note |
 |---|---|---|
-| `loss::LossReport`, `loss::ProjectionName`, `loss::LossPolicy` | 🟢 | `tests/reference_quality_loss.rs::ocel_to_xes_flattening_loss_is_named_not_silent` + `refuse_loss_policy_is_distinct_from_allow` — an OCEL→XES flatten records exactly the dropped non-case object types in a named report under an explicit policy |
+| `loss::LossReport`, `loss::ProjectionName`, `loss::LossPolicy` | 🟢 | `tests/reference_quality_loss.rs::ocel_projection_loss_is_named_not_silent` + `refuse_loss_policy_is_distinct_from_allow` — an OCEL case-type projection records exactly the dropped non-selected object types in a named report under an explicit policy |
 | `diagnostic::CompatDiagnostic` (incl. `HiddenFlattening`) | 🟢 | `tests/reference_diagnostics.rs` — all 9 diagnostics render `[severity] message` via Display; HiddenFlattening is an Error pointing at the LossReport remedy (the silent-flatten counterpart to the named-loss path); RawEvidenceExportedAsAdmitted names the T-1 fiat-admission hazard. |
 
 ### 2.6 The other 9 refusal enums (every named law reachable — TY-9)
@@ -685,7 +688,7 @@ Note: `PredictionRefusal` (the prediction *refusal* enum) remains ⚠️ GHOST (
 | `EventLogRefusal` (2 of 2 REACHABLE: EmptyTrace, NonMonotonicTrace) | 🟢 all reachable variants fire (`court_law_witness`); on affidavit's discovery path. ⚠️ 5 ghost: MissingCaseId, MissingActivity, MissingTimestamp, DuplicateEvent, InvalidLifecycle have no producer in `eventlog.rs` (§7) |
 | `BpmnRefusal` (6 of 6 REACHABLE: EmptyProcess, DuplicateNodeId, MissingStartEvent, MissingEndEvent, DanglingEdge, LaneNodeNotDeclared) | 🟢 all reachable variants fire against real BPMN violations (`court_law_witness`). ⚠️ 2 ghost: MalformedGateway, DisconnectedNode have no producer (§7) |
 | `PetriRefusal` (4 of 4 REACHABLE: MissingFinalMarking, UnsafeNet, InvalidInstanceBounds, ObjectTypeNotPreserved) | 🟢 proper-completion, unsafe net, degenerate instance bounds, undeclared object-typed arc — all reachable variants fire (`court_law_witness` + `reference_petri_refusals` + `reference_petri_object_type`). ⚠️ 6 ghost: MissingInitialMarking, DeadTransition, UnboundedNet, InvalidVariableArc, SoundnessNotWitnessed, InvalidCancellationRegion have no `Err(...)` producer (§7). |
-| `XesRefusal` (8 of 10 REACHABLE: MissingLogName, NoTraces, EmptyTrace, MissingConceptName, UndeclaredExtensionPrefix, InvalidExtension, MissingTraceName, **LiftingLoss**) | 🟢 the first 7 fire against real malformed XES logs (`court_law_witness`); `LiftingLoss` fires at the XES→OCED lifting boundary under `RefuseLoss` (`reference_lifting_loss.rs`, a cross-module producer in `interop.rs`). ⚠️ 2 ghost: InvalidTimestamp, InvalidLifecycleTransition have no producer (§7) |
+| `XesRefusal` (8 of 10 REACHABLE; 2 ghost: InvalidTimestamp, InvalidLifecycleTransition) | 🔴 OPEN | `XesRefusal` is exported by wasm4pm-compat and its 8 reachable variants have producers (§7); however, affidavit's test suite no longer witnesses XES court laws — removed in OCEL unification. The 2 ghost variants (InvalidTimestamp, InvalidLifecycleTransition) remain unproduceable (§7). |
 | `PowlRefusal` (4 of 4 REACHABLE: InvalidChoiceArity, ChoiceGraphDisconnected, CyclicPartialOrder, InvalidLoop) | 🟢 all reachable variants fire against real malformed POWL (`court_law_witness` + `reference_powl_refusals` + `reference_powl_invalid_loop`). ⚠️ 4 ghost: InvalidChoice, LoopMissingDoBody, IrreducibleProjection, LanguageMismatch have no `Err(...)` producer (§7). |
 | `DeclareRefusal` (5 of 5: MissingActivation, EmptyObjectScope, SynchronizationViolation, MissingTarget, InvalidTemplateArity) | 🟢 COMPLETE — every variant fires against a real malformed DECLARE constraint (`court_law_witness`) |
 | `OcpqRefusal` (10v), `ConformanceRefusal` (8v), `PredictionRefusal` (6v) | ⚠️ **GHOST** | **Finding (§7): no producing code path in the crate.** Constructible as values, Display-stable, but a whole-crate search finds ZERO `Err(...)`/`.ok_or(...)` producers. Named laws that cannot fire — NOT witnessable against a violation, NOT counted as covered. Pinned by `tests/ghost_variant_findings.rs`. |
@@ -695,7 +698,7 @@ Note: `PredictionRefusal` (the prediction *refusal* enum) remains ⚠️ GHOST (
 | `OcDeclareRefusal` (3 of 3: EmptyObjectTypeList, SynchronizationRequiresMultipleTypes, ScopeMismatch) | 🟢 COMPLETE — object-centric DECLARE law, all variants fire against real violations (`tests/reference_oc_declare.rs`); well-formed OC-constraint admits. |
 | `CausalNetRefusal` (3 of 3: MissingActivity, InvalidDependencyScore, DisconnectedGraph) | 🟢 COMPLETE — Causal-Net law, all variants fire against real violations (`tests/reference_causal_net.rs`); well-formed net admits. |
 
-**Refusal-law progress: 14 of 14 REACHABLE enums witnessed — EVERY refusal enum in the crate with a producing code path now has its variant(s) fired against real violations (~48 named laws). The remaining 3 enums (Ocpq/Conformance/Prediction, 24 variants) are ⚠️ GHOST (zero producers, §7), honestly excluded. The refusal-law dimension is CLOSED: every reachable law witnessed, every unreachable one catalogued.** (2 OCEL + 2 DFG + 6 ProcessTree + 2 EventLog + 5 BPMN + 1 Petri + 5 XES + 1 POWL + 3 DECLARE + 5 Receipt + 3 Interop + 1 PetriNet), zero ghosts among them. The 3 non-reachable enums (Ocpq/Conformance/Prediction, 24 variants) are ⚠️ GHOST (§7), honestly excluded.
+**Refusal-law progress: 13 of 14 REACHABLE enums witnessed — every refusal enum with a producing code path except `XesRefusal` (removed in OCEL unification, 🔴 OPEN) now has its variant(s) fired against real violations (~40 named laws). The remaining 3 enums (Ocpq/Conformance/Prediction, 24 variants) are ⚠️ GHOST (zero producers, §7), honestly excluded.** (2 OCEL + 2 DFG + 6 ProcessTree + 2 EventLog + 5 BPMN + 1 Petri + 1 POWL + 3 DECLARE + 5 Receipt + 3 Interop + 1 PetriNet), zero ghosts among them. The 3 non-reachable enums (Ocpq/Conformance/Prediction, 24 variants) are ⚠️ GHOST (§7), honestly excluded.
 
 **Milestone: every refusal enum with a producing code path now has ≥1 named law fired against a real violation — and the reference proved (by exhaustion) that the only un-witnessed refusal surface is the ghost clusters, which are defects in the court, not gaps in the reference.** Petri `MissingFinalMarking` lands the classical proper-completion soundness criterion the reviewer's bar names.
 
@@ -724,13 +727,13 @@ A reference implementation's job includes surfacing **incoherence** — and the 
 | `OcpqRefusal` | 10 | 0 (all) | ⚠️ ghost — named laws, none reachable |
 | `ConformanceRefusal` | 8 | 0 (all) | ⚠️ ghost |
 | `PredictionRefusal` | 6 | 0 (all) | ⚠️ ghost |
-| `XesRefusal` | 2 of 10 | 0 (partial) | ⚠️ partial-ghost: InvalidTimestamp, InvalidLifecycleTransition have no producer. **LiftingLoss was wrongly listed here (van der Aalst panel M3) — it IS reachable** via `interop.rs` `XesToOcedProjection::project` under `RefuseLoss` (`reference_lifting_loss.rs`); the original census grep was scoped to `xes.rs` and missed the cross-module producer. The other 8 are reachable + witnessed. |
+| `XesRefusal` | 2 of 10 | 0 (partial) | ⚠️ partial-ghost: `InvalidTimestamp`, `InvalidLifecycleTransition` have no producer in wasm4pm-compat (§7). The other 8 variants ARE reachable but are **no longer witnessed in affidavit's test suite** (XES court removed in OCEL unification; `XesRefusal` is 🔴 OPEN). |
 | `EventLogRefusal` | 5 of 7 | 0 (partial) | ⚠️ partial-ghost: MissingCaseId, MissingActivity, MissingTimestamp, DuplicateEvent, InvalidLifecycle have no producer (EmptyTrace + NonMonotonicTrace reachable + witnessed) |
 | `BpmnRefusal` | 2 of 8 | 0 (partial) | ⚠️ partial-ghost: MalformedGateway, DisconnectedNode have no producer (the other 6 reachable + witnessed) |
 | `ProcessTreeRefusal` | 3 of 9 | 0 (partial) | ⚠️ partial-ghost: InvalidLoop, UnsupportedProjection, LanguageMismatch have no `Err(...)` producer (the other 6 reachable + witnessed) |
 | `InteropRefusal` | 2 of 5 | 0 (partial) | ⚠️ partial-ghost: VacuousConformanceClaim, UnadmittedRawInterpretation have no producer (the other 3 reachable + witnessed) |
 
-**Ghost census so far: 3 fully-ghost enums (Ocpq/Conformance/Prediction, 24 variants) + 5 partial-ghost enums (Xes 2, EventLog 5, Bpmn 2, ProcessTree 3, Interop 2 = 14 variants). 38 named laws are unreachable across the court — a structural coherence finding the reference produced by exhaustion.** *(Was 39; the van der Aalst panel M3 found `XesRefusal::LiftingLoss` is a real cross-module producer, not a ghost — corrected. The cross-module false-ghost is itself a lesson: a declaring-file grep misses producers in consumer modules. The remaining ghost claims were independently re-verified by the panel as TRUE.)*
+**Ghost census so far: 3 fully-ghost enums (Ocpq/Conformance/Prediction, 24 variants) + 5 partial-ghost enums (Xes 2, EventLog 5, Bpmn 2, ProcessTree 3, Interop 2 = 14 variants). 38 named laws are unreachable across the court — a structural coherence finding the reference produced by exhaustion.** `XesRefusal`'s 8 reachable variants are not ghosts (producers exist in wasm4pm-compat) but are no longer witnessed in affidavit's test suite after the OCEL unification (🔴 OPEN, not ⚠️ GHOST). The 2 partial-ghost variants (InvalidTimestamp, InvalidLifecycleTransition) remain unproduceable.
 
 **Evidence:** `grep -rE "Err\((Ocpq\|Conformance\|Prediction)Refusal::|\.ok_or\((…)Refusal::" wasm4pm-compat/src` → no matches outside `Display` arms. Pinned by `tests/ghost_variant_findings.rs`, which proves the variants are well-formed *values* (materialisable, distinct, stable Display) while documenting that they are unreachable *as laws*.
 
