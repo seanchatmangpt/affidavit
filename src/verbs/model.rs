@@ -13,10 +13,6 @@ use clap_noun_verb_macros::verb;
 /// Discover a process model from a receipt's events (wasm4pm).
 /// Pass --breed to check conformance against a breed's declared stage sequence.
 #[verb("model", "receipt")]
-pub fn model(
-    receipt: String,
-    breed: Option<String>,
-    registry: Option<String>,
-) -> Result<()> {
+pub fn model(receipt: String, breed: Option<String>, registry: Option<String>) -> Result<()> {
     crate::handlers::model(receipt, breed, registry)
 }

@@ -65,10 +65,7 @@ pub struct BreedConformanceReport {
 
 /// Check whether the event sequence of `receipt` conforms to `breed`'s
 /// declared stages and return a [`ReceiptDeviation`].
-pub fn check_receipt(
-    receipt: &crate::types::Receipt,
-    breed: &BreedEntry,
-) -> ReceiptDeviation {
+pub fn check_receipt(receipt: &crate::types::Receipt, breed: &BreedEntry) -> ReceiptDeviation {
     let declared = breed.declared_stages();
     let actual: Vec<String> = receipt
         .events
@@ -99,16 +96,10 @@ pub fn check_receipt(
 
     // Order violations: compare the sub-sequence of actual events that match
     // declared stage names against the declared order.
-    let actual_matching: Vec<&String> = actual
-        .iter()
-        .filter(|s| declared.contains(s))
-        .collect();
+    let actual_matching: Vec<&String> = actual.iter().filter(|s| declared.contains(s)).collect();
 
     // Build expected order from declared stages, filtering to only those present.
-    let expected_order: Vec<&String> = declared
-        .iter()
-        .filter(|s| actual.contains(s))
-        .collect();
+    let expected_order: Vec<&String> = declared.iter().filter(|s| actual.contains(s)).collect();
 
     let order_violations: Vec<(String, String)> = actual_matching
         .iter()
@@ -234,7 +225,9 @@ mod tests {
         assert_eq!(report.conformant_count, 0);
         assert_eq!(report.deviations.len(), 1);
         assert!(
-            report.deviations[0].missing.contains(&"rule_eval".to_string()),
+            report.deviations[0]
+                .missing
+                .contains(&"rule_eval".to_string()),
             "rule_eval should be in missing"
         );
     }
@@ -248,7 +241,9 @@ mod tests {
 
         assert_eq!(report.conformant_count, 0);
         assert!(
-            report.deviations[0].extra.contains(&"rule_eval".to_string()),
+            report.deviations[0]
+                .extra
+                .contains(&"rule_eval".to_string()),
             "rule_eval should be in extra"
         );
     }
