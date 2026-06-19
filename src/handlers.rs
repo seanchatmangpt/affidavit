@@ -922,10 +922,16 @@ pub fn replay(receipt: String) -> Result<()> {
 }
 
 /// `affi receipt model` — discover a process model from the receipt's events.
-pub fn model(receipt: String) -> Result<()> {
+///
+/// When `--breed <breed_id>` is supplied the handler also runs breed-stage
+/// conformance: it loads the registry (from `--registry` path or the embedded
+/// fallback), finds the breed entry, and reports whether the receipt's event
+/// sequence matches the breed's declared stage list.
+pub fn model(receipt: String, breed: Option<String>, registry: Option<String>) -> Result<()> {
     let parsed = adapt(crate::cli::show(&receipt))?;
     let admitted = adapt(
-        crate::admission::admit(parsed).map_err(|r| anyhow::anyhow!("admission refused: {r}")),
+        crate::admission::admit(parsed.clone())
+            .map_err(|r| anyhow::anyhow!("admission refused: {r}")),
     )?;
 
     #[cfg(feature = "discovery")]
@@ -933,15 +939,55 @@ pub fn model(receipt: String) -> Result<()> {
         let tree = crate::discovery::discover_from_admitted(&admitted);
         eprintln!("discovered process model (wasm4pm) on the ADMITTED receipt:");
         eprintln!("{tree}");
-        return Ok(());
     }
     #[cfg(not(feature = "discovery"))]
     {
         let _ = admitted;
+    }
+
+    // Breed-aware conformance check (always available — no feature gate needed).
+    if let Some(breed_id) = breed {
+        let entries = match registry.as_deref() {
+            Some(path) => adapt(crate::breed_conformance::load_registry(path))?,
+            None => crate::breed_conformance::embedded_registry(),
+        };
+        let breed_entry = entries
+            .iter()
+            .find(|e| e.breed_id == breed_id)
+            .ok_or_else(|| {
+                NounVerbError::execution_error(format!(
+                    "breed '{breed_id}' not found in registry (tip: pass --registry <path> for \
+                     the full wasm4pm-cognition registry)"
+                ))
+            })?;
+
+        let report = crate::breed_conformance::run_conformance(&[parsed], breed_entry);
+        let json = adapt(
+            serde_json::to_string_pretty(&report)
+                .map_err(|e| anyhow::anyhow!("serialising report: {e}")),
+        )?;
+        eprintln!("{json}");
+
+        let verdict = if report.deviations.is_empty() {
+            "conformant"
+        } else {
+            "non-conformant"
+        };
+        eprintln!("\nbreed conformance verdict: {verdict}");
+
+        #[cfg(not(feature = "discovery"))]
+        return Ok(());
+    }
+
+    #[cfg(not(feature = "discovery"))]
+    {
         Err(NounVerbError::execution_error(
-            "discovery feature not enabled",
+            "discovery feature not enabled (pass --breed to run breed conformance without it)",
         ))
     }
+
+    #[cfg(feature = "discovery")]
+    Ok(())
 }
 
 /// `affi receipt conformance` — compute fitness, activity coverage, simplicity.

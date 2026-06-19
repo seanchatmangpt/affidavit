@@ -1,0 +1,38 @@
+[
+  {
+    "breed_id": "mycin",
+    "breed_name": "MYCIN",
+    "status": "PARTIAL_ALIVE",
+    "stages": ["intake", "rule_eval", "conclusion"]
+  },
+  {
+    "breed_id": "dempster_shafer",
+    "breed_name": "DempsterShafer",
+    "status": "PARTIAL_ALIVE",
+    "stages": ["evidence_collection", "mass_assignment", "combination", "belief_output"]
+  },
+  {
+    "breed_id": "abductive_ibe",
+    "breed_name": "AbductiveIbe",
+    "status": "PARTIAL_ALIVE",
+    "stages": ["observation", "hypothesis_generation", "evaluation", "best_explanation"]
+  },
+  {
+    "breed_id": "allen_temporal",
+    "breed_name": "AllenTemporal",
+    "status": "PARTIAL_ALIVE",
+    "stages": ["interval_input", "relation_compute", "temporal_output"]
+  },
+  {
+    "breed_id": "asp",
+    "breed_name": "Asp",
+    "status": "PARTIAL_ALIVE",
+    "stages": ["fact_load", "rule_grounding", "solving", "answer_set_output"]
+  },
+  {
+    "breed_id": "ilp",
+    "breed_name": "Inductive Logic Programming",
+    "status": "ADMITTED",
+    "stages": ["example_load", "background_load", "induction", "hypothesis_output"]
+  }
+]
