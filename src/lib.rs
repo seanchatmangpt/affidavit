@@ -66,6 +66,7 @@ pub mod bench;
 pub mod catalog;
 pub mod chain;
 pub mod cli;
+pub mod compliance;
 
 #[cfg(feature = "discovery")]
 pub mod discovery;

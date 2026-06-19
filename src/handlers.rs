@@ -1791,30 +1791,49 @@ pub fn soc2_audit(
     let receipts = load_receipts_from_path(&receipts_path)?;
     let soc2_t = soc2_type.as_deref().unwrap_or("II");
 
-    let evidence: Vec<serde_json::Value> = receipts.iter().map(|r| serde_json::json!({
-        "chain_hash": r.chain_hash,
-        "event_count": r.events.len(),
-        "format_version": r.format_version,
-        "integrity_status": "chain-verified",
-        "event_types": r.events.iter().map(|e| &e.event_type).collect::<std::collections::HashSet<_>>()
-            .into_iter().collect::<Vec<_>>(),
-    })).collect();
+    let mut gate_results = Vec::new();
+    let mut all_passed = true;
+
+    for r in &receipts {
+        let gate = crate::compliance::soc2_gate(r);
+        let passed = gate.is_ok();
+        if !passed {
+            all_passed = false;
+        }
+        let violations: Vec<serde_json::Value> = match &gate {
+            Ok(()) => vec![],
+            Err(e) => e.violations.iter().map(|v| serde_json::json!({
+                "code": v.code,
+                "detail": v.detail,
+            })).collect(),
+        };
+        gate_results.push(serde_json::json!({
+            "chain_hash": r.chain_hash,
+            "event_count": r.events.len(),
+            "passed": passed,
+            "violations": violations,
+        }));
+    }
 
     let report = serde_json::json!({
         "report_type": format!("SOC 2 Type {soc2_t}"),
+        "gate": "soc2-ocel-backed",
         "receipts_analyzed": receipts.len(),
+        "all_passed": all_passed,
         "trust_service_criteria": {
-            "security": "chain integrity verified via BLAKE3",
-            "availability": "complete event log present",
-            "confidentiality": "content-addressed — no PII in chain hashes",
-            "processing_integrity": "immutable sealed receipts",
-            "privacy": "object references are opaque identifiers",
+            "availability": "all certify pipeline stages must pass (stage coverage check)",
+            "processing_integrity": "no orphaned events — every event maps to a control object",
         },
-        "evidence": evidence,
-        "opinion": "These receipts constitute a sufficient audit trail for SOC 2 certification review."
+        "gate_results": gate_results,
     });
 
     let report_str = adapt(serde_json::to_string_pretty(&report).map_err(anyhow::Error::from))?;
+
+    if !all_passed {
+        return Err(to_noun_verb(crate::error::AffidavitError::Validation(
+            format!("SOC 2 Type {soc2_t} gate REJECTED — see violations in report"),
+        )));
+    }
 
     if let Some(out_path) = out {
         std::fs::write(&out_path, &report_str).map_err(io_err)?;
@@ -1837,22 +1856,50 @@ pub fn gdpr_proof(
 ) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
+    let mut gate_results = Vec::new();
+    let mut all_passed = true;
+
+    for r in &receipts {
+        let gate = crate::compliance::gdpr_gate(r);
+        let passed = gate.is_ok();
+        if !passed {
+            all_passed = false;
+        }
+        let violations: Vec<serde_json::Value> = match &gate {
+            Ok(()) => vec![],
+            Err(e) => e.violations.iter().map(|v| serde_json::json!({
+                "code": v.code,
+                "detail": v.detail,
+            })).collect(),
+        };
+        gate_results.push(serde_json::json!({
+            "chain_hash": r.chain_hash,
+            "event_count": r.events.len(),
+            "passed": passed,
+            "violations": violations,
+        }));
+    }
+
     let proof = serde_json::json!({
         "regulation": "GDPR",
+        "gate": "gdpr-ocel-backed",
         "receipts_analyzed": receipts.len(),
-        "evidence": {
-            "data_integrity": "BLAKE3 chain ensures no retroactive modification of access records",
-            "right_to_erasure": "object-id references are opaque; PII is never stored in the chain",
-            "audit_trail": format!("{} event(s) recorded in tamper-evident chain", receipts.iter().map(|r| r.events.len()).sum::<usize>()),
-            "lawful_basis": "Content-addressed chain provides evidence of processing activities",
+        "all_passed": all_passed,
+        "checks": {
+            "chain_integrity": "certify pipeline must accept (continuity + BLAKE3 chain)",
+            "lineage_completeness": "every event must have at least one subject (Art. 5 accountability)",
+            "fork_detection": "no duplicate event ids — single lawful processing history",
         },
-        "receipts": receipts.iter().map(|r| serde_json::json!({
-            "chain_hash": r.chain_hash,
-            "events": r.events.len(),
-        })).collect::<Vec<_>>(),
+        "gate_results": gate_results,
     });
 
     let proof_str = adapt(serde_json::to_string_pretty(&proof).map_err(anyhow::Error::from))?;
+
+    if !all_passed {
+        return Err(to_noun_verb(crate::error::AffidavitError::Validation(
+            "GDPR gate REJECTED — see violations in report".to_string(),
+        )));
+    }
 
     if let Some(out_path) = out {
         std::fs::write(&out_path, &proof_str).map_err(io_err)?;
@@ -1871,20 +1918,49 @@ pub fn gdpr_proof(
 pub fn hipaa(receipts_path: String, out: Option<String>, format: Option<String>) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
+    let mut gate_results = Vec::new();
+    let mut all_passed = true;
+
+    for r in &receipts {
+        let gate = crate::compliance::hipaa_gate(r);
+        let passed = gate.is_ok();
+        if !passed {
+            all_passed = false;
+        }
+        let violations: Vec<serde_json::Value> = match &gate {
+            Ok(()) => vec![],
+            Err(e) => e.violations.iter().map(|v| serde_json::json!({
+                "code": v.code,
+                "detail": v.detail,
+            })).collect(),
+        };
+        gate_results.push(serde_json::json!({
+            "chain_hash": r.chain_hash,
+            "event_count": r.events.len(),
+            "passed": passed,
+            "violations": violations,
+        }));
+    }
+
     let proof = serde_json::json!({
         "regulation": "HIPAA",
+        "gate": "hipaa-ocel-backed",
         "receipts_analyzed": receipts.len(),
+        "all_passed": all_passed,
         "safeguards": {
-            "technical": "BLAKE3 content-addressing ensures audit log integrity",
-            "administrative": format!("{} operation events logged", receipts.iter().map(|r| r.events.len()).sum::<usize>()),
-            "physical": "receipts stored at content-addressed paths",
+            "technical": "certify pipeline (BLAKE3 chain + continuity) — §164.312(b)",
+            "lineage": "every event must reference at least one object (PHI access traceability)",
         },
-        "access_log": receipts.iter().map(|r| serde_json::json!({
-            "chain_hash": r.chain_hash, "events": r.events.len(),
-        })).collect::<Vec<_>>(),
+        "gate_results": gate_results,
     });
 
     let proof_str = adapt(serde_json::to_string_pretty(&proof).map_err(anyhow::Error::from))?;
+
+    if !all_passed {
+        return Err(to_noun_verb(crate::error::AffidavitError::Validation(
+            "HIPAA gate REJECTED — see violations in report".to_string(),
+        )));
+    }
 
     if let Some(out_path) = out {
         std::fs::write(&out_path, &proof_str).map_err(io_err)?;
@@ -1903,27 +1979,49 @@ pub fn hipaa(receipts_path: String, out: Option<String>, format: Option<String>)
 pub fn pci_dss(receipts_path: String, out: Option<String>, format: Option<String>) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?;
 
-    let deploy_events: usize = receipts
-        .iter()
-        .flat_map(|r| &r.events)
-        .filter(|e| e.event_type.contains("deploy"))
-        .count();
+    let mut gate_results = Vec::new();
+    let mut all_passed = true;
+
+    for r in &receipts {
+        let gate = crate::compliance::pci_dss_gate(r);
+        let passed = gate.is_ok();
+        if !passed {
+            all_passed = false;
+        }
+        let violations: Vec<serde_json::Value> = match &gate {
+            Ok(()) => vec![],
+            Err(e) => e.violations.iter().map(|v| serde_json::json!({
+                "code": v.code,
+                "detail": v.detail,
+            })).collect(),
+        };
+        gate_results.push(serde_json::json!({
+            "chain_hash": r.chain_hash,
+            "event_count": r.events.len(),
+            "passed": passed,
+            "violations": violations,
+        }));
+    }
 
     let proof = serde_json::json!({
         "regulation": "PCI-DSS",
+        "gate": "pci-dss-ocel-backed",
         "receipts_analyzed": receipts.len(),
+        "all_passed": all_passed,
         "requirements": {
-            "req_10_audit_logs": format!("{} events in tamper-evident chain", receipts.iter().map(|r| r.events.len()).sum::<usize>()),
-            "req_11_security_testing": "security.* events recorded in receipt chain",
-            "req_6_secure_deployment": format!("{deploy_events} deployment events with BLAKE3 integrity proofs"),
-            "req_12_policy": "organizational policy events recorded via policy-enforce verb",
+            "req_10_audit_logs": "continuity stage: seq strictly increasing, no gaps (Req 10.2)",
+            "req_10_5_protect_logs": "chain_integrity stage: BLAKE3 chain seal unbroken (Req 10.5)",
         },
-        "receipts": receipts.iter().map(|r| serde_json::json!({
-            "chain_hash": r.chain_hash, "events": r.events.len(),
-        })).collect::<Vec<_>>(),
+        "gate_results": gate_results,
     });
 
     let proof_str = adapt(serde_json::to_string_pretty(&proof).map_err(anyhow::Error::from))?;
+
+    if !all_passed {
+        return Err(to_noun_verb(crate::error::AffidavitError::Validation(
+            "PCI-DSS gate REJECTED — see violations in report".to_string(),
+        )));
+    }
 
     if let Some(out_path) = out {
         std::fs::write(&out_path, &proof_str).map_err(io_err)?;
