@@ -100,6 +100,9 @@ pub mod types;
 pub mod verbs;
 pub mod verifier;
 
+pub mod diag;
+pub mod output;
+
 pub mod diff;
 pub mod visualize;
 
@@ -107,6 +110,7 @@ pub mod visualize;
 pub mod mutate;
 
 pub mod model_mining;
+pub mod registry;
 
 #[cfg(feature = "gpu")]
 #[path = "1000x_gpu_verifier.rs"]

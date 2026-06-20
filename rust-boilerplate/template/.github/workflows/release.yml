@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.82.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo test --workspace --all-features --locked
+
+  build:
+    name: build (${{ matrix.target }})
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-13
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.82.0
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binaries
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          dist="dist"
+          mkdir -p "$dist"
+          shopt -s nullglob
+          reldir="target/${{ matrix.target }}/release"
+          for bin in "$reldir"/*; do
+            base="$(basename "$bin")"
+            case "$base" in
+              *.d|*.so|*.dylib|*.rlib|*.pdb|deps|build|incremental|examples|.fingerprint) continue ;;
+            esac
+            if [[ -f "$bin" && -x "$bin" ]]; then
+              tar -czf "$dist/${base}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" -C "$reldir" "$base"
+            fi
+          done
+          (cd "$dist" && for f in *.tar.gz; do sha256sum "$f" > "$f.sha256"; done)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: ignore
+
+  github-release:
+    name: github-release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+  # Uncomment to publish library crates to crates.io on tag.
+  # Requires the CARGO_REGISTRY_TOKEN secret. For multi-crate workspaces,
+  # publish in dependency order with --locked.
+  # publish:
+  #   name: crates.io
+  #   needs: validate
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@1.82.0
+  #     - run: cargo publish --locked
+  #       env:
+  #         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
