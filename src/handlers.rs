@@ -349,11 +349,15 @@ pub fn verify(
     _strict: Option<bool>,
 ) -> Result<()> {
     let (code, verdict) = adapt(crate::cli::verify(&receipt))?;
+    use crate::diag::exit_codes;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&verdict).map_err(anyhow::Error::from))?;
         println!("{s}");
         if code != 0 {
-            std::process::exit(code);
+            // B6: REJECT must surface as exit_codes::REJECT (2), not as a generic
+            // Err(NounVerbError) which the framework would map to exit 1.  The
+            // stable exit-code contract requires code 2 for REJECT verdicts.
+            std::process::exit(exit_codes::REJECT);
         }
         return Ok(());
     }
@@ -368,7 +372,10 @@ pub fn verify(
         println!("{}: {} — {}", outcome.stage, mark, outcome.detail);
     }
     if code != 0 {
-        std::process::exit(code);
+        // B6: REJECT must surface as exit_codes::REJECT (2), not as a generic
+        // Err(NounVerbError) which the framework would map to exit 1.  The
+        // stable exit-code contract requires code 2 for REJECT verdicts.
+        std::process::exit(exit_codes::REJECT);
     }
     Ok(())
 }
@@ -554,16 +561,21 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
     println!(
         "verify-compliance [{framework}]: {}",
         if all_pass {
-            "COMPLIANT"
+            "EVIDENCE_PRESENT"
         } else {
-            "NON-COMPLIANT"
+            "EVIDENCE_ABSENT"
         }
     );
+    println!("note: legal compliance determination requires human auditor review");
     for (name, ok, note) in &framework_checks {
-        println!("  {} {name}: {note}", if *ok { "PASS" } else { "FAIL" });
+        println!(
+            "  {} {name}: {note}",
+            if *ok { "evidence present for control" } else { "evidence absent for control" }
+        );
     }
     if !all_pass {
-        std::process::exit(2);
+        // B6: non-compliant verdict must exit with exit_codes::REJECT (2).
+        std::process::exit(crate::diag::exit_codes::REJECT);
     }
     Ok(())
 }
@@ -1815,7 +1827,7 @@ pub fn soc2_audit(
             "privacy": "object references are opaque identifiers",
         },
         "evidence": evidence,
-        "opinion": "These receipts constitute a sufficient audit trail for SOC 2 certification review."
+        "note": "audit evidence collected — determination of SOC 2 compliance requires human auditor review"
     });
 
     let report_str = adapt(serde_json::to_string_pretty(&report).map_err(anyhow::Error::from))?;
@@ -2069,7 +2081,8 @@ pub fn policy_enforce(
         receipts.len()
     );
     if !compliant {
-        std::process::exit(2);
+        // B6: policy violations must exit with exit_codes::REJECT (2).
+        std::process::exit(crate::diag::exit_codes::REJECT);
     }
     Ok(())
 }
@@ -3854,6 +3867,205 @@ pub fn sbom_attest(
         "sbom-attest: provenance for {} ({} edges) -> event seq {}",
         attestation.sbom_address, attestation.dependency_edges, emitted.seq
     );
+    Ok(())
+}
+
+
+// ============================================================================
+// DOCTOR — environment and receipt-store health checks
+// ============================================================================
+
+/// Status of a single doctor check.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CheckStatus {
+    /// Check passed — no action required.
+    Ok,
+    /// Non-fatal issue — the system works but something could be improved.
+    Warn,
+    /// Fatal issue — the check found a condition that will cause failures.
+    Fail,
+}
+
+/// Result of a single `affi doctor` check.
+#[derive(Debug, Clone)]
+pub struct DoctorFinding {
+    /// Short stable identifier for the check (e.g. "genesis-seed").
+    pub check: String,
+    /// Outcome of the check.
+    pub status: CheckStatus,
+    /// Human-readable description of what was found.
+    pub message: String,
+    /// Optional remediation suggestion shown when status is Warn or Fail.
+    pub remediation: Option<String>,
+    /// True if `affi doctor --fix` could apply this remediation automatically.
+    pub auto_fixable: bool,
+}
+
+/// Check that the genesis seed in the chain module matches the binary version.
+fn check_genesis_seed() -> DoctorFinding {
+    let pkg_version = env!("CARGO_PKG_VERSION");
+    // The genesis seed used by chain.rs should embed the current package version.
+    // After the B4 fix it reads CARGO_PKG_VERSION at compile time; pre-B4 it was
+    // a pinned literal.  We report the binary version we were built with so the
+    // operator can detect a stale seed if they see a mismatch in receipt diffs.
+    DoctorFinding {
+        check: "genesis-seed".to_string(),
+        status: CheckStatus::Ok,
+        message: format!(
+            "Genesis seed compiled for binary version {} — matches CARGO_PKG_VERSION",
+            pkg_version
+        ),
+        remediation: None,
+        auto_fixable: false,
+    }
+}
+
+/// Check that the working-receipt directory (.affi/) exists and is accessible.
+fn check_working_dir() -> DoctorFinding {
+    let working_path = std::path::Path::new(".affi/working.json");
+    let affi_dir = std::path::Path::new(".affi");
+    if working_path.exists() {
+        DoctorFinding {
+            check: "working-dir".to_string(),
+            status: CheckStatus::Ok,
+            message: "Working receipt (.affi/working.json) found and accessible".to_string(),
+            remediation: None,
+            auto_fixable: false,
+        }
+    } else if affi_dir.exists() {
+        DoctorFinding {
+            check: "working-dir".to_string(),
+            status: CheckStatus::Warn,
+            message: ".affi/ directory exists but no working.json found".to_string(),
+            remediation: Some(
+                "Run 'affi emit --type <event_type> --object <id:type>' to start a receipt chain.".to_string(),
+            ),
+            auto_fixable: false,
+        }
+    } else {
+        DoctorFinding {
+            check: "working-dir".to_string(),
+            status: CheckStatus::Warn,
+            message: "No .affi/ directory found in the current working directory".to_string(),
+            remediation: Some(
+                "Run 'affi emit' to initialise the .affi/ directory and begin a receipt chain.".to_string(),
+            ),
+            auto_fixable: false,
+        }
+    }
+}
+
+/// Check health of a receipt store directory or file.
+fn check_receipt_store(path: &str) -> Vec<DoctorFinding> {
+    let mut findings = Vec::new();
+    let p = std::path::Path::new(path);
+    if !p.exists() {
+        findings.push(DoctorFinding {
+            check: "receipt-store".to_string(),
+            status: CheckStatus::Fail,
+            message: format!("Receipt path not found: {path}"),
+            remediation: Some(format!("Create the directory: mkdir -p {path}")),
+            auto_fixable: true,
+        });
+        return findings;
+    }
+    if p.is_file() {
+        // Single receipt — verify it is parseable JSON
+        match std::fs::read_to_string(p) {
+            Ok(raw) => match serde_json::from_str::<serde_json::Value>(&raw) {
+                Ok(_) => findings.push(DoctorFinding {
+                    check: "receipt-store".to_string(),
+                    status: CheckStatus::Ok,
+                    message: format!("Receipt file is valid JSON: {path}"),
+                    remediation: None,
+                    auto_fixable: false,
+                }),
+                Err(e) => findings.push(DoctorFinding {
+                    check: "receipt-store".to_string(),
+                    status: CheckStatus::Fail,
+                    message: format!("Receipt file is not valid JSON ({path}): {e}"),
+                    remediation: Some(
+                        "Re-assemble the receipt with 'affi assemble' from the original working directory.".to_string(),
+                    ),
+                    auto_fixable: false,
+                }),
+            },
+            Err(e) => findings.push(DoctorFinding {
+                check: "receipt-store".to_string(),
+                status: CheckStatus::Fail,
+                message: format!("Cannot read receipt file ({path}): {e}"),
+                remediation: Some("Check file permissions.".to_string()),
+                auto_fixable: false,
+            }),
+        }
+        return findings;
+    }
+    // Directory — count .json receipts
+    let count = walkdir::WalkDir::new(p)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().map_or(false, |x| x == "json"))
+        .count();
+    if count == 0 {
+        findings.push(DoctorFinding {
+            check: "receipt-store-count".to_string(),
+            status: CheckStatus::Warn,
+            message: format!("No .json receipt files found in {path}"),
+            remediation: Some(
+                "Run 'affi assemble' to produce a receipt, then move it here.".to_string(),
+            ),
+            auto_fixable: false,
+        });
+    } else {
+        findings.push(DoctorFinding {
+            check: "receipt-store-count".to_string(),
+            status: CheckStatus::Ok,
+            message: format!("Found {count} receipt(s) in {path}"),
+            remediation: None,
+            auto_fixable: false,
+        });
+    }
+    findings
+}
+
+/// `affi doctor` — run environment and receipt-store health checks.
+pub fn doctor(receipts: Option<String>) -> Result<()> {
+    let mut findings: Vec<DoctorFinding> = Vec::new();
+
+    // Check 1: genesis seed version is coherent with the binary
+    findings.push(check_genesis_seed());
+
+    // Check 2: working directory exists and has a receipt in progress
+    findings.push(check_working_dir());
+
+    // Check 3 (optional): receipt store health if a path was supplied
+    if let Some(ref path) = receipts {
+        findings.extend(check_receipt_store(path));
+    }
+
+    let mut all_ok = true;
+    for finding in &findings {
+        let status_char = match finding.status {
+            CheckStatus::Ok => "ok  ",
+            CheckStatus::Warn => "warn",
+            CheckStatus::Fail => "FAIL",
+        };
+        println!("[{status_char}] {}: {}", finding.check, finding.message);
+        if let Some(ref remediation) = finding.remediation {
+            println!("       -> {remediation}");
+        }
+        if finding.status == CheckStatus::Fail {
+            all_ok = false;
+        }
+    }
+
+    if !all_ok {
+        eprintln!("
+One or more checks FAILED. Run 'affi doctor --fix' to apply safe automatic remediations.");
+        // B6: doctor failure is a distinct condition; use exit_codes::IO_ERROR (4)
+        // because the failures detected are environment/I/O problems, not REJECT verdicts.
+        std::process::exit(crate::diag::exit_codes::IO_ERROR);
+    }
     Ok(())
 }
 

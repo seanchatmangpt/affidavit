@@ -110,6 +110,7 @@ pub mod visualize;
 pub mod mutate;
 
 pub mod model_mining;
+pub mod registry;
 
 #[cfg(feature = "gpu")]
 #[path = "1000x_gpu_verifier.rs"]
