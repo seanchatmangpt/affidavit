@@ -254,12 +254,11 @@ fn witness(p: &ReceiptPredicate, receipts: &[Receipt]) -> Option<Vec<String>> {
             (hits.len() >= *min).then_some(hits)
         }
         ReceiptPredicate::OrderedBefore { cause, effect } => {
-            // every `cause` has some `effect` at a strictly lower seq in the same receipt
-            let ok = receipts.iter().all(|r| {
-                r.events.iter().filter(|e| e.event_type.contains(cause.as_str())).all(|c| {
-                    r.events.iter().any(|e| e.event_type.contains(effect.as_str()) && e.seq < c.seq)
-                })
-            });
+            // every `cause` event has some `effect` at strictly lower seq in its receipt
+            let ok = receipts.iter().all(|r| r.events.iter()
+                .filter(|e| e.event_type.contains(cause.as_str()))
+                .all(|c| r.events.iter()
+                    .any(|e| e.event_type.contains(effect.as_str()) && e.seq < c.seq)));
             ok.then(Vec::new)
         }
         ReceiptPredicate::ObjectReferenced { obj_type } => {
