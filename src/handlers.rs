@@ -81,8 +81,10 @@ fn load_receipts_from_path(path: &str) -> Result<Vec<Receipt>> {
             let entry = entry.map_err(io_err)?;
             let ep = entry.path();
             if ep.extension().and_then(|s| s.to_str()) == Some("json") {
-                if let Ok(r) = crate::cli::show(ep.to_str().unwrap_or("")) {
-                    receipts.push(r);
+                let ep_str = ep.to_str().unwrap_or("");
+                match crate::cli::show(ep_str) {
+                    Ok(r) => receipts.push(r),
+                    Err(e) => eprintln!("warning: skipping {ep_str}: {e}"),
                 }
             }
         }
@@ -154,7 +156,8 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
     }
 
     if format.as_deref() == Some("json") {
-        println!(r#"{{"emitted":{emitted},"total":{total}}}"#);
+        let out = serde_json::json!({"emitted": emitted, "total": total});
+        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
     } else {
         println!("emit-batch: {emitted}/{total} events emitted");
     }
@@ -163,7 +166,7 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
 
 /// `affi receipt emit-from-github` — emit from a GitHub event payload.
 pub fn emit_from_github(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = format!(r#"{{"source":"github","repo":"{repo}","event_type":"{event_type}"}}"#);
+    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "github", "repo": repo, "event_type": event_type})).map_err(anyhow::Error::from))?;
     let objects = vec![format!("{repo}:repo")];
     let gh_event_type = format!("github.{event_type}");
     let output = adapt(crate::cli::emit(&gh_event_type, &objects, &payload))?;
@@ -181,7 +184,7 @@ pub fn emit_from_github(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-gitlab` — emit from a GitLab event payload.
 pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = format!(r#"{{"source":"gitlab","repo":"{repo}","event_type":"{event_type}"}}"#);
+    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "gitlab", "repo": repo, "event_type": event_type})).map_err(anyhow::Error::from))?;
     let objects = vec![format!("{repo}:repo")];
     let gl_event_type = format!("gitlab.{event_type}");
     let output = adapt(crate::cli::emit(&gl_event_type, &objects, &payload))?;
@@ -199,8 +202,7 @@ pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-cicd` — emit from CI/CD job outcome.
 pub fn emit_from_cicd(provider: String, job_status: String, format: Option<String>) -> Result<()> {
-    let payload =
-        format!(r#"{{"source":"cicd","provider":"{provider}","job_status":"{job_status}"}}"#);
+    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "cicd", "provider": provider, "job_status": job_status})).map_err(anyhow::Error::from))?;
     let objects = vec![format!("ci:{provider}:job")];
     let event_type = format!("cicd.{provider}.{job_status}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -219,8 +221,7 @@ pub fn emit_from_monitoring(
     alert_type: String,
     format: Option<String>,
 ) -> Result<()> {
-    let payload =
-        format!(r#"{{"source":"monitoring","provider":"{provider}","alert_type":"{alert_type}"}}"#);
+    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "monitoring", "provider": provider, "alert_type": alert_type})).map_err(anyhow::Error::from))?;
     let objects = vec![format!("monitor:{provider}:alert")];
     let event_type = format!("monitoring.{provider}.{alert_type}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -239,9 +240,7 @@ pub fn emit_from_cloud(
     resource_type: String,
     format: Option<String>,
 ) -> Result<()> {
-    let payload = format!(
-        r#"{{"source":"cloud","provider":"{provider}","resource_type":"{resource_type}"}}"#
-    );
+    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "cloud", "provider": provider, "resource_type": resource_type})).map_err(anyhow::Error::from))?;
     let objects = vec![format!("{resource_type}:{provider}:resource")];
     let event_type = format!("cloud.{provider}.{resource_type}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -260,8 +259,7 @@ pub fn emit_from_security(
     vuln_type: String,
     format: Option<String>,
 ) -> Result<()> {
-    let payload =
-        format!(r#"{{"source":"security","provider":"{provider}","vuln_type":"{vuln_type}"}}"#);
+    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "security", "provider": provider, "vuln_type": vuln_type})).map_err(anyhow::Error::from))?;
     let objects = vec![format!("scan:{provider}:{vuln_type}")];
     let event_type = format!("security.{provider}.{vuln_type}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -300,10 +298,13 @@ pub fn assemble_with_signature(
     let method = signing_method.as_deref().unwrap_or("sigstore");
     let output = adapt(crate::cli::assemble(out.as_deref()))?;
     if format.as_deref() == Some("json") {
-        println!(
-            r#"{{"receipt_path":"{}","content_address":"{}","signing_method":"{}","signed":true}}"#,
-            output.receipt_path, output.content_address, method
-        );
+        let out_val = serde_json::json!({
+            "receipt_path": output.receipt_path,
+            "content_address": output.content_address,
+            "signing_method": method,
+            "signed": true,
+        });
+        println!("{}", adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?);
         return Ok(());
     }
     println!("assembled receipt -> {}", output.receipt_path);
@@ -321,10 +322,13 @@ pub fn assemble_and_notarize(
     let provider = notary_provider.as_deref().unwrap_or("rfc3161");
     let output = adapt(crate::cli::assemble(out.as_deref()))?;
     if format.as_deref() == Some("json") {
-        println!(
-            r#"{{"receipt_path":"{}","content_address":"{}","notary":"{}","notarized":true}}"#,
-            output.receipt_path, output.content_address, provider
-        );
+        let out_val = serde_json::json!({
+            "receipt_path": output.receipt_path,
+            "content_address": output.content_address,
+            "notary": provider,
+            "notarized": true,
+        });
+        println!("{}", adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?);
         return Ok(());
     }
     println!("assembled receipt -> {}", output.receipt_path);
@@ -353,7 +357,7 @@ pub fn verify(
         }
         return Ok(());
     }
-    eprintln!(
+    println!(
         "verdict: {} [{}] — {}",
         if verdict.accepted { "ACCEPT" } else { "REJECT" },
         verdict.profile.as_str(),
@@ -361,7 +365,7 @@ pub fn verify(
     );
     for outcome in &verdict.outcomes {
         let mark = if outcome.passed { "PASS" } else { "FAIL" };
-        eprintln!("{}: {} — {}", outcome.stage, mark, outcome.detail);
+        println!("{}: {} — {}", outcome.stage, mark, outcome.detail);
     }
     if code != 0 {
         std::process::exit(code);
@@ -409,14 +413,14 @@ pub fn verify_family(receipts_dir: String, format: Option<String>) -> Result<()>
         );
         return Ok(());
     }
-    eprintln!("verify-family: {accepted}/{total} receipts accepted, {rejected} rejected");
+    println!("verify-family: {accepted}/{total} receipts accepted, {rejected} rejected");
     for r in &results {
         let mark = if r["accepted"].as_bool().unwrap_or(false) {
             "ACCEPT"
         } else {
             "REJECT"
         };
-        eprintln!("  [{mark}] hash={} events={}", r["chain_hash"], r["events"]);
+        println!("  [{mark}] hash={} events={}", r["chain_hash"], r["events"]);
     }
     Ok(())
 }
@@ -455,7 +459,7 @@ pub fn verify_sla(receipt: String, sla_file: String, format: Option<String>) -> 
         );
         return Ok(());
     }
-    eprintln!(
+    println!(
         "verify-sla: {} — events={event_count} (min={min_events}) {ttl_note}",
         if sla_ok { "PASS" } else { "FAIL" }
     );
