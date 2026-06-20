@@ -80,6 +80,9 @@ jobs:
         with:
           components: clippy
 
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+
       - name: Explain why this job is expected to fail
         run: |
           echo "::warning title=Non-blocking by design::This crate depends on sibling PATH crates that are NOT checked out in CI."
