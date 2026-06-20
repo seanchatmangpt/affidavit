@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 #
-# check.sh — run the checks that work in this repo without the sibling crates.
+# check.sh — run the checks that work in this repo without a full cargo build.
 #
 # Two groups:
 #   1. Rust formatting gate: `cargo fmt --all -- --check`. Formatting needs NO
-#      dependencies, so this works in a single-repo checkout. (Requires the
+#      dependencies, so this works in a standalone checkout. (Requires the
 #      rustfmt component: `rustup component add rustfmt`.)
 #   2. Web: type-check (`npx tsc --noEmit`).
 #
-# NOT run here: `cargo build` / `cargo clippy` / `cargo test`, which need the
-# five sibling PATH crates (see CONTRIBUTING.md). Use scripts/golden.sh for
-# the end-to-end smoke once the full workspace is present.
+# NOT run here: `cargo build` / `cargo clippy` / `cargo test`. These fail
+# because wasm4pm-compat 26.6.13 (crates.io) does not compile under current
+# Rust nightly (~550 E0432 errors in the upstream crate itself). This is an
+# upstream breakage unrelated to missing local directories.
 #
 # Exits non-zero if any check fails. Usage:  scripts/check.sh
 

@@ -7,12 +7,11 @@
   //   - Node 22 (the self-contained Next.js app in web/ targets Node 22), via
   //     the devcontainers `node` feature.
   //
-  // HONEST BUILD NOTE: the `affidavit` crate depends on FIVE sibling path-crates
-  // (../clap-noun-verb, ../wasm4pm, ../wasm4pm-compat, ../lsp-max, ../clnrm) plus
-  // ../chicago-tdd-tools as a dev-dep. Those are NOT vendored in this repo, so a
-  // bare `cargo build` of a lone checkout WILL FAIL — it only succeeds inside the
-  // full sibling workspace. The reliably-installable part of this repo is web/,
-  // which is why postCreateCommand bootstraps `web/` and not `cargo build`.
+  // HONEST BUILD NOTE: the upstream crate `wasm4pm-compat 26.6.13` (published on
+  // crates.io) does not compile under current Rust nightly — roughly 550 compiler
+  // errors in the upstream crate itself — so a bare `cargo build` WILL FAIL. The
+  // reliably-installable part of this repo is web/, which is why postCreateCommand
+  // bootstraps `web/` and not `cargo build`.
   //
   // This file is JSON-with-comments (JSONC), the format devcontainer.json uses.
   "name": "affidavit (Rust nightly + Node 22)",

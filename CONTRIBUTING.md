@@ -79,36 +79,26 @@ the change is not done.
 
 ## Building
 
-### Rust crate (`affi`) — requires the sibling workspace
+### Rust crate (`affi`) — build note for a lone checkout
 
 The crate is pinned to the **nightly** toolchain (see `rust-toolchain.toml`)
 and the binary is `affi` (`src/bin/affi.rs`).
 
-> **Honest build note.** `affidavit` depends on **five sibling PATH crates that
-> are NOT vendored in this repository**:
->
-> | Dependency | Path |
-> | --- | --- |
-> | `clap-noun-verb` (+ macros) | `../clap-noun-verb` |
-> | `wasm4pm` | `../wasm4pm/wasm4pm` |
-> | `wasm4pm-compat` | `../wasm4pm-compat` |
-> | `lsp-max` | `../lsp-max` |
-> | `clnrm-core` | `../clnrm/crates/clnrm-core` |
-> | `chicago-tdd-tools` (dev-dep) | `../chicago-tdd-tools` |
->
-> A bare, lone checkout **cannot** `cargo build` or `cargo test`. Those
-> commands only succeed when the full sibling workspace is checked out
-> alongside this repo. This is a real constraint — please do not file or write
-> docs claiming a clean single-repo checkout builds the binary.
+> **Honest build note.** The dependencies resolve via crates.io (`cargo fetch`
+> works), but `wasm4pm-compat 26.6.13` (the published version) **does not
+> compile under current Rust nightly** — approximately 550 compiler errors
+> (E0432 unresolved imports) in the upstream crate itself. As a result,
+> `cargo build`, `cargo test`, and `cargo clippy` all fail in a lone checkout.
+> `cargo fmt` and the web app are the only runnable checks in this situation.
 
-With the siblings in place, from the repo root:
+From the repo root:
 
 ```bash
 cargo build           # builds the affi binary -> target/debug/affi
 cargo test            # the lib + dispatch + e2e + ui suites
 ```
 
-The one Rust task that works **without** the siblings is formatting, because it
+The one Rust task that works in a lone checkout is formatting, because it
 needs no dependency resolution:
 
 ```bash
@@ -137,7 +127,7 @@ npm run dev           # dev server
 | Run the end-to-end golden smoke | `scripts/golden.sh` |
 
 The [`justfile`](justfile) exposes the same tasks as recipes (`just --list`);
-its header carries the same sibling-workspace caveat. There is also a
+its header carries the same build caveat. There is also a
 [`.devcontainer/`](.devcontainer/devcontainer.json) that provisions Rust
 nightly + Node 22 and runs `npm ci` on create.
 
@@ -145,7 +135,7 @@ nightly + Node 22 and runs `npm ci` on create.
 
 ## Running tests and the golden run
 
-- **Unit / integration / UI tests** (needs the sibling workspace):
+- **Unit / integration / UI tests** (requires a working build; see build note above):
 
   ```bash
   cargo test
@@ -201,8 +191,8 @@ admission criterion above).
 Hand-authored completions for the `affi` CLI live in
 [`completions/`](completions/). They are **authored from the documented CLI
 surface** (this guide and the README), not auto-generated — the binary cannot
-be built without the sibling workspace, so generation is not possible from a
-lone checkout. Keep them in sync with the CLI when you change a verb or flag.
+currently be built in a lone checkout (see build note above), so generation is
+not possible there. Keep them in sync with the CLI when you change a verb or flag.
 
 Install:
 
@@ -234,8 +224,8 @@ documented surface.
 - **Commits:** imperative mood, present tense ("add", "fix", "document"), one
   logical change per commit. Reference an issue when there is one.
 - **Before you open a PR**, run what applies to your change:
-  - touched Rust → `cargo fmt --all -- --check`, and (in the sibling
-    workspace) `cargo test` + `scripts/golden.sh`;
+  - touched Rust → `cargo fmt --all -- --check`, and (where a working build is
+    available) `cargo test` + `scripts/golden.sh`;
   - touched web → `scripts/check.sh` (or `cd web && npx tsc --noEmit`).
 - **PR description:** state what changed, why, and — per the admission
   criterion — **which test goes red if the change is reverted**. A PR that adds
