@@ -67,10 +67,18 @@ the same events always yield the same content address.
 
 ### Genesis seed
 
-The fixed byte string that seeds the rolling chain hash, binding every chain to
-this release of the tool. In `src/chain.rs` it is
-`GENESIS_SEED = b"affidavit-v26.6.19-genesis"`, and `chain_hash_0 =
-blake3(GENESIS_SEED)`. An empty receipt's chain hash equals the genesis hash.
+The byte string that seeds the rolling chain hash, binding every chain to the
+running binary's release. In `src/chain.rs` it is constructed at compile time:
+
+```rust
+const GENESIS_SEED_STR: &str = concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis");
+pub const GENESIS_SEED: &[u8] = GENESIS_SEED_STR.as_bytes();
+```
+
+For v26.6.19 this resolves to `affidavit-v26.6.19-genesis`. `chain_hash_0 =
+blake3(GENESIS_SEED)`, and an empty receipt's chain hash equals the genesis hash.
+Receipts from a different release version will fail stage 3 (`chain_integrity`)
+because their genesis seed differs — this is the intended cross-version boundary.
 
 ### Profile (core/v1)
 

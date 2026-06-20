@@ -27,45 +27,52 @@ The project's doctrine: **certify, don't decide.** The verifier checks a receipt
 affidavit/
 ├── src/
 │   ├── bin/affi.rs           # CLI entrypoint
+│   ├── bin/affi-shell.rs     # Interactive REPL (feature: shell)
 │   ├── lib.rs                # Public API
 │   ├── cli.rs                # Clap configuration (noun-verb pattern)
 │   ├── chain.rs              # Receipt construction & sealing
 │   ├── verifier.rs           # 7-stage certify pipeline
 │   ├── types.rs              # Domain types (Event, Receipt, Verdict)
 │   ├── admission.rs          # Validation gates
+│   ├── registry.rs           # Compile-time verb registry (67 verbs, 10 groups)
+│   ├── diag.rs               # Stable exit codes & structured diagnostics
+│   ├── output.rs             # Unified Out handle (human/JSON/YAML)
 │   ├── discovery.rs          # Type discovery & schema registry
 │   ├── ocel.rs               # Object-Centric Event Logs integration
 │   ├── handlers.rs           # Event dispatch & routing
-│   ├── lsp.rs                # Language server integration
+│   ├── lsp/                  # Language server integration
 │   ├── tracing.rs            # Observable spans & telemetry
-│   ├── verbs/                # Command implementations
+│   ├── verbs/                # 67 command implementations
 │   │   ├── emit.rs           # emit — record an event
 │   │   ├── assemble.rs       # assemble — finalize receipt
 │   │   ├── verify.rs         # verify — certify pipeline
 │   │   ├── show.rs           # show — human-readable dump
 │   │   ├── inspect.rs        # inspect — detailed analysis
 │   │   ├── diagnose.rs       # diagnose — troubleshoot failures
+│   │   ├── doctor.rs         # doctor — env & receipt-store health check
 │   │   ├── stats.rs          # stats — chain metrics
 │   │   ├── graph.rs          # graph — DAG visualization
 │   │   ├── replay.rs         # replay — re-execute chain
 │   │   ├── model.rs          # model — type schema extraction
-│   │   └── conformance.rs    # conformance — profile checking
-│   └── mod.rs                # Module tree
+│   │   ├── conformance.rs    # conformance — profile checking
+│   │   └── [55 more verbs across 10 groups]
+│   └── [quality, sbom, 1000x, and other modules]
+├── docs/
+│   ├── INDEX.md              # Documentation index (this session's primary nav)
+│   ├── innovation/           # 5 DX/QoL design proposals (v26.6.19 fan-out)
+│   ├── roadmap/              # 10-workstream 2030 program plan
+│   └── integrations/         # LSP, WASM4PM, CLNRM integration guides
 ├── examples/
 │   ├── golden_run.sh         # Full lifecycle (emit → assemble → verify)
-│   ├── chain_build.rs        # Manual receipt construction
-│   ├── full_pipeline.rs      # End-to-end example
-│   ├── admission_gate.rs     # Validation patterns
-│   ├── verify_stages.rs      # Verify pipeline details
-│   ├── ocel_events.rs        # OCEL integration
-│   ├── verdict_diagnostics.rs # Parsing verdicts
-│   ├── observable_spans.rs   # Telemetry & tracing
-│   ├── receipt_determinism.rs # Determinism guarantees
-│   └── discover_shapeb.rs    # Type discovery
+│   └── [other runnable examples]
 ├── tests/
 │   └── [integration tests]
 ├── benches/
-│   └── receipt_operations/   # Criterion benchmarks
+│   └── [Criterion benchmarks]
+├── rust-boilerplate/         # Cross-repo Rust scaffolding template
+├── SECURITY.md               # Security policy & disclosure
+├── deny.toml                 # Supply-chain advisory checks
+├── typos.toml                # Automated typo detection
 ├── Cargo.toml
 ├── README.md
 └── CLAUDE.md [this file]
@@ -160,7 +167,11 @@ The verifier maps 1:1 to a C4 Level-3 component view:
 
 ## CLI Surface
 
-### Commands (Noun-Verb Pattern)
+The CLI exposes **67 canonical verbs** across 10 groups, defined in `src/registry.rs`. Run `affi --help` for the full list or use `affi guide search <keyword>` for fuzzy lookup.
+
+**Verb groups:** Core · Diagnostics · Analysis · Ingestion · Compliance · Attestation · SBOM · Insights · Engineering · Tooling
+
+### Core Commands (Noun-Verb Pattern)
 
 ```bash
 affi emit [OPTIONS]
@@ -244,6 +255,13 @@ affi conformance <RECEIPT_PATH> [OPTIONS]
   [--rules-file <path>]
 ```
 Check receipt against custom conformance rules.
+
+```bash
+affi doctor [OPTIONS]
+  [--receipts <path>]
+  [--format {json,human}]
+```
+Run environment and receipt-store health checks. Reports installation status, feature availability, and chain integrity across the store. Exit codes use the stable catalog in `src/diag.rs`.
 
 ---
 

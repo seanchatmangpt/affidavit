@@ -38,7 +38,7 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 Ensure you have the latest stable Rust toolchain installed.
 
 ```bash
-git clone https://github.com/anthropics/affidavit
+git clone https://github.com/seanchatmangpt/affidavit
 cd affidavit
 cargo build --release --all-features
 ```
@@ -74,7 +74,7 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-Affidavit v26.6.19 ships **59 canonical verbs**, generating a comprehensive CLI surface capable of advanced provenance, auditing, and analysis workflows.
+Affidavit v26.6.19 ships **67 canonical verbs** across 10 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation.
 
 **Core Verbs (The Provenance Loop):**
 - `affi emit` — Record a new operation-event.
@@ -98,7 +98,10 @@ Affidavit v26.6.19 ships **59 canonical verbs**, generating a comprehensive CLI 
 - `affi causality-chain` — Track root cause and event lineage.
 - `affi security-debt` — Calculate pending remediation metrics.
 
-*(For the complete list of all 59 capabilities, run `affi --help` or enter the interactive provenance REPL using `affi shell`)*
+**Health & Diagnostics:**
+- `affi doctor` — Run environment and receipt-store health checks with structured exit codes.
+
+*(Full list: `affi --help` or `affi shell`. Verb registry: `src/registry.rs`. Groups: Core · Diagnostics · Analysis · Ingestion · Compliance · Attestation · SBOM · Insights · Engineering · Tooling)*
 
 ---
 

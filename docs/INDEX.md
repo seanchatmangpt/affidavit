@@ -48,6 +48,37 @@ Documentation for ecosystem integrations:
 
 ---
 
+## 🗺️ 2030 Program Roadmap
+
+Ten-workstream master plan from 2026 H2 through 2030:
+
+- **[Program Overview](roadmap/00-PROGRAM.md)** — Master plan, release calendar, cross-workstream dependency graph
+- [W1 — Foundations & Correctness](roadmap/W1-foundations-correctness.md) — `diag.rs`/`output.rs` contract; close the bug ledger
+- [W2 — Doctor & Self-Healing](roadmap/W2-doctor-self-healing.md) — `affi doctor` (env+receipt) + safe `affi fix`
+- [W3 — CLI Ergonomics & Contract](roadmap/W3-cli-ergonomics-contract.md) — `--explain`, `affi why`, uniform `--json`, versioned schemas
+- [W4 — Onboarding & Registry](roadmap/W4-onboarding-registry.md) — `registry.rs` single source of truth; `guide` noun
+- [W5 — Workflow Automation](roadmap/W5-workflow-automation.md) — `init`/`watch`/`config`/hooks; verdict cache
+- [W6 — Interactive Surfaces](roadmap/W6-interactive-surfaces.md) — REPL, TUI dashboard, LSP/IDE integration
+- [W7 — Verification Engine](roadmap/W7-verification-engine.md) — multi-profile, streaming, parallel, GPU, distributed
+- [W8 — Cryptography & Trust](roadmap/W8-cryptography-trust.md) — Ed25519→PQC, transparency log, key rotation
+- [W9 — Ecosystem & Standards](roadmap/W9-ecosystem-standards.md) — OCEL/OTel/SBOM interop; `SourceAdapter`
+- [W10 — Compliance & Governance](roadmap/W10-compliance-governance.md) — evidence model, policy-as-code, audit packs
+
+---
+
+## 💡 Innovation Design Proposals
+
+Five agent-authored DX/QoL proposals (v26.6.19 fan-out):
+
+- **[Synthesis](innovation/00-SYNTHESIS.md)** — Index, bug ledger, reconciliation, sequencing
+- [01 — Doctor Command](innovation/01-doctor-command.md) — `affi doctor` env/install health; `DoctorCheck` trait + `linkme`
+- [02 — Doctor Receipts](innovation/02-doctor-receipts.md) — Store-wide chain health scan + safe `affi fix`
+- [03 — DX CLI Ergonomics](innovation/03-dx-cli-ergonomics.md) — `src/diag.rs`/`output.rs`, `--explain`, stable exit codes
+- [04 — QoL Workflow](innovation/04-qol-workflow.md) — `affi init`/`watch`/`run`; verdict cache; git hooks
+- [05 — DX Onboarding](innovation/05-dx-onboarding.md) — `guide` noun over `registry.rs`; "did you mean"
+
+---
+
 ## 📊 Western Electric Quality Monitoring
 
 Real-time code quality monitoring using statistical process control:

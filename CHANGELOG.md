@@ -4,16 +4,32 @@ All notable changes to the Affidavit provenance layer are documented here.
 
 ## [26.6.19] — 2026-06-19
 
+### Added
+- **Verb registry** (`src/registry.rs`): compile-time static registry of all **67 canonical verbs** in 10 groups (Core, Diagnostics, Analysis, Ingestion, Compliance, Attestation, SBOM, Insights, Engineering, Tooling). Single source of truth for help text, shell completions, and documentation. Exposes `REGISTRY`, `lookup`, `by_group`, `did_you_mean`, and `verb_count`.
+- **Error code catalog** (`src/diag.rs`): stable versioned exit codes (OK=0, REJECT=2, USAGE_ERROR=3, IO_ERROR=4, INTERNAL=5, SLA_BREACH=6) and a structured `Diag` type for machine-readable diagnostics; full `--format=json` support.
+- **Output abstraction** (`src/output.rs`): unified `Out` handle routing human/JSON/YAML output to stdout and diagnostics to stderr across all verbs.
+- **`affi doctor`** (`src/verbs/doctor.rs`): new health-check verb for environment and receipt-store diagnostics.
+- **Innovation design proposals** (`docs/innovation/`): five fan-out agent proposals covering doctor-command, doctor-receipts, DX CLI ergonomics, QoL workflow, and DX onboarding (00-SYNTHESIS.md + 01–05).
+- **2030 program roadmap** (`docs/roadmap/`): ten-workstream master plan (W1 Foundations → W10 Compliance/Governance) with release calendar and cross-workstream dependency graph.
+- **`SECURITY.md`**: security policy and responsible disclosure process.
+- **`deny.toml`** / **`typos.toml`**: supply-chain advisory checks and automated typo detection.
+
 ### Changed
 - **Version bump**: Updated to v26.6.19 in `Cargo.toml`, `CLAUDE.md`, `docs/INDEX.md`, and all versioned references.
-- **Genesis seed**: Updated from `affidavit-v26.6.14-genesis` to `affidavit-v26.6.19-genesis` in `src/chain.rs` and `docs/glossary.md`. Receipts assembled under prior versions will fail `chain_integrity` (stage 3) when verified with v26.6.19 — this is the intended breaking boundary between release generations.
-- **Documentation cohesion**: Standardized version strings across README, CLAUDE.md, glossary, INDEX, and integration docs. Fixed placeholder GitHub URL to `https://github.com/anthropics/affidavit`.
+- **Genesis seed** (`src/chain.rs`): replaced hardcoded `b"affidavit-v26.6.14-genesis"` with a compile-time expression `concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis")` so the seed always matches the running binary without manual updates. Receipts from prior versions will fail stage 3 (`chain_integrity`) — this is the intended release-boundary behavior.
+- **CLI verb count**: README and docs updated from 59 → 67 to match the registry.
+- **Repository URL**: corrected to `https://github.com/seanchatmangpt/affidavit` throughout.
+- **Documentation cohesion**: synchronized version strings across README, CLAUDE.md, glossary, INDEX, and integration docs.
 
 ### Fixed
-- CLI surface wording in README now accurately reflects 59 canonical verbs without implying the count was newly added in this patch.
-- Removed stale `your-repo` placeholder from installation instructions.
+- `docs/INDEX.md` CLNRM integration plan link pointed to a non-existent `26.6.17` file; corrected to `26.6.14`.
+- Stale `your-repo` GitHub placeholder removed from installation instructions.
+- Output routing: `diff` and `stats` verbs now emit substantive output to stdout (was erroneously going to stderr).
+- Tampered-receipt reporting in `verify` now surfaces the correct stage and reason.
 
 ### Internal
+- Removed all `.backup` and `receipt-throughput.rs` dead files from `src/verbs/`.
+- `portfolio_test_dataset.json` moved to `fixtures/`.
 - Added `docs/archive/ACCOMPLISHMENTS_v26619.md` release summary.
 - All doc timestamps synchronized to 2026-06-19.
 

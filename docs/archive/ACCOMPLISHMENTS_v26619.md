@@ -25,18 +25,24 @@ v26.6.19 is a focused documentation cohesion and maintenance release. No new CLI
 
 ---
 
-## 2. Genesis Seed Rotation
+## 2. Genesis Seed — Compile-Time Derivation
 
-**Breaking change (intentional):** The rolling chain hash genesis seed in `src/chain.rs` was updated:
+**Breaking change (intentional):** The genesis seed in `src/chain.rs` was changed from a hardcoded literal to a compile-time expression:
 
+```rust
+// Before (26.6.14 hardcoded literal):
+pub const GENESIS_SEED: &[u8] = b"affidavit-v26.6.14-genesis";
+
+// After (compile-time, auto-tracks Cargo.toml version):
+const GENESIS_SEED_STR: &str = concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis");
+pub const GENESIS_SEED: &[u8] = GENESIS_SEED_STR.as_bytes();
 ```
-Before: GENESIS_SEED = b"affidavit-v26.6.14-genesis"
-After:  GENESIS_SEED = b"affidavit-v26.6.19-genesis"
-```
 
-Receipts assembled under v26.6.17 (or earlier) will fail **stage 3 (`chain_integrity`)** when verified with v26.6.19. This is the intended release boundary — a new genesis seed creates a clear cryptographic break between receipt generations.
+For v26.6.19 this resolves to `affidavit-v26.6.19-genesis`. Future version bumps automatically rotate the seed without manual edits to `chain.rs`.
 
-The glossary (`docs/glossary.md`) was updated to reflect the new seed value.
+Receipts from prior versions will fail **stage 3 (`chain_integrity`)** — the intended release-boundary behavior.
+
+The glossary was updated to document the compile-time approach.
 
 ---
 
@@ -48,11 +54,19 @@ The glossary (`docs/glossary.md`) was updated to reflect the new seed value.
 
 ---
 
-## 4. State Carried Forward from v26.6.17
+## 4. New in v26.6.19 (from main merge)
 
-All features and test counts from v26.6.17 are unchanged:
+- **67 canonical CLI verbs** (up from 59) backed by compile-time `src/registry.rs`
+- **`src/diag.rs`** — stable exit-code catalog and structured `Diag` type
+- **`src/output.rs`** — unified `Out` handle for human/JSON/YAML output
+- **`affi doctor`** — new health-check verb
+- **`docs/innovation/`** — 5 DX/QoL design proposals
+- **`docs/roadmap/`** — 10-workstream 2030 program plan
+- **`SECURITY.md`**, **`deny.toml`**, **`typos.toml`** added
 
-- **59 canonical CLI verbs** fully operational
+## 5. State Carried Forward from v26.6.17
+
+- **67 canonical CLI verbs** fully operational
 - **211+ tests** passing (100% pass rate)
 - **7 Western Electric SPC rules** production-ready (5,400+ LOC)
 - **SBOM vertical** (CycloneDX/SPDX, NTIA compliance, blast radius)
