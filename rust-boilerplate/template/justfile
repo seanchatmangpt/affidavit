@@ -1,0 +1,52 @@
+# Canonical task runner for the seanchatmangpt Rust house style.
+# `just` is the house standard. Run `just` with no args to list recipes.
+
+set shell := ["bash", "-uc"]
+
+# List recipes.
+default:
+    @just --list
+
+# Format all code.
+fmt:
+    cargo fmt --all
+
+# Check formatting (CI-equivalent).
+fmt-check:
+    cargo fmt --all --check
+
+# Clippy with warnings denied.
+lint:
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+# Run the test suite.
+test:
+    cargo test --workspace --all-features
+
+# Build (debug).
+build:
+    cargo build --workspace
+
+# Build optimized release.
+build-release:
+    cargo build --workspace --release
+
+# Build docs the way CI does.
+doc:
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features
+
+# Supply-chain + license checks (needs `cargo install cargo-deny`).
+deny:
+    cargo deny check
+
+# Spell-check (needs `cargo install typos-cli`).
+typos:
+    typos
+
+# Everything CI runs, in order.
+ci: fmt-check lint test deny typos
+    @echo "All CI checks passed."
+
+# Remove build artifacts.
+clean:
+    cargo clean
