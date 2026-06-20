@@ -60,10 +60,18 @@ For each: `apply.sh .` → fix Cargo metadata + add `[lints]` → `just ci` → 
 Applied automatically here as the worked example:
 
 - `[A]` Fixed `Cargo.toml` `repository` (`anthropics`→`seanchatmangpt`), added `homepage`, trimmed `keywords` 9→5.
-- `[A]` Added `rustfmt.toml`, `deny.toml`, `typos.toml`, `SECURITY.md`.
+- `[A]` Added `deny.toml`, `typos.toml`, `SECURITY.md`. (`rustfmt.toml` deferred:
+  adding it without a coordinated `cargo fmt` reformat would make the existing
+  fmt job flag the whole tree — do it in its own reformat commit.)
 - `[A]` Added `Swatinem/rust-cache@v2` to the CI workflow.
-- `[A]` Deleted 18 `src/verbs/*.rs.backup`; gitignored `**/*.rs.backup`.
-- `[A]` Removed root session artifacts (`audit_instructions.txt`, `DX_QOL_EXECUTIVE_SUMMARY.txt`); moved `portfolio_test_dataset.json` → `fixtures/`.
+- `[A]` Added the `**/*.rs.backup` (+ `*.orig`) ignore rule to `.gitignore`.
+
+Pending explicit OK (destructive — pre-existing files I did not create, so I will
+not delete/move them autonomously):
+
+- Delete the 18 `src/verbs/*.rs.backup` files.
+- Remove the root session artifacts `audit_instructions.txt` and `DX_QOL_EXECUTIVE_SUMMARY.txt`.
+- Move `portfolio_test_dataset.json` → `fixtures/`.
 
 Deliberately left for human judgment (documented, not done):
 
