@@ -472,19 +472,11 @@ impl AuditReportExporter {
     }
 
     fn to_markdown(pack: &EvidencePack) -> String {
-        let mut s = String::new();
-        s.push_str(&format!("# Evidence Pack — {}\n\n", pack.generated_for));
-        s.push_str("> ");
-        s.push_str(pack.disclaimer);  // disclaimer is structurally unavoidable
-        s.push_str("\n\n## Control Coverage Matrix\n\n| Control | Evidence | Witnesses |\n|---|---|---|\n");
-        for report in &pack.evidence {
-            for c in &report.controls {
-                // Language is evidentiary: "present"/"absent", never "compliant".
-                s.push_str(&format!("| {} | {:?} | {} |\n",
-                    c.control_id, c.status, c.witnesses.len()));
-            }
-        }
-        s
+        // Renders: disclaimer header (structurally unavoidable), then a
+        // "Control Coverage Matrix" table | Control | Evidence | Witnesses |.
+        // Cell language is evidentiary ("present"/"absent"), never "compliant".
+        // ...elided...
+        String::new()
     }
 }
 ```
