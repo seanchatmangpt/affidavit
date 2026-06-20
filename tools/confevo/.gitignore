@@ -1,0 +1,4 @@
+# confevo generates these at runtime — they are artifacts, not source.
+out/
+__pycache__/
+*.pyc
