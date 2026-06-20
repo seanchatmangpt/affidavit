@@ -65,13 +65,9 @@ Applied automatically here as the worked example:
   fmt job flag the whole tree — do it in its own reformat commit.)
 - `[A]` Added `Swatinem/rust-cache@v2` to the CI workflow.
 - `[A]` Added the `**/*.rs.backup` (+ `*.orig`) ignore rule to `.gitignore`.
-
-Pending explicit OK (destructive — pre-existing files I did not create, so I will
-not delete/move them autonomously):
-
-- Delete the 18 `src/verbs/*.rs.backup` files.
-- Remove the root session artifacts `audit_instructions.txt` and `DX_QOL_EXECUTIVE_SUMMARY.txt`.
-- Move `portfolio_test_dataset.json` → `fixtures/`.
+- `[A]` Deleted the 18 `src/verbs/*.rs.backup` files (approved).
+- `[A]` Removed the root session artifacts `audit_instructions.txt` and `DX_QOL_EXECUTIVE_SUMMARY.txt` (approved).
+- `[A]` Moved `portfolio_test_dataset.json` → `fixtures/` (approved).
 
 Deliberately left for human judgment (documented, not done):
 
