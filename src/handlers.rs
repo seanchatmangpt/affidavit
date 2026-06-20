@@ -551,7 +551,7 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
         );
         return Ok(());
     }
-    eprintln!(
+    println!(
         "verify-compliance [{framework}]: {}",
         if all_pass {
             "COMPLIANT"
@@ -560,7 +560,7 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
         }
     );
     for (name, ok, note) in &framework_checks {
-        eprintln!("  {} {name}: {note}", if *ok { "PASS" } else { "FAIL" });
+        println!("  {} {name}: {note}", if *ok { "PASS" } else { "FAIL" });
     }
     if !all_pass {
         std::process::exit(2);
@@ -602,7 +602,7 @@ pub fn attest(
     if let Some(out_path) = out {
         std::fs::write(&out_path, &out_str).map_err(io_err)?;
         if format.as_deref() != Some("json") {
-            eprintln!("attestation [{att_type}] written to {out_path}");
+            println!("attestation [{att_type}] written to {out_path}");
         } else {
             println!("{out_str}");
         }
@@ -631,7 +631,7 @@ pub fn notarize(receipt: String, out: Option<String>, format: Option<String>) ->
     if let Some(out_path) = out {
         std::fs::write(&out_path, &out_str).map_err(io_err)?;
         if format.as_deref() != Some("json") {
-            eprintln!("notarization written to {out_path}");
+            println!("notarization written to {out_path}");
         } else {
             println!("{out_str}");
         }
@@ -666,7 +666,7 @@ pub fn sign(
     if let Some(out_path) = out {
         std::fs::write(&out_path, &out_str).map_err(io_err)?;
         if format.as_deref() != Some("json") {
-            eprintln!("signed receipt written to {out_path}");
+            println!("signed receipt written to {out_path}");
         } else {
             println!("{out_str}");
         }
@@ -688,8 +688,8 @@ pub fn show(receipt: String, format: Option<String>) -> Result<()> {
         println!("{s}");
         return Ok(());
     }
-    eprintln!("receipt format: {}", parsed.format_version);
-    eprintln!("events: {}", parsed.events.len());
+    println!("receipt format: {}", parsed.format_version);
+    println!("events: {}", parsed.events.len());
     for event in &parsed.events {
         let objects = if event.objects.is_empty() {
             "(none)".to_string()
@@ -712,7 +712,7 @@ pub fn show(receipt: String, format: Option<String>) -> Result<()> {
                 .join(", ")
         };
         let short_hash: String = event.payload_commitment.as_hex().chars().take(12).collect();
-        eprintln!(
+        println!(
             "  [{seq:>3}] {ty} id={id} commit={commit} objects=[{objects}]",
             seq = event.seq,
             ty = event.event_type,
@@ -720,7 +720,7 @@ pub fn show(receipt: String, format: Option<String>) -> Result<()> {
             commit = short_hash
         );
     }
-    eprintln!("chain hash: {}", parsed.chain_hash);
+    println!("chain hash: {}", parsed.chain_hash);
     Ok(())
 }
 
@@ -755,16 +755,16 @@ pub fn inspect(receipt: String, format: Option<String>) -> Result<()> {
         );
         return Ok(());
     }
-    eprintln!("inspect: {receipt}");
-    eprintln!("  format_version: {}", parsed.format_version);
-    eprintln!("  chain_hash:     {}", parsed.chain_hash);
-    eprintln!("  events:         {event_count}");
-    eprintln!("  object refs:    {object_count}");
-    eprintln!("  event types:");
+    println!("inspect: {receipt}");
+    println!("  format_version: {}", parsed.format_version);
+    println!("  chain_hash:     {}", parsed.chain_hash);
+    println!("  events:         {event_count}");
+    println!("  object refs:    {object_count}");
+    println!("  event types:");
     let mut types: Vec<_> = event_types.iter().collect();
     types.sort_by_key(|(k, _)| *k);
     for (ty, count) in types {
-        eprintln!("    {ty}: {count}");
+        println!("    {ty}: {count}");
     }
     Ok(())
 }
