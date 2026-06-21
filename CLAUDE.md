@@ -19,6 +19,19 @@ The project's doctrine: **certify, don't decide.** The verifier checks a receipt
 
 ---
 
+## ⚠️ Operational ground truth for coding agents (read first)
+
+Before you run `cargo build`/`cargo test` at the root and conclude the repo is broken — it is, by the current dependency situation, and that is **not your bug**:
+
+- The root `affidavit` crate **does not compile**. It depends on the published `wasm4pm-compat 26.6.13`, which fails under current Rust nightly (~550 errors). `cargo build`/`test`/`clippy` on the root crate cannot pass (even `--no-default-features`). The only working root gate is **`cargo fmt --all -- --check`**.
+- Buildable, tested subprojects live elsewhere: **`affidavit-core/`** (zero-dep `no_std` verifier + process mining — `cargo test` green), **`web/`** (Next.js — `npx tsc --noEmit`), **`tools/confevo/`** (Python — `python3 -m unittest`).
+- The "missing sibling PATH-crates" explanation found in some comments is **stale** — deps resolve from crates.io; the blocker is the broken upstream crate above.
+- Full operational map, per-area validate commands, and conventions: **[`AGENTS.md`](AGENTS.md)** (and **[`affidavit-core/AGENTS.md`](affidavit-core/AGENTS.md)** for that crate's strict invariants).
+
+Everything below describes the *intended* `affidavit` design — treat it as the spec, not the current build state.
+
+---
+
 ## Architecture
 
 ### High-Level Structure
