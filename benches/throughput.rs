@@ -143,7 +143,7 @@ fn bench_emit_scaling(c: &mut Criterion) {
             b.iter_batched(
                 || {
                     // Clone the assembler for each iteration (setup, not measured)
-                    (asm.clone(), SeqCounter::with_start(n as u64))
+                    (asm.clone(), SeqCounter::starting_at(n as u64))
                 },
                 |(mut asm_clone, mut counter_clone)| {
                     // Measure only the single append

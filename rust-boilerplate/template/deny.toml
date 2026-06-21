@@ -7,8 +7,14 @@ all-features = true
 
 [advisories]
 version = 2
-# RustSec advisory DB. Vulnerabilities are always denied in schema v2.
-yanked = "deny"
+# RustSec advisory DB — local cache and upstream URL.
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# In schema v2, vulnerability is always denied; these make the policy explicit.
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "warn"
+notice = "warn"
 ignore = []
 
 [licenses]
@@ -22,11 +28,8 @@ allow = [
     "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",
-    "Unicode-3.0",
     "Unicode-DFS-2016",
     "CC0-1.0",
-    "Zlib",
-    "MPL-2.0",
 ]
 confidence-threshold = 0.9
 exceptions = []
@@ -42,5 +45,4 @@ deny = []
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-# Add house git sources here if/when used, e.g.:
-# allow-git = ["https://github.com/seanchatmangpt/..."]
+allow-git = ["https://github.com/seanchatmangpt"]

@@ -141,6 +141,7 @@ pub struct AttestationData {
 /// file verification, and sensitive data redaction (inspired by clnrm_prototype).
 pub struct SbomArtifactCollector {
     /// Working directory for temporary files
+    #[allow(dead_code)]
     work_dir: PathBuf,
     /// Whether to redact sensitive information
     redact_sensitive: bool,

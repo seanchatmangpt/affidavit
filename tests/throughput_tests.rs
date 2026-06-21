@@ -99,7 +99,7 @@ fn measure_single_append_throughput(pre_populated_n: usize) -> f64 {
     // Setup
     let mut asm = ChainAssembler::new();
     let mut counter = SeqCounter::new();
-    for i in 0..pre_populated_n {
+    for _i in 0..pre_populated_n {
         let event = build_event("setup", vec![], b"", &mut counter).unwrap();
         asm.append(event).unwrap();
     }

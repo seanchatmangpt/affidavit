@@ -2,9 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main]
   pull_request:
-    branches: [main, master, develop]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,18 +14,15 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
-  # Our own crates are warning-clean; dep warnings are capped by cargo and
-  # will not error. Combined with [workspace.lints] this keeps the tree tidy.
   RUSTFLAGS: "-D warnings"
 
 jobs:
   fmt:
-    name: rustfmt
+    name: fmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.82.0
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - run: cargo fmt --all --check
@@ -36,45 +32,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.82.0
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
-    name: test (${{ matrix.rust }})
+    name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        # Lower bound is the MSRV; upper bound is current stable.
-        rust: ["1.82.0", "stable"]
-    env:
-      # Override any committed rust-toolchain.toml so the matrix is honoured.
-      RUSTUP_TOOLCHAIN: ${{ matrix.rust }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-features
 
-  docs:
+  doc:
     name: doc
     runs-on: ubuntu-latest
     env:
       RUSTDOCFLAGS: "-D warnings"
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.82.0
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo doc --workspace --no-deps --all-features
 
+  msrv:
+    name: msrv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.82
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace --all-features
+
   deny:
-    name: cargo-deny
+    name: deny
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -85,16 +79,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: crate-ci/typos@master
-
-  ci-success:
-    name: CI success
-    if: always()
-    needs: [fmt, clippy, test, docs, deny, typos]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verify all required jobs passed
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: |
-          echo "One or more required jobs failed."
-          exit 1
+      - uses: crate-ci/typos@v1

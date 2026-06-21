@@ -9,7 +9,7 @@
 use affidavit::quality::QualityViolation;
 use affidavit::quality_extended::{
     compute_aggregate_severity, detect_all_rule_variants, detect_rule_storms,
-    EnhancedWesternElectricAnalyzer, RuleVariant, WesternElectricConfig,
+    EnhancedWesternElectricAnalyzer, WesternElectricConfig,
 };
 
 fn main() {

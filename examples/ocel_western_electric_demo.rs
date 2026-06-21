@@ -26,6 +26,7 @@ use std::collections::{HashMap, VecDeque};
 
 /// Per-repo violation metadata with context
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ViolationContext {
     repo_name: String,
     metric_name: String,
@@ -61,6 +62,7 @@ struct CausalChain {
 
 /// Summary statistics for a rule across portfolio
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct RuleStats {
     rule_name: String,
     total_violations: usize,

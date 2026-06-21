@@ -95,6 +95,7 @@ fn load_receipts_from_path(path: &str) -> Result<Vec<Receipt>> {
     )))
 }
 
+#[allow(dead_code)]
 fn print_json_or<F: FnOnce()>(
     format: &Option<String>,
     json_val: &impl serde::Serialize,
@@ -2907,6 +2908,7 @@ pub fn send_violation_webhook(
 
     #[cfg(not(feature = "shell"))]
     {
+        let _ = (violation, webhook_url);
         eprintln!("[webhook] skipped: shell feature not enabled (build with --features shell)");
         Ok(())
     }
@@ -4071,6 +4073,7 @@ One or more checks FAILED. Run 'affi doctor --fix' to apply safe automatic remed
 
 #[cfg(test)]
 mod ocel_quality_tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

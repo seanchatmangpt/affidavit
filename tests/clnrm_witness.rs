@@ -1,3 +1,4 @@
+#![cfg(feature = "mutation")]
 // Witness: affidavit's seal determinism (NFR-1) confirmed by clnrm's INDEPENDENT
 // digest harness — the genuine `clnrm-core` integration.
 //

@@ -7,9 +7,7 @@
 //! 4. Output formatting (JSON, stderr)
 //! 5. Baseline bootstrap from initial measurements
 
-use affidavit::quality::{
-    measure_code_quality, CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer,
-};
+use affidavit::quality::{measure_code_quality, QualityViolation, WesternElectricAnalyzer};
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;

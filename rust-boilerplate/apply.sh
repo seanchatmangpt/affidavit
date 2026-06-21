@@ -46,6 +46,13 @@ FILES=(
   .github/pull_request_template.md
 )
 
+# Source stubs — only written if the target src/ directory already exists
+# (i.e. this is a Rust crate root) and the file is not yet present.
+SRC_STUBS=(
+  src/error.rs
+  src/types.rs
+)
+
 copied=0; skipped=0
 echo "Applying house boilerplate -> $TARGET"
 for rel in "${FILES[@]}"; do
@@ -62,6 +69,25 @@ for rel in "${FILES[@]}"; do
   cp "$src" "$dst"
   echo "  copied: $rel"; copied=$((copied + 1))
 done
+
+if [[ -d "$TARGET/src" ]]; then
+  echo
+  echo "Applying src stubs -> $TARGET/src"
+  for rel in "${SRC_STUBS[@]}"; do
+    src="$TEMPLATE/$rel"
+    dst="$TARGET/$rel"
+    [[ -f "$src" ]] || { echo "  ! missing in template: $rel"; continue; }
+    if [[ -e "$dst" && $FORCE -eq 0 ]]; then
+      echo "  skip (exists): $rel"; skipped=$((skipped + 1)); continue
+    fi
+    if [[ $DRY -eq 1 ]]; then
+      echo "  would copy: $rel"; continue
+    fi
+    mkdir -p "$(dirname "$dst")"
+    cp "$src" "$dst"
+    echo "  copied: $rel"; copied=$((copied + 1))
+  done
+fi
 
 echo
 echo "Done. copied=$copied skipped=$skipped  (use --force to overwrite, --dry-run to preview)"

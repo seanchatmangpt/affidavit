@@ -26,9 +26,22 @@ required-features = ["shell"]
 name = "affidavit"
 path = "src/lib.rs"
 
+[[example]]
+name = "verdict_diagnostics"
+required-features = ["lsp"]
+
+[[example]]
+name = "full_pipeline"
+required-features = ["lsp"]
+
+[[example]]
+name = "discover_shapeb"
+required-features = ["discovery"]
+
 [[bench]]
 name = "receipt_operations"
 harness = false
+required-features = ["discovery"]
 
 [[bench]]
 name = "quality_western_electric"

@@ -1,17 +1,17 @@
-//! {{description}}
+#![doc = include_str!("../README.md")]
+#![deny(clippy::print_stdout)]
+#![deny(unsafe_code)]
 
-/// Returns this crate's version, as reported by Cargo at build time.
-#[must_use]
-pub fn version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
-}
+pub mod error;
+pub mod types;
 
-#[cfg(test)]
-mod tests {
-    use super::version;
+#[cfg(feature = "otel")]
+pub mod telemetry;
 
-    #[test]
-    fn version_is_non_empty() {
-        assert!(!version().is_empty());
-    }
-}
+#[cfg(feature = "lsp")]
+pub mod lsp;
+
+#[cfg(feature = "discovery")]
+pub mod discovery;
+
+pub use error::AppError;

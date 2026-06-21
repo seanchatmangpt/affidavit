@@ -11,6 +11,11 @@ extend-exclude = [
     "*.ttl",
     "*.svg",
     "*.lock",
+    "*.bbl",
+    "*.blg",
+    "*.aux",
+    "*.out",
+    "*.log",
 ]
 
 [default]
@@ -18,5 +23,11 @@ extend-exclude = [
 extend-ignore-re = ["\\b[0-9a-f]{32,}\\b"]
 
 [default.extend-words]
-# Intentional project nouns that look like typos go here, e.g.:
-# affi = "affi"
+# Intentional project nouns that look like typos.
+ocel = "ocel"
+otel = "otel"
+pqc = "pqc"
+calver = "calver"
+clnrm = "clnrm"
+affi = "affi"
+linkme = "linkme"

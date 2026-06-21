@@ -7,7 +7,6 @@
 //!
 //! Run with: cargo run --example portfolio_monitor_simulation --features shell
 
-use affidavit::quality::{CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;

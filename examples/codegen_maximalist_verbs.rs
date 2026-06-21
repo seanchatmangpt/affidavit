@@ -30,6 +30,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct Verb {
     name: String,
     about: String,
@@ -37,6 +38,7 @@ struct Verb {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct Argument {
     name: String,
     rust_type: String,
@@ -143,7 +145,7 @@ fn extract_arguments(lines: &[&str], start_idx: usize, _ontology: &str) -> Optio
     None
 }
 
-fn parse_arguments(lines: &[&str], arg_names: &[String], ontology: &str) -> Vec<Argument> {
+fn parse_arguments(lines: &[&str], arg_names: &[String], _ontology: &str) -> Vec<Argument> {
     let mut arguments = Vec::new();
 
     for arg_name in arg_names {

@@ -170,6 +170,7 @@ fn read_payload(source: &str) -> Result<Vec<u8>> {
 }
 
 /// Render an object ref for human display: `id:type` or `id:type/qualifier`.
+#[allow(dead_code)]
 fn format_object(o: &ObjectRef) -> String {
     match &o.qualifier {
         Some(q) => format!("{}:{}/{}", o.id, o.obj_type, q),
@@ -178,6 +179,7 @@ fn format_object(o: &ObjectRef) -> String {
 }
 
 /// First 12 hex chars of a hash, for compact human display.
+#[allow(dead_code)]
 fn short_hash(h: &Blake3Hash) -> String {
     let hex = h.as_hex();
     let end = hex.len().min(12);
@@ -193,6 +195,7 @@ fn load_receipt(path: &str) -> Result<Receipt> {
     Ok(receipt)
 }
 
+#[allow(dead_code)]
 /// Convert a Markdown string to plain ASCII for terminal display.
 ///
 /// Transformations applied in order:
@@ -291,6 +294,7 @@ pub(crate) fn format_help_markdown_width(md: &str, max_width: usize) -> String {
     result.trim_end_matches('\n').to_string()
 }
 
+#[allow(dead_code)]
 fn apply_inline_transforms(text: &str) -> String {
     let mut s = text.to_string();
 
@@ -326,6 +330,7 @@ fn apply_inline_transforms(text: &str) -> String {
     s
 }
 
+#[allow(dead_code)]
 fn reflow_paragraph(text: &str, max_width: usize) -> String {
     let text = apply_inline_transforms(text);
     let mut result = String::new();

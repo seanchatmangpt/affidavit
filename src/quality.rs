@@ -489,7 +489,7 @@ pub fn measure_code_quality(src_path: &str) -> anyhow::Result<CodeQualityMetrics
 
     // Walk the directory and count metrics
     if path.is_dir() {
-        let mut file_count = 0;
+        let mut _file_count = 0;
         let mut total_lines = 0;
         let mut comment_lines = 0;
         let mut stub_count = 0;
@@ -508,7 +508,7 @@ pub fn measure_code_quality(src_path: &str) -> anyhow::Result<CodeQualityMetrics
             }
 
             if path.extension().map(|e| e == "rs").unwrap_or(false) {
-                file_count += 1;
+                _file_count += 1;
                 if let Ok(content) = fs::read_to_string(path) {
                     // Count lines
                     let lines = content.lines().collect::<Vec<_>>();
