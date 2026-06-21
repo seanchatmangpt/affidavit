@@ -4254,13 +4254,22 @@ fn check_receipt_store(path: &str) -> Vec<DoctorFinding> {
 pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
     let mut findings: Vec<DoctorFinding> = Vec::new();
 
-    // Check 1: genesis seed version is coherent with the binary
-    findings.push(check_genesis_seed());
+    // Run all registered DoctorCheck implementations (linkme-discovered).
+    for plugin_finding in crate::doctor_check::run_all() {
+        findings.push(DoctorFinding {
+            check: plugin_finding.id.to_string(),
+            status: match plugin_finding.status {
+                crate::doctor_check::FindingStatus::Ok   => CheckStatus::Ok,
+                crate::doctor_check::FindingStatus::Warn => CheckStatus::Warn,
+                crate::doctor_check::FindingStatus::Fail => CheckStatus::Fail,
+            },
+            message: plugin_finding.message,
+            remediation: plugin_finding.remediation,
+            auto_fixable: plugin_finding.auto_fixable,
+        });
+    }
 
-    // Check 2: working directory exists and has a receipt in progress
-    findings.push(check_working_dir());
-
-    // Check 3 (optional): receipt store health if a path was supplied
+    // Check legacy (non-linkme) checks — receipt store requires runtime path arg.
     if let Some(ref path) = receipts {
         findings.extend(check_receipt_store(path));
     }
