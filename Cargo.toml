@@ -199,6 +199,12 @@ all = [
 # Development environment: alias for 'all'.
 dev = ["all"]
 
+[patch.crates-io]
+# Registry wasm4pm-compat v26.6.13 uses `impl const Trait` which is broken on
+# current nightly. Use a local build-compatible stub until the sibling path
+# crate is available in this environment.
+wasm4pm-compat = { path = "stubs/wasm4pm-compat" }
+
 [profile.release]
 lto = true
 codegen-units = 1

@@ -1,0 +1,17 @@
+[package]
+name = "wasm4pm-compat"
+version = "26.6.13"
+edition = "2021"
+description = "Minimal build-compatible stub for the wasm4pm-compat sibling crate (registry version is nightly-broken)."
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[features]
+default = []
+formats = []
+strict = []
+wasm4pm = []
+full = ["formats", "strict", "wasm4pm"]
+all = ["full"]
