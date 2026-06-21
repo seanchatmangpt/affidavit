@@ -4523,3 +4523,46 @@ mod ocel_quality_tests {
         assert_eq!(remediate_payload["causal_chain"][1]["files_changed"], 15);
     }
 }
+
+// ============================================================================
+// GUIDE CLUSTER
+// ============================================================================
+
+/// `affi guide search <KEYWORD>` — full-text search over the verb registry.
+///
+/// Ranks results by keyword hit count, then verb name.  Useful for discovery
+/// when you know what you want to do but not the exact verb name.
+pub fn guide_search(keyword: String, format: Option<String>) -> Result<()> {
+    let results = crate::registry::search(&keyword);
+    if results.is_empty() {
+        if format.as_deref() == Some("json") {
+            println!("{}", serde_json::json!({"query": keyword, "results": []}));
+        } else {
+            println!("No verbs matched '{keyword}'. Try 'affi guide search help' for all verbs.");
+        }
+        return Ok(());
+    }
+
+    if format.as_deref() == Some("json") {
+        let out: Vec<serde_json::Value> = results.iter().map(|e| serde_json::json!({
+            "noun":    e.noun,
+            "verb":    e.verb,
+            "group":   e.group.label(),
+            "summary": e.summary,
+        })).collect();
+        println!("{}", adapt(serde_json::to_string_pretty(&serde_json::json!({
+            "query": keyword,
+            "count": out.len(),
+            "results": out,
+        })).map_err(anyhow::Error::from))?);
+        return Ok(());
+    }
+
+    println!("Search results for '{keyword}' ({} match{}):", results.len(),
+        if results.len() == 1 { "" } else { "es" });
+    println!();
+    for e in &results {
+        println!("  {:30}  {:12}  {}", format!("{} {}", e.noun, e.verb), e.group.label(), e.summary);
+    }
+    Ok(())
+}
