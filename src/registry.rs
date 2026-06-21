@@ -182,6 +182,13 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["why", "explain", "reason", "reject", "failed", "fix"],
     ),
     VerbEntry::new(
+        "fix",
+        "receipt",
+        VerbGroup::Diagnostics,
+        "Apply a safe structural repair: quarantine a tampered receipt or finalize a working one. Use --dry-run to preview.",
+        &["fix", "repair", "quarantine", "finalize", "remediate"],
+    ),
+    VerbEntry::new(
         "diagnose",
         "receipt",
         VerbGroup::Diagnostics,

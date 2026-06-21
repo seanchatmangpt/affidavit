@@ -28,6 +28,7 @@ pub mod emit_from_sbom;
 pub mod emit_from_security;
 pub mod explain_incident;
 pub mod find_blast_radius;
+pub mod fix;
 pub mod gdpr_proof;
 pub mod graph;
 pub mod hipaa;

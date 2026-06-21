@@ -1083,6 +1083,120 @@ pub fn why(receipt: String, format: Option<String>) -> Result<()> {
     Ok(())
 }
 
+/// `affi receipt fix` — apply a safe structural repair to a receipt file.
+///
+/// Two actions are supported:
+/// - `quarantine` (default on REJECT): move the receipt to `<name>.quarantine.json`
+///   and write a sidecar `<name>.quarantine.why.json` explaining the reason.
+/// - `finalize`: re-run `affi assemble` on the current working receipt.
+///
+/// Use `--dry-run` to preview what would happen without modifying files.
+pub fn fix_receipt(
+    receipt: String,
+    action: Option<String>,
+    dry_run: bool,
+    format: Option<String>,
+) -> Result<()> {
+    let path = std::path::Path::new(&receipt);
+    if !path.exists() {
+        return Err(NounVerbError::execution_error(format!(
+            "Receipt not found: {receipt}"
+        )));
+    }
+
+    // Determine action: run verify to decide if quarantine is appropriate.
+    let action_str = action.as_deref().unwrap_or("auto");
+
+    let (code, verdict) = adapt(crate::cli::verify(&receipt))?;
+    let needs_quarantine = code != 0 || !verdict.accepted;
+
+    let resolved_action = match action_str {
+        "quarantine" => "quarantine",
+        "finalize"   => "finalize",
+        "auto"       => if needs_quarantine { "quarantine" } else { "finalize" },
+        other => return Err(NounVerbError::execution_error(format!(
+            "Unknown action '{other}'. Use 'quarantine', 'finalize', or omit for auto."
+        ))),
+    };
+
+    match resolved_action {
+        "quarantine" => {
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("receipt");
+            let dir  = path.parent().unwrap_or(std::path::Path::new("."));
+            let quarantine_path = dir.join(format!("{stem}.quarantine.json"));
+            let sidecar_path    = dir.join(format!("{stem}.quarantine.why.json"));
+            let reason = if verdict.accepted {
+                "manually quarantined (was ACCEPT)".to_string()
+            } else {
+                format!("REJECT: {}", verdict.reason)
+            };
+            let sidecar = serde_json::json!({
+                "original": receipt,
+                "quarantined_at": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs()).unwrap_or(0),
+                "reason": reason,
+                "failing_stages": verdict.outcomes.iter()
+                    .filter(|o| !o.passed)
+                    .map(|o| serde_json::json!({"stage": o.stage, "detail": o.detail}))
+                    .collect::<Vec<_>>(),
+            });
+
+            if dry_run {
+                let out = serde_json::json!({
+                    "dry_run": true,
+                    "action": "quarantine",
+                    "would_move": receipt,
+                    "to": quarantine_path.display().to_string(),
+                    "sidecar": sidecar_path.display().to_string(),
+                    "reason": reason,
+                });
+                if format.as_deref() == Some("json") {
+                    println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+                } else {
+                    println!("DRY RUN — would quarantine {receipt}");
+                    println!("  → move to: {}", quarantine_path.display());
+                    println!("  → sidecar: {}", sidecar_path.display());
+                    println!("  → reason:  {reason}");
+                }
+                return Ok(());
+            }
+
+            std::fs::rename(path, &quarantine_path).map_err(io_err)?;
+            let sidecar_str = adapt(serde_json::to_string_pretty(&sidecar).map_err(anyhow::Error::from))?;
+            std::fs::write(&sidecar_path, sidecar_str).map_err(io_err)?;
+
+            if format.as_deref() == Some("json") {
+                println!("{}", adapt(serde_json::to_string_pretty(&serde_json::json!({
+                    "action": "quarantine",
+                    "moved_to": quarantine_path.display().to_string(),
+                    "sidecar": sidecar_path.display().to_string(),
+                    "reason": reason,
+                })).map_err(anyhow::Error::from))?);
+            } else {
+                println!("quarantined: {receipt} → {}", quarantine_path.display());
+                println!("sidecar:     {}", sidecar_path.display());
+                println!("reason:      {reason}");
+            }
+        }
+        "finalize" => {
+            if !verdict.accepted {
+                return Err(NounVerbError::execution_error(format!(
+                    "Receipt is REJECT ({}) — use 'quarantine' instead of 'finalize'.",
+                    verdict.reason
+                )));
+            }
+            if dry_run {
+                println!("DRY RUN — receipt {receipt} is ACCEPT; finalize is a no-op for sealed receipts.");
+                return Ok(());
+            }
+            println!("receipt {receipt} is already ACCEPT and sealed — no finalize needed.");
+        }
+        _ => unreachable!(),
+    }
+    Ok(())
+}
+
 /// `affi receipt diagnose` — render verify outcomes as LSP-shaped diagnostics.
 pub fn diagnose(receipt: String) -> Result<()> {
     let (_code, verdict) = adapt(crate::cli::verify(&receipt))?;
