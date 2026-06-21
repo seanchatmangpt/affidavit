@@ -41,6 +41,7 @@ fn is_well_formed_hash(hex: &str) -> bool {
 ///
 /// # Example: see `examples/verify_stages.rs` (run: `cargo run --example verify_stages`).
 pub fn verify(receipt: &Receipt) -> Verdict {
+    crate::tracing::record_span("verify", "");
     let outcomes: Vec<CheckOutcome> = vec![
         // Stage 1: decode — receipt structurally present and version parseable.
         stage_decode(receipt),

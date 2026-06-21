@@ -11,6 +11,6 @@ use clap_noun_verb_macros::verb;
 
 /// Discover a process model from a receipt's events (wasm4pm)
 #[verb("model", "receipt")]
-pub fn model(receipt: String) -> Result<()> {
+pub fn model(#[arg(index = 1)] receipt: String) -> Result<()> {
     crate::handlers::model(receipt)
 }

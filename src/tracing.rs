@@ -34,7 +34,7 @@ thread_local! {
 
 /// Record a span into the observable thread-local sink. This is the consumer
 /// that makes the instrumentation witnessable.
-fn record_span(operation: &str, target: &str) {
+pub(crate) fn record_span(operation: &str, target: &str) {
     let record = SpanRecord {
         operation: operation.to_string(),
         target: target.to_string(),
