@@ -36,12 +36,15 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
+from unittest import mock  # noqa: E402
+
 import genome  # noqa: E402  (path injection must precede these imports)
 import fitness  # noqa: E402
 import evolve  # noqa: E402
+import confevo  # noqa: E402
 
 from genome import Genome, ALL_FEATURES, FEATURE_IMPLICATIONS  # noqa: E402
-from fitness import EvalResult, FitnessEvaluator, score_from  # noqa: E402
+from fitness import EvalResult, FitnessEvaluator, score_from, cargo_available  # noqa: E402
 from evolve import GAConfig, GenerationRecord, GAResult, run_ga  # noqa: E402
 
 
@@ -372,6 +375,105 @@ class TestGAWithDryRunFitness(unittest.TestCase):
         r2 = run_ga(dry_run_evaluator().evaluate, GAConfig(seed=1, population=6, generations=3))
         self.assertEqual(r1.best_genome.key(), r2.best_genome.key())
         self.assertAlmostEqual(r1.best_eval.score, r2.best_eval.score, places=6)
+
+
+# ---------------------------------------------------------------------------
+# 9. GA config validation (degenerate inputs fail clearly, not opaquely)
+# ---------------------------------------------------------------------------
+class TestGAConfigValidation(unittest.TestCase):
+    def test_zero_population_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            run_ga(_stub_eval, GAConfig(population=0))
+
+    def test_zero_generations_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            run_ga(_stub_eval, GAConfig(generations=0))
+
+    def test_negative_elitism_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            run_ga(_stub_eval, GAConfig(elitism=-1))
+
+    def test_zero_tournament_k_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            run_ga(_stub_eval, GAConfig(tournament_k=0))
+
+    def test_out_of_range_mutation_rate_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            run_ga(_stub_eval, GAConfig(mutation_rate=2.0))
+
+
+# ---------------------------------------------------------------------------
+# 10. Real-mode robustness: a missing/unspawnable cargo degrades gracefully
+# ---------------------------------------------------------------------------
+class TestRealEvalRobustness(unittest.TestCase):
+    def test_cargo_available_returns_bool(self) -> None:
+        self.assertIsInstance(cargo_available(), bool)
+
+    def test_missing_cargo_yields_sentinel_not_crash(self) -> None:
+        # If cargo cannot be spawned, _evaluate_real must NOT raise — it returns
+        # a strongly-penalized sentinel so the search keeps going.
+        ev = FitnessEvaluator(repo_root=REPO_ROOT, dry_run=False)
+        with mock.patch.object(
+            fitness.subprocess, "run", side_effect=FileNotFoundError("cargo")
+        ):
+            res = ev._evaluate_real(make_genome([]))
+        self.assertFalse(res.builds)
+        self.assertFalse(res.resolves)
+        self.assertGreaterEqual(res.error_count, 10 ** 6)
+
+    def test_timeout_yields_sentinel(self) -> None:
+        import subprocess as _sp
+
+        ev = FitnessEvaluator(repo_root=REPO_ROOT, dry_run=False, timeout=1)
+        with mock.patch.object(
+            fitness.subprocess, "run", side_effect=_sp.TimeoutExpired("cargo", 1)
+        ):
+            res = ev._evaluate_real(make_genome([]))
+        self.assertFalse(res.builds)
+        self.assertGreaterEqual(res.error_count, 10 ** 6)
+
+
+# ---------------------------------------------------------------------------
+# 11. CLI: argument validation + exit codes + artifact emission (dry-run)
+# ---------------------------------------------------------------------------
+class TestCLI(unittest.TestCase):
+    def test_invalid_population_exits_bad_args(self) -> None:
+        rc = confevo.main(["run", "--dry-run", "--population", "0"])
+        self.assertEqual(rc, confevo.EXIT_BAD_ARGS)
+
+    def test_out_of_range_mutation_rate_exits_bad_args(self) -> None:
+        rc = confevo.main(["run", "--dry-run", "--mutation-rate", "2.0"])
+        self.assertEqual(rc, confevo.EXIT_BAD_ARGS)
+
+    def test_real_mode_without_cargo_exits_no_cargo(self) -> None:
+        # Force the preflight to see no cargo; must exit cleanly (not crash).
+        with mock.patch.object(confevo, "cargo_available", return_value=False):
+            rc = confevo.main(["run", "--generations", "1", "--population", "2"])
+        self.assertEqual(rc, confevo.EXIT_NO_CARGO)
+
+    def test_dry_run_writes_artifacts_and_exits_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            rc = confevo.main(
+                [
+                    "run", "--dry-run",
+                    "--generations", "2", "--population", "4", "--seed", "1",
+                    "--out", tmp, "--repo-root", str(REPO_ROOT),
+                ]
+            )
+            self.assertEqual(rc, confevo.EXIT_OK)
+            results = Path(tmp) / "results.json"
+            report = Path(tmp) / "report.md"
+            self.assertTrue(results.exists(), "results.json not written")
+            self.assertTrue(report.exists(), "report.md not written")
+
+            import json as _json
+
+            data = _json.loads(results.read_text(encoding="utf-8"))
+            for key in ("mode", "config", "history", "best", "top_configs"):
+                self.assertIn(key, data)
+            self.assertEqual(data["mode"], "dry-run")
+            # Honest finding must survive into the report.
+            self.assertIn("wasm4pm-compat", report.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

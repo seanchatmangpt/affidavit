@@ -148,6 +148,27 @@ def _mutate(rng: random.Random, features: set[str], mutation_rate: float) -> set
 # ---------------------------------------------------------------------------
 
 
+def _validate_config(cfg: GAConfig) -> None:
+    """Reject degenerate GA configurations with a clear, actionable message.
+
+    The empty-population / zero-generation paths would otherwise blow up deep
+    inside the loop (``ranked[0]`` IndexError, ``sum(scores)/0`` ZeroDivision);
+    catching them here keeps the failure legible.
+    """
+    if cfg.population < 1:
+        raise ValueError(f"population must be >= 1, got {cfg.population}")
+    if cfg.generations < 1:
+        raise ValueError(f"generations must be >= 1, got {cfg.generations}")
+    if cfg.elitism < 0:
+        raise ValueError(f"elitism must be >= 0, got {cfg.elitism}")
+    if cfg.tournament_k < 1:
+        raise ValueError(f"tournament_k must be >= 1, got {cfg.tournament_k}")
+    if not (0.0 <= cfg.mutation_rate <= 1.0):
+        raise ValueError(f"mutation_rate must be in [0, 1], got {cfg.mutation_rate}")
+    if not (0.0 <= cfg.crossover_rate <= 1.0):
+        raise ValueError(f"crossover_rate must be in [0, 1], got {cfg.crossover_rate}")
+
+
 def run_ga(eval_fn: Callable[[Genome], object], cfg: GAConfig) -> GAResult:
     """Run the genetic algorithm and return the best genome plus history.
 
@@ -157,7 +178,13 @@ def run_ga(eval_fn: Callable[[Genome], object], cfg: GAConfig) -> GAResult:
     the injected ``eval_fn`` (duck-typed through ``.score`` / ``.features``), with
     results cached by ``canonical().key()`` so identical effective builds are only
     evaluated once.
+
+    Raises :class:`ValueError` for degenerate configurations (population or
+    generations < 1, negative elitism / mutation-out-of-range, etc.) so callers
+    get a clear message instead of an opaque ``IndexError`` / ``ZeroDivisionError``
+    from the empty-population path.
     """
+    _validate_config(cfg)
     rng = random.Random(cfg.seed)
 
     # Memoization across the whole run: canonical key -> EvalResult.

@@ -14,6 +14,7 @@ STDLIB ONLY.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass
@@ -154,6 +155,16 @@ def _resolves_from_output(combined: str) -> bool:
         if marker in combined:
             return False
     return True
+
+
+def cargo_available() -> bool:
+    """True if a ``cargo`` executable is discoverable on ``PATH``.
+
+    Real-mode evaluation shells out to ``cargo``; callers (e.g. the CLI) should
+    preflight with this and steer the user to ``--dry-run`` when it returns
+    ``False``, rather than discovering the problem one failed build at a time.
+    """
+    return shutil.which("cargo") is not None
 
 
 def _count_compiler_messages(stdout: str) -> tuple[int, int]:
@@ -327,6 +338,16 @@ class FitnessEvaluator:
             elapsed_s = time.monotonic() - start
             builds = False
             resolves = True
+            error_count = 10 ** 6
+            warn_count = 0
+        except (FileNotFoundError, OSError):
+            # cargo is missing or the process could not be spawned. Don't crash
+            # the whole search mid-run — return a strongly-penalized sentinel.
+            # (The CLI preflights with cargo_available() so this is rarely hit;
+            # it's here so a mid-run failure degrades gracefully.)
+            elapsed_s = time.monotonic() - start
+            builds = False
+            resolves = False
             error_count = 10 ** 6
             warn_count = 0
 

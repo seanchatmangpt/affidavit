@@ -111,19 +111,80 @@ python3 tools/confevo/confevo.py run --dry-run --generations 3 --population 6 --
 
 ### Real run (invokes cargo per candidate, slower)
 
-Actually shells out to `cargo build --no-default-features --features …` for every
-genome it evaluates (results are cached by canonical key, so duplicates are free):
+Actually shells out to `cargo build --no-default-features --lib --features …` for
+every genome it evaluates (results are cached by canonical key, so duplicates are
+free). It builds the **library target** (`--lib`) — a consistent, binary-agnostic
+proxy for "does this feature-set compile":
 
 ```bash
 python3 tools/confevo/confevo.py run --generations 3 --population 6
 ```
 
+A real run on this repo bottoms out exactly where the dry-run predicts:
+
+```text
+confevo: genetic Cargo-feature optimizer
+  best config   : <none>
+  best score    : -11.04
+  builds        : False
+  resolves      : True
+  error_count   : 6        # parsed straight from real `cargo ... --message-format=json`
+  ...
+  honest finding: NO configuration built. ... wasm4pm-compat 26.6.13 fails to compile ...
+```
+
+### Invocation forms
+
+Both of these are equivalent (the second runs the package entrypoint,
+`__main__.py`):
+
+```bash
+python3 tools/confevo/confevo.py run --dry-run        # script form
+python3 -m tools.confevo run --dry-run                # module form (from repo root)
+```
+
 ### Outputs
 
-Both modes write their artifacts to **`tools/confevo/out/`**:
+Both modes write their artifacts to the `--out` directory (default
+**`tools/confevo/out/`**, git-ignored):
 
-- `tools/confevo/out/results.json` — machine-readable champion + per-generation history
-- `tools/confevo/out/report.md` — human-readable summary (best config, scores, the finding)
+- `results.json` — machine-readable champion + per-generation history + top configs
+- `report.md` — human-readable summary (best config, scores, the honest finding)
+- `cache.json` — per-canonical-key evaluation cache (real runs reuse it across invocations)
+
+### Exit codes
+
+| Code | Meaning |
+|-----:|---------|
+| `0` | run completed (note: "completed" ≠ "a config built" — see the honest finding) |
+| `2` | invalid arguments (e.g. `--population 0`, `--mutation-rate 2.0`, `--elitism > --population`) |
+| `3` | real mode but `cargo` is not on `PATH` — install Rust or use `--dry-run` |
+
+---
+
+## Robustness & limitations
+
+Things confevo handles deliberately, and the edges it does **not** paper over:
+
+- **No `cargo`?** Real mode preflights with `cargo_available()` and exits `3` with
+  a clear message pointing at `--dry-run`; a mid-run spawn failure (`FileNotFoundError`/
+  `OSError`) degrades to a strongly-penalized sentinel rather than crashing the search.
+- **Build timeouts** (`--timeout`, default 600 s/candidate) count as a non-build with a
+  huge error count, so the GA learns to avoid pathologically slow configurations.
+- **Degenerate configs** (`population`/`generations` < 1, negative `elitism`, out-of-range
+  rates) are rejected up front by both the CLI (exit `2`) and `run_ga` (`ValueError`),
+  instead of failing opaquely deep in the loop.
+- **The `resolves` signal is a heuristic.** It scans cargo output for genuine
+  *dependency-resolution* failures (`failed to select a version`, `no matching package`,
+  …) and deliberately ignores the E0433 *compile* error `failed to resolve: …` — so a
+  crate that resolved fine but failed to compile is reported as `resolves = True`,
+  `builds = False`.
+- **`--dry-run` is a model, not a measurement.** The synthetic landscape mirrors the real
+  repo (empty → 6 errors, `core` → +550) closely enough to exercise and demo the search,
+  but only a real run reflects the actual compiler. Reports made with `--dry-run` are
+  labelled **SIMULATED** so the two are never confused.
+- **Scope.** confevo toggles only `affidavit`'s own Cargo features (not arbitrary
+  dependency versions or `cfg` flags), and evaluates the `--lib` target.
 
 ---
 
@@ -134,8 +195,10 @@ Both modes write their artifacts to **`tools/confevo/out/`**:
 | `genome.py`         | The genome: `ALL_FEATURES`, `FEATURE_IMPLICATIONS`, `Genome` (canonical closure, encodings, `random`). |
 | `fitness.py`        | `FitnessEvaluator` (real cargo build *or* dry-run synthetic model), `score_from`, `EvalResult`, caching by canonical key. |
 | `evolve.py`         | The GA core: `GAConfig`, `run_ga` (tournament selection, uniform crossover, mutation, elitism), `GAResult`/`GenerationRecord`. |
-| `confevo.py`        | CLI entrypoint — wires genome + fitness + evolve together and writes `out/`. |
-| `test_confevo.py`   | `unittest` suite covering all of the above (no cargo — dry-run/stubs only). |
+| `confevo.py`        | CLI entrypoint — wires genome + fitness + evolve together, validates args, preflights `cargo`, writes `out/`. |
+| `__main__.py`       | Package entrypoint so `python3 -m tools.confevo` runs the CLI. |
+| `test_confevo.py`   | `unittest` suite (43 tests) covering all of the above (no cargo — dry-run/stubs/mocks only). |
+| `.gitignore`        | Keeps generated `out/` and `__pycache__/` out of version control. |
 
 ### Running the tests
 

@@ -67,11 +67,15 @@ from typing import Any
 # ---------------------------------------------------------------------------
 try:  # pragma: no cover - import shim
     from genome import ALL_FEATURES, Genome
-    from fitness import EvalResult, FitnessEvaluator
+    from fitness import EvalResult, FitnessEvaluator, cargo_available
     from evolve import GAConfig, GAResult, GenerationRecord, run_ga
 except ImportError:  # pragma: no cover - import shim
     from .genome import ALL_FEATURES, Genome  # type: ignore[no-redef]
-    from .fitness import EvalResult, FitnessEvaluator  # type: ignore[no-redef]
+    from .fitness import (  # type: ignore[no-redef]
+        EvalResult,
+        FitnessEvaluator,
+        cargo_available,
+    )
     from .evolve import (  # type: ignore[no-redef]
         GAConfig,
         GAResult,
@@ -572,8 +576,59 @@ def _build_ga_config(args: argparse.Namespace) -> "GAConfig":
 # ---------------------------------------------------------------------------
 
 
+# Exit codes: 0 = ok, 2 = invalid arguments, 3 = cargo unavailable (real mode).
+EXIT_OK = 0
+EXIT_BAD_ARGS = 2
+EXIT_NO_CARGO = 3
+
+
+def _validate_run_args(args: argparse.Namespace) -> list[str]:
+    """Return a list of human-readable problems with the run arguments (empty=ok).
+
+    argparse already enforces types; this enforces the *ranges* the GA needs so a
+    bad value fails fast with a clear message instead of deep inside the search.
+    """
+    problems: list[str] = []
+    if args.population < 1:
+        problems.append(f"--population must be >= 1 (got {args.population})")
+    if args.generations < 1:
+        problems.append(f"--generations must be >= 1 (got {args.generations})")
+    if args.elitism < 0:
+        problems.append(f"--elitism must be >= 0 (got {args.elitism})")
+    if args.elitism > args.population:
+        problems.append(
+            f"--elitism ({args.elitism}) cannot exceed --population ({args.population})"
+        )
+    if args.tournament_k < 1:
+        problems.append(f"--tournament-k must be >= 1 (got {args.tournament_k})")
+    if not (0.0 <= args.mutation_rate <= 1.0):
+        problems.append(f"--mutation-rate must be in [0, 1] (got {args.mutation_rate})")
+    if not (0.0 <= args.crossover_rate <= 1.0):
+        problems.append(f"--crossover-rate must be in [0, 1] (got {args.crossover_rate})")
+    if args.timeout < 1:
+        problems.append(f"--timeout must be >= 1 second (got {args.timeout})")
+    return problems
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     """Execute the GA search and emit results.json + report.md."""
+    # Preflight 1: argument ranges (clear message instead of a deep crash).
+    problems = _validate_run_args(args)
+    if problems:
+        for p in problems:
+            print(f"confevo: error: {p}", file=sys.stderr)
+        return EXIT_BAD_ARGS
+
+    # Preflight 2: real mode needs cargo on PATH. Steer to --dry-run if absent,
+    # rather than failing one build at a time.
+    if not args.dry_run and not cargo_available():
+        print(
+            "confevo: error: `cargo` was not found on PATH. Install Rust "
+            "(https://rustup.rs) or re-run with --dry-run for the synthetic model.",
+            file=sys.stderr,
+        )
+        return EXIT_NO_CARGO
+
     repo_root = Path(args.repo_root).expanduser().resolve()
     out_dir = Path(args.out).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -659,7 +714,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             "feature space and pinpointed the obstruction."
         )
 
-    return 0
+    return EXIT_OK
 
 
 # ---------------------------------------------------------------------------
