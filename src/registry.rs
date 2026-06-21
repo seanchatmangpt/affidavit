@@ -175,6 +175,13 @@ pub static REGISTRY: &[VerbEntry] = &[
     ),
     // ── Diagnostics ─────────────────────────────────────────────────────────
     VerbEntry::new(
+        "why",
+        "receipt",
+        VerbGroup::Diagnostics,
+        "Explain in plain language why a receipt was rejected, with stage-by-stage remediation steps",
+        &["why", "explain", "reason", "reject", "failed", "fix"],
+    ),
+    VerbEntry::new(
         "diagnose",
         "receipt",
         VerbGroup::Diagnostics,

@@ -1001,6 +1001,88 @@ pub fn conformance(receipt: String) -> Result<()> {
     }
 }
 
+/// `affi receipt why` — explain why a receipt was rejected, in plain language.
+///
+/// Runs the full 7-stage verifier and, for each failing stage, emits a plain-language
+/// explanation of what went wrong and how to fix it.  On ACCEPT, prints a one-liner.
+pub fn why(receipt: String, format: Option<String>) -> Result<()> {
+    let (_code, verdict) = adapt(crate::cli::verify(&receipt))?;
+
+    if verdict.accepted {
+        let msg = format!("receipt {receipt} is ACCEPT — all 7 stages passed. No action needed.");
+        if format.as_deref() == Some("json") {
+            println!("{}", serde_json::json!({"verdict": "ACCEPT", "message": msg}));
+        } else {
+            println!("{msg}");
+        }
+        return Ok(());
+    }
+
+    let explanations: Vec<serde_json::Value> = verdict.outcomes.iter()
+        .filter(|o| !o.passed)
+        .map(|o| {
+            let (cause, fix) = match o.stage.as_str() {
+                "decode" => (
+                    "The receipt file could not be parsed as valid JSON.",
+                    "Ensure the file is valid JSON. Run `affi assemble` again from a clean working state.",
+                ),
+                "check_format" => (
+                    "The format_version field is missing or not \"core/v1\".",
+                    "Re-assemble the receipt with `affi assemble`. Only receipts with format_version=\"core/v1\" are accepted.",
+                ),
+                "chain_integrity" => (
+                    "The rolling BLAKE3 chain hash does not match the stored value. The receipt has been tampered with or the events were reordered.",
+                    "Do not modify receipt files after assembly. Re-run `affi emit` and `affi assemble` to produce a fresh receipt. Use `affi fix` to quarantine the tampered file.",
+                ),
+                "continuity" => (
+                    "The seq numbers are not contiguous from 0, or event IDs are duplicated.",
+                    "Re-emit all events in order. Each `affi emit` increments seq by 1. Do not manually edit event IDs.",
+                ),
+                "verify_commitments" => (
+                    "One or more event commitment fields are not valid BLAKE3 digests (64 hex characters).",
+                    "Commitment is blake3(payload). Re-emit the event with the original payload; do not edit the commitment field directly.",
+                ),
+                "evaluate_profile" => (
+                    "One or more events are missing required fields for the core/v1 profile (event_type or commitment).",
+                    "Ensure every emitted event includes --type and --payload. Re-assemble after fixing the working receipt.",
+                ),
+                _ => (
+                    "An unexpected stage failed.",
+                    "Run `affi inspect <receipt>` for detailed stage output, then `affi diagnose <receipt>` for LSP-shaped diagnostics.",
+                ),
+            };
+            serde_json::json!({
+                "stage": o.stage,
+                "detail": o.detail,
+                "cause": cause,
+                "fix": fix,
+            })
+        })
+        .collect();
+
+    if format.as_deref() == Some("json") {
+        println!("{}", adapt(serde_json::to_string_pretty(&serde_json::json!({
+            "verdict": "REJECT",
+            "reason": verdict.reason,
+            "failing_stages": explanations,
+        })).map_err(anyhow::Error::from))?);
+        return Ok(());
+    }
+
+    println!("receipt {receipt}: REJECT — {}", verdict.reason);
+    println!();
+    for entry in &explanations {
+        let stage = entry["stage"].as_str().unwrap_or("?");
+        let cause = entry["cause"].as_str().unwrap_or("");
+        let fix   = entry["fix"].as_str().unwrap_or("");
+        println!("STAGE FAILED: {stage}");
+        println!("  Why:  {cause}");
+        println!("  Fix:  {fix}");
+        println!();
+    }
+    Ok(())
+}
+
 /// `affi receipt diagnose` — render verify outcomes as LSP-shaped diagnostics.
 pub fn diagnose(receipt: String) -> Result<()> {
     let (_code, verdict) = adapt(crate::cli::verify(&receipt))?;
@@ -4055,7 +4137,7 @@ fn check_receipt_store(path: &str) -> Vec<DoctorFinding> {
 }
 
 /// `affi doctor` — run environment and receipt-store health checks.
-pub fn doctor(receipts: Option<String>) -> Result<()> {
+pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
     let mut findings: Vec<DoctorFinding> = Vec::new();
 
     // Check 1: genesis seed version is coherent with the binary
@@ -4069,6 +4151,18 @@ pub fn doctor(receipts: Option<String>) -> Result<()> {
         findings.extend(check_receipt_store(path));
     }
 
+    // Apply safe automatic remediations if --fix was requested.
+    if fix {
+        let fixes_applied = apply_doctor_fixes(&findings);
+        if fixes_applied > 0 {
+            println!("doctor --fix: applied {fixes_applied} remediation(s). Re-running checks…");
+            println!();
+        } else {
+            println!("doctor --fix: no auto-fixable issues found.");
+            println!();
+        }
+    }
+
     let mut all_ok = true;
     for finding in &findings {
         let status_char = match finding.status {
@@ -4076,23 +4170,64 @@ pub fn doctor(receipts: Option<String>) -> Result<()> {
             CheckStatus::Warn => "warn",
             CheckStatus::Fail => "FAIL",
         };
-        println!("[{status_char}] {}: {}", finding.check, finding.message);
-        if let Some(ref remediation) = finding.remediation {
-            println!("       -> {remediation}");
+        let fix_tag = if fix && finding.auto_fixable { " [fixed]" } else { "" };
+        println!("[{status_char}]{fix_tag} {}: {}", finding.check, finding.message);
+        if !fix || !finding.auto_fixable {
+            if let Some(ref remediation) = finding.remediation {
+                println!("       -> {remediation}");
+            }
         }
-        if finding.status == CheckStatus::Fail {
+        if finding.status == CheckStatus::Fail && !(fix && finding.auto_fixable) {
             all_ok = false;
         }
     }
 
     if !all_ok {
-        eprintln!("
-One or more checks FAILED. Run 'affi doctor --fix' to apply safe automatic remediations.");
+        eprintln!("\nOne or more checks FAILED. Run 'affi doctor --fix' to apply safe automatic remediations.");
         // B6: doctor failure is a distinct condition; use exit_codes::IO_ERROR (4)
         // because the failures detected are environment/I/O problems, not REJECT verdicts.
         std::process::exit(crate::diag::exit_codes::IO_ERROR);
     }
     Ok(())
+}
+
+/// Apply all auto-fixable remediations and return the count applied.
+fn apply_doctor_fixes(findings: &[DoctorFinding]) -> usize {
+    let mut applied = 0usize;
+    for f in findings {
+        if !f.auto_fixable { continue; }
+        match f.check.as_str() {
+            "receipt-store" => {
+                // Auto-fixable: create the missing directory.
+                if let Some(ref remediation) = f.remediation {
+                    // Extract path from "Create the directory: mkdir -p <path>"
+                    if let Some(path) = remediation.strip_prefix("Create the directory: mkdir -p ") {
+                        if std::fs::create_dir_all(path).is_ok() {
+                            println!("  [fix] created directory: {path}");
+                            applied += 1;
+                        }
+                    }
+                }
+            }
+            "working-stale" => {
+                // Auto-fixable: archive stale working.json.
+                let src = std::path::Path::new(".affi/working.json");
+                if src.exists() {
+                    let ts = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let dst = format!(".affi/working.archived.{ts}.json");
+                    if std::fs::rename(src, &dst).is_ok() {
+                        println!("  [fix] archived stale working.json to {dst}");
+                        applied += 1;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    applied
 }
 
 #[cfg(test)]
