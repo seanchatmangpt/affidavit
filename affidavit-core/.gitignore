@@ -1,0 +1,3 @@
+/target
+# Library crate: don't commit the (zero-dependency) lockfile.
+/Cargo.lock
