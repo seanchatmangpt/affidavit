@@ -2,75 +2,83 @@
 #
 # session-start.sh — Claude Code on the web SessionStart hook for affidavit.
 #
-# WHAT THIS SETS UP (and WHY only this)
-# -------------------------------------
-# A lone checkout of this repo has exactly two things that can be set up and
-# checked, and one big thing that CANNOT — this hook is honest about all three:
+# DESIGN: async + cache-aware ("phase shift" to instant session start)
+# --------------------------------------------------------------------
+# Best practices applied (see https://code.claude.com/docs/en/claude-code-on-the-web):
 #
-#   WORKS  ok  Rust formatting gate:  `cargo fmt --all -- --check`
-#              rustfmt only parses affidavit's own source; it never compiles the
-#              dependency graph, so it works with zero external crates. This is
-#              the repo's real CI gate (.github/workflows/rust.yml).
+#  * ASYNC: the first stdout line is the control JSON `{"async": true, ...}`, so
+#    the session becomes usable IMMEDIATELY while setup warms in the background,
+#    instead of blocking on it. (Revert to synchronous by deleting that one echo.)
+#  * CACHE-AWARE / IDEMPOTENT: on a warm container (the common case — containers
+#    cache for ~days) the body is a sub-second no-op, so the async race window is
+#    effectively zero. Work is only done on a cold start or when inputs changed.
+#  * REMOTE-ONLY: guarded on CLAUDE_CODE_REMOTE so it is a no-op locally.
+#  * READINESS MARKER: writes .claude/.session-ready on completion. On a *cold*
+#    start, a web command (npx tsc / npm run build) could in principle run before
+#    the background npm install finishes; if so, either wait for that marker or
+#    just re-run `npm install` (it is idempotent — that is the documented fallback).
 #
-#   WORKS  ok  Web app (self-contained Next.js, Node 22):
-#              `npm install`, then `npx tsc --noEmit` / `npm run build`.
+# Trade-off (documented): async trades a tiny cold-start race risk for instant
+# startup. The matcher in settings.json limits this hook to `startup|resume`, so
+# it never re-runs on /clear or /compact.
 #
-#   BROKEN no  `cargo build` / `cargo test` / `cargo clippy`:
-#              affidavit hard-depends on the published crate `wasm4pm-compat`
-#              (=26.6.13 from crates.io), and THAT crate does not compile under
-#              current Rust nightly (~550 errors). No amount of environment
-#              setup makes `cargo build`/`test`/`clippy` succeed here, so this
-#              hook deliberately does NOT run them — doing so would only make
-#              session start fail. (Note: the older "missing sibling path-crate"
-#              explanation in CONTRIBUTING.md / the CI workflow is stale; the
-#              deps now resolve from crates.io — the blocker is the broken
-#              upstream crate above.)
-#
-# So the hook does the minimum that genuinely helps:
-#   1. ensure the nightly rustfmt + clippy components are present (the fmt gate)
-#   2. install the web/ dependencies (`npm install` — cached in the container)
-#
-# Properties: synchronous, idempotent, non-interactive, safe to re-run.
+# WHAT IT SETS UP (and the one thing it deliberately does NOT):
+#  1. nightly rustfmt + clippy components — the gate `cargo fmt --all -- --check`.
+#  2. web/ dependencies (`npm install`, cache-aware).
+#  NOT cargo build/test/clippy: affidavit hard-depends on wasm4pm-compat 26.6.13,
+#  which does not compile under current nightly (~550 errors). Running them would
+#  only make startup fail. See AGENTS.md.
 
-set -euo pipefail
+set -uo pipefail
 
-# Only do real work in the remote (Claude Code on the web) environment. Locally
-# you already manage your own toolchains; running this there would just be noise.
+# --- 0. async control line (MUST be the very first stdout line) -------------
+# 600000 ms = 10 min ceiling for the background task (generous for a cold
+# `npm install` + component fetch). All human-readable logs below go to stderr
+# so stdout carries only this control JSON.
+echo '{"async": true, "asyncTimeout": 600000}'
+
+# --- 1. remote-only guard ---------------------------------------------------
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
-  echo "session-start: not a remote session (CLAUDE_CODE_REMOTE != true) — skipping."
+  echo "session-start: not a remote session (CLAUDE_CODE_REMOTE != true) — skipping." >&2
   exit 0
 fi
 
-# Resolve the repo root: prefer the harness-provided var, fall back to this
-# script's location so the hook also works when invoked directly for testing.
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+MARKER="$REPO_ROOT/.claude/.session-ready"
+rm -f "$MARKER" 2>/dev/null || true
 
-say() { printf '\n\033[1;34m==> session-start:\033[0m %s\n' "$*"; }
+log() { printf '\n\033[1;34m==> session-start:\033[0m %s\n' "$*" >&2; }
 
-# --- 1. Rust formatting toolchain (the real, working gate) -----------------
-# rust-toolchain.toml pins the nightly channel with rustfmt + clippy, so cargo
-# selects nightly automatically inside this repo. Add the components explicitly
-# anyway: it is a no-op when they are already installed, and it guarantees
-# `cargo fmt --all -- --check` is available.
+# --- 2. Rust formatting toolchain (idempotent; skip if already present) ------
 if command -v rustup >/dev/null 2>&1; then
-  say "Ensuring nightly rustfmt + clippy components"
-  rustup component add --toolchain nightly rustfmt clippy
+  if rustup component list --toolchain nightly --installed 2>/dev/null | grep -q '^rustfmt'; then
+    log "nightly rustfmt + clippy already present — skipping"
+  else
+    log "adding nightly rustfmt + clippy components"
+    rustup component add --toolchain nightly rustfmt clippy >&2 \
+      || log "component add failed (cargo fmt may be unavailable)"
+  fi
 else
-  say "rustup not found — skipping component install (cargo fmt may be unavailable)"
+  log "rustup not found — skipping component install"
 fi
 
-# --- 2. Web app dependencies (self-contained, always installable) ----------
-# Prefer `npm install` over `npm ci`: it reuses the container's cached
-# node_modules across sessions, which is the faster path here.
-if [ -d "$REPO_ROOT/web" ]; then
-  say "Installing web/ dependencies (npm install)"
-  ( cd "$REPO_ROOT/web" && npm install )
+# --- 3. Web deps — cache-aware: install only when missing or lockfile changed -
+WEB="$REPO_ROOT/web"
+if [ -d "$WEB" ]; then
+  if [ ! -d "$WEB/node_modules" ] \
+     || [ "$WEB/package-lock.json" -nt "$WEB/node_modules/.package-lock.json" ]; then
+    log "installing web/ dependencies (npm install)"
+    ( cd "$WEB" && npm install ) >&2 || log "npm install failed"
+  else
+    log "web/ dependencies already current — skipping npm install"
+  fi
 else
-  say "no web/ directory found — skipping npm install"
+  log "no web/ directory found — skipping npm install"
 fi
 
-say "ready. Working gates:"
-say "  Rust : cargo fmt --all -- --check        (formatting — the CI gate)"
-say "  Web  : cd web && npx tsc --noEmit         (type-check)"
-say "Note: cargo build/test/clippy are NOT runnable in a lone checkout"
-say "      (broken upstream crate wasm4pm-compat 26.6.13)."
+# --- 4. readiness marker ----------------------------------------------------
+{ date -u +"%Y-%m-%dT%H:%M:%SZ" >"$MARKER"; } 2>/dev/null || : >"$MARKER" 2>/dev/null || true
+log "ready (marker: .claude/.session-ready)."
+log "  Rust : cargo fmt --all -- --check     (the CI gate)"
+log "  Web  : cd web && npx tsc --noEmit      (type-check)"
+exit 0

@@ -68,14 +68,24 @@ Net-new, self-contained work belongs in `affidavit-core/`, `web/`, or
 ## SessionStart hook (Claude Code on the web)
 
 `.claude/hooks/session-start.sh` runs automatically at the start of remote
-(web) sessions. It is synchronous, idempotent, and remote-only
+(web) sessions (matcher `startup|resume`, so it does **not** re-run on `/clear`
+or `compact`). It is **async, cache-aware, idempotent, and remote-only**
 (`CLAUDE_CODE_REMOTE`). It:
 
-1. ensures the nightly `rustfmt` + `clippy` components, and
-2. runs `npm install` in `web/`.
+1. ensures the nightly `rustfmt` + `clippy` components (skipped if present), and
+2. runs `npm install` in `web/` (skipped if `node_modules` is current).
 
 It deliberately does **not** run `cargo build/test/clippy` (they can't pass — see
 #1). If you need the toolchain set up locally, run `bash scripts/bootstrap.sh`.
+
+**Async note for agents:** because the hook is async, the session starts
+immediately while setup warms in the background. On a *warm* container both steps
+above are sub-second no-ops, so there is effectively no race. On a *cold* first
+session, the background `npm install` may still be running — so if a `web/`
+command (`npx tsc`, `npm run build`) fails with missing deps, either wait for the
+`.claude/.session-ready` marker the hook writes on completion, or just re-run
+`npm install` (it's idempotent — the documented fallback). Rust work
+(`cargo fmt`) is unaffected (rustfmt/clippy are preinstalled here).
 
 ---
 
