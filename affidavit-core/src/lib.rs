@@ -65,12 +65,18 @@ pub mod chain;
 pub mod digest;
 pub mod verifier;
 
+#[cfg(feature = "alloc")]
+pub mod mining;
+
 pub use chain::{compute_chain_hash, Event, PROFILE};
 pub use digest::{ChainHasher, Digest, Fnv256};
 pub use verifier::{verify, RejectReason, Verdict};
 
 #[cfg(feature = "alloc")]
 pub use chain::{ChainBuilder, OwnedEvent, Receipt};
+
+#[cfg(feature = "alloc")]
+pub use mining::{DirectlyFollowsGraph, Trace};
 
 // ---------------------------------------------------------------------------
 // Tests (run under std; the lib itself is no_std in non-test builds).

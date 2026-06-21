@@ -74,6 +74,64 @@ Per-link rolling fold: `acc₀ = H(DOMAIN)`, then `accᵢ = H(accᵢ₋₁ ‖ e
 with each event's fields length-prefixed so field boundaries can't alias. Any
 edit to any event propagates through every later link.
 
+## Process mining (van der Aalst)
+
+A receipt chain **is an event log**: each event's `event_type` is an *activity*
+and `seq` gives the order, so one receipt is one *trace*. The `affidavit_core::mining`
+module (behind the default `alloc` feature) puts the foundational process-mining
+lens of Wil van der Aalst's lineage onto that log: **directly-follows graphs** for
+discovery, the **α-algorithm footprint** for control-flow relations, and
+**conformance checking** by **token replay**. It holds the crate's discipline —
+zero dependencies, no `unsafe` — and is deterministic throughout (`BTree`-backed),
+so a discovered model is reproducible.
+
+| Piece | What it gives you |
+|---|---|
+| **`Trace`** | A receipt's activity sequence. `Trace::from_events(&[Event])` projects a chain; `Trace::from_activities(&["a","b","c"])` builds one directly. |
+| **`DirectlyFollowsGraph`** (discovery) | `DirectlyFollowsGraph::discover(&[Trace])` builds the directly-follows relation: `.directly_follows(a,b) -> u64`, `.follows(a,b) -> bool`, `start`/`end` activity multisets, and `.activity_list()`. |
+| **`footprint::Footprint`** (α-algorithm) | `Footprint::from_dfg(&dfg)`, then `.relation(a,b) -> AlphaRelation` — one of `Causality` (a→b), `ReverseCausality` (a←b), `Parallel` (a‖b), or `Choice` (a#b). |
+| **`conformance::replay`** (token replay) | `replay(&model, &trace) -> ConformanceResult` with `.fitness() -> f64`, `.is_conformant() -> bool`, `.verdict() -> ConformanceVerdict` (`Conformant`/`NonConformant`), and `first_violation: Option<usize>`. A move is legal iff it's a directly-follows edge in the model; the first activity must be a model start and the last a model end. |
+| **`stats::LogStatistics`** | `LogStatistics::from_traces(&[Trace])`: `event_count`, `trace_count`, `activity_frequency`, `variants`, plus `.distinct_activities()`, `.distinct_variants()`, `.most_frequent_variant()`. |
+
+```rust
+use affidavit_core::mining::{Trace, DirectlyFollowsGraph};
+use affidavit_core::mining::footprint::{Footprint, AlphaRelation};
+use affidavit_core::mining::conformance::{replay, ConformanceVerdict};
+
+// Two traces over the same activities — `build → test → deploy`.
+let traces = [
+    Trace::from_activities(&["build", "test", "deploy"]),
+    Trace::from_activities(&["build", "test", "deploy"]),
+];
+
+// Discover a model: the directly-follows graph.
+let model = DirectlyFollowsGraph::discover(&traces);
+assert_eq!(model.directly_follows("build", "test"), 2);
+assert!(model.follows("test", "deploy"));
+
+// Read an α-relation off the footprint.
+let footprint = Footprint::from_dfg(&model);
+assert_eq!(footprint.relation("build", "test"), AlphaRelation::Causality);
+
+// A conforming trace replays fully (fitness 1.0).
+let ok = replay(&model, &Trace::from_activities(&["build", "test", "deploy"]));
+assert_eq!(ok.verdict(), ConformanceVerdict::Conformant);
+assert!(ok.is_conformant());
+
+// `build → deploy` is not a directly-follows edge in the model.
+let bad = replay(&model, &Trace::from_activities(&["build", "deploy"]));
+assert_eq!(bad.verdict(), ConformanceVerdict::NonConformant);
+assert_eq!(bad.first_violation, Some(0));
+```
+
+*Certify, don't decide* holds here too: conformance **certifies** a trace against
+a discovered model — it does not judge whether the recorded work was honest.
+
+This is classic control-flow mining. **Object-centric** event logs (OCEL — also
+van der Aalst's lineage) are a natural next extension once events carry object
+references, lifting traces from one sequence-per-receipt to activities shared
+across multiple objects.
+
 ## Features
 
 - `alloc` (default) — enables the owned `ChainBuilder` / `Receipt`. Turn it off
