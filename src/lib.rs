@@ -23,24 +23,39 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust
-//! use affidavit::{Receipt, Verdict, ProfileId};
+//! ```no_run
 //! use affidavit::chain::ChainAssembler;
+//! use affidavit::types::Event;
 //!
-//! // Assemble a receipt (simplified example)
-//! // let mut assembler = ChainAssembler::new();
-//! // ... append events ...
-//! // let receipt = assembler.finalize();
+//! // Build a receipt by appending events
+//! let mut assembler = ChainAssembler::new();
+//! let event = Event::new("build", vec!["repo:main"], b"payload data");
+//! assembler.append(event)?;
 //!
-//! // Verify a receipt
-//! // let verdict = affidavit::verifier::verify(&receipt, ProfileId::CoreV1);
-//! // assert!(verdict.accepted);
+//! // Finalize the receipt (produces an immutable, sealed chain)
+//! let receipt = assembler.finalize()?;
+//!
+//! // Verify the receipt against the core standard
+//! let verdict = affidavit::verifier::verify(&receipt)?;
+//! assert!(verdict.accepted);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! ## Integrated Verticals
+//!
+//! **Quality & Monitoring:** Real-time statistical process control (Western Electric rules) via [`quality`].
+//!
+//! **SBOM & Supply Chain:** Software Bill of Materials generation, compliance checking (NTIA), and
+//! vulnerability aggregation via [`sbom`], [`sbom_compliance`], [`sbom_vulnerability`].
+//!
+//! **Object-Centric Event Logs:** OCEL integration and conversion via [`ocel`].
 //!
 //! ## Feature Flags
 //!
 //! *   `default`: Includes the core library and standard profiles.
-//! *   `gpu`: Enables the high-performance GPU-accelerated verifier.
+//! *   `discovery`: Enables type schema discovery and introspection.
+//! *   `lsp`: Exposes LSP diagnostics for receipt verification.
+//! *   `predictive`: Enables predictive analysis and trend forecasting.
 //!
 //! # Errors
 //!

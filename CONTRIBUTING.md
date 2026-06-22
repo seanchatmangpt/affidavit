@@ -10,7 +10,7 @@ Read this alongside:
 - [`README.md`](README.md) — what the project is and the CLI surface.
 - [`STATUS.md`](STATUS.md) — current implementation status and the admission
   criterion applied per session.
-- [`ARDPRD.md`](ARDPRD.md) — the product/architecture requirements and the
+- [`ARDPRD.md`](docs/archive/ARDPRD.md) — the product/architecture requirements and the
   ADRs (the *why* behind the seal, the typestate, and the witnesses).
 
 ---

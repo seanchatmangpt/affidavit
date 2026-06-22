@@ -2,7 +2,7 @@
 
 **The Provenance Layer for High-Assurance Systems.**
 
-[![Rust](https://img.shields.io/badge/rust-1.56%2B-blue.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.78%2B-blue.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
 [![1000x Initiative](https://img.shields.io/badge/1000x-Initiative%20Complete-green.svg)](STATUS.md)
 
@@ -25,10 +25,10 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 
 `affidavit` has been supercharged with 30+ features focused on **Combinatorial Maximalism** and world-class DX:
 
-*   ⚡ **High-Performance:** Parallelized verification and optional GPU acceleration.
+*   ⚡ **High-Performance:** Parallelized verification across multi-core architectures.
 *   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts.
 *   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers.
-*   🤖 **Intelligent CLI:** Shell completion, telepathic QoL, and ontology-driven help.
+*   🤖 **Intelligent CLI:** 65+ canonical verbs, ontology-driven help, and powerful ad-hoc querying.
 
 ---
 
@@ -98,7 +98,7 @@ Affidavit v26.6.17 expanded the CLI ontology to encompass **59 canonical verbs**
 - `affi causality-chain` — Track root cause and event lineage.
 - `affi security-debt` — Calculate pending remediation metrics.
 
-*(For the complete list of all 59 capabilities, run `affi --help` or enter the interactive provenance REPL using `affi shell`)*
+**For the complete list of all 65+ verbs, run `affi --help` or explore the [command reference](CLAUDE.md#cli-surface).**
 
 ---
 

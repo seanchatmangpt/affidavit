@@ -129,20 +129,23 @@ flowchart TD
 | Path | Responsibility |
 | --- | --- |
 | `src/bin/affi.rs` | Binary entry point. |
-| `src/cli.rs` + `src/verbs/*` | clap noun-verb parsing and per-verb command implementations (`emit`, `assemble`, `verify`, `show`, plus DX/QOL verbs such as `inspect`, `stats`, `graph`, `diagnose`, `replay`, `model`, `conformance`). |
+| `src/cli.rs` + `src/verbs/*` | clap noun-verb parsing and 65+ command implementations across 9 verb families: core provenance, emit variants, assemble variants, verify variants, SBOM, quality/monitoring, audit/compliance, analysis, and developer tools. |
 | `src/ocel.rs` | OCEL event/object/relationship model and builders (`object_ref`, `parse_object_ref`, `build_event`). |
 | `src/chain.rs` | Receipt assembly: the rolling BLAKE3 chain hash (seeded by `GENESIS_SEED`), serialize/deserialize, persistence, and the sealing seam `ChainAssembler::finalize`. |
 | `src/verifier.rs` | The 7-stage certify pipeline. |
 | `src/types.rs` | Shared types: `OperationEvent`, `Receipt` (private `_seal`), `Verdict`, `CheckOutcome`, `ProfileId`, `Blake3Hash`. |
 | `src/admission.rs` | The `Raw → Admitted` gate; mints `Admitted` only after the certify pipeline returns ACCEPT. |
+| `src/quality.rs` + `src/quality_*.rs` | Western Electric statistical process control (SPC) monitoring; real-time anomaly detection and trend analysis. |
+| `src/sbom.rs` + `src/sbom_*.rs` | Software Bill of Materials (SBOM) generation, parsing, NTIA compliance checking, and vulnerability aggregation. |
 | `src/tracing.rs` | OpenTelemetry span emission wrapping `verify`. |
 | `src/lib.rs` | Module declarations and re-exports. |
 | `web/` | Next.js UI that renders real receipts, verdicts, and benchmarks (see [`../REPRESENTATION_MAP.md`](../REPRESENTATION_MAP.md)). |
 
-> Note: this map reflects the current tree, which has grown past the core
-> modules. Additional modules (`src/handlers.rs`, `src/discovery.rs`,
-> `src/lsp.rs`) support Phase 2 / integration work; see
-> [`../STATUS.md`](../STATUS.md) for what is wired versus planned.
+> Note: this map reflects the current tree after v26.6.17, which expanded
+> the core with quality (Western Electric), SBOM, and OCEL verticals.
+> Additional modules (`src/handlers.rs`, `src/discovery.rs`,
+> `src/lsp.rs`) support broader integration work; see
+> [`../STATUS.md`](../STATUS.md) for the implementation roadmap.
 
 ---
 

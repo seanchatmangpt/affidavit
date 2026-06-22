@@ -38,7 +38,11 @@ affidavit/
 │   ├── handlers.rs           # Event dispatch & routing
 │   ├── lsp.rs                # Language server integration
 │   ├── tracing.rs            # Observable spans & telemetry
-│   ├── verbs/                # Command implementations
+│   ├── quality.rs            # Western Electric SPC monitoring
+│   ├── sbom.rs               # SBOM generation & parsing
+│   ├── sbom_compliance.rs    # NTIA compliance checking
+│   ├── sbom_vulnerability.rs # Vulnerability aggregation & risk
+│   ├── verbs/                # Command implementations (65+ verbs)
 │   │   ├── emit.rs           # emit — record an event
 │   │   ├── assemble.rs       # assemble — finalize receipt
 │   │   ├── verify.rs         # verify — certify pipeline
@@ -160,90 +164,38 @@ The verifier maps 1:1 to a C4 Level-3 component view:
 
 ## CLI Surface
 
-### Commands (Noun-Verb Pattern)
+### 65+ Canonical Verbs
 
-```bash
-affi emit [OPTIONS]
-  --type <event_type>
-  --object <id:type[:qualifier]> ...
-  --payload <file|->`
-  [--working-dir <path>]
-  [--format {json,yaml}]
-```
-Append an operation-event to `.affi/working.json`.
+Affidavit v26.6.17 provides a comprehensive CLI organized into 9 primary verb families:
 
-```bash
-affi assemble [OPTIONS]
-  [--out <path>]
-  [--working-dir <path>]
-  [--format {json,yaml}]
-```
-Finalize the working receipt into an immutable file. Default name: content address (blake3 hash).
+**Core Provenance (11 verbs):**
+`emit`, `assemble`, `verify`, `show`, `inspect`, `diagnose`, `stats`, `graph`, `replay`, `model`, `conformance`
 
-```bash
-affi verify <RECEIPT_PATH> [OPTIONS]
-  [--format {json,yaml}]
-  [--profile <profile_name>]
-  [--strict]
-```
-Run the certify pipeline. Prints per-stage outcomes and verdict. Exit 0 on ACCEPT, non-zero on REJECT.
+**Emit Variants (8 verbs):**
+`emit-batch`, `emit-from-cicd`, `emit-from-cloud`, `emit-from-github`, `emit-from-gitlab`, `emit-from-monitoring`, `emit-from-sbom`, `emit-from-security`
 
-```bash
-affi show <RECEIPT_PATH> [OPTIONS]
-  [--format {json,yaml,tree}]
-  [--depth <N>]
-  [--color {auto,on,off}]
-```
-Human-readable dump of the chain with event details.
+**Assemble Variants (2 verbs):**
+`assemble-and-notarize`, `assemble-with-signature`
 
-```bash
-affi inspect <RECEIPT_PATH> [OPTIONS]
-  [--stage <stage_name>]
-  [--json]
-```
-Detailed inspection of receipt internals (chain hash, commitment verification, continuity checks).
+**Verify Variants (3 verbs):**
+`verify-compliance`, `verify-family`, `verify-sla`
 
-```bash
-affi diagnose <RECEIPT_PATH> [OPTIONS]
-  [--verbose]
-  [--suggest-fixes]
-```
-Troubleshoot verification failures. Suggests remediation steps.
+**SBOM & Supply Chain (5 verbs):**
+`sbom-scan`, `sbom-attest`, `sbom-blast-radius`, `sbom-compliance`, `sbom-ntia`
 
-```bash
-affi stats <RECEIPT_PATH> [OPTIONS]
-  [--format json]
-```
-Chain metrics: event count, chain depth, hash distribution, event type histogram.
+**Quality & Monitoring (6 verbs):**
+`monitor`, `portfolio-health`, `trend-analysis`, `variance`, `anomaly-detect`, `predict`
 
-```bash
-affi graph <RECEIPT_PATH> [OPTIONS]
-  [--output {dot,mermaid,json}]
-  [--include-payloads]
-```
-DAG visualization of event dependencies and object references.
+**Audit & Compliance (10 verbs):**
+`audit`, `attest`, `notarize`, `sign`, `gdpr-proof`, `hipaa`, `pci-dss`, `soc2-audit`, `license-compliance`, `policy-enforce`
 
-```bash
-affi replay <RECEIPT_PATH> [OPTIONS]
-  [--start-seq <N>]
-  [--end-seq <N>]
-  [--handler <handler_type>]
-```
-Re-execute chain from events, optionally applying handlers.
+**Analysis & Troubleshooting (14 verbs):**
+`causality-chain`, `dependency-matrix`, `security-debt`, `tech-debt`, `root-cause`, `explain-incident`, `find-blast-radius`, `bus-factor`, `orphaned-code`, `coverage-analysis`, `dora-metrics`, `team-velocity`, `find-slow-test`, `regression-analysis`
 
-```bash
-affi model <RECEIPT_PATH> [OPTIONS]
-  [--schema-version <version>]
-  [--export-types]
-```
-Extract type schema from receipt (event types, object types, qualifiers).
+**Developer Tools (6 verbs):**
+`doctor`, `diff`, `visualize`, `catalog`, `search`, `query`, `timeline`, `profile`, `receipt-throughput`, `install-git-hook`, `test`
 
-```bash
-affi conformance <RECEIPT_PATH> [OPTIONS]
-  [--profile <profile_name>]
-  [--rules-file <path>]
-```
-Check receipt against custom conformance rules.
+See `src/verbs/` for implementation details or run `affi --help` for full usage.
 
 ---
 
@@ -256,7 +208,7 @@ Check receipt against custom conformance rules.
 cargo build
 cargo run --bin affi -- emit --help
 
-# Run all tests (30 tests: 19 lib + 6 dispatch + 4 e2e + 1 ui)
+# Run all tests (211+ tests across unit, integration, property, and compliance suites)
 cargo test
 
 # Run with output
@@ -563,5 +515,5 @@ MIT OR Apache-2.0
 
 ---
 
-**Last Updated:** 2026-06-14  
+**Last Updated:** 2026-06-22  
 **Maintained by:** Sean Chatman (xpointsh@gmail.com)
