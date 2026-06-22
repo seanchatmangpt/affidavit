@@ -12,6 +12,20 @@ documentation = "https://docs.rs/affidavit"
 readme = "README.md"
 keywords = ["provenance", "receipt", "blake3", "verification", "ocel"]
 categories = ["security", "development-tools", "cryptography"]
+exclude = [
+  "thesis/",
+  "praxis/",
+  "tools/",
+  "web/",
+  "wip/",
+  "docs/",
+  "reference/",
+  "ontology/",
+  "nexus_reviews/",
+  "*.py",
+  ".claude/",
+  "scripts/",
+]
 
 [[bin]]
 name = "affi"

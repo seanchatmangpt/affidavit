@@ -38,7 +38,7 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 Ensure you have the latest stable Rust toolchain installed.
 
 ```bash
-git clone https://github.com/your-repo/affidavit
+git clone https://github.com/seanchatmangpt/affidavit
 cd affidavit
 cargo build --release --all-features
 ```
