@@ -11,5 +11,23 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(cargo fmt *)",
+      "Bash(cargo clippy *)",
+      "Bash(cargo test *)",
+      "Bash(cargo build *)",
+      "Bash(cargo doc *)",
+      "Bash(rustup component *)",
+      "Bash(npm install *)",
+      "Bash(npm ci *)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(python3 -m unittest *)",
+      "Bash(python3 tools/confevo/*)",
+      "Bash(bash scripts/check.sh *)",
+      "Bash(bash scripts/bootstrap.sh *)"
+    ]
   }
 }
