@@ -107,7 +107,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = tr
 
 # Phase 5: CLI Ergonomics & REPL
 rustyline = { version = "12", features = ["derive"], optional = true }
-shlex = { version = "1", optional = true }
+shlex = { version = "2", optional = true }
 tokio = { version = "1", features = ["full"], optional = true }
 colored = { version = "2", optional = true }
 indicatif = { version = "0.17", optional = true }
