@@ -6,13 +6,15 @@
 #   1. Sanity-check the toolchains (cargo, rustup nightly, node 22, npm).
 #   2. Install the web/ app dependencies (`npm ci`) — the reliably-installable
 #      part of this repo.
-#   3. Build the Rust crate ONLY if the sibling path-crates are present.
+#   3. Skip the Rust build with a clear explanation.
 #
-# HONEST NOTE: the `affidavit` crate depends on FIVE sibling path-crates
-# (../clap-noun-verb, ../wasm4pm, ../wasm4pm-compat, ../lsp-max, ../clnrm) and
-# ../chicago-tdd-tools (dev-dep). A bare checkout WITHOUT those siblings cannot
-# `cargo build`. This script detects their absence and skips the Rust build
-# with a clear explanation instead of failing noisily.
+# HONEST NOTE: the sibling crates (clap-noun-verb, wasm4pm, wasm4pm-compat,
+# lsp-max, clnrm) ARE published on crates.io and DO resolve via `cargo fetch`.
+# The real blocker is that `wasm4pm-compat` version 26.6.13 does not compile
+# under current Rust nightly — approximately 550 compiler errors (E0432
+# unresolved imports of internal types) in the upstream crate itself.
+# `cargo build` / `cargo test` / `cargo clippy` all fail because of this
+# broken upstream crate, not because of missing local directories.
 #
 # Usage:  bash scripts/bootstrap.sh   (or ./scripts/bootstrap.sh)
 set -euo pipefail
@@ -59,30 +61,14 @@ say "Installing web/ dependencies (npm ci)"
 ( cd "$REPO_ROOT/web" && npm ci )
 ok "web/ dependencies installed"
 
-# --- 3. Rust build, only if siblings are present --------------------------
-say "Checking for sibling path-crates required by Cargo.toml"
-SIBLINGS=(clap-noun-verb wasm4pm wasm4pm-compat lsp-max clnrm chicago-tdd-tools)
-missing=()
-for s in "${SIBLINGS[@]}"; do
-  if [ ! -d "$REPO_ROOT/../$s" ]; then
-    missing+=("../$s")
-  fi
-done
-
-# The presence of ../clap-noun-verb is the canonical signal that we are inside
-# the full sibling workspace; gate the cargo build on it (and report any others).
-if [ -d "$REPO_ROOT/../clap-noun-verb" ] && [ "${#missing[@]}" -eq 0 ]; then
-  say "Sibling workspace detected — building the Rust crate (cargo build)"
-  ( cd "$REPO_ROOT" && cargo build )
-  ok "cargo build succeeded"
-else
-  warn "Skipping 'cargo build': missing sibling path-crate(s): ${missing[*]:-<none listed>}"
-  warn "The affidavit crate is NOT buildable as a lone checkout — it requires the"
-  warn "full sibling workspace (../clap-noun-verb, ../wasm4pm, ../wasm4pm-compat,"
-  warn "../lsp-max, ../clnrm, ../chicago-tdd-tools) next to this repo."
-  warn "The web/ app above is fully self-contained and is ready to use."
-fi
+# --- 3. Rust build (skipped) -----------------------------------------------
+say "Skipping 'cargo build'"
+warn "wasm4pm-compat 26.6.13 (from crates.io) does not compile under current"
+warn "Rust nightly — ~550 E0432 errors in the upstream crate itself. This is"
+warn "an upstream breakage, not a missing-directory problem. cargo build / test"
+warn "/ clippy will fail until wasm4pm-compat publishes a nightly-compatible"
+warn "release. The web/ app above is fully self-contained and is ready to use."
 
 say "Bootstrap complete"
 ok  "web:   cd web && npm run dev   (or: scripts/web-dev.sh)"
-ok  "rust:  available only inside the full sibling workspace"
+ok  "rust:  blocked on wasm4pm-compat 26.6.13 upstream nightly incompatibility"
