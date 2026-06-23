@@ -1,0 +1,33 @@
+[package]
+name = "confevo"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+description = "Zero-dependency genetic optimizer for Cargo feature-flag configurations: reads any crate's [features] table and evolves a configuration that builds."
+license = "MIT OR Apache-2.0"
+authors = ["Sean Chatman <xpointsh@gmail.com>"]
+repository = "https://github.com/seanchatmangpt/affidavit"
+keywords = ["cargo", "features", "genetic-algorithm", "configuration", "optimization"]
+categories = ["development-tools", "command-line-utilities"]
+readme = "README.md"
+
+[lib]
+name = "confevo"
+path = "src/lib.rs"
+
+[[bin]]
+name = "confevo"
+path = "src/bin/confevo.rs"
+
+[features]
+default = []
+
+# NOTE: there is intentionally no [dependencies] section. Like the sibling
+# `affidavit-core` crate, confevo carries ZERO supply-chain surface so it builds
+# green even though the root `affidavit` crate cannot (its build is blocked by
+# wasm4pm-compat 26.6.13). A tool whose job is to MAP a broken feature space must
+# itself be immune to that breakage.
+
+# Standalone workspace root: isolates this crate from any ancestor directory so
+# it builds and tests even though the sibling `affidavit` crate cannot.
+[workspace]
