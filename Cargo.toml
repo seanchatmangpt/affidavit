@@ -125,7 +125,7 @@ rand = { version = "0.8", optional = true }
 # GPU Acceleration (1000X)
 wgpu = { version = "0.19", optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
-pollster = { version = "0.3", optional = true }
+pollster = { version = "0.4", optional = true }
 
 # 1000X Innovation Hardening
 syn = { version = "2", features = ["full", "visit", "extra-traits", "parsing"], optional = true }
