@@ -1,34 +1,48 @@
-# rust.yml — Rust checks that are HONEST about this repo's build situation.
+# rust.yml — checks for the root `affidavit` crate.
 #
-# DESIGN / WHY THIS WORKFLOW LOOKS UNUSUAL
-# ----------------------------------------
-# All of affidavit's dependencies (including clap-noun-verb, wasm4pm-compat,
-# lsp-max, clnrm-core, etc.) ARE published on crates.io and DO resolve via
-# `cargo fetch` in a standalone checkout of this repo. There is no missing
-# sibling-workspace problem.
+# The root crate cannot be built in CI: it depends on wasm4pm-compat 26.6.13
+# (crates.io), which does NOT compile under current Rust nightly (~550 upstream
+# E0432 errors). That is an upstream breakage, not a defect in this repo's
+# source, and "fixing" it is out of scope. See AGENTS.md.
 #
-# The actual blocker is that `wasm4pm-compat` version 26.6.13 (from crates.io)
-# does NOT compile under current Rust nightly: the upstream crate itself
-# produces approximately 550 compiler errors (E0432 unresolved imports of
-# internal types). Until a fixed version is published, `cargo build` /
-# `cargo test` / `cargo clippy` CANNOT succeed here. We do NOT pretend
-# otherwise.
+# This repo's ethos: a green that is true whether or not the work happened
+# carries no information. So the jobs below are deliberately split by honesty:
 #
-# What CAN run regardless of the broken upstream dep is `cargo fmt --check`:
-# rustfmt only parses source, it never compiles the dependency graph. So:
-#   * The `fmt` job is a REAL, BLOCKING gate — the workflow's success hinges
-#     ONLY on it.
-#   * The `build-and-test` job attempts a real build/test for signal, but is
-#     marked `continue-on-error: true` so a (fully expected) failure from the
-#     broken upstream crate never reports the workflow as broken.
+#   * `fmt` is the REAL, BLOCKING gate. rustfmt only parses source — it never
+#     resolves the dependency graph — so it passes/fails purely on the merits of
+#     the committed code. (It previously carried `continue-on-error: true`, which
+#     silently neutered the one gate that means something here. That is removed.)
+#   * `build-and-test` attempts a real build for diagnostic signal but stays
+#     `continue-on-error: true`: its (fully expected) failure must never gate.
 #
-# This follows the repo's ethos: a green that is true whether or not the work
-# happened carries no information. fmt is a green that means something here.
+# The standalone `affidavit-core/` crate DOES build and test cleanly — its real
+# gate lives in affidavit-core.yml, not here. `cargo fmt --all` from the root
+# only covers the root crate (affidavit-core is not a workspace member).
 name: rust
 
 on:
   push:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "benches/**"
+      - "examples/**"
+      - "build.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/rust.yml"
   pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "benches/**"
+      - "examples/**"
+      - "build.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/rust.yml"
 
 concurrency:
   group: rust-${{ github.workflow }}-${{ github.ref }}
@@ -40,33 +54,28 @@ permissions:
 jobs:
   # ---------------------------------------------------------------------------
   # REAL GATE: formatting needs no dependencies, so this genuinely passes/fails
-  # on the merits of the committed source. This is what the workflow's overall
-  # status reflects.
+  # on the merits of the committed source. No continue-on-error — it blocks.
   # ---------------------------------------------------------------------------
   fmt:
     name: rustfmt (cargo fmt --check)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install stable Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install nightly Rust with rustfmt
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
 
-      - name: Install nightly for rustfmt
-        run: |
-          rustup install nightly
-          rustup component add rustfmt --toolchain nightly
-
-      - name: Run rustfmt check
-        run: cargo +nightly fmt --all -- --check
+      - name: cargo fmt --all --check
+        run: cargo fmt --all -- --check
 
   # ---------------------------------------------------------------------------
-  # NON-BLOCKING (continue-on-error): wasm4pm-compat 26.6.13 from crates.io
-  # does not compile under current nightly (~550 upstream errors). Kept for
-  # signal/diagnostics only; it is EXPECTED to fail here and must never gate a
-  # merge. Clippy lives here too because it likewise needs a clean build graph.
+  # NON-BLOCKING (continue-on-error): wasm4pm-compat 26.6.13 from crates.io does
+  # not compile under current nightly (~550 upstream errors). Kept for signal /
+  # diagnostics only; it is EXPECTED to fail and must never gate a merge. Clippy
+  # lives here too because it likewise needs a clean build graph.
   # ---------------------------------------------------------------------------
   build-and-test:
     name: build-and-test (non-blocking, broken upstream dep)
@@ -76,7 +85,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install nightly toolchain (clippy)
+      - name: Install nightly toolchain with clippy
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy
@@ -88,18 +97,15 @@ jobs:
         run: |
           echo "::warning title=Non-blocking by design::wasm4pm-compat 26.6.13 from crates.io does not compile under current nightly."
           echo "------------------------------------------------------------------"
-          echo "All of affidavit's dependencies resolve fine from crates.io —"
-          echo "there is no missing sibling-workspace issue."
+          echo "All of affidavit's dependencies resolve fine from crates.io — there"
+          echo "is no missing sibling-workspace issue. The build fails because"
+          echo "wasm4pm-compat 26.6.13 (the version on crates.io) itself does not"
+          echo "compile under current Rust nightly: ~550 E0432 errors (unresolved"
+          echo "imports of internal types) inside the upstream crate. This is an"
+          echo "upstream breakage, not a problem with affidavit's own source."
           echo ""
-          echo "The build fails because wasm4pm-compat 26.6.13 (the version"
-          echo "published on crates.io) itself does not compile under current"
-          echo "Rust nightly: approximately 550 E0432 errors (unresolved imports"
-          echo "of internal types inside the upstream crate). This is an upstream"
-          echo "breakage, not a problem with affidavit's own source."
-          echo ""
-          echo "The steps below are run for signal only and this whole job is"
-          echo "marked continue-on-error: true. Formatting is the real gate"
-          echo "(see the 'fmt' job)."
+          echo "The steps below run for signal only; the whole job is"
+          echo "continue-on-error: true. Formatting (the fmt job) is the real gate."
           echo "------------------------------------------------------------------"
 
       - name: cargo build (expected to fail, broken upstream wasm4pm-compat)

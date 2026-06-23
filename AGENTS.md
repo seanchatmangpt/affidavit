@@ -44,6 +44,13 @@ the real blocker is the broken upstream crate above.
 **If your change is in one of the ✅ areas, run that area's full check before you
 push.** Don't gate your work on the root crate compiling — it won't.
 
+**CI now mirrors this matrix.** Each ✅ area has its own workflow that runs
+exactly these checks and **blocks** on them (`affidavit-core.yml`, `web.yml`,
+`confevo.yml`); the root crate's `rust.yml` blocks only on `cargo fmt` (its
+build is non-blocking by design — the broken upstream dep). A green check
+therefore means the area's real checks actually passed, not that they were
+skipped.
+
 ---
 
 ## Where to work (project map)
@@ -57,7 +64,11 @@ affidavit/
 ├── tools/confevo/        ✅ Python (stdlib-only) genetic Cargo-feature optimizer; has README
 ├── scripts/              bootstrap.sh / check.sh — local setup & the working checks
 ├── .claude/              SessionStart hook + settings (see below); session-local state ignored
-└── .github/workflows/    rust.yml (fmt is the real gate) + web.yml
+└── .github/workflows/    per-area CI; each workflow gates only its own area:
+                          • rust.yml           root-crate fmt (real gate) + non-blocking build
+                          • affidavit-core.yml test + clippy + no_std build + fmt
+                          • web.yml            tsc --noEmit + next build
+                          • confevo.yml        python unittest + dry-run
 ```
 
 Net-new, self-contained work belongs in `affidavit-core/`, `web/`, or
