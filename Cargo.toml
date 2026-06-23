@@ -93,7 +93,7 @@ quickcheck = { version = "1", optional = true }
 uuid = { version = "1", features = ["v4", "serde"], optional = true }
 
 # Phase 4: Observability (OTel Stack)
-opentelemetry = { version = "0.20", features = ["trace", "metrics"], optional = true }
+opentelemetry = { version = "0.32", features = ["trace", "metrics"], optional = true }
 opentelemetry-jaeger = { version = "0.19", optional = true }
 opentelemetry-prometheus = { version = "0.13", optional = true }
 prometheus = { version = "0.13", optional = true }
