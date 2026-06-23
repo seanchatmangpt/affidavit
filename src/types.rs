@@ -382,7 +382,7 @@ pub struct StatsOutput {
 /// # Examples
 ///
 /// ```rust
-/// use affidavit::QualityMetricValue;
+/// use affidavit::types::QualityMetricValue;
 /// let metric = QualityMetricValue {
 ///     value: 0.92,
 ///     description: "Proportion of code covered by tests".to_string(),
@@ -405,7 +405,7 @@ pub struct QualityMetricValue {
 /// # Examples
 ///
 /// ```rust
-/// use affidavit::{QualityMeasurement, QualityMetricValue};
+/// use affidavit::types::{QualityMeasurement, QualityMetricValue};
 /// let measurement = QualityMeasurement {
 ///     timestamp: 1718641799,
 ///     stubs: QualityMetricValue {
@@ -491,7 +491,7 @@ pub struct QualityMeasurement {
 /// # Examples
 ///
 /// ```rust
-/// use affidavit::QualityViolationEvent;
+/// use affidavit::types::QualityViolationEvent;
 /// let violation = QualityViolationEvent {
 ///     rule: "Rule 1: beyond 1-sigma".to_string(),
 ///     metric: "test_coverage".to_string(),

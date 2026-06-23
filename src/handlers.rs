@@ -4444,6 +4444,10 @@ pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
         });
     }
 
+    // Always-on environment checks (no runtime args required).
+    findings.push(check_genesis_seed());
+    findings.push(check_working_dir());
+
     // Check legacy (non-linkme) checks — receipt store requires runtime path arg.
     if let Some(ref path) = receipts {
         findings.extend(check_receipt_store(path));

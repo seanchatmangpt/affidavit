@@ -25,20 +25,27 @@
 //!
 //! ```no_run
 //! use affidavit::chain::ChainAssembler;
-//! use affidavit::types::Event;
+//! use affidavit::ocel::{build_event, object_ref, SeqCounter};
+//! use affidavit::verifier::verify;
 //!
-//! // Build a receipt by appending events
+//! // Build a receipt by appending events.
 //! let mut assembler = ChainAssembler::new();
-//! let event = Event::new("build", vec!["repo:main"], b"payload data");
-//! assembler.append(event)?;
+//! let mut counter = SeqCounter::new();
+//! let event = build_event(
+//!     "build",
+//!     vec![object_ref("repo", "git")],
+//!     b"payload data",
+//!     &mut counter,
+//! )
+//! .expect("event is well-formed");
+//! assembler.append(event).expect("event admitted");
 //!
-//! // Finalize the receipt (produces an immutable, sealed chain)
-//! let receipt = assembler.finalize()?;
+//! // Finalize the receipt (produces an immutable, sealed chain).
+//! let receipt = assembler.finalize();
 //!
-//! // Verify the receipt against the core standard
-//! let verdict = affidavit::verifier::verify(&receipt)?;
+//! // Verify the receipt against the core standard.
+//! let verdict = verify(&receipt);
 //! assert!(verdict.accepted);
-//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
 //! ## Integrated Verticals

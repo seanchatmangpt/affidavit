@@ -8,7 +8,7 @@
 //! sequence numbers come from a caller-provided monotonic counter — never
 //! wall-clock — preserving determinism.
 
-use crate::error::OcelError;
+pub use crate::error::OcelError;
 use crate::types::{Blake3Hash, ObjectRef, OperationEvent};
 
 /// A monotonic logical sequence counter for assigning event `seq` values.
@@ -51,7 +51,9 @@ impl SeqCounter {
 ///
 /// # Example
 /// ```
-/// emit!("create-order", vec!["order-1:Order"], b"payload");
+/// use affidavit::emit;
+/// let _event = emit!("create-order", vec!["order-1:Order"], b"payload")
+///     .expect("event is well-formed");
 /// ```
 #[macro_export]
 macro_rules! emit {

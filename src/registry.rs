@@ -1,4 +1,4 @@
-//! # Verb Registry — Single Source of Truth for All 67 Verbs
+//! # Verb Registry — Single Source of Truth for All 69 Verbs
 //!
 //! This module is the W4 keystone: a compile-time static registry that eliminates
 //! drift between documentation, shell completions, and the actual verb set.
@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 67);
+//! assert_eq!(verb_count(), 69);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -19,8 +19,8 @@
 //! let core = by_group(VerbGroup::Core);
 //! assert!(!core.is_empty());
 //!
-//! // Fuzzy "did you mean"
-//! let suggestions = did_you_mean("emti");
+//! // "Did you mean" — substring match over verb names and keywords
+//! let suggestions = did_you_mean("emi");
 //! assert!(!suggestions.is_empty());
 //! ```
 
@@ -126,7 +126,7 @@ impl VerbEntry {
     }
 }
 
-/// The complete verb registry — 67 entries, one per live verb.
+/// The complete verb registry — 69 entries, one per live verb.
 ///
 /// Ordering mirrors `src/verbs/mod.rs` (alphabetical) for easy cross-referencing.
 pub static REGISTRY: &[VerbEntry] = &[
