@@ -60,6 +60,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod breeds;
 pub mod evolve;
 pub mod fitness;
 pub mod genome;
@@ -68,6 +69,10 @@ pub mod report;
 pub mod rng;
 pub mod space;
 
+#[doc(inline)]
+pub use breeds::encode::{generate_config, ConfigQuery, Engine, SemanticConfig};
+#[doc(inline)]
+pub use breeds::{run_named, Breed, BreedResult, Contract, Fact, Verdict};
 #[doc(inline)]
 pub use evolve::{run_ga, GaConfig, GaError, GaResult, GenerationRecord};
 #[doc(inline)]

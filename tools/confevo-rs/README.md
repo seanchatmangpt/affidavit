@@ -1,8 +1,12 @@
 # confevo (Rust)
 
 **Automatic Cargo feature-flag configuration generation** — a zero-dependency,
-`#![forbid(unsafe_code)]` Rust library and CLI that evolves a good `--features`
-configuration for any crate using a small genetic algorithm.
+`#![forbid(unsafe_code)]` Rust library and CLI that produces a good `--features`
+configuration for any crate **two ways**:
+
+- **Numerically**, by *evolving* one with a small genetic algorithm (`confevo run`).
+- **Semantically**, by *deriving* one with [wasm4pm](https://github.com/seanchatmangpt/wasm4pm)
+  **cognitive breeds** — classical-AI constraint solvers (`confevo solve`).
 
 This is the Rust port of the Python `tools/confevo` reference implementation. It is
 **project-agnostic**: it reads the feature universe and the implication edges
@@ -11,6 +15,70 @@ list. Like its sibling `affidavit-core`, it carries **zero dependencies**, so it
 builds and tests green even though the root `affidavit` crate cannot (its build is
 blocked by the broken upstream `wasm4pm-compat 26.6.13`). A tool whose job is to
 *map* a broken feature space must itself be immune to that breakage.
+
+## Numeric vs semantic
+
+These are two genuinely different ways to answer "what features should I enable?":
+
+| | Numeric — `confevo run` | Semantic — `confevo solve` |
+| --- | --- | --- |
+| Representation | a bit-vector genome | boolean variables + logical constraints |
+| Method | genetic algorithm (mutate, cross over, score) | cognitive breed: `sat_cdcl` / `csp_ac3` |
+| Knows what a feature *means*? | no — it only sees a fitness number | yes — it reasons over the implication graph |
+| "Can I have `predictive` without `core`?" | keeps scoring low, never conclusive | returns a **proof of UNSAT** |
+| Output | the best-scoring configuration found | a provably valid configuration, or a refutation |
+
+The numeric search is great for *grading* configurations against a real `cargo
+build`. The semantic engine is great for *deriving* a valid one and for **proving
+impossibility** — the feature-implication graph `a = ["b"]` is literally the clause
+`¬a ∨ b`, so generating a configuration is a SAT/CSP problem.
+
+## Cognitive breeds
+
+wasm4pm ships 39 "Old-AI" reasoning systems ("breeds") behind `wpm cognition`, each
+invoked as a **contract**: a JSON *intent* in, a JSON *result* (verdict +
+explanation + inference trace) out. confevo ports the two whose job is configuration
+generation, faithful to that contract format:
+
+- **`sat_cdcl`** — Boolean satisfiability (DPLL with unit propagation and
+  conflict-driven backtracking). Implications become clauses, requirements become
+  unit clauses; the breed finds a minimal satisfying model or proves none exists.
+- **`csp_ac3`** — constraint satisfaction via AC-3 arc consistency plus
+  backtracking. Each feature is a variable over `{off, on}`; implications become
+  `a => b` constraints; an emptied domain is a proof of infeasibility.
+
+```bash
+# Derive a valid configuration that enables `metrics`:
+cargo run -- solve --manifest Cargo.toml --breed sat_cdcl --require metrics
+
+# PROVE you cannot enable `predictive` without the broken `core`:
+cargo run -- solve --manifest Cargo.toml --require predictive --forbid core
+#   verdict     : unsat
+#   feasible    : false
+#   obstruction : core
+#   explanation : required features transitively enable forbidden core …
+
+# Run a breed directly on a wasm4pm-format intent.json (the `wpm cognition` analog):
+cargo run -- cognition run --breed csp_ac3 --input intent.json
+cargo run -- cognition list
+```
+
+The library exposes the same thing:
+
+```rust
+use confevo::{feature_space_from_cargo_toml, generate_config, ConfigQuery, Engine};
+
+let space = feature_space_from_cargo_toml("Cargo.toml", false)?;
+let query = ConfigQuery::new().require("predictive").forbid("core");
+let cfg = generate_config(&space, &query, Engine::SatCdcl)?;
+assert!(!cfg.feasible);                     // proved impossible
+assert_eq!(cfg.result.selected, "unsat");   // by the breed, with a trace
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Each `solve`/`cognition` run is also bit-for-bit deterministic: variable and value
+orderings are fixed and the `run_id`/`output_hash` provenance fields are content
+hashes (no wall-clock, no randomness).
 
 ## What it does
 
@@ -85,7 +153,9 @@ binary size, `cargo bloat` output, or a remote build service).
 | `manifest` | parse `Cargo.toml [features]` into a `FeatureSpace` (dependency-free) |
 | `genome` | `Genome`: an immutable candidate feature-set |
 | `fitness` | `Evaluator` trait, scoring, `SyntheticEvaluator`, `CargoEvaluator` |
-| `evolve` | `run_ga` — the genetic-algorithm driver |
+| `evolve` | `run_ga` — the genetic-algorithm driver (**numeric**) |
+| `breeds` | cognitive breeds: `Contract`/`BreedResult`, `sat_cdcl`, `csp_ac3` (**semantic**) |
+| `breeds::encode` | bridge a `FeatureSpace` + `ConfigQuery` to a breed and back to a `Genome` |
 | `report` | JSON + Markdown rendering |
 
 ## The honest finding
@@ -101,10 +171,13 @@ which is the best starting point for a fix.
 ## Tests
 
 ```bash
-cargo test          # 43 unit + 5 integration + 2 doc tests, all hermetic
+cargo test          # 72 unit + 12 integration + 2 doc tests, all hermetic
 cargo clippy --all-targets
 cargo fmt --check
 ```
+
+The breed tests are hermetic too: SAT/CSP solving needs no `cargo` and no
+subprocess, so the semantic engine is exercised entirely in-process.
 
 ## License
 
