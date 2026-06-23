@@ -328,9 +328,7 @@ mod tests {
     /// Build an `Out` backed by in-memory buffers; returns the `Out` plus the
     /// `Arc<Mutex<Vec<u8>>>` handles so callers can inspect bytes after each
     /// write.  No raw pointers, no unsafe.
-    fn build_out(
-        format: Format,
-    ) -> (Out, Arc<Mutex<Vec<u8>>>, Arc<Mutex<Vec<u8>>>) {
+    fn build_out(format: Format) -> (Out, Arc<Mutex<Vec<u8>>>, Arc<Mutex<Vec<u8>>>) {
         let stdout_arc: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
         let stderr_arc: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
 

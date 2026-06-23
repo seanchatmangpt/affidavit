@@ -78,7 +78,10 @@ fn load_receipts_from_path(path: &str) -> Result<LoadedReceipts> {
     let p = std::path::Path::new(path);
     if p.is_file() {
         let r = adapt(crate::cli::show(path))?;
-        return Ok(LoadedReceipts { receipts: vec![r], failures: vec![] });
+        return Ok(LoadedReceipts {
+            receipts: vec![r],
+            failures: vec![],
+        });
     }
     if p.is_dir() {
         let mut receipts = Vec::new();
@@ -168,7 +171,10 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
 
     if format.as_deref() == Some("json") {
         let out = serde_json::json!({"emitted": emitted, "total": total});
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
     } else {
         println!("emit-batch: {emitted}/{total} events emitted");
     }
@@ -177,7 +183,12 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
 
 /// `affi receipt emit-from-github` — emit from a GitHub event payload.
 pub fn emit_from_github(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "github", "repo": repo, "event_type": event_type})).map_err(anyhow::Error::from))?;
+    let payload = adapt(
+        serde_json::to_string(
+            &serde_json::json!({"source": "github", "repo": repo, "event_type": event_type}),
+        )
+        .map_err(anyhow::Error::from),
+    )?;
     let objects = vec![format!("{repo}:repo")];
     let gh_event_type = format!("github.{event_type}");
     let output = adapt(crate::cli::emit(&gh_event_type, &objects, &payload))?;
@@ -195,7 +206,12 @@ pub fn emit_from_github(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-gitlab` — emit from a GitLab event payload.
 pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "gitlab", "repo": repo, "event_type": event_type})).map_err(anyhow::Error::from))?;
+    let payload = adapt(
+        serde_json::to_string(
+            &serde_json::json!({"source": "gitlab", "repo": repo, "event_type": event_type}),
+        )
+        .map_err(anyhow::Error::from),
+    )?;
     let objects = vec![format!("{repo}:repo")];
     let gl_event_type = format!("gitlab.{event_type}");
     let output = adapt(crate::cli::emit(&gl_event_type, &objects, &payload))?;
@@ -213,7 +229,12 @@ pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-cicd` — emit from CI/CD job outcome.
 pub fn emit_from_cicd(provider: String, job_status: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "cicd", "provider": provider, "job_status": job_status})).map_err(anyhow::Error::from))?;
+    let payload = adapt(
+        serde_json::to_string(
+            &serde_json::json!({"source": "cicd", "provider": provider, "job_status": job_status}),
+        )
+        .map_err(anyhow::Error::from),
+    )?;
     let objects = vec![format!("ci:{provider}:job")];
     let event_type = format!("cicd.{provider}.{job_status}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -315,7 +336,10 @@ pub fn assemble_with_signature(
             "signing_method": method,
             "signed": true,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     println!("assembled receipt -> {}", output.receipt_path);
@@ -339,7 +363,10 @@ pub fn assemble_and_notarize(
             "notary": provider,
             "notarized": true,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     println!("assembled receipt -> {}", output.receipt_path);
@@ -414,7 +441,11 @@ pub fn verify_family(receipts_dir: String, format: Option<String>) -> Result<()>
         let chain_hash = &receipt.chain_hash;
         let events_len = receipt.events.len();
         let ok = receipt.format_version == "core/v1" && events_len > 0;
-        if ok { accepted += 1; } else { rejected += 1; }
+        if ok {
+            accepted += 1;
+        } else {
+            rejected += 1;
+        }
         results.push(serde_json::json!({
             "chain_hash": chain_hash,
             "events": events_len,
@@ -438,9 +469,17 @@ pub fn verify_family(receipts_dir: String, format: Option<String>) -> Result<()>
     }
     println!("verify-family: {accepted}/{total} receipts accepted, {rejected} rejected");
     for r in &results {
-        let mark = if r["accepted"].as_bool().unwrap_or(false) { "ACCEPT" } else { "REJECT" };
+        let mark = if r["accepted"].as_bool().unwrap_or(false) {
+            "ACCEPT"
+        } else {
+            "REJECT"
+        };
         if let Some(reason) = r["reject_reason"].as_str() {
-            println!("  [REJECT] {} — {}", r["path"].as_str().unwrap_or("?"), reason);
+            println!(
+                "  [REJECT] {} — {}",
+                r["path"].as_str().unwrap_or("?"),
+                reason
+            );
         } else {
             println!("  [{mark}] hash={} events={}", r["chain_hash"], r["events"]);
         }
@@ -586,7 +625,11 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
     for (name, ok, note) in &framework_checks {
         println!(
             "  {} {name}: {note}",
-            if *ok { "evidence present for control" } else { "evidence absent for control" }
+            if *ok {
+                "evidence present for control"
+            } else {
+                "evidence absent for control"
+            }
         );
     }
     if !all_pass {
@@ -899,8 +942,11 @@ pub fn stats(receipt: String, format: Option<String>) -> Result<()> {
     }
     // Fallback: basic stats without discovery
     let _ = format;
-    let unique_types: std::collections::BTreeSet<_> =
-        parsed.events.iter().map(|e| e.event_type.as_str()).collect();
+    let unique_types: std::collections::BTreeSet<_> = parsed
+        .events
+        .iter()
+        .map(|e| e.event_type.as_str())
+        .collect();
     let n = parsed.events.len();
     // Build basic DFG edge count from consecutive event pairs
     let dfg_edges = if n > 1 { n - 1 } else { 0 };
@@ -940,8 +986,11 @@ pub fn graph(receipt: String, format: Option<String>) -> Result<()> {
     }
     // Fallback: compute basic DFG from event sequence
     let _ = format;
-    let unique_types: std::collections::BTreeSet<_> =
-        parsed.events.iter().map(|e| e.event_type.as_str()).collect();
+    let unique_types: std::collections::BTreeSet<_> = parsed
+        .events
+        .iter()
+        .map(|e| e.event_type.as_str())
+        .collect();
     let n = parsed.events.len();
     let dfg_edges = if n > 1 { n - 1 } else { 0 };
     eprintln!("directly-follows graph (wasm4pm):");
@@ -1029,10 +1078,18 @@ pub fn conformance(receipt: String) -> Result<()> {
     }
     // Fallback: compute basic metrics from the admitted receipt
     let n = admitted.value.events.len();
-    let unique_types: std::collections::BTreeSet<_> =
-        admitted.value.events.iter().map(|e| e.event_type.as_str()).collect();
+    let unique_types: std::collections::BTreeSet<_> = admitted
+        .value
+        .events
+        .iter()
+        .map(|e| e.event_type.as_str())
+        .collect();
     let fitness = if n > 0 { 1.0_f64 } else { 0.0_f64 };
-    let activity_coverage = if n > 0 { unique_types.len() as f64 / n as f64 } else { 0.0_f64 };
+    let activity_coverage = if n > 0 {
+        unique_types.len() as f64 / n as f64
+    } else {
+        0.0_f64
+    };
     let simplicity = if n > 0 { 1.0_f64 / n as f64 } else { 0.0_f64 };
     eprintln!("conformance metrics:");
     eprintln!("  fitness (token replay):  {fitness:.4}");
@@ -1051,7 +1108,10 @@ pub fn why(receipt: String, format: Option<String>) -> Result<()> {
     if verdict.accepted {
         let msg = format!("receipt {receipt} is ACCEPT — all 7 stages passed. No action needed.");
         if format.as_deref() == Some("json") {
-            println!("{}", serde_json::json!({"verdict": "ACCEPT", "message": msg}));
+            println!(
+                "{}",
+                serde_json::json!({"verdict": "ACCEPT", "message": msg})
+            );
         } else {
             println!("{msg}");
         }
@@ -1101,11 +1161,17 @@ pub fn why(receipt: String, format: Option<String>) -> Result<()> {
         .collect();
 
     if format.as_deref() == Some("json") {
-        println!("{}", adapt(serde_json::to_string_pretty(&serde_json::json!({
-            "verdict": "REJECT",
-            "reason": verdict.reason,
-            "failing_stages": explanations,
-        })).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "verdict": "REJECT",
+                    "reason": verdict.reason,
+                    "failing_stages": explanations,
+                }))
+                .map_err(anyhow::Error::from)
+            )?
+        );
         return Ok(());
     }
 
@@ -1114,7 +1180,7 @@ pub fn why(receipt: String, format: Option<String>) -> Result<()> {
     for entry in &explanations {
         let stage = entry["stage"].as_str().unwrap_or("?");
         let cause = entry["cause"].as_str().unwrap_or("");
-        let fix   = entry["fix"].as_str().unwrap_or("");
+        let fix = entry["fix"].as_str().unwrap_or("");
         println!("STAGE FAILED: {stage}");
         println!("  Why:  {cause}");
         println!("  Fix:  {fix}");
@@ -1152,19 +1218,30 @@ pub fn fix_receipt(
 
     let resolved_action = match action_str {
         "quarantine" => "quarantine",
-        "finalize"   => "finalize",
-        "auto"       => if needs_quarantine { "quarantine" } else { "finalize" },
-        other => return Err(NounVerbError::execution_error(format!(
-            "Unknown action '{other}'. Use 'quarantine', 'finalize', or omit for auto."
-        ))),
+        "finalize" => "finalize",
+        "auto" => {
+            if needs_quarantine {
+                "quarantine"
+            } else {
+                "finalize"
+            }
+        }
+        other => {
+            return Err(NounVerbError::execution_error(format!(
+                "Unknown action '{other}'. Use 'quarantine', 'finalize', or omit for auto."
+            )))
+        }
     };
 
     match resolved_action {
         "quarantine" => {
-            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("receipt");
-            let dir  = path.parent().unwrap_or(std::path::Path::new("."));
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("receipt");
+            let dir = path.parent().unwrap_or(std::path::Path::new("."));
             let quarantine_path = dir.join(format!("{stem}.quarantine.json"));
-            let sidecar_path    = dir.join(format!("{stem}.quarantine.why.json"));
+            let sidecar_path = dir.join(format!("{stem}.quarantine.why.json"));
             let reason = if verdict.accepted {
                 "manually quarantined (was ACCEPT)".to_string()
             } else {
@@ -1192,7 +1269,10 @@ pub fn fix_receipt(
                     "reason": reason,
                 });
                 if format.as_deref() == Some("json") {
-                    println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+                    println!(
+                        "{}",
+                        adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+                    );
                 } else {
                     println!("DRY RUN — would quarantine {receipt}");
                     println!("  → move to: {}", quarantine_path.display());
@@ -1203,16 +1283,23 @@ pub fn fix_receipt(
             }
 
             std::fs::rename(path, &quarantine_path).map_err(io_err)?;
-            let sidecar_str = adapt(serde_json::to_string_pretty(&sidecar).map_err(anyhow::Error::from))?;
+            let sidecar_str =
+                adapt(serde_json::to_string_pretty(&sidecar).map_err(anyhow::Error::from))?;
             std::fs::write(&sidecar_path, sidecar_str).map_err(io_err)?;
 
             if format.as_deref() == Some("json") {
-                println!("{}", adapt(serde_json::to_string_pretty(&serde_json::json!({
-                    "action": "quarantine",
-                    "moved_to": quarantine_path.display().to_string(),
-                    "sidecar": sidecar_path.display().to_string(),
-                    "reason": reason,
-                })).map_err(anyhow::Error::from))?);
+                println!(
+                    "{}",
+                    adapt(
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "action": "quarantine",
+                            "moved_to": quarantine_path.display().to_string(),
+                            "sidecar": sidecar_path.display().to_string(),
+                            "reason": reason,
+                        }))
+                        .map_err(anyhow::Error::from)
+                    )?
+                );
             } else {
                 println!("quarantined: {receipt} → {}", quarantine_path.display());
                 println!("sidecar:     {}", sidecar_path.display());
@@ -1288,12 +1375,12 @@ pub fn visualize(format: String, receipt: String) -> Result<()> {
 
 /// Built-in sample fixture metadata for catalog display when no database exists.
 static BUILTIN_FIXTURES: &[(&str, usize, &str)] = &[
-    ("linear-3",        3, "linear 3-event receipt (build→test→deploy)"),
-    ("linear-5",        5, "linear 5-event receipt"),
-    ("branch-4",        4, "branching receipt with 4 events"),
-    ("parallel-6",      6, "parallel execution receipt"),
-    ("loop-example",    3, "looping receipt (3 iterations)"),
-    ("minimal-1",       1, "single-event minimal receipt"),
+    ("linear-3", 3, "linear 3-event receipt (build→test→deploy)"),
+    ("linear-5", 5, "linear 5-event receipt"),
+    ("branch-4", 4, "branching receipt with 4 events"),
+    ("parallel-6", 6, "parallel execution receipt"),
+    ("loop-example", 3, "looping receipt (3 iterations)"),
+    ("minimal-1", 1, "single-event minimal receipt"),
     ("audit-trail-10", 10, "10-event audit trail"),
 ];
 
@@ -1306,14 +1393,14 @@ pub fn catalog(filter_name: Option<String>, filter_events: Option<usize>) -> Res
     println!("{:-<20} {:->6}  {:-<40}", "", "", "");
 
     // Collect matches from built-ins (always available) + optional database
-    let mut rows: Vec<(String, usize, String)> = BUILTIN_FIXTURES.iter()
+    let mut rows: Vec<(String, usize, String)> = BUILTIN_FIXTURES
+        .iter()
         .filter(|(name, count, _)| {
-            let name_ok = filter_name.as_deref()
+            let name_ok = filter_name
+                .as_deref()
                 .map(|f| name.contains(f))
                 .unwrap_or(true);
-            let events_ok = filter_events
-                .map(|n| *count == n)
-                .unwrap_or(true);
+            let events_ok = filter_events.map(|n| *count == n).unwrap_or(true);
             name_ok && events_ok
         })
         .map(|(n, c, d)| (n.to_string(), *c, d.to_string()))
@@ -1323,7 +1410,11 @@ pub fn catalog(filter_name: Option<String>, filter_events: Option<usize>) -> Res
         let db = adapt(crate::fixture_db::FixtureDatabase::open(db_path))?;
         let matches = crate::catalog::list_fixtures(&db, filter_name.clone(), filter_events);
         for f in &matches {
-            let desc = if f.tags.is_empty() { "(no description)".to_string() } else { f.tags.join(", ") };
+            let desc = if f.tags.is_empty() {
+                "(no description)".to_string()
+            } else {
+                f.tags.join(", ")
+            };
             rows.push((f.name.clone(), f.event_count, desc));
         }
     }
@@ -4175,7 +4266,6 @@ pub fn sbom_attest(
     Ok(())
 }
 
-
 // ============================================================================
 // DOCTOR — environment and receipt-store health checks
 // ============================================================================
@@ -4243,7 +4333,8 @@ fn check_working_dir() -> DoctorFinding {
             status: CheckStatus::Warn,
             message: ".affi/ directory exists but no working.json found".to_string(),
             remediation: Some(
-                "Run 'affi emit --type <event_type> --object <id:type>' to start a receipt chain.".to_string(),
+                "Run 'affi emit --type <event_type> --object <id:type>' to start a receipt chain."
+                    .to_string(),
             ),
             auto_fixable: false,
         }
@@ -4253,7 +4344,8 @@ fn check_working_dir() -> DoctorFinding {
             status: CheckStatus::Warn,
             message: "No .affi/ directory found in the current working directory".to_string(),
             remediation: Some(
-                "Run 'affi emit' to initialise the .affi/ directory and begin a receipt chain.".to_string(),
+                "Run 'affi emit' to initialise the .affi/ directory and begin a receipt chain."
+                    .to_string(),
             ),
             auto_fixable: false,
         }
@@ -4342,7 +4434,7 @@ pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
         findings.push(DoctorFinding {
             check: plugin_finding.id.to_string(),
             status: match plugin_finding.status {
-                crate::doctor_check::FindingStatus::Ok   => CheckStatus::Ok,
+                crate::doctor_check::FindingStatus::Ok => CheckStatus::Ok,
                 crate::doctor_check::FindingStatus::Warn => CheckStatus::Warn,
                 crate::doctor_check::FindingStatus::Fail => CheckStatus::Fail,
             },
@@ -4376,8 +4468,15 @@ pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
             CheckStatus::Warn => "warn",
             CheckStatus::Fail => "FAIL",
         };
-        let fix_tag = if fix && finding.auto_fixable { " [fixed]" } else { "" };
-        println!("[{status_char}]{fix_tag} {}: {}", finding.check, finding.message);
+        let fix_tag = if fix && finding.auto_fixable {
+            " [fixed]"
+        } else {
+            ""
+        };
+        println!(
+            "[{status_char}]{fix_tag} {}: {}",
+            finding.check, finding.message
+        );
         if !fix || !finding.auto_fixable {
             if let Some(ref remediation) = finding.remediation {
                 println!("       -> {remediation}");
@@ -4401,13 +4500,16 @@ pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
 fn apply_doctor_fixes(findings: &[DoctorFinding]) -> usize {
     let mut applied = 0usize;
     for f in findings {
-        if !f.auto_fixable { continue; }
+        if !f.auto_fixable {
+            continue;
+        }
         match f.check.as_str() {
             "receipt-store" => {
                 // Auto-fixable: create the missing directory.
                 if let Some(ref remediation) = f.remediation {
                     // Extract path from "Create the directory: mkdir -p <path>"
-                    if let Some(path) = remediation.strip_prefix("Create the directory: mkdir -p ") {
+                    if let Some(path) = remediation.strip_prefix("Create the directory: mkdir -p ")
+                    {
                         if std::fs::create_dir_all(path).is_ok() {
                             println!("  [fix] created directory: {path}");
                             applied += 1;
@@ -4637,25 +4739,44 @@ pub fn guide_search(keyword: String, format: Option<String>) -> Result<()> {
     }
 
     if format.as_deref() == Some("json") {
-        let out: Vec<serde_json::Value> = results.iter().map(|e| serde_json::json!({
-            "noun":    e.noun,
-            "verb":    e.verb,
-            "group":   e.group.label(),
-            "summary": e.summary,
-        })).collect();
-        println!("{}", adapt(serde_json::to_string_pretty(&serde_json::json!({
-            "query": keyword,
-            "count": out.len(),
-            "results": out,
-        })).map_err(anyhow::Error::from))?);
+        let out: Vec<serde_json::Value> = results
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "noun":    e.noun,
+                    "verb":    e.verb,
+                    "group":   e.group.label(),
+                    "summary": e.summary,
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            adapt(
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "query": keyword,
+                    "count": out.len(),
+                    "results": out,
+                }))
+                .map_err(anyhow::Error::from)
+            )?
+        );
         return Ok(());
     }
 
-    println!("Search results for '{keyword}' ({} match{}):", results.len(),
-        if results.len() == 1 { "" } else { "es" });
+    println!(
+        "Search results for '{keyword}' ({} match{}):",
+        results.len(),
+        if results.len() == 1 { "" } else { "es" }
+    );
     println!();
     for e in &results {
-        println!("  {:30}  {:12}  {}", format!("{} {}", e.noun, e.verb), e.group.label(), e.summary);
+        println!(
+            "  {:30}  {:12}  {}",
+            format!("{} {}", e.noun, e.verb),
+            e.group.label(),
+            e.summary
+        );
     }
     Ok(())
 }

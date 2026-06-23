@@ -209,9 +209,9 @@ impl ErrorCode {
                 "each event must have a unique id; \
                  check for accidental double-emit in your pipeline",
             ),
-            ErrorCode::InvalidCommitment => Some(
-                "commitments must be 64-character lowercase hex BLAKE3 digests",
-            ),
+            ErrorCode::InvalidCommitment => {
+                Some("commitments must be 64-character lowercase hex BLAKE3 digests")
+            }
             ErrorCode::UnknownFormatVersion => {
                 Some("this version of affidavit supports `format_version = \"core/v1\"` only")
             }
@@ -394,7 +394,10 @@ mod tests {
     fn exit_codes_are_correct() {
         assert_eq!(ErrorCode::ChainHashMismatch.exit_code(), exit_codes::REJECT);
         assert_eq!(ErrorCode::TamperedReceipt.exit_code(), exit_codes::REJECT);
-        assert_eq!(ErrorCode::UnknownFormatVersion.exit_code(), exit_codes::REJECT);
+        assert_eq!(
+            ErrorCode::UnknownFormatVersion.exit_code(),
+            exit_codes::REJECT
+        );
         assert_eq!(ErrorCode::ProfileViolation.exit_code(), exit_codes::REJECT);
         assert_eq!(ErrorCode::ReceiptNotFound.exit_code(), exit_codes::IO_ERROR);
         assert_eq!(
@@ -428,8 +431,8 @@ mod tests {
 
     #[test]
     fn diag_with_span_chains() {
-        let d = Diag::new(ErrorCode::MalformedReceipt, "bad json")
-            .with_span("receipt.json", Some(7));
+        let d =
+            Diag::new(ErrorCode::MalformedReceipt, "bad json").with_span("receipt.json", Some(7));
         let span = d.span.as_ref().expect("span should be set");
         assert_eq!(span.file, "receipt.json");
         assert_eq!(span.line, Some(7));

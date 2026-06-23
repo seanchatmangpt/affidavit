@@ -646,8 +646,7 @@ pub fn did_you_mean(input: &str) -> Vec<&'static VerbEntry> {
     let mut matches: Vec<&'static VerbEntry> = REGISTRY
         .iter()
         .filter(|e| {
-            e.verb.contains(&*input_lower)
-                || e.keywords.iter().any(|k| k.contains(&*input_lower))
+            e.verb.contains(&*input_lower) || e.keywords.iter().any(|k| k.contains(&*input_lower))
         })
         .collect();
     matches.sort_by_key(|e| {
@@ -674,20 +673,31 @@ pub fn verb_count() -> usize {
 /// Returns all entries that match any of the whitespace-split query tokens,
 /// ranked by hit count descending, then verb name ascending.
 pub fn search(query: &str) -> Vec<&'static VerbEntry> {
-    let tokens: Vec<String> = query.split_whitespace()
-        .map(|t| t.to_lowercase())
-        .collect();
-    if tokens.is_empty() { return REGISTRY.iter().collect(); }
+    let tokens: Vec<String> = query.split_whitespace().map(|t| t.to_lowercase()).collect();
+    if tokens.is_empty() {
+        return REGISTRY.iter().collect();
+    }
 
-    let mut scored: Vec<(usize, &'static VerbEntry)> = REGISTRY.iter()
+    let mut scored: Vec<(usize, &'static VerbEntry)> = REGISTRY
+        .iter()
         .filter_map(|e| {
             let haystack = format!(
                 "{} {} {} {}",
-                e.verb, e.noun, e.summary,
+                e.verb,
+                e.noun,
+                e.summary,
                 e.keywords.join(" ")
-            ).to_lowercase();
-            let hits = tokens.iter().filter(|t| haystack.contains(t.as_str())).count();
-            if hits > 0 { Some((hits, e)) } else { None }
+            )
+            .to_lowercase();
+            let hits = tokens
+                .iter()
+                .filter(|t| haystack.contains(t.as_str()))
+                .count();
+            if hits > 0 {
+                Some((hits, e))
+            } else {
+                None
+            }
         })
         .collect();
 
@@ -714,17 +724,35 @@ mod tests {
     #[test]
     fn search_finds_verify_for_certify() {
         let results = search("certify");
-        assert!(!results.is_empty(), "search for 'certify' should return results");
-        assert!(results.iter().any(|e| e.verb == "verify"), "verify should match 'certify'");
+        assert!(
+            !results.is_empty(),
+            "search for 'certify' should return results"
+        );
+        assert!(
+            results.iter().any(|e| e.verb == "verify"),
+            "verify should match 'certify'"
+        );
     }
 
     #[test]
     fn all_entries_have_non_empty_fields() {
         for entry in REGISTRY {
             assert!(!entry.verb.is_empty(), "verb is empty");
-            assert!(!entry.noun.is_empty(), "noun is empty for verb {}", entry.verb);
-            assert!(!entry.summary.is_empty(), "summary is empty for verb {}", entry.verb);
-            assert!(!entry.keywords.is_empty(), "keywords is empty for verb {}", entry.verb);
+            assert!(
+                !entry.noun.is_empty(),
+                "noun is empty for verb {}",
+                entry.verb
+            );
+            assert!(
+                !entry.summary.is_empty(),
+                "summary is empty for verb {}",
+                entry.verb
+            );
+            assert!(
+                !entry.keywords.is_empty(),
+                "keywords is empty for verb {}",
+                entry.verb
+            );
         }
     }
 
