@@ -11,6 +11,6 @@ use clap_noun_verb_macros::verb;
 
 /// Replay a receipt's event sequence step by step in lawful seq order
 #[verb("replay", "receipt")]
-pub fn replay(receipt: String) -> Result<()> {
+pub fn replay(#[arg(index = 1)] receipt: String) -> Result<()> {
     crate::handlers::replay(receipt)
 }

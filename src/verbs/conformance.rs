@@ -11,6 +11,6 @@ use clap_noun_verb_macros::verb;
 
 /// Compute fitness, activity coverage, and simplicity metrics
 #[verb("conformance", "receipt")]
-pub fn conformance(receipt: String) -> Result<()> {
+pub fn conformance(#[arg(index = 1)] receipt: String) -> Result<()> {
     crate::handlers::conformance(receipt)
 }

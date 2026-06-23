@@ -228,7 +228,7 @@ mod suite_6_cli {
             .assert()
             .success()
             .stdout(predicate::str::contains("Run the certify pipeline"))
-            .stdout(predicate::str::contains("USAGE:"));
+            .stdout(predicate::str::contains("sage:"));
 
         // Feature 5.3: Command Aliases
         // Check if 'affi r' works as alias for 'affi receipt'

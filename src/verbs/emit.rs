@@ -11,10 +11,15 @@ use clap_noun_verb_macros::verb;
 
 /// Append one operation-event to the working receipt
 #[verb("emit", "receipt")]
-pub fn emit(r#type: String, object: String, payload: String, format: Option<String>) -> Result<()> {
+pub fn emit(
+    #[arg(alias = "type", short = 't')] event_type: String,
+    object: String,
+    payload: String,
+    format: Option<String>,
+) -> Result<()> {
     let objects = object
         .split(',')
         .map(|s| s.trim().to_string())
         .collect::<Vec<_>>();
-    crate::handlers::emit(r#type, objects, payload, format)
+    crate::handlers::emit(event_type, objects, payload, format)
 }

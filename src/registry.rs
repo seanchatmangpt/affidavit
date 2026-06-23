@@ -175,6 +175,20 @@ pub static REGISTRY: &[VerbEntry] = &[
     ),
     // ── Diagnostics ─────────────────────────────────────────────────────────
     VerbEntry::new(
+        "why",
+        "receipt",
+        VerbGroup::Diagnostics,
+        "Explain in plain language why a receipt was rejected, with stage-by-stage remediation steps",
+        &["why", "explain", "reason", "reject", "failed", "fix"],
+    ),
+    VerbEntry::new(
+        "fix",
+        "receipt",
+        VerbGroup::Diagnostics,
+        "Apply a safe structural repair: quarantine a tampered receipt or finalize a working one. Use --dry-run to preview.",
+        &["fix", "repair", "quarantine", "finalize", "remediate"],
+    ),
+    VerbEntry::new(
         "diagnose",
         "receipt",
         VerbGroup::Diagnostics,
@@ -649,10 +663,36 @@ pub fn did_you_mean(input: &str) -> Vec<&'static VerbEntry> {
 
 /// The number of verbs registered in [`REGISTRY`].
 ///
-/// Use this as the authoritative count instead of hard-coding 67 in
-/// documentation or completions.
+/// Use this as the authoritative count instead of hard-coding a literal in
+/// documentation or completions — call `registry::verb_count()` instead.
 pub fn verb_count() -> usize {
     REGISTRY.len()
+}
+
+/// Full-text search across verb name, summary, and keywords.
+///
+/// Returns all entries that match any of the whitespace-split query tokens,
+/// ranked by hit count descending, then verb name ascending.
+pub fn search(query: &str) -> Vec<&'static VerbEntry> {
+    let tokens: Vec<String> = query.split_whitespace()
+        .map(|t| t.to_lowercase())
+        .collect();
+    if tokens.is_empty() { return REGISTRY.iter().collect(); }
+
+    let mut scored: Vec<(usize, &'static VerbEntry)> = REGISTRY.iter()
+        .filter_map(|e| {
+            let haystack = format!(
+                "{} {} {} {}",
+                e.verb, e.noun, e.summary,
+                e.keywords.join(" ")
+            ).to_lowercase();
+            let hits = tokens.iter().filter(|t| haystack.contains(t.as_str())).count();
+            if hits > 0 { Some((hits, e)) } else { None }
+        })
+        .collect();
+
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.verb.cmp(b.1.verb)));
+    scored.into_iter().map(|(_, e)| e).collect()
 }
 
 #[cfg(test)]
@@ -660,12 +700,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn registry_has_67_entries() {
+    fn registry_entry_count_matches_constant() {
+        // Update this number whenever you add or remove verbs from REGISTRY.
+        let expected = 69; // 67 original + why + fix
         assert_eq!(
             verb_count(),
-            67,
-            "REGISTRY must have exactly 67 entries — update registry.rs when adding/removing verbs"
+            expected,
+            "REGISTRY has {} entries but expected {}. Update this test and any docs that hard-code the verb count.",
+            verb_count(), expected
         );
+    }
+
+    #[test]
+    fn search_finds_verify_for_certify() {
+        let results = search("certify");
+        assert!(!results.is_empty(), "search for 'certify' should return results");
+        assert!(results.iter().any(|e| e.verb == "verify"), "verify should match 'certify'");
     }
 
     #[test]

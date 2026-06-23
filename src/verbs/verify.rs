@@ -12,7 +12,7 @@ use clap_noun_verb_macros::verb;
 /// Run the certify pipeline over a receipt and print the verdict
 #[verb("verify", "receipt")]
 pub fn verify(
-    receipt: String,
+    #[arg(index = 1)] receipt: String,
     format: Option<String>,
     profile: Option<String>,
     strict: Option<bool>,

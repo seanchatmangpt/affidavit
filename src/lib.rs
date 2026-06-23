@@ -117,6 +117,7 @@ pub mod verifier;
 
 pub mod diag;
 pub mod output;
+pub mod doctor_check;
 
 pub mod diff;
 pub mod visualize;
