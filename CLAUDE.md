@@ -21,11 +21,11 @@ The project's doctrine: **certify, don't decide.** The verifier checks a receipt
 
 ## ⚠️ Operational ground truth for coding agents (read first)
 
-Before you run `cargo build`/`cargo test` at the root and conclude the repo is broken — it is, by the current dependency situation, and that is **not your bug**:
+The root build situation changed — earlier docs that say "the root crate cannot compile" are now **stale**:
 
-- The root `affidavit` crate **does not compile**. It depends on the published `wasm4pm-compat 26.6.13`, which fails under current Rust nightly (~550 errors). `cargo build`/`test`/`clippy` on the root crate cannot pass (even `--no-default-features`). The only working root gate is **`cargo fmt --all -- --check`**.
-- Buildable, tested subprojects live elsewhere: **`affidavit-core/`** (zero-dep `no_std` verifier + process mining — `cargo test` green), **`web/`** (Next.js — `npx tsc --noEmit`), **`tools/confevo/`** (Python — `python3 -m unittest`).
-- The "missing sibling PATH-crates" explanation found in some comments is **stale** — deps resolve from crates.io; the blocker is the broken upstream crate above.
+- The root `affidavit` crate **builds and tests**. The previously-broken upstream crates (`wasm4pm`, `wasm4pm-compat`, `clnrm-core`) are replaced by local stubs via `[patch.crates-io]` in `Cargo.toml` (`stubs/`). `cargo build --all-targets` and `cargo test` pass (789 tests, incl. doctests); `cargo fmt --all -- --check` passes.
+- `cargo clippy --all-targets -- -D warnings` passes too: `src/lib.rs` denies `clippy::print_stdout`, and library output routes through `src/output.rs` (via the crate-internal `outln!` / `out!` macros) instead of raw `println!`. Use `outln!` (or an `Out`) for new library output; the `clippy` CI job now blocks. Don't delete `stubs/` or the `[patch]` block to "fix" deps.
+- Buildable, tested subprojects also live elsewhere: **`affidavit-core/`** (zero-dep `no_std` verifier + process mining — `cargo test` green), **`web/`** (Next.js — `npx tsc --noEmit`), **`tools/confevo/`** (Python — `python3 -m unittest`).
 - Full operational map, per-area validate commands, and conventions: **[`AGENTS.md`](AGENTS.md)** (and **[`affidavit-core/AGENTS.md`](affidavit-core/AGENTS.md)** for that crate's strict invariants).
 
 Everything below describes the *intended* `affidavit` design — treat it as the spec, not the current build state.
@@ -47,7 +47,7 @@ affidavit/
 │   ├── verifier.rs           # 7-stage certify pipeline
 │   ├── types.rs              # Domain types (Event, Receipt, Verdict)
 │   ├── admission.rs          # Validation gates
-│   ├── registry.rs           # Compile-time verb registry (67 verbs, 10 groups)
+│   ├── registry.rs           # Compile-time verb registry (69 verbs, 10 groups)
 │   ├── diag.rs               # Stable exit codes & structured diagnostics
 │   ├── output.rs             # Unified Out handle (human/JSON/YAML)
 │   ├── discovery.rs          # Type discovery & schema registry
@@ -59,7 +59,7 @@ affidavit/
 │   ├── sbom.rs               # SBOM generation & parsing
 │   ├── sbom_compliance.rs    # NTIA compliance checking
 │   ├── sbom_vulnerability.rs # Vulnerability aggregation & risk
-│   ├── verbs/                # 67 command implementations
+│   ├── verbs/                # 69 command implementations
 │   │   ├── emit.rs           # emit — record an event
 │   │   ├── assemble.rs       # assemble — finalize receipt
 │   │   ├── verify.rs         # verify — certify pipeline
@@ -184,7 +184,7 @@ The verifier maps 1:1 to a C4 Level-3 component view:
 
 ## CLI Surface
 
-The CLI exposes **67 canonical verbs** across 10 groups, defined in `src/registry.rs`. Run `affi --help` for the full list or use `affi guide search <keyword>` for fuzzy lookup.
+The CLI exposes **69 canonical verbs** across 10 groups, defined in `src/registry.rs`. Run `affi --help` for the full list or use `affi guide search <keyword>` for fuzzy lookup.
 
 **Verb groups:** Core · Diagnostics · Analysis · Ingestion · Compliance · Attestation · SBOM · Insights · Engineering · Tooling
 

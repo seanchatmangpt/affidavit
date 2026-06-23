@@ -62,6 +62,11 @@ name = "quality_western_electric"
 harness = false
 required-features = ["quality-monitor"]
 
+[[bench]]
+name = "variance"
+harness = false
+required-features = ["discovery"]
+
 [dependencies]
 # --- CORE INFRASTRUCTURE (Always Mandatory) ---
 clap-noun-verb = "26.6"

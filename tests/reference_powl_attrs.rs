@@ -11,7 +11,7 @@ use wasm4pm_compat::powl::{PowlNodeId, PowlNodeKind as PK};
 
 #[test]
 fn powl_node_kinds_are_constructed_with_payloads() {
-    let all = vec![
+    let all = [
         PK::Atom("place_order".to_string()),
         PK::Silent,
         PK::Choice(vec![PowlNodeId(0), PowlNodeId(1)]),
@@ -46,7 +46,7 @@ fn powl_node_kinds_are_constructed_with_payloads() {
 
 #[test]
 fn ocel_attribute_values_are_constructed_including_nested() {
-    let all = vec![
+    let all = [
         V::Integer(42),
         V::Float(3.5),
         V::Boolean(true),

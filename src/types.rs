@@ -211,6 +211,9 @@ pub struct OperationEvent {
 /// This struct does not panic during normal operation. Deserialization
 /// errors are returned as `Result::Err`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+// The private `_seal` field is an intentional value-level seal (an unforgeable
+// carrier), not a stand-in for `#[non_exhaustive]` — keep it as a real field.
+#[allow(clippy::manual_non_exhaustive)]
 pub struct Receipt {
     /// Format version string used by the verifier's format check.
     pub format_version: String,
@@ -382,7 +385,7 @@ pub struct StatsOutput {
 /// # Examples
 ///
 /// ```rust
-/// use affidavit::QualityMetricValue;
+/// use affidavit::types::QualityMetricValue;
 /// let metric = QualityMetricValue {
 ///     value: 0.92,
 ///     description: "Proportion of code covered by tests".to_string(),
@@ -405,7 +408,7 @@ pub struct QualityMetricValue {
 /// # Examples
 ///
 /// ```rust
-/// use affidavit::{QualityMeasurement, QualityMetricValue};
+/// use affidavit::types::{QualityMeasurement, QualityMetricValue};
 /// let measurement = QualityMeasurement {
 ///     timestamp: 1718641799,
 ///     stubs: QualityMetricValue {
@@ -491,7 +494,7 @@ pub struct QualityMeasurement {
 /// # Examples
 ///
 /// ```rust
-/// use affidavit::QualityViolationEvent;
+/// use affidavit::types::QualityViolationEvent;
 /// let violation = QualityViolationEvent {
 ///     rule: "Rule 1: beyond 1-sigma".to_string(),
 ///     metric: "test_coverage".to_string(),
@@ -546,6 +549,26 @@ pub fn canonical_bytes<T: Serialize>(value: &T) -> Result<Vec<u8>, serde_json::E
     let v = serde_json::to_value(value)?;
     let sorted = sort_value(v);
     serde_json::to_vec(&sorted)
+}
+
+/// Recursively sort the keys of all JSON objects within a value.
+fn sort_value(value: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match value {
+        Value::Object(map) => {
+            // serde_json::Map preserves insertion order; collect into a BTreeMap
+            // to impose deterministic key ordering, then rebuild.
+            let sorted: std::collections::BTreeMap<String, Value> =
+                map.into_iter().map(|(k, v)| (k, sort_value(v))).collect();
+            let mut out = serde_json::Map::new();
+            for (k, v) in sorted {
+                out.insert(k, v);
+            }
+            Value::Object(out)
+        }
+        Value::Array(arr) => Value::Array(arr.into_iter().map(sort_value).collect()),
+        other => other,
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -605,25 +628,5 @@ mod tests {
         let honest_json = serde_json::to_string(&honest).expect("serialize");
         let deserialized: Receipt = serde_json::from_str(&honest_json).expect("deserialize honest");
         assert_eq!(deserialized, honest);
-    }
-}
-
-/// Recursively sort the keys of all JSON objects within a value.
-fn sort_value(value: serde_json::Value) -> serde_json::Value {
-    use serde_json::Value;
-    match value {
-        Value::Object(map) => {
-            // serde_json::Map preserves insertion order; collect into a BTreeMap
-            // to impose deterministic key ordering, then rebuild.
-            let sorted: std::collections::BTreeMap<String, Value> =
-                map.into_iter().map(|(k, v)| (k, sort_value(v))).collect();
-            let mut out = serde_json::Map::new();
-            for (k, v) in sorted {
-                out.insert(k, v);
-            }
-            Value::Object(out)
-        }
-        Value::Array(arr) => Value::Array(arr.into_iter().map(sort_value).collect()),
-        other => other,
     }
 }

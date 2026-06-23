@@ -22,8 +22,7 @@ pub const FORMAT_VERSION: &str = "core/v1";
 ///
 /// Built from the package version at compile time so the seed always matches
 /// the running binary. Cross-version receipt verification is expected to fail.
-const GENESIS_SEED_STR: &str =
-    concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis");
+const GENESIS_SEED_STR: &str = concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis");
 pub const GENESIS_SEED: &[u8] = GENESIS_SEED_STR.as_bytes();
 
 /// Default on-disk path for the in-progress working receipt.

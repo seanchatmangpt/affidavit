@@ -22,7 +22,7 @@ fn build_receipt(n: usize) -> affidavit::types::Receipt {
     for i in 0..n {
         let event = build_event(
             "throughput-op",
-            vec![object_ref(&format!("obj-{i}"), "artifact")],
+            vec![object_ref(format!("obj-{i}"), "artifact")],
             format!("payload-{i}").as_bytes(),
             &mut counter,
         )
@@ -65,7 +65,7 @@ fn bench_assemble_pipeline(c: &mut Criterion) {
                 for i in 0..n {
                     let event = build_event(
                         "assemble-op",
-                        vec![object_ref(&format!("obj-{i}"), "artifact")],
+                        vec![object_ref(format!("obj-{i}"), "artifact")],
                         black_box(format!("payload-{i}").as_bytes()),
                         &mut counter,
                     )
@@ -105,7 +105,7 @@ fn bench_full_pipeline(c: &mut Criterion) {
                 for i in 0..n {
                     let event = build_event(
                         "pipeline-op",
-                        vec![object_ref(&format!("obj-{i}"), "artifact")],
+                        vec![object_ref(format!("obj-{i}"), "artifact")],
                         black_box(format!("payload-{i}").as_bytes()),
                         &mut counter,
                     )
@@ -131,7 +131,7 @@ fn bench_emit_scaling(c: &mut Criterion) {
         for i in 0..n {
             let event = build_event(
                 "setup-op",
-                vec![object_ref(&format!("setup-obj-{i}"), "artifact")],
+                vec![object_ref(format!("setup-obj-{i}"), "artifact")],
                 format!("setup-payload-{i}").as_bytes(),
                 &mut counter,
             )

@@ -1,0 +1,68 @@
+# affidavit-core.yml — the real Rust gate.
+#
+# Unlike the root crate (see rust.yml, which cannot build because of a broken
+# upstream dep), affidavit-core/ is a standalone, zero-dependency, no_std,
+# forbid(unsafe) crate that DOES build and test cleanly. It is the repo's
+# strongest honest-green signal: every step below genuinely compiles and tests
+# the committed code, so all of them BLOCK (no continue-on-error).
+#
+# This mirrors the validate loop in affidavit-core/AGENTS.md. The crate is not a
+# member of the root workspace, so it gets its own job here rather than riding
+# the root crate's (non-building) checks.
+name: affidavit-core
+
+on:
+  push:
+    paths:
+      - "affidavit-core/**"
+      - "rust-toolchain.toml"
+      - ".github/workflows/affidavit-core.yml"
+  pull_request:
+    paths:
+      - "affidavit-core/**"
+      - "rust-toolchain.toml"
+      - ".github/workflows/affidavit-core.yml"
+
+concurrency:
+  group: affidavit-core-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: affidavit-core
+
+jobs:
+  core:
+    name: affidavit-core (test + clippy + no_std build + fmt)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install nightly Rust with rustfmt + clippy
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: affidavit-core
+
+      - name: cargo test (unit + doctests, incl. compile_fail seal proof)
+        run: cargo test
+
+      - name: cargo clippy (default features)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo clippy (no-default-features, the no-alloc verify path)
+        run: cargo clippy --no-default-features -- -D warnings
+
+      - name: cargo build (no-default-features, proves verify needs no allocator)
+        run: cargo build --no-default-features
+
+      - name: cargo fmt --check
+        run: cargo fmt -- --check

@@ -75,7 +75,7 @@ impl FileQualityMetrics {
         // Simplified formula: higher coverage = higher index
         let coverage_score = (self.test_coverage + (self.doc_coverage * 100.0)) / 2.0;
         let complexity_penalty = (self.cyclomatic_complexity * 10.0).min(50.0);
-        (coverage_score - complexity_penalty).max(0.0).min(100.0)
+        (coverage_score - complexity_penalty).clamp(0.0, 100.0)
     }
 }
 
@@ -225,7 +225,7 @@ impl PackageHealthScore {
         // Penalize for dependency violations (each = 8 points)
         score -= (self.dependency_violations as f64) * 8.0;
 
-        self.health_score = score.max(0.0).min(100.0);
+        self.health_score = score.clamp(0.0, 100.0);
     }
 }
 
@@ -744,7 +744,7 @@ pub fn typed_fn(x: i32, y: String) -> bool {
 }
 
 pub fn untyped_fn() {
-    println!("no return type");
+    outln!("no return type");
 }
 "#,
         )

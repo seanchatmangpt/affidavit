@@ -257,23 +257,23 @@ pub fn main() -> Result<()> {
             None
         )?;
 
-        println!("--- Generated Test Function ---");
-        println!("{}", test_fn);
+        outln!("--- Generated Test Function ---");
+        outln!("{}", test_fn);
 
         let module = engine.generate_test_module("golden-suite", vec![test_fn])?;
-        println!("--- Generated Test Module ---");
-        println!("{}", module);
+        outln!("--- Generated Test Module ---");
+        outln!("{}", module);
     }
 
     let registry = SnippetRegistry::from_json(DEFAULT_SNIPPETS)?;
     let matches = registry.find_by_name("chain");
     
-    println!("--- Snippet Search Results ---");
+    outln!("--- Snippet Search Results ---");
     for snippet in matches {
-        println!("Name: {}", snippet.name);
-        println!("Description: {}", snippet.description);
-        println!("Code:\n{}", registry.format_snippet(snippet));
-        println!("---");
+        outln!("Name: {}", snippet.name);
+        outln!("Description: {}", snippet.description);
+        outln!("Code:\n{}", registry.format_snippet(snippet));
+        outln!("---");
     }
 
     Ok(())

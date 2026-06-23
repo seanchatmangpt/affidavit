@@ -367,7 +367,7 @@ mod tests {
     #[test]
     fn count_is_maximalist() {
         let keys = all_attribute_keys();
-        println!("Total attributes: {}", keys.len());
+        outln!("Total attributes: {}", keys.len());
         assert!(keys.len() >= 100, "Must define at least 100 hyper-granular attributes");
     }
 

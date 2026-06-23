@@ -18,7 +18,7 @@ pub fn bench_throughput(iterations: u32) -> Result<()> {
         let mut counter = crate::ocel::SeqCounter::new();
         let event = crate::ocel::build_event(
             "bench-op",
-            vec![crate::ocel::object_ref(&format!("obj-{}", i), "artifact")],
+            vec![crate::ocel::object_ref(format!("obj-{}", i), "artifact")],
             b"bench-payload",
             &mut counter,
         )?;
@@ -87,7 +87,7 @@ pub fn run_profile_workload(seconds: u64, _receipt_path: Option<&str>) -> Result
 
     while start.elapsed() < duration {
         // High-intensity work loop
-        let _ = bench_throughput(1)?;
+        bench_throughput(1)?;
         count += 1;
     }
 

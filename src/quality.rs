@@ -476,10 +476,12 @@ pub fn measure_code_quality(src_path: &str) -> anyhow::Result<CodeQualityMetrics
     use std::fs;
     use std::path::Path;
 
-    let mut metrics = CodeQualityMetrics::default();
-    metrics.timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_secs();
+    let mut metrics = CodeQualityMetrics {
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs(),
+        ..Default::default()
+    };
 
     let path = Path::new(src_path);
 
@@ -497,6 +499,9 @@ pub fn measure_code_quality(src_path: &str) -> anyhow::Result<CodeQualityMetrics
         let mut typed_function_count = 0;
         let mut doc_count = 0;
         let mut total_pub_items = 0;
+
+        // Compile the stub-detection regex once, not once per file.
+        let stub_pattern = regex::Regex::new(r"\b(todo|unimplemented|panic)!\s*\(")?;
 
         for entry in walkdir::WalkDir::new(path)
             .into_iter()
@@ -526,7 +531,6 @@ pub fn measure_code_quality(src_path: &str) -> anyhow::Result<CodeQualityMetrics
                     }
 
                     // Detect stubs (todo!, unimplemented!, panic!)
-                    let stub_pattern = regex::Regex::new(r"\b(todo|unimplemented|panic)!\s*\(")?;
                     stub_count += stub_pattern.find_iter(&content).count();
                     function_count += content.matches("fn ").count();
 
@@ -559,7 +563,7 @@ pub fn measure_code_quality(src_path: &str) -> anyhow::Result<CodeQualityMetrics
 
         // Try to get clippy warnings
         if let Ok(output) = std::process::Command::new("cargo")
-            .args(&["clippy", "--message-format=short"])
+            .args(["clippy", "--message-format=short"])
             .current_dir(src_path)
             .output()
         {

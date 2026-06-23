@@ -1,34 +1,49 @@
-# rust.yml — Rust checks that are HONEST about this repo's build situation.
+# rust.yml — checks for the root `affidavit` crate.
 #
-# DESIGN / WHY THIS WORKFLOW LOOKS UNUSUAL
-# ----------------------------------------
-# All of affidavit's dependencies (including clap-noun-verb, wasm4pm-compat,
-# lsp-max, clnrm-core, etc.) ARE published on crates.io and DO resolve via
-# `cargo fetch` in a standalone checkout of this repo. There is no missing
-# sibling-workspace problem.
+# The root crate builds again: the previously-broken upstream crates (wasm4pm,
+# wasm4pm-compat, clnrm-core) are replaced by local stubs via [patch.crates-io]
+# in Cargo.toml (see stubs/). Build + test are therefore real gates now. See
+# AGENTS.md.
 #
-# The actual blocker is that `wasm4pm-compat` version 26.6.13 (from crates.io)
-# does NOT compile under current Rust nightly: the upstream crate itself
-# produces approximately 550 compiler errors (E0432 unresolved imports of
-# internal types). Until a fixed version is published, `cargo build` /
-# `cargo test` / `cargo clippy` CANNOT succeed here. We do NOT pretend
-# otherwise.
+# This repo's ethos: a green that is true whether or not the work happened
+# carries no information. The jobs below are split by honesty:
 #
-# What CAN run regardless of the broken upstream dep is `cargo fmt --check`:
-# rustfmt only parses source, it never compiles the dependency graph. So:
-#   * The `fmt` job is a REAL, BLOCKING gate — the workflow's success hinges
-#     ONLY on it.
-#   * The `build-and-test` job attempts a real build/test for signal, but is
-#     marked `continue-on-error: true` so a (fully expected) failure from the
-#     broken upstream crate never reports the workflow as broken.
+#   * `fmt` — REAL, BLOCKING gate. rustfmt only parses source, so it passes/fails
+#     purely on the merits of the committed code.
+#   * `build-and-test` — REAL, BLOCKING gate now that the stubs make the crate
+#     compile: `cargo build` / `cargo test` (incl. doctests) over all targets.
+#   * `clippy` — REAL, BLOCKING gate. The print_stdout debt is paid down (library
+#     output routes through `output.rs` via the `outln!` macro), so
+#     `cargo clippy --all-targets -- -D warnings` is clean.
 #
-# This follows the repo's ethos: a green that is true whether or not the work
-# happened carries no information. fmt is a green that means something here.
+# The standalone `affidavit-core/` crate has its own gate in affidavit-core.yml.
+# `cargo fmt --all` from the root only covers the root crate (affidavit-core is
+# not a workspace member).
 name: rust
 
 on:
   push:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "benches/**"
+      - "examples/**"
+      - "build.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/rust.yml"
   pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "benches/**"
+      - "examples/**"
+      - "build.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/rust.yml"
 
 concurrency:
   group: rust-${{ github.workflow }}-${{ github.ref }}
@@ -40,43 +55,63 @@ permissions:
 jobs:
   # ---------------------------------------------------------------------------
   # REAL GATE: formatting needs no dependencies, so this genuinely passes/fails
-  # on the merits of the committed source. This is what the workflow's overall
-  # status reflects.
+  # on the merits of the committed source. No continue-on-error — it blocks.
   # ---------------------------------------------------------------------------
   fmt:
     name: rustfmt (cargo fmt --check)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install stable Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install nightly Rust with rustfmt
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
 
-      - name: Install nightly for rustfmt
-        run: |
-          rustup install nightly
-          rustup component add rustfmt --toolchain nightly
-
-      - name: Run rustfmt check
-        run: cargo +nightly fmt --all -- --check
+      - name: cargo fmt --all --check
+        run: cargo fmt --all -- --check
 
   # ---------------------------------------------------------------------------
-  # NON-BLOCKING (continue-on-error): wasm4pm-compat 26.6.13 from crates.io
-  # does not compile under current nightly (~550 upstream errors). Kept for
-  # signal/diagnostics only; it is EXPECTED to fail here and must never gate a
-  # merge. Clippy lives here too because it likewise needs a clean build graph.
+  # REAL GATE: the root crate now builds (upstream crates replaced by local
+  # stubs via [patch.crates-io] — see Cargo.toml / stubs/). So build + test pass
+  # and this job BLOCKS. Doctests run separately because --all-targets skips them.
   # ---------------------------------------------------------------------------
   build-and-test:
-    name: build-and-test (non-blocking, broken upstream dep)
+    name: build-and-test
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install nightly toolchain (clippy)
+      - name: Install nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+
+      - name: cargo build --all-targets
+        run: cargo build --all-targets
+
+      - name: cargo test --all-targets (unit + integration + example/bench harnesses)
+        run: cargo test --all-targets
+
+      - name: cargo test --doc (doctests)
+        run: cargo test --doc
+
+  # ---------------------------------------------------------------------------
+  # REAL GATE: the print_stdout debt is paid down — library output routes through
+  # the sanctioned sinks in output.rs (via the `outln!` macro) and the style lints
+  # are fixed, so `cargo clippy --all-targets -- -D warnings` is clean and BLOCKS.
+  # ---------------------------------------------------------------------------
+  clippy:
+    name: clippy (cargo clippy --all-targets -D warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install nightly toolchain with clippy
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy
@@ -84,29 +119,5 @@ jobs:
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@v2
 
-      - name: Explain why this job is expected to fail
-        run: |
-          echo "::warning title=Non-blocking by design::wasm4pm-compat 26.6.13 from crates.io does not compile under current nightly."
-          echo "------------------------------------------------------------------"
-          echo "All of affidavit's dependencies resolve fine from crates.io —"
-          echo "there is no missing sibling-workspace issue."
-          echo ""
-          echo "The build fails because wasm4pm-compat 26.6.13 (the version"
-          echo "published on crates.io) itself does not compile under current"
-          echo "Rust nightly: approximately 550 E0432 errors (unresolved imports"
-          echo "of internal types inside the upstream crate). This is an upstream"
-          echo "breakage, not a problem with affidavit's own source."
-          echo ""
-          echo "The steps below are run for signal only and this whole job is"
-          echo "marked continue-on-error: true. Formatting is the real gate"
-          echo "(see the 'fmt' job)."
-          echo "------------------------------------------------------------------"
-
-      - name: cargo build (expected to fail, broken upstream wasm4pm-compat)
-        run: cargo build --all-targets
-
-      - name: cargo test (expected to fail, broken upstream wasm4pm-compat)
-        run: cargo test --all-targets
-
-      - name: cargo clippy (expected to fail, broken upstream wasm4pm-compat)
+      - name: cargo clippy --all-targets -- -D warnings
         run: cargo clippy --all-targets -- -D warnings

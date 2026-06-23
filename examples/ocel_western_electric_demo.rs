@@ -147,7 +147,7 @@ fn main() -> anyhow::Result<()> {
 
             // Synthesize values with controlled deviations for demo purposes
             // Some metrics will spike, some will trend, some will plateau
-            metrics.stub_ratio = match repo.as_ref() {
+            metrics.stub_ratio = match *repo {
                 "core-services" => 0.01 + (snapshot_idx as f64 * 0.02), // Trending up
                 "api-gateway" => 0.15,                                  // Spike
                 "data-pipeline" => 0.03,
@@ -156,7 +156,7 @@ fn main() -> anyhow::Result<()> {
                 _ => 0.03,
             };
 
-            metrics.type_coverage = match repo.as_ref() {
+            metrics.type_coverage = match *repo {
                 "core-services" => 0.95,
                 "api-gateway" => 0.88,
                 "data-pipeline" => 0.92,
@@ -165,7 +165,7 @@ fn main() -> anyhow::Result<()> {
                 _ => 0.91,
             };
 
-            metrics.churn = match repo.as_ref() {
+            metrics.churn = match *repo {
                 "core-services" => (85 + (snapshot_idx * 15)) as usize, // Trending
                 "api-gateway" => 220,                                   // High churn (spike)
                 "data-pipeline" => 110,
@@ -178,7 +178,7 @@ fn main() -> anyhow::Result<()> {
             metrics.cyclomatic_complexity = 2.3 + (snapshot_idx as f64 * 0.3);
             metrics.maintainability_index = 84.0 - (snapshot_idx as f64 * 2.0);
             metrics.cognitive_complexity = 5.5 + (snapshot_idx as f64 * 0.8);
-            metrics.clippy_warnings = match repo.as_ref() {
+            metrics.clippy_warnings = match *repo {
                 "api-gateway" => 8, // Elevated
                 "data-pipeline" => 5,
                 _ => 2,
@@ -215,9 +215,9 @@ fn main() -> anyhow::Result<()> {
                 };
 
                 // Track in rolling window
-                metric_measurements
-                    .get_mut(*metric_name)
-                    .map(|w| w.push_back(value));
+                if let Some(w) = metric_measurements.get_mut(*metric_name) {
+                    w.push_back(value);
+                }
 
                 // Add measurement to analyzer
                 analyzer.add_measurement(metric_name, value);
@@ -246,7 +246,7 @@ fn main() -> anyhow::Result<()> {
 
                         repo_violations_by_rule
                             .entry(rule_name)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(violation);
                     }
                 }
@@ -259,7 +259,7 @@ fn main() -> anyhow::Result<()> {
             for violation in violations {
                 rules_per_metric
                     .entry(violation.metric().to_string())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(rule_name.clone());
             }
         }
@@ -332,7 +332,7 @@ fn main() -> anyhow::Result<()> {
         if let Some(module_path) = &violation.module_path {
             violations_by_object
                 .entry(module_path.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(violation);
         }
     }

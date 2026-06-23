@@ -151,7 +151,7 @@ fn test_measure_code_quality_nonexistent_path() {
 
     // Should return default metrics without crashing
     assert_eq!(metrics.stub_ratio, 0.0);
-    assert_eq!(metrics.timestamp > 0, true);
+    assert!(metrics.timestamp > 0);
 }
 
 // ============================================================================

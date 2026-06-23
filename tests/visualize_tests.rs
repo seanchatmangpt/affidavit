@@ -5,7 +5,7 @@
 
 use affidavit::chain::ChainAssembler;
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
-use affidavit::types::{OperationEvent, Receipt};
+use affidavit::types::Receipt;
 use assert_cmd::Command;
 use predicates::prelude::*;
 use serde::{Deserialize, Serialize};

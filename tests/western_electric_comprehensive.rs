@@ -13,9 +13,7 @@
 //!
 //! Total: 100+ tests, all passing, deterministic, fully documented.
 
-use affidavit::quality::{
-    measure_code_quality, CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer,
-};
+use affidavit::quality::{QualityViolation, WesternElectricAnalyzer};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -736,11 +734,11 @@ fn test_combined_multiple_metrics_independent() {
             });
 
     assert!(
-        violations_by_metric.get("metric1").is_some(),
+        violations_by_metric.contains_key("metric1"),
         "Should have metric1 violations"
     );
     assert!(
-        violations_by_metric.get("metric2").is_some(),
+        violations_by_metric.contains_key("metric2"),
         "Should have metric2 violations"
     );
 }
@@ -856,7 +854,7 @@ fn test_edge_case_nan_behavior() {
 
     // NaN comparisons are always false, so should not trigger rules
     // The system should handle this without panicking
-    assert!(true, "NaN should not crash analyzer");
+    // Reaching this point without a panic is the success condition.
 }
 
 #[test]
@@ -952,7 +950,7 @@ fn test_edge_case_large_window_size() {
     }
 
     // System should handle large window without issues
-    assert!(true, "Large window should not crash");
+    // Reaching this point without a panic is the success condition.
 }
 
 #[test]
@@ -1004,7 +1002,7 @@ fn test_edge_case_floating_point_precision() {
     analyzer.add_measurement("metric", 0.3);
 
     // Should handle floating-point math gracefully
-    assert!(true, "Should handle floating-point precision");
+    // Reaching this point without a panic is the success condition.
 }
 
 #[test]
@@ -1132,27 +1130,11 @@ fn test_multi_object_5_modules_varying_health() {
 
     let violation_counts: Vec<usize> = analyzers.iter().map(|a| a.violations.len()).collect();
 
-    assert_eq!(
-        violation_counts[0] > 0,
-        true,
-        "Module 0 should have violations"
-    );
+    assert!(violation_counts[0] > 0, "Module 0 should have violations");
     assert_eq!(violation_counts[1], 0, "Module 1 should be clean");
-    assert_eq!(
-        violation_counts[2] > 0,
-        true,
-        "Module 2 should have violations"
-    );
-    assert_eq!(
-        violation_counts[3] > 0,
-        true,
-        "Module 3 should have violations"
-    );
-    assert_eq!(
-        violation_counts[4] > 0,
-        true,
-        "Module 4 should have violations"
-    );
+    assert!(violation_counts[2] > 0, "Module 2 should have violations");
+    assert!(violation_counts[3] > 0, "Module 3 should have violations");
+    assert!(violation_counts[4] > 0, "Module 4 should have violations");
 }
 
 #[test]
@@ -1425,7 +1407,7 @@ fn test_ocel_trace_level_analysis() {
     let mut analyzer = WesternElectricAnalyzer::new(5.0, 1.0, 20);
 
     // Trace: start → step1 → step2 → ... → end
-    let trace_steps = vec![5.0, 5.5, 6.0, 6.5, 7.0, 7.5];
+    let trace_steps = [5.0, 5.5, 6.0, 6.5, 7.0, 7.5];
     for (step_idx, value) in trace_steps.iter().enumerate() {
         analyzer.add_measurement(&format!("trace:step{}", step_idx), *value);
     }

@@ -400,7 +400,7 @@ pub fn build_causal_chain(
     let triggering_event_id = violation_event
         .triggered_by_event_id
         .as_ref()
-        .ok_or_else(|| OcelError::EmptyEventId)?
+        .ok_or(OcelError::EmptyEventId)?
         .clone();
 
     // Find the root measurement event

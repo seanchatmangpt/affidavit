@@ -233,7 +233,7 @@ pub fn all_operators() -> Vec<Box<dyn MutationOperator>> {
 fn main() -> Result<()> {
     use crate::ocel;
 
-    println!("--- COMBINATORIAL MAXIMALISM: Feature 3.1 (Mutate Logic) ---");
+    outln!("--- COMBINATORIAL MAXIMALISM: Feature 3.1 (Mutate Logic) ---");
 
     // 1. Create a baseline receipt
     let mut asm = ChainAssembler::new();
@@ -250,18 +250,18 @@ fn main() -> Result<()> {
     }
     
     let baseline = asm.finalize();
-    println!("Baseline receipt created with {} events.", baseline.events.len());
-    println!("Baseline chain_hash: {}", baseline.chain_hash);
+    outln!("Baseline receipt created with {} events.", baseline.events.len());
+    outln!("Baseline chain_hash: {}", baseline.chain_hash);
 
     let operators = all_operators();
     let seed = 42u64;
 
     for op in operators {
-        println!("\nApplying operator: {}", op.name());
+        outln!("\nApplying operator: {}", op.name());
         let applied = op.apply(&baseline, seed)?;
-        println!("  Target seq: {}", applied.target_seq);
-        println!("  Mutated events: {}", applied.mutated_receipt.events.len());
-        println!("  Mutated chain_hash: {}", applied.mutated_receipt.chain_hash);
+        outln!("  Target seq: {}", applied.target_seq);
+        outln!("  Mutated events: {}", applied.mutated_receipt.events.len());
+        outln!("  Mutated chain_hash: {}", applied.mutated_receipt.chain_hash);
         
         // Verify distinct output
         ensure!(
@@ -278,9 +278,9 @@ fn main() -> Result<()> {
             );
         }
         
-        println!("  Status: VERIFIED (distinct and consistent)");
+        outln!("  Status: VERIFIED (distinct and consistent)");
     }
 
-    println!("\nAll maximalist mutation operators implemented and verified.");
+    outln!("\nAll maximalist mutation operators implemented and verified.");
     Ok(())
 }

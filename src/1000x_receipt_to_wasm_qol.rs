@@ -289,7 +289,7 @@ mod tests {
 
         assert!(!wasm.is_empty());
         assert_eq!(&wasm[0..4], b"\0asm");
-        println!("Compiled WASM size: {} bytes", wasm.len());
+        outln!("Compiled WASM size: {} bytes", wasm.len());
     }
 
     #[test]
@@ -318,7 +318,7 @@ mod tests {
         let compiler = ReceiptWasmCompiler::new(receipt);
         let wasm = compiler.compile();
 
-        println!("10,000 event WASM size: {} bytes", wasm.len());
+        outln!("10,000 event WASM size: {} bytes", wasm.len());
         // Should be ~1MB data + headers
         assert!(wasm.len() > 1_000_000);
     }

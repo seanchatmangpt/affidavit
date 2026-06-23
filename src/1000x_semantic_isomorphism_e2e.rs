@@ -295,22 +295,22 @@ mod tests {
         // --- STAGE 1: Standard -> Compact (v1 -> v2) ---
         let v2: FormatV2 = original_semantic.clone().into();
         let json_v2 = serde_json::to_string_pretty(&v2).unwrap();
-        println!("V2 (Compact):\n{}", json_v2);
+        outln!("V2 (Compact):\n{}", json_v2);
 
         // --- STAGE 2: Compact -> Nested (v2 -> v3) ---
         let v3: FormatV3 = SemanticReceipt::from(v2).into();
         let json_v3 = serde_json::to_string_pretty(&v3).unwrap();
-        println!("V3 (Nested):\n{}", json_v3);
+        outln!("V3 (Nested):\n{}", json_v3);
 
         // --- STAGE 3: Nested -> OCEL-Flat (v3 -> v4) ---
         let v4: FormatV4 = SemanticReceipt::from(v3).into();
         let json_v4 = serde_json::to_string_pretty(&v4).unwrap();
-        println!("V4 (OCEL-Flat):\n{}", json_v4);
+        outln!("V4 (OCEL-Flat):\n{}", json_v4);
 
         // --- STAGE 4: OCEL-Flat -> Tuple (v4 -> v5) ---
         let v5: FormatV5 = SemanticReceipt::from(v4).into();
         let json_v5 = serde_json::to_string_pretty(&v5).unwrap();
-        println!("V5 (Tuple):\n{}", json_v5);
+        outln!("V5 (Tuple):\n{}", json_v5);
 
         // --- STAGE 5: Tuple -> Standard (v5 -> v1) ---
         let final_semantic = SemanticReceipt::from(v5);
@@ -330,7 +330,7 @@ mod tests {
         let recomputed = crate::chain::recompute_chain(&final_semantic.events).unwrap();
         assert_eq!(recomputed, final_semantic.chain_hash, "Chain integrity preserved");
 
-        println!("SUCCESS: Strict isomorphism verified across 5 format versions.");
+        outln!("SUCCESS: Strict isomorphism verified across 5 format versions.");
     }
 }
 }

@@ -7,7 +7,6 @@ use std::time::Instant;
 /// Verifies that the throughput benchmark harness logic runs successfully.
 /// This test simulates the work done by the `throughput` benchmark and
 /// asserts that it completes with non-zero throughput (events/second).
-#[test]
 fn test_throughput_harness_execution() {
     let counts = [1, 5, 10, 50, 100];
 
@@ -74,7 +73,6 @@ fn measure_pipeline_throughput(n: usize) -> (f64, std::time::Duration) {
 
 /// Verifies O(1) append behavior (throughput doesn't collapse as chain grows).
 /// This mimics the `emit_scaling` benchmark requirement.
-#[test]
 fn test_emit_scaling_harness() {
     let base_n = 10;
     let large_n = 100;
@@ -99,7 +97,7 @@ fn measure_single_append_throughput(pre_populated_n: usize) -> f64 {
     // Setup
     let mut asm = ChainAssembler::new();
     let mut counter = SeqCounter::new();
-    for i in 0..pre_populated_n {
+    for _i in 0..pre_populated_n {
         let event = build_event("setup", vec![], b"", &mut counter).unwrap();
         asm.append(event).unwrap();
     }

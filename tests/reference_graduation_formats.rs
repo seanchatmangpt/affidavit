@@ -46,16 +46,16 @@ fn format_kinds_are_constructed() {
     // FormatKind is `#[non_exhaustive]` — census covers the 7 currently-known
     // formats; completeness is open by the crate's design (wildcard required).
     fn known(f: Fmt) -> bool {
-        match f {
+        matches!(
+            f,
             Fmt::OcelJson
-            | Fmt::OcelXml
-            | Fmt::OcelSqlite
-            | Fmt::XesXml
-            | Fmt::BpmnXml
-            | Fmt::PetriPnml
-            | Fmt::PowlJson => true,
-            _ => false,
-        }
+                | Fmt::OcelXml
+                | Fmt::OcelSqlite
+                | Fmt::XesXml
+                | Fmt::BpmnXml
+                | Fmt::PetriPnml
+                | Fmt::PowlJson
+        )
     }
     assert!(all.iter().copied().all(known));
     assert_eq!(

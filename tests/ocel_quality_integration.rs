@@ -224,7 +224,7 @@ fn e2e_ocel_quality_integration_full_lifecycle() -> Result<(), Box<dyn std::erro
     assert_eq!(verdict.outcomes.len(), 6, "Should have 6 check outcomes");
 
     // Verify each stage
-    let stage_names = vec![
+    let stage_names = [
         "decode",
         "check_format",
         "chain_integrity",
@@ -532,7 +532,7 @@ fn test_measurement_with_escalating_violations() -> Result<(), Box<dyn std::erro
     let mut seq_counter = SeqCounter::new();
 
     // Emit measurements with progressively worse type coverage (to trigger trend rule)
-    let degrading_coverage = vec![0.95, 0.93, 0.91, 0.89, 0.87, 0.85, 0.83];
+    let degrading_coverage = [0.95, 0.93, 0.91, 0.89, 0.87, 0.85, 0.83];
 
     for (idx, coverage) in degrading_coverage.iter().enumerate() {
         let metrics = create_test_metrics(idx as u64, 0.0, *coverage);
@@ -541,8 +541,8 @@ fn test_measurement_with_escalating_violations() -> Result<(), Box<dyn std::erro
 
         // Analyze with WE rules
         let mut analyzer = WesternElectricAnalyzer::new(0.90, 0.02, 20);
-        for i in 0..=idx {
-            analyzer.add_measurement("type_coverage", degrading_coverage[i]);
+        for &cov in &degrading_coverage[..=idx] {
+            analyzer.add_measurement("type_coverage", cov);
         }
 
         // Emit violation events if detected

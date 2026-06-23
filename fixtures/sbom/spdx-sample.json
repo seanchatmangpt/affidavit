@@ -3,7 +3,7 @@
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
   "name": "affidavit-sbom",
-  "documentNamespace": "https://acme.example/spdx/affidavit-26.6.17",
+  "documentNamespace": "https://acme.example/spdx/affidavit-26.6.22",
   "creationInfo": {
     "created": "2024-03-10T12:00:00Z",
     "creators": ["Organization: Acme Corp", "Tool: spdx-sbom-generator-0.0.15"]
@@ -12,11 +12,11 @@
     {
       "SPDXID": "SPDXRef-Package-affidavit",
       "name": "affidavit",
-      "versionInfo": "26.6.17",
+      "versionInfo": "26.6.22",
       "supplier": "Organization: Acme Corp",
       "licenseConcluded": "MIT OR Apache-2.0",
       "externalRefs": [
-        { "referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": "pkg:cargo/affidavit@26.6.17" }
+        { "referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": "pkg:cargo/affidavit@26.6.22" }
       ],
       "checksums": [{ "algorithm": "SHA256", "checksumValue": "f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1" }]
     },

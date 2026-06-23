@@ -85,6 +85,7 @@ fn parse_verbs(ontology: &str) -> anyhow::Result<BTreeMap<String, Verb>> {
     Ok(verbs)
 }
 
+#[allow(clippy::needless_range_loop)] // windowed back-scan; index math is clearer here
 fn extract_verb_name(lines: &[&str], start_idx: usize) -> Option<String> {
     for i in (start_idx.saturating_sub(10))..start_idx {
         if let Some(name) = extract_field_at_line(lines[i], "cnv:hasVerbName") {
@@ -97,6 +98,7 @@ fn extract_verb_name(lines: &[&str], start_idx: usize) -> Option<String> {
     None
 }
 
+#[allow(clippy::needless_range_loop)] // bounded forward scan from start_idx
 fn extract_field(lines: &[&str], start_idx: usize, field: &str) -> Option<String> {
     for i in start_idx..std::cmp::min(start_idx + 20, lines.len()) {
         if let Some(val) = extract_field_at_line(lines[i], field) {
@@ -118,6 +120,7 @@ fn extract_field_at_line(line: &str, field: &str) -> Option<String> {
     None
 }
 
+#[allow(clippy::needless_range_loop)] // bounded forward scan from start_idx
 fn extract_arguments(lines: &[&str], start_idx: usize, _ontology: &str) -> Option<Vec<String>> {
     for i in start_idx..std::cmp::min(start_idx + 10, lines.len()) {
         if lines[i].contains("cnv:hasArguments") {

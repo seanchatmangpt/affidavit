@@ -44,7 +44,7 @@ pub enum FindingStatus {
 impl FindingStatus {
     pub fn label(&self) -> &'static str {
         match self {
-            FindingStatus::Ok   => "ok  ",
+            FindingStatus::Ok => "ok  ",
             FindingStatus::Warn => "warn",
             FindingStatus::Fail => "FAIL",
         }
@@ -68,15 +68,41 @@ pub struct Finding {
 
 impl Finding {
     pub fn ok(id: &'static str, message: impl Into<String>) -> Self {
-        Finding { id, status: FindingStatus::Ok, message: message.into(), remediation: None, auto_fixable: false }
+        Finding {
+            id,
+            status: FindingStatus::Ok,
+            message: message.into(),
+            remediation: None,
+            auto_fixable: false,
+        }
     }
 
-    pub fn warn(id: &'static str, message: impl Into<String>, remediation: impl Into<String>) -> Self {
-        Finding { id, status: FindingStatus::Warn, message: message.into(), remediation: Some(remediation.into()), auto_fixable: false }
+    pub fn warn(
+        id: &'static str,
+        message: impl Into<String>,
+        remediation: impl Into<String>,
+    ) -> Self {
+        Finding {
+            id,
+            status: FindingStatus::Warn,
+            message: message.into(),
+            remediation: Some(remediation.into()),
+            auto_fixable: false,
+        }
     }
 
-    pub fn fail(id: &'static str, message: impl Into<String>, remediation: impl Into<String>) -> Self {
-        Finding { id, status: FindingStatus::Fail, message: message.into(), remediation: Some(remediation.into()), auto_fixable: false }
+    pub fn fail(
+        id: &'static str,
+        message: impl Into<String>,
+        remediation: impl Into<String>,
+    ) -> Self {
+        Finding {
+            id,
+            status: FindingStatus::Fail,
+            message: message.into(),
+            remediation: Some(remediation.into()),
+            auto_fixable: false,
+        }
     }
 
     pub fn auto_fixable(mut self) -> Self {
@@ -125,7 +151,9 @@ pub static DOCTOR_CHECKS: [&'static dyn DoctorCheck];
 
 struct GenesisVersionCheck;
 impl DoctorCheck for GenesisVersionCheck {
-    fn id(&self) -> &'static str { "genesis-seed-version" }
+    fn id(&self) -> &'static str {
+        "genesis-seed-version"
+    }
     fn run(&self) -> Finding {
         let version = env!("CARGO_PKG_VERSION");
         Finding::ok(
@@ -140,12 +168,17 @@ static _GENESIS_CHECK: &dyn DoctorCheck = &GenesisVersionCheck;
 
 struct AfffiDirCheck;
 impl DoctorCheck for AfffiDirCheck {
-    fn id(&self) -> &'static str { "affi-working-dir" }
+    fn id(&self) -> &'static str {
+        "affi-working-dir"
+    }
     fn run(&self) -> Finding {
         let working = std::path::Path::new(".affi/working.json");
-        let dir     = std::path::Path::new(".affi");
+        let dir = std::path::Path::new(".affi");
         if working.exists() {
-            Finding::ok("affi-working-dir", "Working receipt (.affi/working.json) present")
+            Finding::ok(
+                "affi-working-dir",
+                "Working receipt (.affi/working.json) present",
+            )
         } else if dir.exists() {
             Finding::warn(
                 "affi-working-dir",
@@ -167,19 +200,27 @@ static _AFFI_DIR_CHECK: &dyn DoctorCheck = &AfffiDirCheck;
 
 struct CompletionsCheck;
 impl DoctorCheck for CompletionsCheck {
-    fn id(&self) -> &'static str { "shell-completions" }
+    fn id(&self) -> &'static str {
+        "shell-completions"
+    }
     fn run(&self) -> Finding {
         let bash = std::path::Path::new("completions/affi.bash");
         let fish = std::path::Path::new("completions/affi.fish");
-        let zsh  = std::path::Path::new("completions/affi.zsh");
+        let zsh = std::path::Path::new("completions/affi.zsh");
         if bash.exists() && fish.exists() && zsh.exists() {
-            Finding::ok("shell-completions", "Shell completions present (bash, fish, zsh)")
+            Finding::ok(
+                "shell-completions",
+                "Shell completions present (bash, fish, zsh)",
+            )
         } else {
             let missing: Vec<&str> = [
                 (!bash.exists()).then_some("bash"),
                 (!fish.exists()).then_some("fish"),
                 (!zsh.exists()).then_some("zsh"),
-            ].into_iter().flatten().collect();
+            ]
+            .into_iter()
+            .flatten()
+            .collect();
             Finding::warn(
                 "shell-completions",
                 format!("Shell completions missing for: {}", missing.join(", ")),
