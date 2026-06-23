@@ -296,21 +296,21 @@ pub fn run_cli() {
 
     if args.contains(&"--raw".to_string()) {
         if let Some(p) = tele.predict() {
-            print!("{}", p.command);
+            out!("{}", p.command);
         }
     } else if args.contains(&"--init".to_string()) {
-        println!("{}", shell_integration());
+        outln!("{}", shell_integration());
     } else {
         if let Some(p) = tele.predict() {
-            println!("AFFI TELEPATHY — PREDICTION ENGINE");
-            println!("=================================");
-            println!("Command:    \x1b[1;32m{}\x1b[0m", p.command);
-            println!("Confidence: {:.1}%", p.confidence * 100.0);
-            println!("Category:   {}", p.category);
-            println!("Reason:     {}", p.reason);
-            println!("\n(Hint: add `eval \"$(affi telepathy --init)\"` to your shell config for Ctrl+T integration)");
+            outln!("AFFI TELEPATHY — PREDICTION ENGINE");
+            outln!("=================================");
+            outln!("Command:    \x1b[1;32m{}\x1b[0m", p.command);
+            outln!("Confidence: {:.1}%", p.confidence * 100.0);
+            outln!("Category:   {}", p.category);
+            outln!("Reason:     {}", p.reason);
+            outln!("\n(Hint: add `eval \"$(affi telepathy --init)\"` to your shell config for Ctrl+T integration)");
         } else {
-            println!("Telepathy: No clear prediction. Try emitting some events.");
+            outln!("Telepathy: No clear prediction. Try emitting some events.");
         }
     }
 }

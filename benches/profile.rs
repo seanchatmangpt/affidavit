@@ -29,7 +29,7 @@ fn build_profile_receipt(n: usize) -> affidavit::types::Receipt {
     for i in 0..n {
         let event = build_event(
             "profile-op",
-            vec![object_ref(&format!("obj-{i}"), "artifact")],
+            vec![object_ref(format!("obj-{i}"), "artifact")],
             format!("profile-payload-{i}").as_bytes(),
             &mut counter,
         )
@@ -88,7 +88,7 @@ fn bench_assemble_hot_path(c: &mut Criterion) {
                 for i in 0..n {
                     let event = build_event(
                         "assemble-profile-op",
-                        vec![object_ref(&format!("aobj-{i}"), "artifact")],
+                        vec![object_ref(format!("aobj-{i}"), "artifact")],
                         black_box(format!("apayload-{i}").as_bytes()),
                         &mut counter,
                     )

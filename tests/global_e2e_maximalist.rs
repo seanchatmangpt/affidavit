@@ -12,11 +12,11 @@
 //! Run with:
 //!   cargo test --test global_e2e_maximalist
 
-use affidavit::chain::{deserialize_receipt, serialize_receipt, ChainAssembler};
+use affidavit::chain::{deserialize_receipt, ChainAssembler};
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
 use affidavit::verifier::verify;
 use assert_cmd::Command;
-use chicago_tdd_tools::{assert_err, assert_in_range, assert_ok};
+use chicago_tdd_tools::assert_ok;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
@@ -70,7 +70,7 @@ mod suite_2_discovery {
     #[test]
     fn discovery_maximalist_witness() {
         let dir = TempDir::new().expect("tempdir");
-        let r_path = build_standard_receipt(&dir, "discovery.json");
+        let _r_path = build_standard_receipt(&dir, "discovery.json");
 
         // 2.1: affi receipt model (Petri net discovery)
         // Assert: output contains Petri net components and activity labels.
@@ -220,7 +220,7 @@ mod suite_6_cli {
     #[test]
     fn cli_ergonomics_maximalist_witness() {
         let dir = TempDir::new().expect("tempdir");
-        let r_path = build_standard_receipt(&dir, "cli.json");
+        let _r_path = build_standard_receipt(&dir, "cli.json");
 
         // Feature 5.1: Help Formatter (ASCII/ARDPRD)
         affi(&dir)

@@ -26,11 +26,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     const NUM_PIPELINES: usize = 10_000;
     const EVENTS_PER_PIPELINE: usize = 10;
 
-    println!("\x1b[1;35m--- GLOBAL SWARM E2E HARNESS ---\x1b[0m");
-    println!("Target Scale: {} parallel pipelines", NUM_PIPELINES);
-    println!("Load Depth:   {} events per pipeline", EVENTS_PER_PIPELINE);
-    println!("Total Events: {}", NUM_PIPELINES * EVENTS_PER_PIPELINE);
-    println!("----------------------------------");
+    outln!("\x1b[1;35m--- GLOBAL SWARM E2E HARNESS ---\x1b[0m");
+    outln!("Target Scale: {} parallel pipelines", NUM_PIPELINES);
+    outln!("Load Depth:   {} events per pipeline", EVENTS_PER_PIPELINE);
+    outln!("Total Events: {}", NUM_PIPELINES * EVENTS_PER_PIPELINE);
+    outln!("----------------------------------");
 
     let swarm_start = Instant::now();
     let completed = Arc::new(AtomicUsize::new(0));
@@ -99,14 +99,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let total_done = completed.load(Ordering::SeqCst);
     let avg_wait = total_wait_micros.load(Ordering::Relaxed) as f64 / total_done as f64;
 
-    println!("\x1b[1;32mSwarm Mission Accomplished.\x1b[0m");
-    println!("Wall Time:      {:?}", duration);
-    println!("Throughput:     {:.2} pipelines/sec", total_done as f64 / duration.as_secs_f64());
-    println!("Aggregate TP:   {:.2} events/sec", (total_done * EVENTS_PER_PIPELINE) as f64 / duration.as_secs_f64());
-    println!("Lock Contention: {:.2} µs (avg wait)", avg_wait);
+    outln!("\x1b[1;32mSwarm Mission Accomplished.\x1b[0m");
+    outln!("Wall Time:      {:?}", duration);
+    outln!("Throughput:     {:.2} pipelines/sec", total_done as f64 / duration.as_secs_f64());
+    outln!("Aggregate TP:   {:.2} events/sec", (total_done * EVENTS_PER_PIPELINE) as f64 / duration.as_secs_f64());
+    outln!("Lock Contention: {:.2} µs (avg wait)", avg_wait);
     
     // DETERMINISM VALIDATION
-    println!("\nValidating cross-thread determinism...");
+    outln!("\nValidating cross-thread determinism...");
     let det_start = Instant::now();
     let mut det_handles = Vec::new();
     
@@ -125,13 +125,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (idx, h) in det_handles.into_iter().enumerate() {
         let h_val = h.await?;
         if h_val != base_hash {
-            println!("\x1b[1;31mDETERMINISM BREAK\x1b[0m at task {}: {} != {}", idx + 1, h_val, base_hash);
+            outln!("\x1b[1;31mDETERMINISM BREAK\x1b[0m at task {}: {} != {}", idx + 1, h_val, base_hash);
             std::process::exit(1);
         }
     }
     
-    println!("Determinism Check: \x1b[1;32mPASSED\x1b[0m (100/100 coherent) in {:?}", det_start.elapsed());
-    println!("----------------------------------");
+    outln!("Determinism Check: \x1b[1;32mPASSED\x1b[0m (100/100 coherent) in {:?}", det_start.elapsed());
+    outln!("----------------------------------");
     
     Ok(())
 }

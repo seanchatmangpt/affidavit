@@ -48,17 +48,17 @@ impl<'a, S: Debug + Clone> TimeTravelDebugger<'a, S> {
 
     /// Enter the interactive REPL.
     pub fn run_repl(&mut self) -> io::Result<()> {
-        println!("\n\x1b[1;36m1000X TIME-TRAVEL DEBUGGER\x1b[0m");
-        println!("============================");
-        println!("Receipt: {}", self.receipt.chain_hash.as_hex());
-        println!("Events:  {}", self.receipt.events.len());
-        println!("Ticks:   0 to {} (0 is GENESIS)", self.states.len() - 1);
-        println!("Type \x1b[1;33m'help'\x1b[0m for commands.\n");
+        outln!("\n\x1b[1;36m1000X TIME-TRAVEL DEBUGGER\x1b[0m");
+        outln!("============================");
+        outln!("Receipt: {}", self.receipt.chain_hash.as_hex());
+        outln!("Events:  {}", self.receipt.events.len());
+        outln!("Ticks:   0 to {} (0 is GENESIS)", self.states.len() - 1);
+        outln!("Type \x1b[1;33m'help'\x1b[0m for commands.\n");
 
         loop {
             self.print_current_tick();
             
-            print!("\x1b[1;32m(tt-dbg @ {})\x1b[0m > ", self.cursor);
+            out!("\x1b[1;32m(tt-dbg @ {})\x1b[0m > ", self.cursor);
             io::stdout().flush()?;
 
             let mut input = String::new();
@@ -74,14 +74,14 @@ impl<'a, S: Debug + Clone> TimeTravelDebugger<'a, S> {
                     if self.cursor < self.states.len() - 1 {
                         self.cursor += 1;
                     } else {
-                        println!("\x1b[1;31m[!] Already at the end of history.\x1b[0m");
+                        outln!("\x1b[1;31m[!] Already at the end of history.\x1b[0m");
                     }
                 }
                 "b" | "backward" | "p" | "prev" => {
                     if self.cursor > 0 {
                         self.cursor -= 1;
                     } else {
-                        println!("\x1b[1;31m[!] Already at GENESIS.\x1b[0m");
+                        outln!("\x1b[1;31m[!] Already at GENESIS.\x1b[0m");
                     }
                 }
                 "g" | "goto" => {
@@ -90,13 +90,13 @@ impl<'a, S: Debug + Clone> TimeTravelDebugger<'a, S> {
                             if tick < self.states.len() {
                                 self.cursor = tick;
                             } else {
-                                println!("\x1b[1;31m[!] Tick {} is out of range (0-{}).\x1b[0m", tick, self.states.len() - 1);
+                                outln!("\x1b[1;31m[!] Tick {} is out of range (0-{}).\x1b[0m", tick, self.states.len() - 1);
                             }
                         } else {
-                            println!("\x1b[1;31m[!] Invalid tick number: {}\x1b[0m", tick_str);
+                            outln!("\x1b[1;31m[!] Invalid tick number: {}\x1b[0m", tick_str);
                         }
                     } else {
-                        println!("\x1b[1;31m[!] Usage: goto <tick_number>\x1b[0m");
+                        outln!("\x1b[1;31m[!] Usage: goto <tick_number>\x1b[0m");
                     }
                 }
                 "m" | "memory" | "state" | "inspect" => {
@@ -106,11 +106,11 @@ impl<'a, S: Debug + Clone> TimeTravelDebugger<'a, S> {
                     self.print_help();
                 }
                 "q" | "quit" | "exit" => {
-                    println!("Exiting Time-Travel Debugger.");
+                    outln!("Exiting Time-Travel Debugger.");
                     break;
                 }
                 _ => {
-                    println!("\x1b[1;31m[!] Unknown command: '{}'. Type 'help'.\x1b[0m", parts[0]);
+                    outln!("\x1b[1;31m[!] Unknown command: '{}'. Type 'help'.\x1b[0m", parts[0]);
                 }
             }
         }
@@ -121,35 +121,35 @@ impl<'a, S: Debug + Clone> TimeTravelDebugger<'a, S> {
     fn print_current_tick(&self) {
         let is_genesis = self.cursor == 0;
         
-        println!("\x1b[1;34m--- TICK {} ---\x1b[0m", self.cursor);
+        outln!("\x1b[1;34m--- TICK {} ---\x1b[0m", self.cursor);
         if is_genesis {
-            println!("Event: \x1b[33m[GENESIS]\x1b[0m");
-            println!("Hash:  {}", crate::chain::GENESIS_SEED.escape_ascii());
+            outln!("Event: \x1b[33m[GENESIS]\x1b[0m");
+            outln!("Hash:  {}", crate::chain::GENESIS_SEED.escape_ascii());
         } else {
             let event = &self.receipt.events[self.cursor - 1];
-            println!("Event: \x1b[1;33m{}\x1b[0m", event.event_type);
-            println!("Seq:   {}", event.seq);
-            println!("ID:    {}", event.id);
-            println!("Comm:  {}", event.payload_commitment.as_hex());
+            outln!("Event: \x1b[1;33m{}\x1b[0m", event.event_type);
+            outln!("Seq:   {}", event.seq);
+            outln!("ID:    {}", event.id);
+            outln!("Comm:  {}", event.payload_commitment.as_hex());
         }
-        println!();
+        outln!();
     }
 
     fn inspect_memory(&self) {
-        println!("\x1b[1;35m--- MEMORY INSPECTION ---\x1b[0m");
-        println!("{:#?}", self.states[self.cursor]);
-        println!();
+        outln!("\x1b[1;35m--- MEMORY INSPECTION ---\x1b[0m");
+        outln!("{:#?}", self.states[self.cursor]);
+        outln!();
     }
 
     fn print_help(&self) {
-        println!("\x1b[1;33mAVAILABLE COMMANDS:\x1b[0m");
-        println!("  \x1b[1;32mf, forward, n, next\x1b[0m    : Step forward to next event");
-        println!("  \x1b[1;32mb, backward, p, prev\x1b[0m   : Step backward to previous state");
-        println!("  \x1b[1;32mg, goto <tick>\x1b[0m         : Jump to a specific point in time");
-        println!("  \x1b[1;32mm, memory, inspect\x1b[0m     : Dump current state memory");
-        println!("  \x1b[1;32mh, help\x1b[0m                : Show this help");
-        println!("  \x1b[1;32mq, quit, exit\x1b[0m          : Exit REPL");
-        println!();
+        outln!("\x1b[1;33mAVAILABLE COMMANDS:\x1b[0m");
+        outln!("  \x1b[1;32mf, forward, n, next\x1b[0m    : Step forward to next event");
+        outln!("  \x1b[1;32mb, backward, p, prev\x1b[0m   : Step backward to previous state");
+        outln!("  \x1b[1;32mg, goto <tick>\x1b[0m         : Jump to a specific point in time");
+        outln!("  \x1b[1;32mm, memory, inspect\x1b[0m     : Dump current state memory");
+        outln!("  \x1b[1;32mh, help\x1b[0m                : Show this help");
+        outln!("  \x1b[1;32mq, quit, exit\x1b[0m          : Exit REPL");
+        outln!();
     }
 }
 

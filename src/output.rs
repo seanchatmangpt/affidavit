@@ -57,6 +57,9 @@ impl Format {
     /// assert_eq!(Format::from_str("human"), Format::Human);
     /// assert_eq!(Format::from_str("other"), Format::Human);
     /// ```
+    // Intentional inherent method: infallible `--format` parsing with a Human
+    // fallback, distinct from the fallible `std::str::FromStr`.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s {
             "json" => Self::Json,
@@ -227,8 +230,7 @@ impl Out {
     pub fn data<T: Serialize + std::fmt::Display>(&mut self, value: &T) -> io::Result<()> {
         match self.format {
             Format::Json => {
-                let json = serde_json::to_string_pretty(value)
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                let json = serde_json::to_string_pretty(value).map_err(io::Error::other)?;
                 writeln!(self.stdout, "{}", json)
             }
             Format::Human | Format::Yaml => writeln!(self.stdout, "{}", value),
@@ -244,8 +246,7 @@ impl Out {
     ///
     /// Returns an [`io::Error`] if serialization or writing fails.
     pub fn json(&mut self, value: &serde_json::Value) -> io::Result<()> {
-        let s = serde_json::to_string_pretty(value)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let s = serde_json::to_string_pretty(value).map_err(io::Error::other)?;
         writeln!(self.stdout, "{}", s)
     }
 
@@ -298,6 +299,29 @@ impl Out {
 }
 
 // ---------------------------------------------------------------------------
+// Sanctioned stdout sink (the one allowed `println!`/`print!` site)
+// ---------------------------------------------------------------------------
+
+/// Write `args` to stdout followed by a newline.
+///
+/// This is the **single sanctioned `println!` site** in the crate: the
+/// `outln!` macro routes here so the rest of the library can keep
+/// `#![deny(clippy::print_stdout)]` without threading an [`Out`] handle through
+/// every call. Prefer [`Out`] for new, format-aware/testable output.
+#[allow(clippy::print_stdout)]
+pub fn line(args: std::fmt::Arguments<'_>) {
+    println!("{args}");
+}
+
+/// Write `args` to stdout with no trailing newline (the `out!` macro routes here).
+///
+/// The sanctioned counterpart to [`line`] for `print!`-style output.
+#[allow(clippy::print_stdout)]
+pub fn print_(args: std::fmt::Arguments<'_>) {
+    print!("{args}");
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -328,6 +352,7 @@ mod tests {
     /// Build an `Out` backed by in-memory buffers; returns the `Out` plus the
     /// `Arc<Mutex<Vec<u8>>>` handles so callers can inspect bytes after each
     /// write.  No raw pointers, no unsafe.
+    #[allow(clippy::type_complexity)]
     fn build_out(format: Format) -> (Out, Arc<Mutex<Vec<u8>>>, Arc<Mutex<Vec<u8>>>) {
         let stdout_arc: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
         let stderr_arc: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));

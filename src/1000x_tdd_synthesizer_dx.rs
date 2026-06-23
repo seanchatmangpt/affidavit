@@ -18,9 +18,9 @@ const TRACE_SINK: &str = "affi_trace_sink.log";
 const TARGET_TEST: &str = "tests/autogen_tdd_witness.rs";
 
 fn main() -> anyhow::Result<()> {
-    println!("1000X TDD SYNTHESIZER: Starting watcher...");
-    println!("Sink: {}", TRACE_SINK);
-    println!("Target: {}", TARGET_TEST);
+    outln!("1000X TDD SYNTHESIZER: Starting watcher...");
+    outln!("Sink: {}", TRACE_SINK);
+    outln!("Target: {}", TARGET_TEST);
 
     // Initialize/clear the sink
     let _ = File::create(TRACE_SINK)?;
@@ -38,7 +38,7 @@ fn main() -> anyhow::Result<()> {
 
         if len > 0 {
             if let Some((op, target)) = parse_span(&line) {
-                println!("Captured span: {} -> {}", op, target);
+                outln!("Captured span: {} -> {}", op, target);
                 synthesize_test(op, target)?;
             }
             pos += len as u64;

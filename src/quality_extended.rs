@@ -110,6 +110,7 @@ impl WesternElectricConfig {
     }
 
     /// Override which rules to enable/disable.
+    #[allow(clippy::too_many_arguments)]
     pub fn with_enabled_rules(
         mut self,
         rule1: bool,
@@ -835,7 +836,7 @@ impl EnhancedWesternElectricAnalyzer {
         for rule in &self.detected_rules {
             metric_rules
                 .entry(rule.metric().to_string())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(rule.clone());
         }
 
@@ -914,7 +915,7 @@ pub fn detect_rule_storms(violations: &[QualityViolation]) -> Vec<RuleStorm> {
 
         metric_rules
             .entry(violation.metric().to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(rule_variant);
     }
 

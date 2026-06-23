@@ -24,7 +24,7 @@ fn defects_are_errors_advice_is_info() {
         assert!(
             d.to_string().starts_with("[Error]"),
             "defect diagnostic must be an Error: {d:?} → {}",
-            d.to_string()
+            d
         );
     }
 

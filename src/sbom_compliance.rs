@@ -240,7 +240,7 @@ fn all_components<F>(sbom: &Sbom, pred: F) -> bool
 where
     F: Fn(&crate::sbom::Component) -> bool,
 {
-    !sbom.components.is_empty() && sbom.components.iter().all(|c| pred(c))
+    !sbom.components.is_empty() && sbom.components.iter().all(pred)
 }
 
 /// Whether the document carries a non-empty author string.

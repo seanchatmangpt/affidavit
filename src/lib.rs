@@ -83,6 +83,11 @@
 #![deny(clippy::print_stdout)]
 #![deny(unsafe_code)]
 
+// Internal `outln!` / `out!` macros (route stdout through `output.rs`). Declared
+// with `#[macro_use]` before the modules below so they are in scope crate-wide.
+#[macro_use]
+mod macros;
+
 pub mod admission;
 pub mod bench;
 pub mod catalog;

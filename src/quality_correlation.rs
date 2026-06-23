@@ -210,7 +210,7 @@ pub fn compute_metric_correlations(history: &[CodeQualityMetrics]) -> Vec<Metric
     let test_coverage: Vec<f64> = history.iter().map(|m| m.test_coverage).collect();
     let doc_coverage: Vec<f64> = history.iter().map(|m| m.doc_coverage).collect();
 
-    let metrics = vec![
+    let metrics = [
         ("stub_ratio", stub_ratios),
         ("type_coverage", type_coverages),
         ("churn", churns),
@@ -277,7 +277,7 @@ pub fn detect_simultaneous_violations(
 
             let time_diff = (get_violation_timestamp(&violations[j]) as i64
                 - get_violation_timestamp(&violations[i]) as i64)
-                .abs() as u64;
+                .unsigned_abs();
 
             if time_diff <= time_window_secs {
                 group_metrics.push(violations[j].metric().to_string());
@@ -311,7 +311,7 @@ fn get_violation_timestamp(violation: &QualityViolation) -> u64 {
 
     let mut hasher = DefaultHasher::new();
     violation.metric().hash(&mut hasher);
-    (hasher.finish() % 1000000000) as u64
+    hasher.finish() % 1000000000
 }
 
 /// Infer root cause hypothesis: which metric change caused the violation?
@@ -494,13 +494,12 @@ pub fn amplify_severity_for_correlated_violations(
 
             // Find correlation between metric_a and metric_b
             for corr in correlations {
-                if (corr.metric_a == *metric_a && corr.metric_b == metric_b)
-                    || (corr.metric_a == metric_b && corr.metric_b == *metric_a)
+                if ((corr.metric_a == *metric_a && corr.metric_b == metric_b)
+                    || (corr.metric_a == metric_b && corr.metric_b == *metric_a))
+                    && corr.is_significant()
                 {
-                    if corr.is_significant() {
-                        // Strong correlation amplifies severity
-                        amplification_factor *= 1.0 + (corr.pearson_coefficient.abs() * 0.5);
-                    }
+                    // Strong correlation amplifies severity
+                    amplification_factor *= 1.0 + (corr.pearson_coefficient.abs() * 0.5);
                 }
             }
         }
@@ -771,9 +770,11 @@ mod tests {
     fn test_compute_metric_correlations_multiple_history() {
         let mut history = Vec::new();
         for i in 0..10 {
-            let mut metrics = CodeQualityMetrics::default();
-            metrics.stub_ratio = 0.1 + (i as f64 * 0.05);
-            metrics.type_coverage = 0.9 - (i as f64 * 0.05); // Inverse relationship
+            let metrics = CodeQualityMetrics {
+                stub_ratio: 0.1 + (i as f64 * 0.05),
+                type_coverage: 0.9 - (i as f64 * 0.05), // Inverse relationship
+                ..Default::default()
+            };
             history.push(metrics);
         }
 
@@ -841,10 +842,9 @@ mod tests {
                 severity: "HIGH".to_string(),
             },
         ];
+        // Simultaneous violation detection may or may not group these based on
+        // timestamp hashing; this test simply verifies the call does not panic.
         let _simultaneous = detect_simultaneous_violations(&violations);
-        // Note: Simultaneous violation detection may or may not group these
-        // based on timestamp hashing. This test verifies the function runs without panic.
-        assert!(true, "Function should complete without panic");
     }
 
     // ========================================================================
@@ -869,10 +869,12 @@ mod tests {
     fn test_infer_root_cause_with_correlation() {
         let mut history = Vec::new();
         for i in 0..10 {
-            let mut metrics = CodeQualityMetrics::default();
             // Create strong positive correlation between stub_ratio and churn
-            metrics.stub_ratio = 0.1 + (i as f64 * 0.05);
-            metrics.churn = 10 + (i * 15);
+            let metrics = CodeQualityMetrics {
+                stub_ratio: 0.1 + (i as f64 * 0.05),
+                churn: 10 + (i * 15),
+                ..Default::default()
+            };
             history.push(metrics);
         }
 
@@ -1000,7 +1002,7 @@ mod tests {
         let amplified = amplify_severity_for_correlated_violations(&violations, &correlations);
 
         // All values should be capped at 10.0
-        for (_, severity) in amplified.iter() {
+        for severity in amplified.values() {
             assert!(*severity <= 10.0, "Severity should be capped at 10.0");
         }
     }
@@ -1013,10 +1015,12 @@ mod tests {
     fn test_analyze_correlations_full_workflow() {
         let mut history = Vec::new();
         for i in 0..10 {
-            let mut metrics = CodeQualityMetrics::default();
-            metrics.stub_ratio = 0.1 + (i as f64 * 0.02);
-            metrics.type_coverage = 0.95 - (i as f64 * 0.02);
-            metrics.churn = 5 + (i * 3);
+            let metrics = CodeQualityMetrics {
+                stub_ratio: 0.1 + (i as f64 * 0.02),
+                type_coverage: 0.95 - (i as f64 * 0.02),
+                churn: 5 + (i * 3),
+                ..Default::default()
+            };
             history.push(metrics);
         }
 

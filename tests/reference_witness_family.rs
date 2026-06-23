@@ -8,7 +8,7 @@
 // (Standard vs Paper vs ApiGrammar) — failing-when-fake: a wrong KEY/FAMILY
 // const fails the assertion.
 
-use wasm4pm_compat::witness::{Ocel20, Pm4pyApiGrammar, PowlPaper, Witness, WitnessFamily};
+use wasm4pm_compat::witness::{Ocel20, Pm4pyApiGrammar, PowlPaper, WitnessFamily};
 
 #[test]
 fn standard_family_markers_carry_correct_metadata() {

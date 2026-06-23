@@ -14,10 +14,10 @@ use affidavit::tracing::{
 fn all_four_operation_wrappers_emit_named_spans() {
     clear_spans();
 
-    let _ = trace_emit("create", 1, || ());
-    let _ = trace_assemble(3, || ());
-    let _ = trace_verify("r.json", || ());
-    let _ = trace_show("r.json", || ());
+    trace_emit("create", 1, || ());
+    trace_assemble(3, || ());
+    trace_verify("r.json", || ());
+    trace_show("r.json", || ());
 
     let spans = captured_spans();
     let ops: std::collections::BTreeSet<&str> =

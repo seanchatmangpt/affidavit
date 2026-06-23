@@ -74,7 +74,7 @@ pub fn receipt_to_ocel(receipt: &Receipt) -> Result<OCEL, MiningError> {
 ///
 /// The discovery follows these steps:
 /// 1. **Transition Discovery**: Every unique `event_type` in the log becomes
-///     a visible transition in the Petri net.
+///    a visible transition in the Petri net.
 /// 2. **Causal Discovery**: Analyzes the log for "directly-follows" relations.
 ///    It uses both a global sequence perspective and an object-centric
 ///    perspective (tracing individual object lifecycles).

@@ -20,7 +20,7 @@ fn marking_records_per_place_token_counts() {
     assert_eq!(m.tokens_on("absent"), 0, "absent place → 0 tokens");
 
     // tokens() exposes the full (place, count) view.
-    let total: usize = m.tokens().iter().map(|(_, n)| *n).sum();
+    let total: usize = m.tokens().values().copied().sum();
     assert_eq!(total, 3, "total token count across places");
 }
 

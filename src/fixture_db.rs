@@ -284,6 +284,36 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
+fn main() -> Result<()> {
+    outln!("FixtureDatabase Maximalist Implementation Demo");
+    let db_path = PathBuf::from("fixtures_demo.json");
+    let mut db = FixtureDatabase::open(&db_path)?;
+
+    let mut asm = crate::chain::ChainAssembler::new();
+    let mut counter = crate::ocel::SeqCounter::new();
+    let e = crate::ocel::build_event("demo", vec![], b"data", &mut counter)?;
+    asm.append(e)?;
+    let receipt = asm.finalize();
+
+    match db.insert("demo-fixture", &["demo", "maximalist"], receipt) {
+        Ok(f) => outln!("Inserted fixture: {} (ID: {})", f.name, f.id),
+        Err(e) => outln!("Note: {}", e),
+    }
+
+    db.save()?;
+    outln!("Database saved to {:?}", db_path);
+
+    let query = FixtureQuery {
+        tag: Some("maximalist".to_string()),
+        ..Default::default()
+    };
+    let results = db.search(&query);
+    outln!("Search found {} matches", results.len());
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,34 +365,4 @@ mod tests {
         assert_eq!(db2.len(), 2);
         assert_eq!(db2.get_by_name("fix-1").unwrap().receipt, r1);
     }
-}
-
-#[allow(dead_code)]
-fn main() -> Result<()> {
-    println!("FixtureDatabase Maximalist Implementation Demo");
-    let db_path = PathBuf::from("fixtures_demo.json");
-    let mut db = FixtureDatabase::open(&db_path)?;
-
-    let mut asm = crate::chain::ChainAssembler::new();
-    let mut counter = crate::ocel::SeqCounter::new();
-    let e = crate::ocel::build_event("demo", vec![], b"data", &mut counter)?;
-    asm.append(e)?;
-    let receipt = asm.finalize();
-
-    match db.insert("demo-fixture", &["demo", "maximalist"], receipt) {
-        Ok(f) => println!("Inserted fixture: {} (ID: {})", f.name, f.id),
-        Err(e) => println!("Note: {}", e),
-    }
-
-    db.save()?;
-    println!("Database saved to {:?}", db_path);
-
-    let query = FixtureQuery {
-        tag: Some("maximalist".to_string()),
-        ..Default::default()
-    };
-    let results = db.search(&query);
-    println!("Search found {} matches", results.len());
-
-    Ok(())
 }
