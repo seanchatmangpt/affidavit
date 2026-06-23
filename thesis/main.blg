@@ -1,9 +1,9 @@
 [0] Config.pm:307> INFO - This is Biber 2.19
 [0] Config.pm:310> INFO - Logfile is 'main.blg'
-[38] biber-darwin:340> INFO - === Tue Jun 16, 2026, 16:31:38
-[48] Biber.pm:419> INFO - Reading 'main.bcf'
-[85] Biber.pm:979> INFO - Found 0 citekeys in bib section 0
-[93] bbl.pm:660> INFO - Writing 'main.bbl' with encoding 'UTF-8'
-[93] bbl.pm:763> INFO - Output to main.bbl
-[93] Biber.pm:131> WARN - The file 'main.bcf' does not contain any citations!
-[93] Biber.pm:133> INFO - WARNINGS: 1
+[40] biber-darwin:340> INFO - === Tue Jun 16, 2026, 16:59:10
+[52] Biber.pm:419> INFO - Reading 'main.bcf'
+[106] Biber.pm:979> INFO - Found 86 citekeys in bib section 0
+[114] Biber.pm:4419> INFO - Processing section 0
+[122] Biber.pm:4610> INFO - Looking for bibtex file 'references.bib' for section 0
+[234] Utils.pm:410> ERROR - Cannot find 'references.bib'!
+[235] Biber.pm:136> INFO - ERRORS: 1

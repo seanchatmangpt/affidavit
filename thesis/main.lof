@@ -12,4 +12,24 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {23.1}{\ignorespaces The 7-Stage Core Certify Pipeline Architecture demonstrating the transition from the untrusted boundary to the trusted verification core.}}{317}{figure.caption.14}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {26.1}{\ignorespaces Comparative throughput scaling across active thread counts demonstrating Amdahl's Law plateaus.}}{349}{figure.caption.16}%
+\contentsline {figure}{\numberline {26.2}{\ignorespaces Exponential increase in severe latency outliers due to Mutex contention at high thread saturation.}}{352}{figure.caption.19}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
 \contentsfinish 

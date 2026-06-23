@@ -141,7 +141,7 @@ flowchart TD
 | `src/lib.rs` | Module declarations and re-exports. |
 | `web/` | Next.js UI that renders real receipts, verdicts, and benchmarks (see [`../REPRESENTATION_MAP.md`](../REPRESENTATION_MAP.md)). |
 
-> Note: this map reflects the current tree after v26.6.17, which expanded
+> Note: this map reflects the current tree after v26.6.22, which expanded
 > the core with quality (Western Electric), SBOM, and OCEL verticals.
 > Additional modules (`src/handlers.rs`, `src/discovery.rs`,
 > `src/lsp.rs`) support broader integration work; see

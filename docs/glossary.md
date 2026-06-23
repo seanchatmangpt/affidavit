@@ -69,7 +69,7 @@ the same events always yield the same content address.
 
 The fixed byte string that seeds the rolling chain hash, binding every chain to
 this release of the tool. In `src/chain.rs` it is
-`GENESIS_SEED = b"affidavit-v26.6.17-genesis"`, and `chain_hash_0 =
+`GENESIS_SEED = b"affidavit-v26.6.22-genesis"`, and `chain_hash_0 =
 blake3(GENESIS_SEED)`. An empty receipt's chain hash equals the genesis hash.
 
 ### Profile (core/v1)
@@ -124,7 +124,7 @@ lawful chain exists; it does not hunt for fraud.
 ### SBOM (Software Bill of Materials)
 
 A structured inventory of components, dependencies, and metadata for a software
-artifact. Affidavit v26.6.17 integrates SBOM generation, parsing, and validation:
+artifact. Affidavit v26.6.22 integrates SBOM generation, parsing, and validation:
 - **sbom-scan**: Generate SBOM (SPDX/CycloneDX format) from receipt or codebase.
 - **sbom-compliance**: Check SBOM against NTIA minimum elements standard.
 - **sbom-vulnerability**: Aggregate vulnerability data and calculate risk/blast-radius.

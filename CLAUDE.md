@@ -1,6 +1,6 @@
 # affidavit — Provenance Layer Documentation
 
-**Version:** 26.6.17  
+**Version:** 26.6.22  
 **Project:** Receipt Assembly & Certification  
 **Language:** Rust (2021 edition)  
 **License:** MIT OR Apache-2.0
@@ -166,7 +166,7 @@ The verifier maps 1:1 to a C4 Level-3 component view:
 
 ### 65+ Canonical Verbs
 
-Affidavit v26.6.17 provides a comprehensive CLI organized into 9 primary verb families:
+Affidavit v26.6.22 provides a comprehensive CLI organized into 9 primary verb families:
 
 **Core Provenance (11 verbs):**
 `emit`, `assemble`, `verify`, `show`, `inspect`, `diagnose`, `stats`, `graph`, `replay`, `model`, `conformance`

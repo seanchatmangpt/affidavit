@@ -74,7 +74,7 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-Affidavit v26.6.17 expanded the CLI ontology to encompass **59 canonical verbs**, generating a massive CLI surface capable of advanced provenance, auditing, and analysis workflows.
+Affidavit v26.6.22 expanded the CLI ontology to encompass **59 canonical verbs**, generating a massive CLI surface capable of advanced provenance, auditing, and analysis workflows.
 
 **Core Verbs (The Provenance Loop):**
 - `affi emit` — Record a new operation-event.
