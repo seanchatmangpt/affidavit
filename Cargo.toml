@@ -203,9 +203,18 @@ all = [
 dev = ["all"]
 
 [patch.crates-io]
-# Registry wasm4pm-compat v26.6.13 uses `impl const Trait` which is broken on
-# current nightly. Use a local build-compatible stub until the sibling path
-# crate is available in this environment.
+# All three crates are patched locally because:
+#
+# wasm4pm / wasm4pm-compat — both use `#![feature(const_trait_impl)]`, which
+# is broken on the nightly toolchain pinned in rust-toolchain.toml.  The real
+# repos are seanchatmangpt/wasm4pm and (wasm4pm-compat lives on crates.io).
+# Swap back once upstream pins a nightly that stabilises const-trait.
+#
+# clnrm-core — version "1.3" in Cargo.toml vs "26.5.x" upstream.  The real
+# repo (seanchatmangpt/clnrm) pulls in surrealdb, async-graphql, and 300+
+# transitive deps, inflating Cargo.lock for an optional feature (mutation)
+# that is not enabled in the default build.  Swap to git once the version
+# requirement is aligned or the feature is promoted to default.
 wasm4pm-compat = { path = "stubs/wasm4pm-compat" }
 wasm4pm = { path = "stubs/wasm4pm" }
 clnrm-core = { path = "stubs/clnrm-core" }
