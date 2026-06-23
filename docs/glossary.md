@@ -75,7 +75,7 @@ const GENESIS_SEED_STR: &str = concat!("affidavit-v", env!("CARGO_PKG_VERSION"),
 pub const GENESIS_SEED: &[u8] = GENESIS_SEED_STR.as_bytes();
 ```
 
-For v26.6.19 this resolves to `affidavit-v26.6.19-genesis`. `chain_hash_0 =
+For v26.6.22 this resolves to `affidavit-v26.6.22-genesis`. `chain_hash_0 =
 blake3(GENESIS_SEED)`, and an empty receipt's chain hash equals the genesis hash.
 Receipts from a different release version will fail stage 3 (`chain_integrity`)
 because their genesis seed differs — this is the intended cross-version boundary.
@@ -128,6 +128,48 @@ the receipt — against a fixed format standard, and every check in the pipeline
 is decidable. Unverifiable work is **rejected, not detected**: a tampered or
 malformed receipt simply fails a stage and yields REJECT. The verifier proves a
 lawful chain exists; it does not hunt for fraud.
+
+### SBOM (Software Bill of Materials)
+
+A structured inventory of components, dependencies, and metadata for a software
+artifact. Affidavit v26.6.22 integrates SBOM generation, parsing, and validation:
+- **sbom-scan**: Generate SBOM (SPDX/CycloneDX format) from receipt or codebase.
+- **sbom-compliance**: Check SBOM against NTIA minimum elements standard.
+- **sbom-vulnerability**: Aggregate vulnerability data and calculate risk/blast-radius.
+
+### Western Electric SPC (Statistical Process Control)
+
+Real-time quality monitoring via Western Electric decision rules. Affidavit applies these rules to receipt chains and artifact metrics:
+- **Anomaly detection**: Flag process shifts via rule violations (1-of-1, 9-of-9, 6-of-6, etc.).
+- **Trend analysis**: Detect sustained degradation or improvement over time.
+- **Portfolio health**: Monitor process control across multiple repositories or artifacts.
+
+Implemented in `src/quality.rs` and related modules.
+
+### OCEL (Object-Centric Event Logs)
+
+A standard model for event logs that track *objects* and their lifecycles across a process, rather than a single case id.
+Affidavit uses OCEL concepts (objects, object-refs, qualifiers) to shape events.
+Full integration with OCEL tools via `src/ocel.rs`.
+
+### DORA Metrics (DevOps Research and Assessment)
+
+Four key metrics for engineering team velocity:
+- **Deployment Frequency**: How often code reaches production.
+- **Lead Time for Changes**: Time from code commit to production.
+- **Mean Time to Recovery (MTTR)**: Time to restore service after a failure.
+- **Change Failure Rate**: Percentage of changes that cause production incidents.
+
+Affidavit's `dora-metrics` verb derives these from receipt event chains.
+
+### NTIA Minimum Elements
+
+The U.S. National Telecommunications and Information Administration's baseline for SBOM completeness. Includes:
+- Component name, version, supplier, unique identifier.
+- Dependency relationships and known vulnerabilities.
+- License and author information.
+
+Affidavit's `sbom-compliance` verb validates against these elements.
 
 ---
 

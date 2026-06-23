@@ -2,6 +2,16 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.6.22] — 2026-06-22
+
+### Changed
+- **Documentation & Release Readiness**:
+  - Updated all documentation for v26.6.22 release.
+  - Fixed Rust badge (1.56 → 1.78) and removed shell REPL mention.
+  - Expanded verb documentation (11 core → 65+ across 9 families).
+  - Added glossary entries for SBOM, Western Electric SPC, OCEL, DORA metrics, NTIA elements.
+  - Prepared crate for crates.io publication with `exclude` list.
+
 ## [26.6.19] — 2026-06-19
 
 ### Added

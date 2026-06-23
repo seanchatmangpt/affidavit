@@ -1,8 +1,8 @@
-# Affidavit v26.6.17+ — Status Report (**1000x Initiative Complete**)
+# Affidavit v26.6.22 — Status Report (**1000x Initiative Complete**)
 
-**Date:** 2026-06-14
+**Date:** 2026-06-22
 **Status:** **1000x Initiative Complete** — 30 Features Integrated across 6 Categories
-**Version:** 26.6.17 (full features + combinatorial maximalism)
+**Version:** 26.6.22 (full features + combinatorial maximalism)
 
 ---
 
@@ -13,7 +13,7 @@ Affidavit v26.6.17+ marks the successful completion of the **1000x Initiative**.
 1. ✅ **Combinatorial Maximalism** — 30 features across 6 categories fully integrated.
 2. ✅ **80/20 Doctrine** — Reused 80% code from 6 elite Rust libraries (chicago-tdd, wasm4pm, Criterion, OTel, etc.).
 3. ✅ **Full Feature Suite** — From process discovery to mutation testing, all verbs are live.
-4. ✅ **Maximalist Documentation** — Comprehensive tutorials for all 30 features in `wip/documentation_maximalist.md`.
+4. ✅ **Maximalist Documentation** — Comprehensive guides in README.md and CLAUDE.md.
 
 ---
 
@@ -40,7 +40,7 @@ Affidavit v26.6.17+ marks the successful completion of the **1000x Initiative**.
 
 ### Functional Requirements
 - [x] **FR-1 to FR-6**: Core provenance features verified.
-- [x] **FR-7 to FR-36**: All 30 DX/QOL features live (see `wip/documentation_maximalist.md`).
+- [x] **FR-7 to FR-36**: All 30 DX/QOL features live (65+ CLI verbs).
 
 ---
 

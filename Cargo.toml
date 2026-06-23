@@ -1,6 +1,6 @@
 [package]
 name = "affidavit"
-version = "26.6.19"
+version = "26.6.22"
 edition = "2021"
 rust-version = "1.78"
 description = "Provenance Layer — receipt assembly and certification (verify a witness against a format standard; never decide honesty)."
@@ -12,6 +12,20 @@ documentation = "https://docs.rs/affidavit"
 readme = "README.md"
 keywords = ["provenance", "receipt", "blake3", "verification", "ocel"]
 categories = ["security", "development-tools", "cryptography"]
+exclude = [
+  "thesis/",
+  "praxis/",
+  "tools/",
+  "web/",
+  "wip/",
+  "docs/",
+  "reference/",
+  "ontology/",
+  "nexus_reviews/",
+  "*.py",
+  ".claude/",
+  "scripts/",
+]
 
 [[bin]]
 name = "affi"
@@ -26,9 +40,22 @@ required-features = ["shell"]
 name = "affidavit"
 path = "src/lib.rs"
 
+[[example]]
+name = "verdict_diagnostics"
+required-features = ["lsp"]
+
+[[example]]
+name = "full_pipeline"
+required-features = ["lsp"]
+
+[[example]]
+name = "discover_shapeb"
+required-features = ["discovery"]
+
 [[bench]]
 name = "receipt_operations"
 harness = false
+required-features = ["discovery"]
 
 [[bench]]
 name = "quality_western_electric"

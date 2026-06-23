@@ -216,7 +216,6 @@ fn stage_evaluate_profile(receipt: &Receipt) -> CheckOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chain::ChainAssembler as _;
     use crate::types::{Blake3Hash, ObjectRef, OperationEvent};
 
     /// Build an event with a well-formed commitment derived from its payload.

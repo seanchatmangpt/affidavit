@@ -334,7 +334,7 @@
     defernumbers=true          % Enable separated bibliographies (e.g., per chapter).
 ]{biblatex}
 \usepackage{csquotes}          % Context-sensitive quotation facilities, heavily integrated with biblatex.
-\addbibresource{references.bib} % The master bibliography database.
+\addbibresource{bibliography.bib} % The master bibliography database.
 
 % ==============================================================================
 % 9. THEOREM ENVIRONMENTS AND LOGICAL ASSERTIONS
@@ -613,156 +613,53 @@ Deepest intellectual gratitude is extended to the theoretical computer scientist
 % ------------------------------------------------------------------------------
 \mainmatter
 
+
 % ------------------------------------------------------------------------------
 % PART I: THEORETICAL FOUNDATIONS
 % ------------------------------------------------------------------------------
-\part{Theoretical Foundations and Ontological Frameworks}
+\part{Theoretical Foundations}
 
-% Note: We use \input{} to pull in chapters. If they don't exist yet, LaTeX will throw errors.
-% For the purpose of this maximalist skeleton, we provide fallback text if files are missing.
-% In a real compilation, these files must be created.
-
-\IfFileExists{chapters/01_introduction.tex}{
-    \input{chapters/01_introduction.tex}
-}{
-    \chapter{Introduction to Cryptographic Provability}
-    \draftnote{File chapters/01\_introduction.tex not found. Fallback content injected.}
-    Modern software engineering is fundamentally broken. We rely on heuristics, unverified assumptions, and fragile CI/CD pipelines to ensure system integrity. This chapter introduces the thesis, defines the problem space, and outlines the contributions of the \sysname{} protocol.
-}
-
-\IfFileExists{chapters/02_background.tex}{
-    \input{chapters/02_background.tex}
-}{
-    \chapter{Background and Literature Review}
-    \draftnote{File chapters/02\_background.tex not found.}
-    A comprehensive review of formal methods, deterministic execution, cryptographic hashing in distributed systems, and the evolution of compiler theory from abstract interpretation to affine types.
-}
-
-\IfFileExists{chapters/03_ostar_ontology.tex}{
-    \input{chapters/03_ostar_ontology.tex}
-}{
-    \chapter{The \ostar{} Ontology and the Chatman Equation}
-    \draftnote{File chapters/03\_ostar\_ontology.tex not found.}
-    \begin{architecturebox}[The Chatman Equation]
-        We posit that $A = \mu(O)$, where $A$ is the Application, $O$ is the Ontology (States, Events, Consequences), and $\mu$ is the deterministic manufacturing function.
-    \end{architecturebox}
-}
+\input{chapters/01_intro_part1.tex}
+\input{chapters/01_intro_part2.tex}
+\input{chapters/02_lit_review_pm.tex}
+\input{chapters/02_lit_review_crypto.tex}
+\input{chapters/02_lit_review_formal.tex}
+\input{chapters/03_theory_chatman.tex}
+\input{chapters/03_theory_ontology.tex}
+\input{chapters/03_theory_tla.tex}
 
 % ------------------------------------------------------------------------------
 % PART II: THE MANUFACTURING PIPELINE
 % ------------------------------------------------------------------------------
 \part{The Cryptographic Manufacturing Pipeline}
 
-\IfFileExists{chapters/04_deterministic_wasm.tex}{
-    \input{chapters/04_deterministic_wasm.tex}
-}{
-    \chapter{Deterministic \wasm{} Execution Environments}
-    \draftnote{File chapters/04\_deterministic\_wasm.tex not found.}
-    This chapter details the isolation mechanisms and deterministic guarantees provided by compiling the manufacturing pipeline to Wasm, ensuring bit-for-bit identical outputs across disparate host architectures.
-}
-
-\IfFileExists{chapters/05_blake3_receipt_chains.tex}{
-    \input{chapters/05_blake3_receipt_chains.tex}
-}{
-    \chapter{\blake{} Receipt Chains and Provenance}
-    \draftnote{File chapters/05\_blake3\_receipt\_chains.tex not found.}
-    Every compilation, execution, and mutation within \sysname{} yields a cryptographic receipt. This chapter defines the Merkle-tree structures used to bind these receipts into an unforgeable chain of custody.
-}
-
-\IfFileExists{chapters/06_formal_verification.tex}{
-    \input{chapters/06_formal_verification.tex}
-}{
-    \chapter{Formal Verification via Bipartite Typestate Graphs}
-    \draftnote{File chapters/06\_formal\_verification.tex not found.}
-    We explore how Rust's type system can be leveraged to represent the \ostar{} ontology directly at compile time, eliminating invalid state transitions before execution begins.
-}
+\input{chapters/04_impl_core.tex}
+\input{chapters/04_impl_scale.tex}
+\input{chapters/04_impl_qol.tex}
 
 % ------------------------------------------------------------------------------
-% PART III: DEVELOPER EXPERIENCE
+% PART III: EMPIRICAL EVALUATION AND CONCLUSION
 % ------------------------------------------------------------------------------
-\part{Holographic Developer Experience and Telepathy}
+\part{Empirical Evaluation and Conclusion}
 
-\IfFileExists{chapters/07_holographic_lsp.tex}{
-    \input{chapters/07_holographic_lsp.tex}
-}{
-    \chapter{The Holographic Language Server Protocol}
-    \draftnote{File chapters/07\_holographic\_lsp.tex not found.}
-    Extending the standard LSP to project ontological consequences directly into the developer's field of view, creating a tight feedback loop between domain intent and code implementation.
-}
-
-\IfFileExists{chapters/08_autonomous_governance.tex}{
-    \input{chapters/08_autonomous_governance.tex}
-}{
-    \chapter{Autonomous Governance and Intelligent Mutation}
-    \draftnote{File chapters/08\_autonomous\_governance.tex not found.}
-    How the \ggen{} engine intelligently scaffolds code, respects semantic boundaries, and automatically remediates architectural deviations.
-}
-
-% ------------------------------------------------------------------------------
-% PART IV: EVALUATION
-% ------------------------------------------------------------------------------
-\part{Empirical Evaluation and Future Trajectories}
-
-\IfFileExists{chapters/09_methodology_evaluation.tex}{
-    \input{chapters/09_methodology_evaluation.tex}
-}{
-    \chapter{Methodology and Empirical Evaluation}
-    \draftnote{File chapters/09\_methodology\_evaluation.tex not found.}
-    Rigorous benchmarking of throughput, variance, and compilation overhead introduced by the cryptographic constraints of \sysname{}.
-}
-
-\IfFileExists{chapters/10_conclusion.tex}{
-    \input{chapters/10_conclusion.tex}
-}{
-    \chapter{Conclusion}
-    \draftnote{File chapters/10\_conclusion.tex not found.}
-    Final synthesis of the protocol's impact on software engineering and pathways for future research in autonomous, mathematically proven code generation.
-}
+\input{chapters/05_eval_perf.tex}
+\input{chapters/05_eval_chaos.tex}
+\input{chapters/05_eval_fuzz.tex}
+\input{chapters/06_conclusion.tex}
 
 % ------------------------------------------------------------------------------
 % BACKMATTER: Appendices, Bibliography, Indices
 % ------------------------------------------------------------------------------
 \backmatter
 
-% Appendix management
 \begin{appendices}
-    \chapter{W3C PROV-O Ontology Specification mapping}
-    \draftnote{Placeholder for Appendix A}
-    
-    \chapter{Exhaustive Rust Macro Expansions}
-    \draftnote{Placeholder for Appendix B}
-    
-    \chapter{Mathematical Proof of Pipeline Determinism}
-    \draftnote{Placeholder for Appendix C}
-    
-    \chapter{Raw Benchmark Data and Statistical Variance Analysis}
-    \draftnote{Placeholder for Appendix D}
+\input{appendices/A_defense.tex}
+\input{appendices/B_typestate.tex}
 \end{appendices}
 
-% Bibliography rendering
 \cleardoublepage
 \phantomsection
 \addcontentsline{toc}{chapter}{\bibname}
-% To avoid compilation failure if references.bib is empty or missing, we wrap it.
-\IfFileExists{references.bib}{
-    \printbibliography
-}{
-    \chapter*{Bibliography}
-    \draftnote{references.bib not found. Execute `biber main` once bibliography database is constructed.}
-}
-
-% Index generation
-\cleardoublepage
-\phantomsection
-\addcontentsline{toc}{chapter}{\indexname}
-\printindex
+\printbibliography
 
 \end{document}
-% ==============================================================================
-% END OF MASTER DOCUMENT
-% ==============================================================================
-% "We build our computer (systems) the way we build our cities: over time, without a plan, on top of ruins." - Ellen Ullman
-% Let this document be the plan that precedes the city.
-% 
-% MAXIMALIST EOF
-% ==============================================================================

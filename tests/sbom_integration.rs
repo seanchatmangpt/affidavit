@@ -115,7 +115,7 @@ fn risk_propagates_along_the_dependency_chain() {
     let propagated = sbom_vulnerability::propagate_risk(&sbom, &matches);
     assert!(
         propagated.iter().any(
-            |(bom_ref, vuln, _)| bom_ref == "pkg:cargo/affidavit@26.6.17"
+            |(bom_ref, vuln, _)| bom_ref == "pkg:cargo/affidavit@26.6.22"
                 && vuln == "CVE-2023-0464"
         ),
         "root application inherits the openssl CVE through the dependency edge"

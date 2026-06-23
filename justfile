@@ -2,12 +2,11 @@
 #
 # Run `just` (or `just --list`) to see available recipes.
 #
-# NOTE ON RUST RECIPES: the `affidavit` crate depends on FIVE sibling PATH
-# crates that live OUTSIDE this repo (../clap-noun-verb, ../wasm4pm*,
-# ../lsp-max, ../clnrm/..., ../chicago-tdd-tools). `rust-build`, `rust-test`,
-# and `golden` therefore only work when that full sibling workspace is checked
-# out alongside this repo. `fmt`/`fmt-check` need no dependencies and always
-# work. The web recipes are fully self-contained.
+# NOTE ON RUST RECIPES: `rust-build`, `rust-test`, and `golden` currently
+# can't run because the upstream crate `wasm4pm-compat 26.6.13` (published on
+# crates.io) does not compile under current Rust nightly — roughly 550 compiler
+# errors in the upstream crate itself. `fmt`/`fmt-check` need no dependencies
+# and always work. The web recipes are fully self-contained.
 
 # Default: list all available recipes.
 default:
@@ -37,17 +36,17 @@ fmt:
 fmt-check:
     cargo fmt --all -- --check
 
-# --- rust build/test (REQUIRE the sibling PATH crates; see header) ----------
+# --- rust build/test (BLOCKED by broken upstream dep; see header) -----------
 
-# Build the crate. NOTE: needs the sibling path-crates listed in the header.
+# Build the crate. NOTE: currently fails due to wasm4pm-compat 26.6.13 (see header).
 rust-build:
     cargo build
 
-# Run the test suite. NOTE: needs the sibling path-crates listed in the header.
+# Run the test suite. NOTE: currently fails due to wasm4pm-compat 26.6.13 (see header).
 rust-test:
     cargo test
 
 # End-to-end golden smoke test. NOTE: runs the `affi` binary via `cargo run`,
-# so it needs the sibling path-crates listed in the header.
+# currently fails due to wasm4pm-compat 26.6.13 (see header).
 golden:
     bash examples/golden_run.sh

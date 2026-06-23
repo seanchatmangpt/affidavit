@@ -146,7 +146,7 @@ mod shell_impl {
             let _ = rl.load_history(&history_path);
         }
 
-        println!("\x1b[1;34mAffidavit Shell (affi-shell)\x1b[0m — v26.6.17");
+        println!("\x1b[1;34mAffidavit Shell (affi-shell)\x1b[0m — v26.6.22");
         println!("Type 'help' for commands, '\\' at end for multi-line, Ctrl-D to exit.");
 
         loop {

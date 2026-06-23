@@ -2,7 +2,7 @@
 
 **The Provenance Layer for High-Assurance Systems.**
 
-[![Rust](https://img.shields.io/badge/rust-1.56%2B-blue.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.78%2B-blue.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
 [![1000x Initiative](https://img.shields.io/badge/1000x-Initiative%20Complete-green.svg)](STATUS.md)
 
@@ -25,10 +25,10 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 
 `affidavit` has been supercharged with 30+ features focused on **Combinatorial Maximalism** and world-class DX:
 
-*   ⚡ **High-Performance:** Parallelized verification and optional GPU acceleration.
+*   ⚡ **High-Performance:** Parallelized verification across multi-core architectures.
 *   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts.
 *   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers.
-*   🤖 **Intelligent CLI:** Shell completion, telepathic QoL, and ontology-driven help.
+*   🤖 **Intelligent CLI:** 65+ canonical verbs, ontology-driven help, and powerful ad-hoc querying.
 
 ---
 
@@ -74,7 +74,7 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-Affidavit v26.6.19 ships **67 canonical verbs** across 10 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation.
+Affidavit v26.6.22 ships **67 canonical verbs** across 10 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation.
 
 **Core Verbs (The Provenance Loop):**
 - `affi emit` — Record a new operation-event.

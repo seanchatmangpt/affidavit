@@ -2,24 +2,25 @@
 #
 # DESIGN / WHY THIS WORKFLOW LOOKS UNUSUAL
 # ----------------------------------------
-# The `affidavit` crate depends on FIVE sibling PATH crates that live OUTSIDE
-# this repository (see Cargo.toml):
-#   ../clap-noun-verb  (+ ../clap-noun-verb/clap-noun-verb-macros)
-#   ../wasm4pm/wasm4pm + ../wasm4pm-compat
-#   ../lsp-max
-#   ../clnrm/crates/clnrm-core
-#   ../chicago-tdd-tools   (dev-dependency)
-# None of those are checked out in CI, so `cargo build` / `cargo test` /
-# `cargo clippy` CANNOT succeed in a clean checkout of this repo alone. We do
-# NOT pretend otherwise.
+# All of affidavit's dependencies (including clap-noun-verb, wasm4pm-compat,
+# lsp-max, clnrm-core, etc.) ARE published on crates.io and DO resolve via
+# `cargo fetch` in a standalone checkout of this repo. There is no missing
+# sibling-workspace problem.
 #
-# What CAN run with zero sibling crates is `cargo fmt --check`: rustfmt only
-# parses source, it never resolves the dependency graph. So:
+# The actual blocker is that `wasm4pm-compat` version 26.6.13 (from crates.io)
+# does NOT compile under current Rust nightly: the upstream crate itself
+# produces approximately 550 compiler errors (E0432 unresolved imports of
+# internal types). Until a fixed version is published, `cargo build` /
+# `cargo test` / `cargo clippy` CANNOT succeed here. We do NOT pretend
+# otherwise.
+#
+# What CAN run regardless of the broken upstream dep is `cargo fmt --check`:
+# rustfmt only parses source, it never compiles the dependency graph. So:
 #   * The `fmt` job is a REAL, BLOCKING gate — the workflow's success hinges
 #     ONLY on it.
 #   * The `build-and-test` job attempts a real build/test for signal, but is
 #     marked `continue-on-error: true` so a (fully expected) failure from the
-#     missing sibling workspace never reports the workflow as broken.
+#     broken upstream crate never reports the workflow as broken.
 #
 # This follows the repo's ethos: a green that is true whether or not the work
 # happened carries no information. fmt is a green that means something here.
@@ -62,13 +63,13 @@ jobs:
         run: cargo +nightly fmt --all -- --check
 
   # ---------------------------------------------------------------------------
-  # NON-BLOCKING (continue-on-error): requires the sibling PATH crates that are
-  # NOT present in this repo. Kept for signal/diagnostics only; it is EXPECTED
-  # to fail here and must never gate a merge. Clippy lives here too because it
-  # likewise needs the full dependency graph.
+  # NON-BLOCKING (continue-on-error): wasm4pm-compat 26.6.13 from crates.io
+  # does not compile under current nightly (~550 upstream errors). Kept for
+  # signal/diagnostics only; it is EXPECTED to fail here and must never gate a
+  # merge. Clippy lives here too because it likewise needs a clean build graph.
   # ---------------------------------------------------------------------------
   build-and-test:
-    name: build-and-test (requires sibling workspace)
+    name: build-and-test (non-blocking, broken upstream dep)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -85,27 +86,27 @@ jobs:
 
       - name: Explain why this job is expected to fail
         run: |
-          echo "::warning title=Non-blocking by design::This crate depends on sibling PATH crates that are NOT checked out in CI."
+          echo "::warning title=Non-blocking by design::wasm4pm-compat 26.6.13 from crates.io does not compile under current nightly."
           echo "------------------------------------------------------------------"
-          echo "affidavit/Cargo.toml references these path-dependencies, all of"
-          echo "which live OUTSIDE this repository:"
-          echo "  ../clap-noun-verb (+ clap-noun-verb-macros)"
-          echo "  ../wasm4pm/wasm4pm and ../wasm4pm-compat"
-          echo "  ../lsp-max"
-          echo "  ../clnrm/crates/clnrm-core"
-          echo "  ../chicago-tdd-tools (dev-dependency)"
+          echo "All of affidavit's dependencies resolve fine from crates.io —"
+          echo "there is no missing sibling-workspace issue."
           echo ""
-          echo "Because they are absent, cargo build/test/clippy CANNOT resolve"
-          echo "the dependency graph. The steps below are run for signal only and"
-          echo "this whole job is marked continue-on-error: true. Formatting is"
-          echo "the real gate (see the 'fmt' job)."
+          echo "The build fails because wasm4pm-compat 26.6.13 (the version"
+          echo "published on crates.io) itself does not compile under current"
+          echo "Rust nightly: approximately 550 E0432 errors (unresolved imports"
+          echo "of internal types inside the upstream crate). This is an upstream"
+          echo "breakage, not a problem with affidavit's own source."
+          echo ""
+          echo "The steps below are run for signal only and this whole job is"
+          echo "marked continue-on-error: true. Formatting is the real gate"
+          echo "(see the 'fmt' job)."
           echo "------------------------------------------------------------------"
 
-      - name: cargo build (expected to fail without sibling crates)
+      - name: cargo build (expected to fail, broken upstream wasm4pm-compat)
         run: cargo build --all-targets
 
-      - name: cargo test (expected to fail without sibling crates)
+      - name: cargo test (expected to fail, broken upstream wasm4pm-compat)
         run: cargo test --all-targets
 
-      - name: cargo clippy (expected to fail without sibling crates)
+      - name: cargo clippy (expected to fail, broken upstream wasm4pm-compat)
         run: cargo clippy --all-targets -- -D warnings

@@ -337,6 +337,7 @@ mod tests {
     }
 }
 
+#[allow(dead_code)]
 fn main() -> Result<()> {
     println!("FixtureDatabase Maximalist Implementation Demo");
     let db_path = PathBuf::from("fixtures_demo.json");

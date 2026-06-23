@@ -20,8 +20,12 @@ debug/
 # Signing / verifying key material — NEVER commit (private key bytes live here)
 /.ggen/keys/
 
-# Local agent / tooling session state
-/.claude/
+# Local agent / tooling session state is ignored, EXCEPT the committed
+# Claude Code on the web SessionStart hook + its registration, which must be
+# tracked so every web session auto-configures itself.
+/.claude/*
+!/.claude/settings.json
+!/.claude/hooks/
 
 # OS / editor cruft
 .DS_Store
