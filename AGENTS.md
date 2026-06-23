@@ -21,12 +21,11 @@ whose published versions fail under the pinned nightly (const-trait) or drag in
 
 - `cargo build --all-targets` ✅ and `cargo test` ✅ (789 tests, incl. doctests)
   pass under default features. `cargo fmt --all -- --check` ✅.
-- The one remaining red gate is `cargo clippy --all-targets -- -D warnings`:
-  `src/lib.rs` sets `#![deny(clippy::print_stdout)]`, yet the library still has
-  ~236 raw `println!` calls (plus assorted style lints — ~270 findings total).
-  This is **pre-existing lint debt, not a build break** — clearing it means
-  routing output through the `Out` handle (`src/output.rs`). Treat it as a
-  known, separate cleanup; CI keeps the `clippy` job non-blocking until paid down.
+- `cargo clippy --all-targets -- -D warnings` ✅ too. `src/lib.rs` denies
+  `clippy::print_stdout`; library output routes through the sanctioned sinks in
+  `src/output.rs` (via the crate-internal `outln!` / `out!` macros), not raw
+  `println!`. **Keep new library output on `outln!` (or an `Out`)** — a raw
+  `println!` in the lib will fail the gate. The `clippy` CI job now blocks.
 - If you swap the stubs back for the real upstreams, the build breaks again —
   see the `[patch.crates-io]` comment in `Cargo.toml`.
 
@@ -36,21 +35,22 @@ whose published versions fail under the pinned nightly (const-trait) or drag in
 
 | Area | Builds? | Validate with |
 |---|---|---|
-| **root `affidavit` crate** (`src/`) | ✅ build + test (via stubs); ⚠️ clippy red (print_stdout debt) | `cargo build --all-targets && cargo test` + `cargo fmt --all -- --check` |
+| **root `affidavit` crate** (`src/`) | ✅ build + test + clippy + fmt (via stubs) | `cargo build --all-targets && cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all -- --check` |
 | **`affidavit-core/`** (zero-dep `no_std` verifier + process mining) | ✅ fully | `cd affidavit-core && cargo test && cargo clippy --all-targets -- -D warnings && cargo fmt -- --check` — see `affidavit-core/AGENTS.md` |
 | **`web/`** (Next.js 15 / React 19 / TS, Node 22) | ✅ fully | `cd web && npm install && npx tsc --noEmit` (tsc is the gate; no ESLint config) |
 | **`tools/confevo/`** (Python genetic config optimizer) | ✅ fully | `python3 -m unittest discover -s tools/confevo -t . -p 'test_*.py'` then `python3 tools/confevo/confevo.py run --dry-run` |
 
 **If your change is in one of the ✅ areas, run that area's full check before you
-push.** The root crate now builds and tests too — `cargo build --all-targets &&
-cargo test` should stay green; only `clippy` is (knowingly) red.
+push.** The root crate now builds, tests, and lints clean — `cargo build
+--all-targets && cargo test && cargo clippy --all-targets -- -D warnings` should
+all stay green.
 
 **CI now mirrors this matrix.** Each area has its own workflow that **blocks** on
 its real checks (`affidavit-core.yml`, `web.yml`, `confevo.yml`). The root crate's
-`rust.yml` blocks on `cargo fmt` **and** `build-and-test` (build + test +
-doctests, now that the stubs make it compile); only its `clippy` job is
-non-blocking, by design, until the `print_stdout` debt is paid down. A green
-check means the area's real checks actually passed, not that they were skipped.
+`rust.yml` blocks on all three of `fmt`, `build-and-test` (build + test +
+doctests), and `clippy` (`-D warnings`) — every one green now that the stubs make
+the crate compile and the print_stdout debt is paid down. A green check means the
+area's real checks actually passed, not that they were skipped.
 
 ---
 
@@ -121,13 +121,12 @@ command (`npx tsc`, `npm run build`) fails with missing deps, either wait for th
 
 ## Common traps (learned the hard way)
 
-- Assuming the root crate can't build (older docs/comments say so) — it builds
-  now via the `[patch.crates-io]` stubs. `cargo build --all-targets` and
-  `cargo test` pass; `cargo clippy -D warnings` is the only red (print_stdout
-  debt). Don't delete the `stubs/` or the `[patch]` block to "fix" deps.
-- Running `cargo clippy -D warnings` and concluding the crate is broken — it's
-  ~236 `println!` violations of `#![deny(clippy::print_stdout)]`, a known lint
-  debt, not a compile failure.
+- Assuming the root crate can't build (older docs/comments say so) — it builds,
+  tests, and lints clean now via the `[patch.crates-io]` stubs. Don't delete the
+  `stubs/` or the `[patch]` block to "fix" deps.
+- Adding a raw `println!` in library code — it fails `#![deny(clippy::print_stdout)]`.
+  Use the `outln!` / `out!` macros (they route through `src/output.rs`) or an
+  `Out` handle instead.
 - `/usr/bin/time` is not installed here; don't rely on it in scripts.
 - The web `package-lock.json` churns `libc` fields on `npm install` under this
   npm version — that diff is benign.

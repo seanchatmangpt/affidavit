@@ -12,9 +12,9 @@
 #     purely on the merits of the committed code.
 #   * `build-and-test` — REAL, BLOCKING gate now that the stubs make the crate
 #     compile: `cargo build` / `cargo test` (incl. doctests) over all targets.
-#   * `clippy` — NON-BLOCKING: the crate denies `clippy::print_stdout` but the
-#     library still has ~236 raw `println!` calls (pre-existing lint debt). Kept
-#     for signal until it is paid down, then flip to blocking.
+#   * `clippy` — REAL, BLOCKING gate. The print_stdout debt is paid down (library
+#     output routes through `output.rs` via the `outln!` macro), so
+#     `cargo clippy --all-targets -- -D warnings` is clean.
 #
 # The standalone `affidavit-core/` crate has its own gate in affidavit-core.yml.
 # `cargo fmt --all` from the root only covers the root crate (affidavit-core is
@@ -100,16 +100,13 @@ jobs:
         run: cargo test --doc
 
   # ---------------------------------------------------------------------------
-  # NON-BLOCKING (continue-on-error): the crate sets #![deny(clippy::print_stdout)]
-  # but the library still has ~236 raw println! calls plus assorted style lints
-  # (~270 findings). That is pre-existing lint debt, not a build break — paying
-  # it down means routing output through the Out handle (src/output.rs). Kept
-  # visible for signal until the debt is cleared, then flip to blocking.
+  # REAL GATE: the print_stdout debt is paid down — library output routes through
+  # the sanctioned sinks in output.rs (via the `outln!` macro) and the style lints
+  # are fixed, so `cargo clippy --all-targets -- -D warnings` is clean and BLOCKS.
   # ---------------------------------------------------------------------------
   clippy:
-    name: clippy (non-blocking — print_stdout lint debt)
+    name: clippy (cargo clippy --all-targets -D warnings)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
