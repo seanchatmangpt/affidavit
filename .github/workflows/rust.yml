@@ -1,23 +1,24 @@
 # rust.yml — checks for the root `affidavit` crate.
 #
-# The root crate cannot be built in CI: it depends on wasm4pm-compat 26.6.13
-# (crates.io), which does NOT compile under current Rust nightly (~550 upstream
-# E0432 errors). That is an upstream breakage, not a defect in this repo's
-# source, and "fixing" it is out of scope. See AGENTS.md.
+# The root crate builds again: the previously-broken upstream crates (wasm4pm,
+# wasm4pm-compat, clnrm-core) are replaced by local stubs via [patch.crates-io]
+# in Cargo.toml (see stubs/). Build + test are therefore real gates now. See
+# AGENTS.md.
 #
 # This repo's ethos: a green that is true whether or not the work happened
-# carries no information. So the jobs below are deliberately split by honesty:
+# carries no information. The jobs below are split by honesty:
 #
-#   * `fmt` is the REAL, BLOCKING gate. rustfmt only parses source — it never
-#     resolves the dependency graph — so it passes/fails purely on the merits of
-#     the committed code. (It previously carried `continue-on-error: true`, which
-#     silently neutered the one gate that means something here. That is removed.)
-#   * `build-and-test` attempts a real build for diagnostic signal but stays
-#     `continue-on-error: true`: its (fully expected) failure must never gate.
+#   * `fmt` — REAL, BLOCKING gate. rustfmt only parses source, so it passes/fails
+#     purely on the merits of the committed code.
+#   * `build-and-test` — REAL, BLOCKING gate now that the stubs make the crate
+#     compile: `cargo build` / `cargo test` (incl. doctests) over all targets.
+#   * `clippy` — NON-BLOCKING: the crate denies `clippy::print_stdout` but the
+#     library still has ~236 raw `println!` calls (pre-existing lint debt). Kept
+#     for signal until it is paid down, then flip to blocking.
 #
-# The standalone `affidavit-core/` crate DOES build and test cleanly — its real
-# gate lives in affidavit-core.yml, not here. `cargo fmt --all` from the root
-# only covers the root crate (affidavit-core is not a workspace member).
+# The standalone `affidavit-core/` crate has its own gate in affidavit-core.yml.
+# `cargo fmt --all` from the root only covers the root crate (affidavit-core is
+# not a workspace member).
 name: rust
 
 on:
@@ -72,13 +73,41 @@ jobs:
         run: cargo fmt --all -- --check
 
   # ---------------------------------------------------------------------------
-  # NON-BLOCKING (continue-on-error): wasm4pm-compat 26.6.13 from crates.io does
-  # not compile under current nightly (~550 upstream errors). Kept for signal /
-  # diagnostics only; it is EXPECTED to fail and must never gate a merge. Clippy
-  # lives here too because it likewise needs a clean build graph.
+  # REAL GATE: the root crate now builds (upstream crates replaced by local
+  # stubs via [patch.crates-io] — see Cargo.toml / stubs/). So build + test pass
+  # and this job BLOCKS. Doctests run separately because --all-targets skips them.
   # ---------------------------------------------------------------------------
   build-and-test:
-    name: build-and-test (non-blocking, broken upstream dep)
+    name: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+
+      - name: cargo build --all-targets
+        run: cargo build --all-targets
+
+      - name: cargo test --all-targets (unit + integration + example/bench harnesses)
+        run: cargo test --all-targets
+
+      - name: cargo test --doc (doctests)
+        run: cargo test --doc
+
+  # ---------------------------------------------------------------------------
+  # NON-BLOCKING (continue-on-error): the crate sets #![deny(clippy::print_stdout)]
+  # but the library still has ~236 raw println! calls plus assorted style lints
+  # (~270 findings). That is pre-existing lint debt, not a build break — paying
+  # it down means routing output through the Out handle (src/output.rs). Kept
+  # visible for signal until the debt is cleared, then flip to blocking.
+  # ---------------------------------------------------------------------------
+  clippy:
+    name: clippy (non-blocking — print_stdout lint debt)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -93,26 +122,5 @@ jobs:
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@v2
 
-      - name: Explain why this job is expected to fail
-        run: |
-          echo "::warning title=Non-blocking by design::wasm4pm-compat 26.6.13 from crates.io does not compile under current nightly."
-          echo "------------------------------------------------------------------"
-          echo "All of affidavit's dependencies resolve fine from crates.io — there"
-          echo "is no missing sibling-workspace issue. The build fails because"
-          echo "wasm4pm-compat 26.6.13 (the version on crates.io) itself does not"
-          echo "compile under current Rust nightly: ~550 E0432 errors (unresolved"
-          echo "imports of internal types) inside the upstream crate. This is an"
-          echo "upstream breakage, not a problem with affidavit's own source."
-          echo ""
-          echo "The steps below run for signal only; the whole job is"
-          echo "continue-on-error: true. Formatting (the fmt job) is the real gate."
-          echo "------------------------------------------------------------------"
-
-      - name: cargo build (expected to fail, broken upstream wasm4pm-compat)
-        run: cargo build --all-targets
-
-      - name: cargo test (expected to fail, broken upstream wasm4pm-compat)
-        run: cargo test --all-targets
-
-      - name: cargo clippy (expected to fail, broken upstream wasm4pm-compat)
+      - name: cargo clippy --all-targets -- -D warnings
         run: cargo clippy --all-targets -- -D warnings

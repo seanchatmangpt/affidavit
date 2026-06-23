@@ -21,11 +21,11 @@ The project's doctrine: **certify, don't decide.** The verifier checks a receipt
 
 ## ⚠️ Operational ground truth for coding agents (read first)
 
-Before you run `cargo build`/`cargo test` at the root and conclude the repo is broken — it is, by the current dependency situation, and that is **not your bug**:
+The root build situation changed — earlier docs that say "the root crate cannot compile" are now **stale**:
 
-- The root `affidavit` crate **does not compile**. It depends on the published `wasm4pm-compat 26.6.13`, which fails under current Rust nightly (~550 errors). `cargo build`/`test`/`clippy` on the root crate cannot pass (even `--no-default-features`). The only working root gate is **`cargo fmt --all -- --check`**.
-- Buildable, tested subprojects live elsewhere: **`affidavit-core/`** (zero-dep `no_std` verifier + process mining — `cargo test` green), **`web/`** (Next.js — `npx tsc --noEmit`), **`tools/confevo/`** (Python — `python3 -m unittest`).
-- The "missing sibling PATH-crates" explanation found in some comments is **stale** — deps resolve from crates.io; the blocker is the broken upstream crate above.
+- The root `affidavit` crate **builds and tests**. The previously-broken upstream crates (`wasm4pm`, `wasm4pm-compat`, `clnrm-core`) are replaced by local stubs via `[patch.crates-io]` in `Cargo.toml` (`stubs/`). `cargo build --all-targets` and `cargo test` pass (789 tests, incl. doctests); `cargo fmt --all -- --check` passes.
+- The one red gate is `cargo clippy --all-targets -- -D warnings`: `src/lib.rs` sets `#![deny(clippy::print_stdout)]` but the library still has ~236 raw `println!` calls (pre-existing lint debt, ~270 findings total). Not a build break; CI keeps the `clippy` job non-blocking until it's paid down. Don't delete `stubs/` or the `[patch]` block to "fix" deps.
+- Buildable, tested subprojects also live elsewhere: **`affidavit-core/`** (zero-dep `no_std` verifier + process mining — `cargo test` green), **`web/`** (Next.js — `npx tsc --noEmit`), **`tools/confevo/`** (Python — `python3 -m unittest`).
 - Full operational map, per-area validate commands, and conventions: **[`AGENTS.md`](AGENTS.md)** (and **[`affidavit-core/AGENTS.md`](affidavit-core/AGENTS.md)** for that crate's strict invariants).
 
 Everything below describes the *intended* `affidavit` design — treat it as the spec, not the current build state.

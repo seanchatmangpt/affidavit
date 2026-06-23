@@ -11,24 +11,24 @@ traps to avoid.
 
 ---
 
-## #1 fact: the root `affidavit` crate does not compile
+## #1 fact: the root `affidavit` crate now builds (via local stubs)
 
-The root crate (`src/`, `Cargo.toml`) depends on the published crate
-**`wasm4pm-compat 26.6.13`**, which **fails to compile under the current Rust
-nightly** (~550 errors in that upstream crate). `affidavit` references
-`wasm4pm_compat` unconditionally, so:
+It didn't used to. It depends on `wasm4pm`, `wasm4pm-compat`, and `clnrm-core`,
+whose published versions fail under the pinned nightly (const-trait) or drag in
+300+ transitive deps. Those are now replaced by local **stubs** through
+`[patch.crates-io]` in `Cargo.toml` (`stubs/wasm4pm-compat`, `stubs/wasm4pm`,
+`stubs/clnrm-core`). As a result:
 
-- `cargo build` / `cargo test` / `cargo clippy` on the root crate **cannot pass** —
-  even with `--no-default-features`. Do not "fix" this; it is upstream and out of
-  scope unless explicitly asked.
-- The **only** root-crate gate that works is formatting:
-  `cargo fmt --all -- --check` (rustfmt parses source without resolving deps).
-  This is the repo's real CI gate (`.github/workflows/rust.yml`) and it is
-  currently green — keep it that way (`cargo fmt --all` to fix drift).
-
-The "missing sibling PATH-crates (`../clap-noun-verb`, …)" explanation you may
-still find in some comments is **stale** — those deps resolve from crates.io now;
-the real blocker is the broken upstream crate above.
+- `cargo build --all-targets` ✅ and `cargo test` ✅ (789 tests, incl. doctests)
+  pass under default features. `cargo fmt --all -- --check` ✅.
+- The one remaining red gate is `cargo clippy --all-targets -- -D warnings`:
+  `src/lib.rs` sets `#![deny(clippy::print_stdout)]`, yet the library still has
+  ~236 raw `println!` calls (plus assorted style lints — ~270 findings total).
+  This is **pre-existing lint debt, not a build break** — clearing it means
+  routing output through the `Out` handle (`src/output.rs`). Treat it as a
+  known, separate cleanup; CI keeps the `clippy` job non-blocking until paid down.
+- If you swap the stubs back for the real upstreams, the build breaks again —
+  see the `[patch.crates-io]` comment in `Cargo.toml`.
 
 ---
 
@@ -36,20 +36,21 @@ the real blocker is the broken upstream crate above.
 
 | Area | Builds? | Validate with |
 |---|---|---|
-| **root `affidavit` crate** (`src/`) | ❌ build/test/clippy (broken dep) | ✅ `cargo fmt --all -- --check` only |
+| **root `affidavit` crate** (`src/`) | ✅ build + test (via stubs); ⚠️ clippy red (print_stdout debt) | `cargo build --all-targets && cargo test` + `cargo fmt --all -- --check` |
 | **`affidavit-core/`** (zero-dep `no_std` verifier + process mining) | ✅ fully | `cd affidavit-core && cargo test && cargo clippy --all-targets -- -D warnings && cargo fmt -- --check` — see `affidavit-core/AGENTS.md` |
 | **`web/`** (Next.js 15 / React 19 / TS, Node 22) | ✅ fully | `cd web && npm install && npx tsc --noEmit` (tsc is the gate; no ESLint config) |
-| **`tools/confevo/`** (Python genetic config optimizer) | ✅ fully | `python3 -m unittest discover -s tools/confevo -p 'test_*.py'` then `python3 tools/confevo/confevo.py run --dry-run` |
+| **`tools/confevo/`** (Python genetic config optimizer) | ✅ fully | `python3 -m unittest discover -s tools/confevo -t . -p 'test_*.py'` then `python3 tools/confevo/confevo.py run --dry-run` |
 
 **If your change is in one of the ✅ areas, run that area's full check before you
-push.** Don't gate your work on the root crate compiling — it won't.
+push.** The root crate now builds and tests too — `cargo build --all-targets &&
+cargo test` should stay green; only `clippy` is (knowingly) red.
 
-**CI now mirrors this matrix.** Each ✅ area has its own workflow that runs
-exactly these checks and **blocks** on them (`affidavit-core.yml`, `web.yml`,
-`confevo.yml`); the root crate's `rust.yml` blocks only on `cargo fmt` (its
-build is non-blocking by design — the broken upstream dep). A green check
-therefore means the area's real checks actually passed, not that they were
-skipped.
+**CI now mirrors this matrix.** Each area has its own workflow that **blocks** on
+its real checks (`affidavit-core.yml`, `web.yml`, `confevo.yml`). The root crate's
+`rust.yml` blocks on `cargo fmt` **and** `build-and-test` (build + test +
+doctests, now that the stubs make it compile); only its `clippy` job is
+non-blocking, by design, until the `print_stdout` debt is paid down. A green
+check means the area's real checks actually passed, not that they were skipped.
 
 ---
 
@@ -120,10 +121,13 @@ command (`npx tsc`, `npm run build`) fails with missing deps, either wait for th
 
 ## Common traps (learned the hard way)
 
-- Running `cargo build`/`test` at the root and concluding the repo is broken —
-  it's the upstream dep; use the per-area checks above.
-- Editing the root crate's `src/` expecting `cargo test` to confirm it — it
-  can't compile. For real Rust you can build+test, work in `affidavit-core/`.
+- Assuming the root crate can't build (older docs/comments say so) — it builds
+  now via the `[patch.crates-io]` stubs. `cargo build --all-targets` and
+  `cargo test` pass; `cargo clippy -D warnings` is the only red (print_stdout
+  debt). Don't delete the `stubs/` or the `[patch]` block to "fix" deps.
+- Running `cargo clippy -D warnings` and concluding the crate is broken — it's
+  ~236 `println!` violations of `#![deny(clippy::print_stdout)]`, a known lint
+  debt, not a compile failure.
 - `/usr/bin/time` is not installed here; don't rely on it in scripts.
 - The web `package-lock.json` churns `libc` fields on `npm install` under this
   npm version — that diff is benign.
