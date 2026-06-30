@@ -113,7 +113,7 @@ colored = { version = "2", optional = true }
 indicatif = { version = "0.17", optional = true }
 
 # Phase 2: Webhook sink for quality violations
-reqwest = { version = "0.11", features = ["json"], optional = true }
+reqwest = { version = "0.13", features = ["json"], optional = true }
 
 # Shared Utils
 chrono = { version = "0.4", features = ["serde"], optional = true }
