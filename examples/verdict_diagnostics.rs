@@ -1,5 +1,5 @@
-#![cfg(feature = "lsp")]
 //! Capability: verdict -> editor diagnostics (the lsp-max integration).
+//! Requires the "lsp" feature: `cargo run --example verdict_diagnostics --features lsp`
 //!
 //! End-to-end witness, not a smoke test: a structurally forged receipt (seq
 //! starts at 5 — a continuity violation) is run through the REAL
@@ -15,81 +15,95 @@
 //! See the doc on `verdict_to_diagnostics` / `DIAGNOSTIC_SOURCE` in src/lsp.rs.
 //! Modeled on tests/reference_lsp_real_reject.rs.
 
+#[cfg(feature = "lsp")]
 use affidavit::chain::{recompute_chain, FORMAT_VERSION};
+#[cfg(feature = "lsp")]
 use affidavit::lsp::{verdict_to_diagnostics, DIAGNOSTIC_SOURCE};
+#[cfg(feature = "lsp")]
 use affidavit::ocel::object_ref;
+#[cfg(feature = "lsp")]
 use affidavit::types::{Blake3Hash, CheckOutcome, OperationEvent, ProfileId, Receipt, Verdict};
+#[cfg(feature = "lsp")]
 use lsp_max::lsp_types::DiagnosticSeverity;
 
 fn main() {
-    // ---- 1. REAL reject path: forged (seq=5) receipt -> verifier -> diagnostics.
-    let forged_event = OperationEvent {
-        id: "evt-5".to_string(),
-        seq: 5, // continuity violation
-        event_type: "create".to_string(),
-        objects: vec![object_ref("o", "artifact")],
-        payload_commitment: Blake3Hash::from_bytes(b"x"),
-    };
-    let chain_hash = recompute_chain(std::slice::from_ref(&forged_event)).expect("chain");
-    let forged: Receipt = serde_json::from_value(serde_json::json!({
-        "format_version": FORMAT_VERSION,
-        "events": [forged_event],
-        "chain_hash": chain_hash,
-    }))
-    .expect("chain-consistent receipt deserializes");
+    #[cfg(not(feature = "lsp"))]
+    {
+        println!("verdict_diagnostics requires the 'lsp' feature: cargo run --example verdict_diagnostics --features lsp");
+        return;
+    }
 
-    let verdict = affidavit::verifier::verify(&forged);
-    assert!(
-        !verdict.accepted,
-        "the forged receipt must be genuinely rejected by the verifier"
-    );
+    #[cfg(feature = "lsp")]
+    {
+        // ---- 1. REAL reject path: forged (seq=5) receipt -> verifier -> diagnostics.
+        let forged_event = OperationEvent {
+            id: "evt-5".to_string(),
+            seq: 5, // continuity violation
+            event_type: "create".to_string(),
+            objects: vec![object_ref("o", "artifact")],
+            payload_commitment: Blake3Hash::from_bytes(b"x"),
+        };
+        let chain_hash = recompute_chain(std::slice::from_ref(&forged_event)).expect("chain");
+        let forged: Receipt = serde_json::from_value(serde_json::json!({
+            "format_version": FORMAT_VERSION,
+            "events": [forged_event],
+            "chain_hash": chain_hash,
+        }))
+        .expect("chain-consistent receipt deserializes");
 
-    let diags = verdict_to_diagnostics(&verdict);
-    assert!(
-        !diags.is_empty(),
-        "a rejected verdict must surface >=1 diagnostic"
-    );
+        let verdict = affidavit::verifier::verify(&forged);
+        assert!(
+            !verdict.accepted,
+            "the forged receipt must be genuinely rejected by the verifier"
+        );
 
-    let continuity_err = diags.iter().find(|d| {
-        d.severity == Some(DiagnosticSeverity::ERROR)
-            && d.source.as_deref() == Some(DIAGNOSTIC_SOURCE)
-            && d.message.contains("continuity")
-    });
-    assert!(
-        continuity_err.is_some(),
-        "a real continuity refusal must become an Error diagnostic from '{DIAGNOSTIC_SOURCE}' \
-         naming the failing stage; got {diags:?}"
-    );
-    println!(
-        "reject verdict -> {} diagnostic(s); continuity Error: {}",
-        diags.len(),
-        continuity_err.unwrap().message
-    );
+        let diags = verdict_to_diagnostics(&verdict);
+        assert!(
+            !diags.is_empty(),
+            "a rejected verdict must surface >=1 diagnostic"
+        );
 
-    // ---- 2. Clean accepted verdict -> EMPTY diagnostics (no squiggles).
-    let clean = Verdict {
-        accepted: true,
-        profile: ProfileId::CoreV1,
-        outcomes: vec![
-            CheckOutcome {
-                stage: "decode".to_string(),
-                passed: true,
-                detail: "ok".to_string(),
-            },
-            CheckOutcome {
-                stage: "continuity".to_string(),
-                passed: true,
-                detail: "ok".to_string(),
-            },
-        ],
-        reason: "all stages passed".to_string(),
-    };
-    let clean_diags = verdict_to_diagnostics(&clean);
-    assert!(
-        clean_diags.is_empty(),
-        "an accepted verdict must yield NO diagnostics; got {clean_diags:?}"
-    );
-    println!("accepted verdict -> 0 diagnostics (clean editor)");
+        let continuity_err = diags.iter().find(|d| {
+            d.severity == Some(DiagnosticSeverity::ERROR)
+                && d.source.as_deref() == Some(DIAGNOSTIC_SOURCE)
+                && d.message.contains("continuity")
+        });
+        assert!(
+            continuity_err.is_some(),
+            "a real continuity refusal must become an Error diagnostic from '{DIAGNOSTIC_SOURCE}' \
+             naming the failing stage; got {diags:?}"
+        );
+        println!(
+            "reject verdict -> {} diagnostic(s); continuity Error: {}",
+            diags.len(),
+            continuity_err.unwrap().message
+        );
 
-    println!("OK: verdict -> editor diagnostics covered end-to-end");
+        // ---- 2. Clean accepted verdict -> EMPTY diagnostics (no squiggles).
+        let clean = Verdict {
+            accepted: true,
+            profile: ProfileId::CoreV1,
+            outcomes: vec![
+                CheckOutcome {
+                    stage: "decode".to_string(),
+                    passed: true,
+                    detail: "ok".to_string(),
+                },
+                CheckOutcome {
+                    stage: "continuity".to_string(),
+                    passed: true,
+                    detail: "ok".to_string(),
+                },
+            ],
+            reason: "all stages passed".to_string(),
+        };
+        let clean_diags = verdict_to_diagnostics(&clean);
+        assert!(
+            clean_diags.is_empty(),
+            "an accepted verdict must yield NO diagnostics; got {clean_diags:?}"
+        );
+        println!("accepted verdict -> 0 diagnostics (clean editor)");
+
+        println!("OK: verdict -> editor diagnostics covered end-to-end");
+    }
 }

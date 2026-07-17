@@ -31,6 +31,21 @@ name = "receipt_operations"
 harness = false
 
 [[bench]]
+name = "variance"
+harness = false
+required-features = ["discovery"]
+
+[[bench]]
+name = "throughput"
+harness = false
+required-features = ["discovery"]
+
+[[bench]]
+name = "profile"
+harness = false
+required-features = ["discovery"]
+
+[[bench]]
 name = "quality_western_electric"
 harness = false
 required-features = ["quality-monitor"]

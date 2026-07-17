@@ -1,3 +1,4 @@
+#![cfg(feature = "wasm4pm")]
 // Reference witness: the wasm4pm engine-side AttributeValue union + Event/Trace
 // attribute bags (COVERAGE.md §2 — wasm4pm log attribute model).
 //

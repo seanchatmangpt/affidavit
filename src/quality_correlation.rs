@@ -841,7 +841,7 @@ mod tests {
                 severity: "HIGH".to_string(),
             },
         ];
-        let simultaneous = detect_simultaneous_violations(&violations);
+        let _simultaneous = detect_simultaneous_violations(&violations);
         // Note: Simultaneous violation detection may or may not group these
         // based on timestamp hashing. This test verifies the function runs without panic.
         assert!(true, "Function should complete without panic");

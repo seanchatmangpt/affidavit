@@ -8,6 +8,7 @@
 // Compare: cargo bench --bench variance -- --baseline main
 
 use affidavit::chain::ChainAssembler;
+#[cfg(feature = "discovery")]
 use affidavit::discovery::{conformance_metrics, discover_dfg_summary, quality_metrics};
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
@@ -103,7 +104,7 @@ fn bench_surprise_sequential(c: &mut Criterion) {
 /// Bench: surprise metric for interleaved (higher-variance) receipts.
 fn bench_surprise_interleaved(c: &mut Criterion) {
     let mut group = c.benchmark_group("variance/surprise_interleaved");
-    for &n in [5_usize, 10, 50] {
+    for &n in &[5_usize, 10, 50] {
         let receipt = build_receipt_interleaved(n);
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
             b.iter(|| black_box(surprise(black_box(&receipt))))

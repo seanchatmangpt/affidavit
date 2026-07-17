@@ -8,7 +8,7 @@
 //! sequence numbers come from a caller-provided monotonic counter — never
 //! wall-clock — preserving determinism.
 
-use crate::error::OcelError;
+pub use crate::error::OcelError;
 use crate::types::{Blake3Hash, ObjectRef, OperationEvent};
 
 /// A monotonic logical sequence counter for assigning event `seq` values.

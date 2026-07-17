@@ -13,9 +13,7 @@
 //!
 //! Total: 100+ tests, all passing, deterministic, fully documented.
 
-use affidavit::quality::{
-    measure_code_quality, CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer,
-};
+use affidavit::quality::{QualityViolation, WesternElectricAnalyzer};
 use std::collections::HashMap;
 
 // ============================================================================

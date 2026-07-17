@@ -4071,6 +4071,7 @@ One or more checks FAILED. Run 'affi doctor --fix' to apply safe automatic remed
 
 #[cfg(test)]
 mod ocel_quality_tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

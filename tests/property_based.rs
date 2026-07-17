@@ -7,9 +7,9 @@
 //! to `tests/property_based.rs` once validated.
 
 use affidavit::chain::{recompute_chain, ChainAssembler, FORMAT_VERSION};
-use affidavit::types::{Blake3Hash, ObjectRef, OperationEvent, Receipt, Verdict};
+use affidavit::types::{Blake3Hash, ObjectRef, OperationEvent, Receipt};
 use affidavit::verifier::verify;
-use quickcheck::{Arbitrary, Gen, QuickCheck, TestResult};
+use quickcheck::{Arbitrary, Gen, TestResult};
 use quickcheck_macros::quickcheck;
 
 // --- Arbitrary Implementations ---

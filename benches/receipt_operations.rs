@@ -100,7 +100,10 @@ fn bench_chain_recompute(c: &mut Criterion) {
 // Benchmark the wasm4pm discovery + conformance path on a receipt (the
 // discover-then-conform pipeline run end-to-end).
 fn bench_conformance_metrics(c: &mut Criterion) {
+    #[cfg(feature = "discovery")]
     use affidavit::discovery::quality_metrics;
+    #[cfg(not(feature = "discovery"))]
+    fn quality_metrics(_r: &affidavit::types::Receipt) -> (f64, f64, f64) { (0.0, 0.0, 0.0) }
     let mut asm = ChainAssembler::new();
     let mut counter = SeqCounter::new();
     for act in ["create", "transform", "validate", "release"] {

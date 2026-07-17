@@ -1,3 +1,4 @@
+#![cfg(feature = "wasm4pm")]
 // Reference witness: the wasm4pm DFG node/edge structures — DFG, DFGNode,
 // DirectlyFollowsRelation (COVERAGE.md §2 — wasm4pm discovered-DFG model).
 //

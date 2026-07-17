@@ -99,7 +99,7 @@ fn measure_single_append_throughput(pre_populated_n: usize) -> f64 {
     // Setup
     let mut asm = ChainAssembler::new();
     let mut counter = SeqCounter::new();
-    for i in 0..pre_populated_n {
+    for _i in 0..pre_populated_n {
         let event = build_event("setup", vec![], b"", &mut counter).unwrap();
         asm.append(event).unwrap();
     }
@@ -127,7 +127,6 @@ fn measure_single_append_throughput(pre_populated_n: usize) -> f64 {
     iterations as f64 / elapsed.as_secs_f64()
 }
 fn main() {
-    test_throughput_harness_execution();
-    test_emit_scaling_harness();
-    println!("All throughput tests passed!");
+    // test functions are #[test] — run via `cargo test` instead
+    println!("Run `cargo test` to execute the throughput harness tests.");
 }
