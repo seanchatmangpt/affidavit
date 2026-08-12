@@ -54,7 +54,7 @@ fn typed_binding_pairs_and_dependency_measure() {
 
     // 3/4 is admitted at the type boundary because 0 <= NUM <= DEN and DEN > 0.
     // Invalid fractions such as DependencyMeasure<5, 4> fail at compile time.
-    let d: DependencyMeasure<3, 4> = DependencyMeasure::new();
+    let d = DependencyMeasure::<3, 4>::new();
     assert_eq!(d.num(), 3);
     assert_eq!(d.den(), 4);
     assert_eq!(d.as_f64(), 0.75);
