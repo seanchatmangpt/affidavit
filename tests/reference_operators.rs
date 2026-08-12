@@ -1,38 +1,31 @@
 // Reference witness: process-tree operators and cross-log correlation schemas
 // are constructed as exhaustive censuses (COVERAGE.md §2).
 //
-//   • ProcessTreeOperator — the process-tree control-flow operators
-//     (Sequence/Xor/Parallel/Or/Loop/Silent).
-//   • CorrelationSchema   — cross-log event correlation strategies.
+// wasm4pm-compat v26.8.7 exposes five structural process-tree operators:
+// Sequence/Xor/Parallel/Loop/Silent. Inclusive-OR is not in the closed enum and
+// therefore must not be manufactured locally as a compatibility fiction.
 
 use wasm4pm_compat::correlation::CorrelationSchema as Corr;
 use wasm4pm_compat::process_tree::ProcessTreeOperator as Op;
 
 #[test]
 fn process_tree_operators_are_constructed() {
-    let all = [
-        Op::Sequence,
-        Op::Xor,
-        Op::Parallel,
-        Op::Or,
-        Op::Loop,
-        Op::Silent,
-    ];
+    let all = [Op::Sequence, Op::Xor, Op::Parallel, Op::Loop, Op::Silent];
     // No-wildcard control-flow family classification: a new ProcessTreeOperator
-    // variant breaks compilation here (the `match` is exhaustive, no `_` arm).
+    // variant breaks compilation here (the match is exhaustive, no `_` arm).
     fn family(o: Op) -> &'static str {
         match o {
             Op::Sequence => "ordering",
-            Op::Xor | Op::Or => "choice",
+            Op::Xor => "choice",
             Op::Parallel => "concurrency",
             Op::Loop => "iteration",
             Op::Silent => "tau",
         }
     }
     let families: std::collections::BTreeSet<&str> = all.iter().copied().map(family).collect();
-    assert_eq!(families.len(), 5, "five control-flow families");
+    assert_eq!(families.len(), 5, "five structural control-flow families");
     let debugs: std::collections::BTreeSet<String> = all.iter().map(|o| format!("{o:?}")).collect();
-    assert_eq!(debugs.len(), 6, "six distinct process-tree operators");
+    assert_eq!(debugs.len(), 5, "five distinct process-tree operators");
 }
 
 #[test]

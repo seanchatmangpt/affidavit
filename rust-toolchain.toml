@@ -1,6 +1,6 @@
 [toolchain]
-# Using latest nightly for formatting. This allows CI to use whatever nightly
-# is currently available without pinning to a specific date that may not exist
-# in the CI runner's environment. Local development uses the same (latest nightly).
-channel = "nightly"
+# Exact toolchain observed by the exact-head court on 2026-08-12.
+# Reproducibility is part of receipt identity; do not float this silently.
+channel = "nightly-2026-08-12"
 components = ["rustfmt", "clippy"]
+profile = "minimal"

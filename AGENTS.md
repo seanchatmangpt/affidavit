@@ -1,132 +1,143 @@
-# AGENTS.md — operational guide for coding agents
+# AGENTS.md — Affidavit execution doctrine
 
-This file is the **ground truth** for any coding agent (Claude Code or otherwise)
-working in this repo. Read it before you build. It exists because the obvious
-first move here — `cargo build` at the root — fails, and that failure is *not
-your bug*. Below is what actually compiles, how to validate each part, and the
-traps to avoid.
+This file is operational ground truth for repository work. Read nested
+`AGENTS.md` files before changing a governed subtree.
 
-> The longer narrative in `CLAUDE.md` describes the *intended* `affidavit`
-> design. Treat it as the spec; treat **this** file as the current build state.
+## 1. Mission
 
----
+Affidavit is the Chatman ecosystem's small provenance/certification kernel. Its
+prime directive is **certify, don't decide**: construct sealed evidence carriers,
+validate bounded witnesses, and refuse malformed claims. Planning, policy
+selection, and machine-state actuation are outside this kernel unless a specific
+boundary explicitly grants them.
 
-## #1 fact: the root `affidavit` crate now builds (via local stubs)
+The root crate is buildable. Current dependency policy is deliberately bounded:
 
-It didn't used to. It depends on `wasm4pm`, `wasm4pm-compat`, and `clnrm-core`,
-whose published versions fail under the pinned nightly (const-trait) or drag in
-300+ transitive deps. Those are now replaced by local **stubs** through
-`[patch.crates-io]` in `Cargo.toml` (`stubs/wasm4pm-compat`, `stubs/wasm4pm`,
-`stubs/clnrm-core`). As a result:
+- `wasm4pm-compat = 26.8.7` is the real published structural
+  admission/authority dependency;
+- `wasm4pm` remains fenced by `stubs/wasm4pm`;
+- `clnrm-core` remains fenced by `stubs/clnrm-core`.
 
-- `cargo build --all-targets` ✅ and `cargo test` ✅ (789 tests, incl. doctests)
-  pass under default features. `cargo fmt --all -- --check` ✅.
-- `cargo clippy --all-targets -- -D warnings` ✅ too. `src/lib.rs` denies
-  `clippy::print_stdout`; library output routes through the sanctioned sinks in
-  `src/output.rs` (via the crate-internal `outln!` / `out!` macros), not raw
-  `println!`. **Keep new library output on `outln!` (or an `Out`)** — a raw
-  `println!` in the lib will fail the gate. The `clippy` CI job now blocks.
-- If you swap the stubs back for the real upstreams, the build breaks again —
-  see the `[patch.crates-io]` comment in `Cargo.toml`.
+A stub is a named capability boundary, not proof that upstream behavior executed.
+Do not silently replace or broaden one without an observed integration proof.
 
----
+## 2. Foundational invariants
 
-## What actually builds — the validate matrix
+1. **Exact subject** — execution standing names the exact candidate SHA/tree that
+   was actually executed.
+2. **Admission before crown** — UNKNOWN is not admitted; PARTIAL_ALIVE is not
+   ALIVE.
+3. **Zero forged receipts** — a struct or JSON object named `receipt` has no
+   standing unless the canonical verifier accepts it.
+4. **Certify ≠ decide** — receipt construction carries no ambient policy or
+   actuation authority.
+5. **Generated surfaces are projections** — `src/verbs/**` is generated from the
+   ggen ontology/config. Edit its authoritative inputs, then regenerate.
+6. **Replay is evidence** — exact command/toolchain/config identity matters.
+7. **One failed edge is topology** — classify the failing transition; do not
+   generalize one transport or court failure into whole-project failure.
 
-| Area | Builds? | Validate with |
-|---|---|---|
-| **root `affidavit` crate** (`src/`) | ✅ build + test + clippy + fmt (via stubs) | `cargo build --all-targets && cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all -- --check` |
-| **`affidavit-core/`** (zero-dep `no_std` verifier + process mining) | ✅ fully | `cd affidavit-core && cargo test && cargo clippy --all-targets -- -D warnings && cargo fmt -- --check` — see `affidavit-core/AGENTS.md` |
-| **`web/`** (Next.js 15 / React 19 / TS, Node 22) | ✅ fully | `cd web && npm install && npx tsc --noEmit` (tsc is the gate; no ESLint config) |
-| **`tools/confevo/`** (Python genetic config optimizer) | ✅ fully | `python3 -m unittest discover -s tools/confevo -t . -p 'test_*.py'` then `python3 tools/confevo/confevo.py run --dry-run` |
+## 3. Architecture map
 
-**If your change is in one of the ✅ areas, run that area's full check before you
-push.** The root crate now builds, tests, and lints clean — `cargo build
---all-targets && cargo test && cargo clippy --all-targets -- -D warnings` should
-all stay green.
+- `src/types.rs`, `src/chain.rs`, `src/admission.rs`, `src/verifier.rs` — receipt
+  trust path.
+- `src/standing.rs` — ecosystem standing v2. ALIVE is structurally
+  unconstructable without successful execution + independent verification +
+  replay evidence.
+- `src/errc.rs` — formal ERRC v1 transformation receipts. This is CONSTRUCT only;
+  see `docs/ERRC.md`.
+- `ontology/affi-cli.ttl`, `ggen.toml`, `.ggen/**` — authoritative CLI generation
+  graph and templates.
+- `src/verbs/**` — generated CLI projection; do not hand edit.
+- `affidavit-core/` — separately gated minimal core.
+- `web/`, `tools/confevo/` — independent evidence lanes.
+- `scripts/ci_errc.py` — exact-head ERRC fast court, reconstituted from pinned
+  `ggen-legacy` mechanics.
 
-**CI now mirrors this matrix.** Each area has its own workflow that **blocks** on
-its real checks (`affidavit-core.yml`, `web.yml`, `confevo.yml`). The root crate's
-`rust.yml` blocks on all three of `fmt`, `build-and-test` (build + test +
-doctests), and `clippy` (`-D warnings`) — every one green now that the stubs make
-the crate compile and the print_stdout debt is paid down. A green check means the
-area's real checks actually passed, not that they were skipped.
+## 4. ERRC reconstruction law
 
----
+The normative profile is `affidavit/errc/v1`. Its archaeological source is
+fixed to:
 
-## Where to work (project map)
+`seanchatmangpt/ggen-legacy@60d38265b8d1d94c43f04ca6bdb8537184e510a8:scripts/ci_errc.py`
 
+ERRC is not a score. Every claim is attached to one exact
+`(target, metric, unit)` coordinate and must satisfy exactly one directional
+relation:
+
+- ELIMINATE: `baseline > 0`, `candidate = 0`
+- REDUCE: `baseline > candidate > 0`
+- RAISE: `candidate > baseline > 0`
+- CREATE: `baseline = 0`, `candidate > 0`
+
+A non-empty preservation fence is mandatory. Heterogeneous units are never
+summed. The receipt claim ceiling excludes causality, utility, optimality, and
+actuation conclusions.
+
+## 5. Generation
+
+The CLI graph is ontology-first:
+
+```text
+ontology/affi-cli.ttl
+    -> ggen.toml inference + SPARQL validation
+    -> .ggen/templates/**
+    -> src/verbs/**
+    -> Rust execution courts
 ```
-affidavit/
-├── src/                  root `affidavit` crate — DOES NOT BUILD (broken dep). fmt-only.
-├── affidavit-core/       ✅ standalone crate: zero-dep, no_std, forbid(unsafe) verifier
-│                            + process-mining module. Strict invariants — read its AGENTS.md.
-├── web/                  ✅ self-contained Next.js app (the reliably-installable part)
-├── tools/confevo/        ✅ Python (stdlib-only) genetic Cargo-feature optimizer; has README
-├── scripts/              bootstrap.sh / check.sh — local setup & the working checks
-├── .claude/              SessionStart hook + settings (see below); session-local state ignored
-└── .github/workflows/    per-area CI; each workflow gates only its own area:
-                          • rust.yml           root-crate fmt (real gate) + non-blocking build
-                          • affidavit-core.yml test + clippy + no_std build + fmt
-                          • web.yml            tsc --noEmit + next build
-                          • confevo.yml        python unittest + dry-run
+
+When changing a generated CLI surface, modify the ontology/config/template and
+run the repository's documented ggen generation/check path. Never patch a
+projection solely to make CI green.
+
+## 6. Verification ladder
+
+Use the cheapest high-information court first, then expand after success:
+
+```bash
+python3 -m unittest discover -s scripts/tests -p 'test_ci_errc.py'
+python3 scripts/ci_errc.py --base <BASE_SHA> --head <HEAD_SHA> \
+  --report evidence/ci/errc-fast.json
+cargo fmt --all -- --check
+cargo build --all-targets
+cargo test --all-targets
+cargo test --doc
+cargo clippy --all-targets -- -D warnings
 ```
 
-Net-new, self-contained work belongs in `affidavit-core/`, `web/`, or
-`tools/confevo/` — places where you can actually compile and test what you wrote.
+The ERRC fast court has a hard ceiling: success is `PARTIAL_ALIVE`. It verifies
+exact-head identity, path-to-court routing, and changed JSON/TOML parsing; it
+cannot stand in for Rust execution.
 
----
+The root Rust workflow, `affidavit-core`, web, and confevo courts own their
+respective execution claims. GitHub workflow metadata is not execution proof;
+inspect the exact-head job steps/logs.
 
-## SessionStart hook (Claude Code on the web)
+## 7. Toolchain and dependency replay
 
-`.claude/hooks/session-start.sh` runs automatically at the start of remote
-(web) sessions (matcher `startup|resume`, so it does **not** re-run on `/clear`
-or `compact`). It is **async, cache-aware, idempotent, and remote-only**
-(`CLAUDE_CODE_REMOTE`). It:
+`rust-toolchain.toml` is intentionally date-pinned. Do not float nightly without
+an explicit migration receipt. `Cargo.lock` is part of replay identity. During a
+dependency graduation, preserve Cargo's resolver-produced lockfile as an
+artifact even when later compilation fails; after it is committed, move the
+court to `--locked`.
 
-1. ensures the nightly `rustfmt` + `clippy` components (skipped if present), and
-2. runs `npm install` in `web/` (skipped if `node_modules` is current).
+## 8. Failure discipline
 
-It deliberately does **not** run `cargo build/test/clippy` (they can't pass — see
-#1). If you need the toolchain set up locally, run `bash scripts/bootstrap.sh`.
+On failure:
 
-**Async note for agents:** because the hook is async, the session starts
-immediately while setup warms in the background. On a *warm* container both steps
-above are sub-second no-ops, so there is effectively no race. On a *cold* first
-session, the background `npm install` may still be running — so if a `web/`
-command (`npx tsc`, `npm run build`) fails with missing deps, either wait for the
-`.claude/.session-ready` marker the hook writes on completion, or just re-run
-`npm install` (it's idempotent — the documented fallback). Rust work
-(`cargo fmt`) is unaffected (rustfmt/clippy are preinstalled here).
+1. preserve the exact subject/head and command;
+2. classify the failed transition;
+3. locate the narrowest cause;
+4. repair the lawful path rather than skipping the verifier;
+5. encode a permanent regression witness/refusal;
+6. rerun that boundary;
+7. expand only after it succeeds.
 
----
+Never use `continue-on-error`, fake fixtures, vacuous assertions, hand-written
+generated outputs, or local compatibility inventions to manufacture green.
 
-## Conventions
+## 9. Publication
 
-- **Doctrine: "certify, don't decide."** The verifier (and the process-mining
-  conformance checker) certify an artifact against a format/model; they never
-  decide whether the recorded work was honest. Preserve this framing in code and
-  docs.
-- **Branching:** develop on a feature branch; do **not** push to `main`. Commit
-  with clear messages.
-- **No-unwrap policy** in library code (root crate): fallible paths return
-  `Result`; `.unwrap()` is for tests only.
-- **Don't commit generated artifacts:** `target/`, `tools/confevo/out/`,
-  `node_modules/`, `__pycache__/` are git-ignored — keep them that way.
-- **Honesty over green:** a check that passes whether or not the work happened
-  carries no information (this repo's stated ethos). Report failures plainly;
-  don't fake a pass.
-
----
-
-## Common traps (learned the hard way)
-
-- Assuming the root crate can't build (older docs/comments say so) — it builds,
-  tests, and lints clean now via the `[patch.crates-io]` stubs. Don't delete the
-  `stubs/` or the `[patch]` block to "fix" deps.
-- Adding a raw `println!` in library code — it fails `#![deny(clippy::print_stdout)]`.
-  Use the `outln!` / `out!` macros (they route through `src/output.rs`) or an
-  `Out` handle instead.
-- `/usr/bin/time` is not installed here; don't rely on it in scripts.
-- The web `package-lock.json` churns `libc` fields on `npm install` under this
-  npm version — that diff is benign.
+Use a purpose branch based on a recorded exact base SHA. Commit intentionally,
+non-force push, and keep review work in a draft PR until the exact-head courts
+support the claimed standing. Never merge or release unless explicitly asked.

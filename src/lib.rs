@@ -98,6 +98,7 @@ pub mod cli;
 pub mod discovery;
 
 pub mod error;
+pub mod errc;
 pub mod fixture_db;
 pub mod handlers;
 
@@ -164,6 +165,11 @@ pub fn run() -> clap_noun_verb::Result<()> {
 }
 
 pub use error::AffidavitError;
+pub use errc::{
+    certify_errc, ErrcClaim, ErrcMeasure, ErrcObservation, ErrcQuadrant, ErrcReceipt, ErrcRefusal,
+    ErrcSource, PreservedInvariant, QuadrantCounts, ERRC_CLAIM_CEILING, ERRC_PROFILE,
+    ERRC_SOURCE_ARTIFACT, ERRC_SOURCE_COMMIT, ERRC_SOURCE_REPOSITORY,
+};
 pub use standing::{
     certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,
     StandingObservation, StandingReceipt, StandingRefusal, SubjectIdentity, VerificationEvidence,

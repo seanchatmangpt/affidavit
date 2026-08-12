@@ -3,8 +3,8 @@
 // (COVERAGE.md §2 — choice graph).
 //
 // A ChoiceGraph is a directed graph over decision nodes with a Start (▷) and End
-// (□). This witnesses construction, the node taxonomy (Start/End/Activity/SubModel),
-// and the successors/predecessors graph queries.
+// (□). This witnesses fallible construction, the node taxonomy
+// (Start/End/Activity/SubModel), and successors/predecessors graph queries.
 
 use wasm4pm_compat::powl::{ChoiceGraph, StandaloneChoiceGraphNode as Node};
 
@@ -17,9 +17,9 @@ fn choice_graph_node_taxonomy_and_graph_queries() {
         Node::End,
     ];
     let edges = vec![(0, 1), (1, 2)]; // start→activity→end
-    let cg = ChoiceGraph::new(nodes, edges);
+    let cg = ChoiceGraph::new(nodes, edges).expect("valid start→activity→end choice graph");
 
-    // Graph queries reflect the constructed edges.
+    // Graph queries reflect the admitted edges.
     assert_eq!(
         cg.successors(0),
         vec![1],
