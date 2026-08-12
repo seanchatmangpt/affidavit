@@ -14,9 +14,7 @@
 
 use crate::types::{AdmittedReceipt, Blake3Hash};
 use serde::{Deserialize, Deserializer, Serialize};
-use wasm4pm_compat::authority::{
-    AuthorityConstraint, AuthorityEnvelope, AuthorityRefusal,
-};
+use wasm4pm_compat::authority::{AuthorityConstraint, AuthorityEnvelope, AuthorityRefusal};
 use wasm4pm_compat::witness::Witness;
 
 /// Stable profile tag for ecosystem standing receipts.
@@ -191,9 +189,7 @@ impl core::fmt::Display for StandingRefusal {
             Self::AuthorityEnvelopeRejected(reasons) => {
                 write!(f, "authority_envelope_rejected: {reasons:?}")
             }
-            Self::UnsupportedAuthorityConstraint => {
-                f.write_str("unsupported_authority_constraint")
-            }
+            Self::UnsupportedAuthorityConstraint => f.write_str("unsupported_authority_constraint"),
             Self::EmptyField(field) => write!(f, "empty_field: {field}"),
             Self::MalformedBlake3(field) => write!(f, "malformed_blake3: {field}"),
             Self::AliveMissingExecution => f.write_str("alive_missing_execution"),
@@ -389,11 +385,17 @@ fn validate_material(
     }
     if let Some(verification) = verification {
         require_text("verification.command", &verification.command)?;
-        require_blake3("verification.report_commitment", &verification.report_commitment)?;
+        require_blake3(
+            "verification.report_commitment",
+            &verification.report_commitment,
+        )?;
     }
     if let Some(replay) = replay {
         require_text("replay.command", &replay.command)?;
-        require_blake3("replay.environment_commitment", &replay.environment_commitment)?;
+        require_blake3(
+            "replay.environment_commitment",
+            &replay.environment_commitment,
+        )?;
     }
     if let Some(previous) = previous_receipt {
         require_blake3("previous_receipt", previous)?;
