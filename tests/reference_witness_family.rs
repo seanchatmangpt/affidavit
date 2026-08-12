@@ -3,12 +3,12 @@
 // at the type level (COVERAGE.md §2 — witness markers + family gating).
 //
 // `Witness` markers are how `Admission<T, W>` and `Evidence<_, _, W>` are made
-// family-typed. This exercises the const metadata of the OCEL-2.0, POWL, and
-// pm4py markers and confirms their FAMILY classification matches the taxonomy
-// (Standard vs Paper vs ApiGrammar) — failing-when-fake: a wrong KEY/FAMILY
-// const fails the assertion.
+// family-typed. v26.8.7 intentionally exposes marker metadata through the
+// `Witness` trait, so the trait import is part of the API witness rather than an
+// incidental implementation detail.
 
 use wasm4pm_compat::witness::{Ocel20, Pm4pyApiGrammar, PowlPaper, WitnessFamily};
+use wasm4pm_compat::Witness;
 
 #[test]
 fn standard_family_markers_carry_correct_metadata() {
