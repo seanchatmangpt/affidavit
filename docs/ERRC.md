@@ -146,11 +146,14 @@ transitivity, or proof of dominance.
 intentional strengthening: a fast routing court can never crown the repository
 `ALIVE`.
 
-It can produce only:
+Its standing domain is deliberately bounded:
 
 - `PARTIAL_ALIVE` — exact head observed, changed files classified, changed
   JSON/TOML admitted;
-- `BUILD_BROKEN` — an exact-head, discovery, or structured-admission check failed.
+- `BLOCKED` — the intended exact subject could not be established or changed-file
+  discovery failed, so source breakage has not been demonstrated;
+- `BUILD_BROKEN` — a changed structured source artifact was observed and failed
+  deterministic JSON/TOML admission.
 
 Heavy evidence lanes own actual execution:
 
@@ -180,11 +183,11 @@ The following must fail certification:
 - non-canonical serialized order;
 - tampered quadrant counts or receipt hash.
 
-The following must fail the fast CI court:
+The fast CI court classifies, rather than conflates, these failures:
 
-- checkout HEAD differs from the admitted candidate SHA;
-- base/head changed-file discovery fails;
-- a changed JSON or TOML file cannot be parsed.
+- checkout HEAD differs from the admitted candidate SHA → `BLOCKED`;
+- base/head changed-file discovery fails → `BLOCKED`;
+- a changed JSON or TOML file cannot be parsed → `BUILD_BROKEN`.
 
 ## 11. Replay
 

@@ -145,6 +145,22 @@ def classify_paths(paths: Iterable[str]) -> dict[str, list[str]]:
     return result
 
 
+def classify_fast_standing(failures: Iterable[dict[str, object]]) -> str:
+    """Map fast-court failures to standing without overclaiming source breakage.
+
+    A structured source artifact that fails admission establishes BUILD_BROKEN at
+    this bounded court. Exact-head mismatch and change-discovery failures mean
+    the intended subject was not lawfully inspected, so the court is BLOCKED.
+    Success is capped at PARTIAL_ALIVE; this court never returns ALIVE.
+    """
+    codes = {str(failure.get("failure", "")) for failure in failures}
+    if not codes:
+        return "PARTIAL_ALIVE"
+    if "STRUCTURED_FILE_INVALID" in codes:
+        return "BUILD_BROKEN"
+    return "BLOCKED"
+
+
 def git_changed_files(root: Path, base: str, head: str) -> list[str]:
     """Discover ACMR changes between the admitted base and exact candidate."""
     if base and base != head:
@@ -289,7 +305,7 @@ def main() -> int:
         )
 
     failures = [check for check in checks if not check.get("passed", False)]
-    standing = "BUILD_BROKEN" if failures else "PARTIAL_ALIVE"
+    standing = classify_fast_standing(failures)
 
     report: dict[str, object] = {
         "schema": "affidavit.ci.errc.fast-receipt.v1",

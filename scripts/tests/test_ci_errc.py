@@ -47,6 +47,7 @@ class CiErrcTests(unittest.TestCase):
             checks = ci_errc.validate_structured_files(root, ["bad.json"])
         self.assertEqual(checks[0]["failure"], "STRUCTURED_FILE_INVALID")
         self.assertFalse(checks[0]["passed"])
+        self.assertEqual(ci_errc.classify_fast_standing(checks), "BUILD_BROKEN")
 
     def test_valid_toml_and_json_are_admitted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -56,13 +57,19 @@ class CiErrcTests(unittest.TestCase):
             checks = ci_errc.validate_structured_files(root, ["ok.toml", "ok.json"])
         self.assertEqual(len(checks), 2)
         self.assertTrue(all(check["passed"] for check in checks))
+        self.assertEqual(ci_errc.classify_fast_standing([]), "PARTIAL_ALIVE")
 
-    def test_exact_head_mismatch_is_typed(self) -> None:
+    def test_exact_head_mismatch_is_typed_and_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             result = ci_errc.exact_head_check(root, "deadbeef")
         self.assertFalse(result["passed"])
         self.assertEqual(result["failure"], "EXACT_HEAD_MISMATCH")
+        self.assertEqual(ci_errc.classify_fast_standing([result]), "BLOCKED")
+
+    def test_discovery_failure_is_blocked_not_build_broken(self) -> None:
+        failure = {"failure": "CHANGED_FILE_DISCOVERY_FAILED", "passed": False}
+        self.assertEqual(ci_errc.classify_fast_standing([failure]), "BLOCKED")
 
     def test_fast_court_claim_ceiling_cannot_crown_alive(self) -> None:
         self.assertEqual(
