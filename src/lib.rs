@@ -130,6 +130,7 @@ pub mod verifier;
 pub mod diag;
 pub mod doctor_check;
 pub mod output;
+pub mod standing;
 
 pub mod diff;
 pub mod visualize;
@@ -163,6 +164,11 @@ pub fn run() -> clap_noun_verb::Result<()> {
 }
 
 pub use error::AffidavitError;
+pub use standing::{
+    certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,
+    StandingObservation, StandingReceipt, StandingRefusal, SubjectIdentity, VerificationEvidence,
+    STANDING_PROFILE,
+};
 pub use types::{
     canonical_bytes, Blake3Hash, CheckOutcome, ObjectRef, OperationEvent, ProfileId, Receipt,
     Verdict,
