@@ -2,8 +2,11 @@
 // DATA-carrying variants — are constructed as exhaustive censuses
 // (COVERAGE.md §2 — POWL node model + OCEL attribute value model).
 //
-//   • PowlNodeKind — the POWL 1.0/2.0 node taxonomy (atom, silent, choice, loop,
-//     partial-order, choice-graph). Data variants constructed with real payloads.
+// wasm4pm-compat v26.8.7 models POWL 2.0 with explicit Start/End boundaries and
+// a directed ChoiceGraph. The legacy flat Choice/Loop node variants are absent:
+// loops and non-block-structured decisions are represented by ChoiceGraph edges.
+//
+//   • PowlNodeKind — Start, End, Atom, Silent, PartialOrder, ChoiceGraph.
 //   • OcelAttributeValue — the OCEL attribute value union (incl. nested List/Map).
 
 use wasm4pm_compat::ocel::OcelAttributeValue as V;
@@ -12,26 +15,24 @@ use wasm4pm_compat::powl::{PowlNodeId, PowlNodeKind as PK};
 #[test]
 fn powl_node_kinds_are_constructed_with_payloads() {
     let all = [
+        PK::Start,
+        PK::End,
         PK::Atom("place_order".to_string()),
         PK::Silent,
-        PK::Choice(vec![PowlNodeId(0), PowlNodeId(1)]),
-        PK::Loop {
-            body: PowlNodeId(0),
-            redo: Some(PowlNodeId(1)),
-        },
         PK::PartialOrder(vec![PowlNodeId(0), PowlNodeId(1), PowlNodeId(2)]),
         PK::ChoiceGraph {
             nodes: vec![PowlNodeId(0), PowlNodeId(1)],
             edges: vec![],
         },
     ];
-    // Exhaustive no-wildcard match — compile-time census of the node taxonomy.
+    // Exhaustive no-wildcard match — compile-time census of the canonical
+    // POWL 2.0 node taxonomy. Upstream enum drift must break this witness.
     fn kind(p: &PK) -> &'static str {
         match p {
+            PK::Start => "start",
+            PK::End => "end",
             PK::Atom(_) => "atom",
             PK::Silent => "silent",
-            PK::Choice(_) => "choice",
-            PK::Loop { .. } => "loop",
             PK::PartialOrder(_) => "partial-order",
             PK::ChoiceGraph { .. } => "choice-graph",
         }
@@ -40,7 +41,7 @@ fn powl_node_kinds_are_constructed_with_payloads() {
     assert_eq!(
         s.len(),
         6,
-        "six distinct POWL node kinds constructed with payloads"
+        "all six canonical POWL 2.0 node kinds constructed with payloads"
     );
 }
 
