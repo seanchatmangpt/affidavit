@@ -1,16 +1,14 @@
-// Reference witness: the arity-typed XOR/AND/SEQ/OR operator nodes — each
-// enforces ARITY >= 2 at compile time (COVERAGE.md §2 — typed operator arity law;
-// complements TypedLoopNode's ARITY == 2).
+// Reference witness: the complete arity-typed process-tree operator surface.
 //
-// XOR, AND (parallel), SEQ (sequence), and OR operators all require at least two
-// children. TypedXorNode<_, ARITY> etc. encode this as `Require<{ARITY >= 2}>:
-// IsTrue` — arity 2/3/… construct, but ARITY < 2 fails the where-bound and is
-// unconstructable. The bound IS the minimum-arity law.
+// wasm4pm-compat v26.8.7 exposes four arity-typed structural nodes:
+// XOR, AND (parallel), and SEQ require ARITY >= 2; LOOP requires ARITY == 2.
+// Inclusive OR is not part of the canonical closed process-tree operator set and
+// therefore must not be manufactured as a local compatibility fiction.
 
-use wasm4pm_compat::process_tree::{TypedAndNode, TypedOrNode, TypedSeqNode, TypedXorNode};
+use wasm4pm_compat::process_tree::{TypedAndNode, TypedLoopNode, TypedSeqNode, TypedXorNode};
 
 #[test]
-fn typed_operators_admit_arity_two_and_above() {
+fn typed_process_tree_operators_enforce_their_arity_laws() {
     let xor = TypedXorNode::<(&str, &str), 2>::new(("a", "b"));
     assert_eq!(xor.children.0, "a");
 
@@ -20,10 +18,9 @@ fn typed_operators_admit_arity_two_and_above() {
     let seq = TypedSeqNode::<(&str, &str), 2>::new(("first", "second"));
     assert_eq!(seq.children.1, "second");
 
-    let or = TypedOrNode::<(bool, bool), 2>::new((true, false));
-    assert!(or.children.0);
+    let loop_node = TypedLoopNode::<(&str, &str), 2>::new(("do", "redo"));
+    assert_eq!(loop_node.children, ("do", "redo"));
 
-    // This file COMPILING is the witness: every operator here has ARITY >= 2.
-    // A TypedXorNode::<_, 1> (or 0) would fail `Require<{ARITY >= 2}>: IsTrue` and
-    // not build — XOR/AND/SEQ/OR cannot be unary, enforced at the type level.
+    // This file compiling is the positive type-law witness. Upstream owns the
+    // compile-fail negative witnesses for XOR/AND/SEQ arity < 2 and LOOP arity != 2.
 }

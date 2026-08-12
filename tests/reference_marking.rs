@@ -1,9 +1,9 @@
 // Reference witness: the Petri Marking token surface — construction, tokens()
 // iteration, tokens_on lookup, empty/non-empty (COVERAGE.md §2 — marking arithmetic).
 //
-// A Marking maps places to token counts. This witnesses multi-place markings, the
-// tokens() view, per-place tokens_on lookup (0 for absent places), and the empty
-// marking.
+// wasm4pm-compat v26.8.7 exposes the marking as a stable slice of
+// `(place_id, token_count)` pairs. This witness consumes that declared sequence
+// directly rather than assuming map-specific iterator methods.
 
 use wasm4pm_compat::petri::Marking;
 
@@ -19,9 +19,10 @@ fn marking_records_per_place_token_counts() {
     assert_eq!(m.tokens_on("p1"), 1);
     assert_eq!(m.tokens_on("absent"), 0, "absent place → 0 tokens");
 
-    // tokens() exposes the full (place, count) view.
-    let total: usize = m.tokens().values().copied().sum();
+    // tokens() exposes the full ordered (place, count) structural view.
+    let total: usize = m.tokens().iter().map(|(_, count)| *count).sum();
     assert_eq!(total, 3, "total token count across places");
+    assert_eq!(m.tokens()[0], ("p0".to_string(), 2));
 }
 
 #[test]
