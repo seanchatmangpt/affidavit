@@ -1,20 +1,24 @@
 # rust.yml — checks for the root `affidavit` crate.
 #
-# The root crate builds again: the previously-broken upstream crates (wasm4pm,
-# wasm4pm-compat, clnrm-core) are replaced by local stubs via [patch.crates-io]
-# in Cargo.toml (see stubs/). Build + test are therefore real gates now. See
-# AGENTS.md.
+# The root crate builds against a deliberately bounded ecosystem surface:
+# wasm4pm remains locally fenced, while wasm4pm-compat v26.8.7 is consumed from
+# its real published structural admission/authority API. Build + test are real
+# gates; local fences do not manufacture a successful command.
 #
 # This repo's ethos: a green that is true whether or not the work happened
 # carries no information. The jobs below are split by honesty:
 #
 #   * `fmt` — REAL, BLOCKING gate. rustfmt only parses source, so it passes/fails
 #     purely on the merits of the committed code.
-#   * `build-and-test` — REAL, BLOCKING gate now that the stubs make the crate
-#     compile: `cargo build` / `cargo test` (incl. doctests) over all targets.
+#   * `build-and-test` — REAL, BLOCKING gate: `cargo build` / `cargo test`
+#     (incl. doctests) over all targets.
 #   * `clippy` — REAL, BLOCKING gate. The print_stdout debt is paid down (library
 #     output routes through `output.rs` via the `outln!` macro), so
-#     `cargo clippy --all-targets -- -D warnings` is clean.
+#     `cargo clippy --all-targets -- -D warnings` is a real verifier.
+#
+# PR jobs checkout the immutable pull-request HEAD SHA rather than GitHub's
+# synthetic merge ref. This is the Exact-Head Law: the SHA named by the receipt
+# is the SHA actually executed. Push jobs use github.sha.
 #
 # The standalone `affidavit-core/` crate has its own gate in affidavit-core.yml.
 # `cargo fmt --all` from the root only covers the root crate (affidavit-core is
@@ -61,8 +65,10 @@ jobs:
     name: rustfmt (cargo fmt --check)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact candidate
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install nightly Rust with rustfmt
         uses: dtolnay/rust-toolchain@nightly
@@ -73,16 +79,17 @@ jobs:
         run: cargo fmt --all -- --check
 
   # ---------------------------------------------------------------------------
-  # REAL GATE: the root crate now builds (upstream crates replaced by local
-  # stubs via [patch.crates-io] — see Cargo.toml / stubs/). So build + test pass
-  # and this job BLOCKS. Doctests run separately because --all-targets skips them.
+  # REAL GATE: the root crate builds against the admitted bounded dependency
+  # surface. Doctests run separately because --all-targets skips them.
   # ---------------------------------------------------------------------------
   build-and-test:
     name: build-and-test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact candidate
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install nightly toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -92,6 +99,16 @@ jobs:
 
       - name: cargo build --all-targets
         run: cargo build --all-targets
+
+      # During the v26.8.7 graduation, preserve Cargo's resolved lock as a
+      # machine-readable artifact. Once the committed lock matches, later runs
+      # can move to --locked without guessing at dependency resolution.
+      - name: Upload resolved Cargo.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-cargo-lock
+          path: Cargo.lock
+          retention-days: 1
 
       - name: cargo test --all-targets (unit + integration + example/bench harnesses)
         run: cargo test --all-targets
@@ -108,8 +125,10 @@ jobs:
     name: clippy (cargo clippy --all-targets -D warnings)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact candidate
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install nightly toolchain with clippy
         uses: dtolnay/rust-toolchain@nightly
