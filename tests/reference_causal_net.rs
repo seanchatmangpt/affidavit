@@ -5,19 +5,23 @@
 // CausalNet::validate enforces:
 //   - MissingActivity — a node label must be non-empty
 //   - InvalidDependencyScore — dependency scores must be finite and in [0,1]
-//   - DisconnectedGraph — (for >1 node) every node must appear in some arc
+//   - DisconnectedGraph — (for >1 node) every node must appear in some arc/loop
 
 use wasm4pm_compat::causal_net::{CausalNet, CausalNetRefusal};
 
 fn net(nodes: Vec<&str>, deps: Vec<(&str, &str, f64)>) -> CausalNet {
     CausalNet {
         nodes: nodes.into_iter().map(String::from).collect(),
+        initial_node: None,
+        final_node: None,
         dependency_measures: deps
             .into_iter()
             .map(|(s, t, w)| (s.to_string(), t.to_string(), w))
             .collect(),
         inputs: Vec::new(),
         outputs: Vec::new(),
+        loops_len1: Vec::new(),
+        loops_len2: Vec::new(),
     }
 }
 
@@ -40,7 +44,7 @@ fn causal_net_refuses_invalid_dependency_score() {
 
 #[test]
 fn causal_net_refuses_disconnected_graph() {
-    // "c" is isolated — referenced by no arc.
+    // "c" is isolated — referenced by no arc or short loop.
     let n = net(vec!["a", "b", "c"], vec![("a", "b", 0.9)]);
     assert_eq!(n.validate(), Err(CausalNetRefusal::DisconnectedGraph));
 }
