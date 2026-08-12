@@ -1,59 +1,72 @@
-// Reference witness: positive POWL construction — a valid partially-ordered
-// workflow language model admits via validate() (COVERAGE.md §2 — POWL positive
-// shapes, completing the model-type set; complements PowlRefusal).
+// Reference witness: positive POWL 2.0 construction — connected ChoiceGraph
+// structures admit through validate() (COVERAGE.md §2 — POWL positive shapes).
 //
-// Builds a POWL with two atom leaves under a well-formed Choice (arity 2), and a
-// Loop whose body references an existing node, then exercises validate() admit
-// and node_count. Complements the PowlRefusal::InvalidChoiceArity refusal witness.
+// POWL 2.0 replaces the legacy flat Choice and Loop dynamic AST variants with
+// one directed ChoiceGraph operator. Branching is represented by multiple arcs;
+// looping is represented by a lawful cycle. Every graph node must lie on a path
+// from the declared Start boundary to the End boundary.
 
-use wasm4pm_compat::powl::{Powl, PowlNode, PowlNodeId, PowlNodeKind};
+use wasm4pm_compat::powl::{
+    ChoiceGraphEdge, Powl, PowlNode, PowlNodeId, PowlNodeKind,
+};
 
-#[test]
-fn valid_choice_powl_admits() {
-    let mut p = Powl::new();
-    p.nodes
-        .push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
-    p.nodes
-        .push(PowlNode::new(PowlNodeId(1), PowlNodeKind::Atom("b".into())));
-    // A Choice with two branches satisfies the arity law.
-    p.nodes.push(PowlNode::new(
-        PowlNodeId(2),
-        PowlNodeKind::Choice(vec![PowlNodeId(0), PowlNodeId(1)]),
-    ));
-    p.root = Some(PowlNodeId(2));
-
-    assert_eq!(
-        p.validate(),
-        Ok(()),
-        "a 2-branch Choice over two atoms admits"
-    );
-    assert_eq!(p.node_count(), 3, "three POWL nodes");
+fn node(id: usize, kind: PowlNodeKind) -> PowlNode {
+    PowlNode::new(PowlNodeId(id), kind)
 }
 
 #[test]
-fn valid_loop_with_existing_body_admits() {
+fn connected_choice_graph_with_two_branches_admits() {
     let mut p = Powl::new();
-    p.nodes.push(PowlNode::new(
-        PowlNodeId(0),
-        PowlNodeKind::Atom("do".into()),
-    ));
-    p.nodes.push(PowlNode::new(
-        PowlNodeId(1),
-        PowlNodeKind::Atom("redo".into()),
-    ));
-    // A Loop whose body and redo reference existing nodes is valid.
-    p.nodes.push(PowlNode::new(
-        PowlNodeId(2),
-        PowlNodeKind::Loop {
-            body: PowlNodeId(0),
-            redo: Some(PowlNodeId(1)),
+    p.nodes.extend([
+        node(0, PowlNodeKind::Start),
+        node(1, PowlNodeKind::Atom("a".into())),
+        node(2, PowlNodeKind::Atom("b".into())),
+        node(3, PowlNodeKind::End),
+    ]);
+    p.nodes.push(node(
+        4,
+        PowlNodeKind::ChoiceGraph {
+            nodes: vec![PowlNodeId(0), PowlNodeId(1), PowlNodeId(2), PowlNodeId(3)],
+            edges: vec![
+                ChoiceGraphEdge::new(PowlNodeId(0), PowlNodeId(1)),
+                ChoiceGraphEdge::new(PowlNodeId(0), PowlNodeId(2)),
+                ChoiceGraphEdge::new(PowlNodeId(1), PowlNodeId(3)),
+                ChoiceGraphEdge::new(PowlNodeId(2), PowlNodeId(3)),
+            ],
         },
     ));
-    p.root = Some(PowlNodeId(2));
+    p.root = Some(PowlNodeId(4));
+
+    assert_eq!(p.validate(), Ok(()));
+    assert_eq!(p.node_count(), 5, "four graph nodes plus the graph operator");
+}
+
+#[test]
+fn connected_choice_graph_cycle_admits_as_powl2_loop_shape() {
+    let mut p = Powl::new();
+    p.nodes.extend([
+        node(0, PowlNodeKind::Start),
+        node(1, PowlNodeKind::Atom("do".into())),
+        node(2, PowlNodeKind::Atom("redo".into())),
+        node(3, PowlNodeKind::End),
+    ]);
+    p.nodes.push(node(
+        4,
+        PowlNodeKind::ChoiceGraph {
+            nodes: vec![PowlNodeId(0), PowlNodeId(1), PowlNodeId(2), PowlNodeId(3)],
+            edges: vec![
+                ChoiceGraphEdge::new(PowlNodeId(0), PowlNodeId(1)),
+                ChoiceGraphEdge::new(PowlNodeId(1), PowlNodeId(2)),
+                ChoiceGraphEdge::new(PowlNodeId(2), PowlNodeId(1)),
+                ChoiceGraphEdge::new(PowlNodeId(1), PowlNodeId(3)),
+            ],
+        },
+    ));
+    p.root = Some(PowlNodeId(4));
 
     assert_eq!(
         p.validate(),
         Ok(()),
-        "a Loop referencing existing body/redo admits"
+        "cycles are lawful when every ChoiceGraph node remains on a start-to-end path"
     );
 }

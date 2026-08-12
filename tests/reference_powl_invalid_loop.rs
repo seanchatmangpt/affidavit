@@ -1,44 +1,54 @@
-// Reference witness: PowlRefusal::InvalidLoop — a POWL Loop whose body references
-// a node not in the arena is refused (COVERAGE.md §2.6 — completes the REACHABLE
-// PowlRefusal set: 4 of 4 reachable variants now witnessed).
+// Reference witness: the reachable POWL 2.0 dynamic refusal is
+// PowlRefusal::ChoiceGraphDisconnected.
 //
-// A Loop { body, redo } must reference existing node ids. A body pointing at a
-// non-existent id is an InvalidLoop. (The remaining 4 PowlRefusal variants —
-// InvalidChoice, LoopMissingDoBody, IrreducibleProjection, LanguageMismatch —
-// have NO Err producer in powl.rs and are ghost variants, §7.)
+// The legacy flat PowlNodeKind::Loop no longer exists in v26.8.7. Dynamic loop
+// behavior is a cycle in ChoiceGraph; malformed graph topology is refused when
+// a declared graph node is not on a connected Start→End path or an edge names a
+// node outside the graph's declared node set.
 
-use wasm4pm_compat::powl::{Powl, PowlNode, PowlNodeId, PowlNodeKind, PowlRefusal};
+use wasm4pm_compat::powl::{
+    ChoiceGraphEdge, Powl, PowlNode, PowlNodeId, PowlNodeKind, PowlRefusal,
+};
 
-#[test]
-fn loop_with_missing_body_is_invalid() {
-    let mut p = Powl::new();
-    p.nodes
-        .push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
-    // Loop body references id 99, which is not in the arena.
-    p.nodes.push(PowlNode::new(
-        PowlNodeId(1),
-        PowlNodeKind::Loop {
-            body: PowlNodeId(99),
-            redo: None,
-        },
-    ));
-    p.root = Some(PowlNodeId(1));
-    assert_eq!(p.validate(), Err(PowlRefusal::InvalidLoop));
+fn node(id: usize, kind: PowlNodeKind) -> PowlNode {
+    PowlNode::new(PowlNodeId(id), kind)
 }
 
 #[test]
-fn loop_with_missing_redo_is_invalid() {
+fn choice_graph_without_path_to_end_is_refused() {
     let mut p = Powl::new();
-    p.nodes
-        .push(PowlNode::new(PowlNodeId(0), PowlNodeKind::Atom("a".into())));
-    // Valid body (0), but redo references a missing id.
-    p.nodes.push(PowlNode::new(
-        PowlNodeId(1),
-        PowlNodeKind::Loop {
-            body: PowlNodeId(0),
-            redo: Some(PowlNodeId(88)),
+    p.nodes.extend([
+        node(0, PowlNodeKind::Start),
+        node(1, PowlNodeKind::Atom("body".into())),
+        node(2, PowlNodeKind::End),
+    ]);
+    p.nodes.push(node(
+        3,
+        PowlNodeKind::ChoiceGraph {
+            nodes: vec![PowlNodeId(0), PowlNodeId(1), PowlNodeId(2)],
+            edges: vec![ChoiceGraphEdge::new(PowlNodeId(0), PowlNodeId(1))],
         },
     ));
-    p.root = Some(PowlNodeId(1));
-    assert_eq!(p.validate(), Err(PowlRefusal::InvalidLoop));
+    p.root = Some(PowlNodeId(3));
+
+    assert_eq!(p.validate(), Err(PowlRefusal::ChoiceGraphDisconnected));
+}
+
+#[test]
+fn choice_graph_edge_outside_declared_node_set_is_refused() {
+    let mut p = Powl::new();
+    p.nodes.extend([
+        node(0, PowlNodeKind::Start),
+        node(1, PowlNodeKind::End),
+    ]);
+    p.nodes.push(node(
+        2,
+        PowlNodeKind::ChoiceGraph {
+            nodes: vec![PowlNodeId(0), PowlNodeId(1)],
+            edges: vec![ChoiceGraphEdge::new(PowlNodeId(0), PowlNodeId(99))],
+        },
+    ));
+    p.root = Some(PowlNodeId(2));
+
+    assert_eq!(p.validate(), Err(PowlRefusal::ChoiceGraphDisconnected));
 }
