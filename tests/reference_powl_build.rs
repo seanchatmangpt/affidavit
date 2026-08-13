@@ -6,9 +6,7 @@
 // looping is represented by a lawful cycle. Every graph node must lie on a path
 // from the declared Start boundary to the End boundary.
 
-use wasm4pm_compat::powl::{
-    ChoiceGraphEdge, Powl, PowlNode, PowlNodeId, PowlNodeKind,
-};
+use wasm4pm_compat::powl::{ChoiceGraphEdge, Powl, PowlNode, PowlNodeId, PowlNodeKind};
 
 fn node(id: usize, kind: PowlNodeKind) -> PowlNode {
     PowlNode::new(PowlNodeId(id), kind)
@@ -38,7 +36,11 @@ fn connected_choice_graph_with_two_branches_admits() {
     p.root = Some(PowlNodeId(4));
 
     assert_eq!(p.validate(), Ok(()));
-    assert_eq!(p.node_count(), 5, "four graph nodes plus the graph operator");
+    assert_eq!(
+        p.node_count(),
+        5,
+        "four graph nodes plus the graph operator"
+    );
 }
 
 #[test]

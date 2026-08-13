@@ -289,7 +289,9 @@ pub fn certify_errc(
     mut observation: ErrcObservation,
 ) -> Result<ErrcReceipt, ErrcRefusal> {
     observation.claims.sort_by(|a, b| a.id.cmp(&b.id));
-    observation.preserved_invariants.sort_by(|a, b| a.id.cmp(&b.id));
+    observation
+        .preserved_invariants
+        .sort_by(|a, b| a.id.cmp(&b.id));
 
     let source = ErrcSource {
         repository: ERRC_SOURCE_REPOSITORY.to_string(),
@@ -425,13 +427,19 @@ fn validate_material(
     for invariant in preserved_invariants {
         require_text("invariant.id", &invariant.id)?;
         require_text("invariant.statement", &invariant.statement)?;
-        require_blake3("invariant.evidence_commitment", &invariant.evidence_commitment)?;
+        require_blake3(
+            "invariant.evidence_commitment",
+            &invariant.evidence_commitment,
+        )?;
         if !invariant_ids.insert(invariant.id.clone()) {
             return Err(ErrcRefusal::DuplicateInvariantId(invariant.id.clone()));
         }
     }
     require_text("replay.command", &replay.command)?;
-    require_blake3("replay.environment_commitment", &replay.environment_commitment)?;
+    require_blake3(
+        "replay.environment_commitment",
+        &replay.environment_commitment,
+    )?;
     if let Some(previous) = previous_receipt {
         require_blake3("previous_receipt", previous)?;
     }
@@ -450,7 +458,10 @@ fn direction_holds(claim: &ErrcClaim) -> bool {
 }
 
 fn require_sorted_claims(claims: &[ErrcClaim]) -> Result<(), ErrcRefusal> {
-    if claims.windows(2).any(|p| p[0].id.as_str() > p[1].id.as_str()) {
+    if claims
+        .windows(2)
+        .any(|p| p[0].id.as_str() > p[1].id.as_str())
+    {
         Err(ErrcRefusal::NonCanonicalOrder("claims"))
     } else {
         Ok(())
@@ -458,7 +469,10 @@ fn require_sorted_claims(claims: &[ErrcClaim]) -> Result<(), ErrcRefusal> {
 }
 
 fn require_sorted_invariants(invariants: &[PreservedInvariant]) -> Result<(), ErrcRefusal> {
-    if invariants.windows(2).any(|p| p[0].id.as_str() > p[1].id.as_str()) {
+    if invariants
+        .windows(2)
+        .any(|p| p[0].id.as_str() > p[1].id.as_str())
+    {
         Err(ErrcRefusal::NonCanonicalOrder("preserved_invariants"))
     } else {
         Ok(())
@@ -620,7 +634,13 @@ mod tests {
                 claim("raise-receipts", "receipts", ErrcQuadrant::Raise, 1, 2),
                 claim("eliminate-null", "cli-null", ErrcQuadrant::Eliminate, 1, 0),
                 claim("create-court", "errc-court", ErrcQuadrant::Create, 0, 1),
-                claim("reduce-stubs", "dependency-stubs", ErrcQuadrant::Reduce, 3, 2),
+                claim(
+                    "reduce-stubs",
+                    "dependency-stubs",
+                    ErrcQuadrant::Reduce,
+                    3,
+                    2,
+                ),
             ],
             preserved_invariants: vec![PreservedInvariant {
                 id: "certify-dont-decide".to_string(),
@@ -640,7 +660,12 @@ mod tests {
         let receipt = certify_errc(&admitted_receipt(), observation()).expect("valid ERRC");
         assert_eq!(
             receipt.quadrant_counts,
-            QuadrantCounts { eliminate: 1, reduce: 1, raise: 1, create: 1 }
+            QuadrantCounts {
+                eliminate: 1,
+                reduce: 1,
+                raise: 1,
+                create: 1
+            }
         );
         assert!(receipt.verify().is_ok());
     }
@@ -662,7 +687,10 @@ mod tests {
         invalid.claims[1].measure.candidate = 1;
         assert!(matches!(
             certify_errc(&admitted, invalid),
-            Err(ErrcRefusal::DirectionViolation { quadrant: ErrcQuadrant::Eliminate, .. })
+            Err(ErrcRefusal::DirectionViolation {
+                quadrant: ErrcQuadrant::Eliminate,
+                ..
+            })
         ));
     }
 
@@ -673,7 +701,10 @@ mod tests {
         invalid.claims[3].measure.candidate = 0;
         assert!(matches!(
             certify_errc(&admitted, invalid),
-            Err(ErrcRefusal::DirectionViolation { quadrant: ErrcQuadrant::Reduce, .. })
+            Err(ErrcRefusal::DirectionViolation {
+                quadrant: ErrcQuadrant::Reduce,
+                ..
+            })
         ));
     }
 
@@ -684,7 +715,10 @@ mod tests {
         invalid.claims[0].measure.baseline = 0;
         assert!(matches!(
             certify_errc(&admitted, invalid),
-            Err(ErrcRefusal::DirectionViolation { quadrant: ErrcQuadrant::Raise, .. })
+            Err(ErrcRefusal::DirectionViolation {
+                quadrant: ErrcQuadrant::Raise,
+                ..
+            })
         ));
     }
 

@@ -12,7 +12,9 @@
 //! it does not establish causal truth, production readiness, compliance,
 //! utility, optimality, or actuation authority.
 
-use crate::errc::{ErrcReceipt, ErrcRefusal, ErrcSource, ERRC_SOURCE_COMMIT, ERRC_SOURCE_REPOSITORY};
+use crate::errc::{
+    ErrcReceipt, ErrcRefusal, ErrcSource, ERRC_SOURCE_COMMIT, ERRC_SOURCE_REPOSITORY,
+};
 use crate::types::Blake3Hash;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeSet;
@@ -120,14 +122,20 @@ impl core::fmt::Display for ErrcClaimAssuranceRefusal {
         match self {
             Self::ParentInvalid(reason) => write!(f, "errc_claim_parent_invalid: {reason}"),
             Self::EmptyWitnessField { claim_id, field } => {
-                write!(f, "errc_claim_empty_witness_field: claim={claim_id} field={field}")
+                write!(
+                    f,
+                    "errc_claim_empty_witness_field: claim={claim_id} field={field}"
+                )
             }
             Self::MalformedEvidenceCommitment(id) => {
                 write!(f, "errc_claim_malformed_evidence_commitment: {id}")
             }
             Self::NoExclusions(id) => write!(f, "errc_claim_no_exclusions: {id}"),
             Self::EmptyExclusion(id) => write!(f, "errc_claim_empty_exclusion: {id}"),
-            Self::DuplicateExclusion { claim_id, exclusion } => write!(
+            Self::DuplicateExclusion {
+                claim_id,
+                exclusion,
+            } => write!(
                 f,
                 "errc_claim_duplicate_exclusion: claim={claim_id} exclusion={exclusion}"
             ),
@@ -144,7 +152,9 @@ impl core::fmt::Display for ErrcClaimAssuranceRefusal {
             Self::ParentHashMismatch => f.write_str("errc_claim_parent_hash_mismatch"),
             Self::ClaimSetMismatch => f.write_str("errc_claim_set_mismatch"),
             Self::ReceiptHashMismatch => f.write_str("errc_claim_assurance_hash_mismatch"),
-            Self::Serialization(reason) => write!(f, "errc_claim_assurance_serialization: {reason}"),
+            Self::Serialization(reason) => {
+                write!(f, "errc_claim_assurance_serialization: {reason}")
+            }
         }
     }
 }
@@ -185,10 +195,7 @@ impl ErrcClaimAssuranceReceipt {
     }
 
     /// Verify this assurance receipt against the exact parent ERRC receipt.
-    pub fn verify_against(
-        &self,
-        parent: &ErrcReceipt,
-    ) -> Result<(), ErrcClaimAssuranceRefusal> {
+    pub fn verify_against(&self, parent: &ErrcReceipt) -> Result<(), ErrcClaimAssuranceRefusal> {
         self.verify()?;
         parent
             .verify()
@@ -322,12 +329,7 @@ fn validate_bijection(
                 witness.claim_id.clone(),
             ));
         }
-        if require_canonical_order
-            && witness
-                .exclusions
-                .windows(2)
-                .any(|pair| pair[0] > pair[1])
-        {
+        if require_canonical_order && witness.exclusions.windows(2).any(|pair| pair[0] > pair[1]) {
             return Err(ErrcClaimAssuranceRefusal::NonCanonicalOrder(
                 "witness.exclusions",
             ));
@@ -371,10 +373,7 @@ fn require_witness_text(
     }
 }
 
-fn require_blake3(
-    hash: &Blake3Hash,
-    coordinate: &str,
-) -> Result<(), ErrcClaimAssuranceRefusal> {
+fn require_blake3(hash: &Blake3Hash, coordinate: &str) -> Result<(), ErrcClaimAssuranceRefusal> {
     let hex = hash.as_hex();
     if hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         Ok(())
@@ -577,11 +576,8 @@ mod tests {
         let mut incomplete = witness("eliminate-stub");
         incomplete.exclusions.clear();
         assert_eq!(
-            certify_errc_claim_assurance(
-                &parent,
-                vec![incomplete, witness("raise-replay")],
-            )
-            .unwrap_err(),
+            certify_errc_claim_assurance(&parent, vec![incomplete, witness("raise-replay")],)
+                .unwrap_err(),
             ErrcClaimAssuranceRefusal::NoExclusions("eliminate-stub".to_string())
         );
     }

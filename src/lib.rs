@@ -97,9 +97,9 @@ pub mod cli;
 #[cfg(feature = "discovery")]
 pub mod discovery;
 
-pub mod error;
 pub mod errc;
 pub mod errc_claim_assurance;
+pub mod error;
 pub mod fixture_db;
 pub mod handlers;
 
@@ -165,7 +165,6 @@ pub fn run() -> clap_noun_verb::Result<()> {
     clap_noun_verb::run()
 }
 
-pub use error::AffidavitError;
 pub use errc::{
     certify_errc, ErrcClaim, ErrcMeasure, ErrcObservation, ErrcQuadrant, ErrcReceipt, ErrcRefusal,
     ErrcSource, PreservedInvariant, QuadrantCounts, ERRC_CLAIM_CEILING, ERRC_PROFILE,
@@ -176,6 +175,7 @@ pub use errc_claim_assurance::{
     ErrcClaimWitness, ERRC_CLAIM_ASSURANCE_CEILING, ERRC_CLAIM_ASSURANCE_PROFILE,
     ERRC_CLAIM_ASSURANCE_SOURCE_ARTIFACT,
 };
+pub use error::AffidavitError;
 pub use standing::{
     certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,
     StandingObservation, StandingReceipt, StandingRefusal, SubjectIdentity, VerificationEvidence,

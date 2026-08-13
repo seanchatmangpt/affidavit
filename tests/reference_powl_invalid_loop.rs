@@ -37,10 +37,8 @@ fn choice_graph_without_path_to_end_is_refused() {
 #[test]
 fn choice_graph_edge_outside_declared_node_set_is_refused() {
     let mut p = Powl::new();
-    p.nodes.extend([
-        node(0, PowlNodeKind::Start),
-        node(1, PowlNodeKind::End),
-    ]);
+    p.nodes
+        .extend([node(0, PowlNodeKind::Start), node(1, PowlNodeKind::End)]);
     p.nodes.push(node(
         2,
         PowlNodeKind::ChoiceGraph {
