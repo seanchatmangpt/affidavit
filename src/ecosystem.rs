@@ -213,7 +213,10 @@ impl core::fmt::Display for EcosystemRefusal {
                 "ecosystem_duplicate_member: role={role:?} subject={subject} candidate={candidate}"
             ),
             Self::MemberInvalid { subject, reason } => {
-                write!(f, "ecosystem_member_invalid: subject={subject} reason={reason}")
+                write!(
+                    f,
+                    "ecosystem_member_invalid: subject={subject} reason={reason}"
+                )
             }
             Self::NonCanonicalOrder(field) => {
                 write!(f, "ecosystem_non_canonical_order: {field}")
@@ -299,7 +302,9 @@ pub fn certify_ecosystem(
     admitted: &AdmittedReceipt,
     mut observation: EcosystemObservation,
 ) -> Result<EcosystemReceipt, EcosystemRefusal> {
-    observation.requirements.sort_by_key(|requirement| requirement.role);
+    observation
+        .requirements
+        .sort_by_key(|requirement| requirement.role);
     observation.members.sort_by(compare_members);
 
     let admitted_receipt_hash = admitted.value.chain_hash.clone();
@@ -432,7 +437,10 @@ fn validate_material(
 }
 
 fn require_sorted_requirements(requirements: &[RoleRequirement]) -> Result<(), EcosystemRefusal> {
-    if requirements.windows(2).any(|pair| pair[0].role > pair[1].role) {
+    if requirements
+        .windows(2)
+        .any(|pair| pair[0].role > pair[1].role)
+    {
         Err(EcosystemRefusal::NonCanonicalOrder("requirements"))
     } else {
         Ok(())
