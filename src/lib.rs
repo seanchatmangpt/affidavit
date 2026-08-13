@@ -97,6 +97,7 @@ pub mod cli;
 #[cfg(feature = "discovery")]
 pub mod discovery;
 
+pub mod ecosystem;
 pub mod errc;
 pub mod errc_claim_assurance;
 pub mod error;
@@ -165,6 +166,11 @@ pub fn run() -> clap_noun_verb::Result<()> {
     clap_noun_verb::run()
 }
 
+pub use ecosystem::{
+    certify_ecosystem, EcosystemMember, EcosystemObservation, EcosystemReceipt, EcosystemRefusal,
+    EcosystemRole, RoleCoverage, RoleRequirement, ECOSYSTEM_AUTHORITY_CEILING,
+    ECOSYSTEM_CLAIM_CEILING, ECOSYSTEM_PROFILE,
+};
 pub use errc::{
     certify_errc, ErrcClaim, ErrcMeasure, ErrcObservation, ErrcQuadrant, ErrcReceipt, ErrcRefusal,
     ErrcSource, PreservedInvariant, QuadrantCounts, ERRC_CLAIM_CEILING, ERRC_PROFILE,
