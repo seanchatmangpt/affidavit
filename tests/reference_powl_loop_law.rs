@@ -1,48 +1,49 @@
-// Reference witness: the POWL loop node — both the dynamic PowlNodeKind::Loop and
-// the const-generic TypedPowlLoopNode<_, ARITY==2> type law (COVERAGE.md §2 — POWL
-// binary-loop law).
+// Reference witness: POWL 2.0 replaces the dynamic flat PowlNodeKind::Loop
+// constructor with cyclic ChoiceGraph topology, while retaining the independent
+// const-generic TypedPowlLoopNode<_, ARITY==2> arity law.
 //
-// POWL loops are binary by definition: a body and an optional redo. wasm4pm-compat
-// encodes this two ways: PowlNodeKind::Loop { body, redo } at the value level, and
-// TypedPowlLoopNode<Children, const ARITY> with `where Require<{ARITY==2}>: IsTrue`
-// at the type level. This witnesses both. The ARITY!=2 rejection is a *compile*
-// error (unrepresentable), noted below; this test pins the positive (ARITY==2)
-// construction plus the dynamic node shape.
+// The dynamic witness below is intentionally a directed cycle in a ChoiceGraph.
+// Reintroducing PowlNodeKind::Loop here would contradict the published POWL 2.0
+// ontology, which structurally rejects the prior POWL 1.0 flat Loop operator.
 
-use wasm4pm_compat::powl::{PowlNodeId, PowlNodeKind, TypedPowlLoopNode};
+use wasm4pm_compat::powl::{PowlBuilder, PowlNodeId, TypedPowlLoopNode};
 
 #[test]
-fn dynamic_powl_loop_carries_body_and_optional_redo() {
-    let with_redo = PowlNodeKind::Loop {
-        body: PowlNodeId(0),
-        redo: Some(PowlNodeId(1)),
-    };
-    match with_redo {
-        PowlNodeKind::Loop { body, redo } => {
-            assert_eq!(body, PowlNodeId(0));
-            assert_eq!(redo, Some(PowlNodeId(1)), "redo present");
-        }
-        other => panic!("expected Loop; got {other:?}"),
-    }
+fn dynamic_powl_loop_is_a_choice_graph_cycle() {
+    // START → body → redo → body forms the cycle; body can also exit to END.
+    // Successful construction witnesses the POWL 2.0 representation of cyclic
+    // behavior without manufacturing a removed flat Loop variant.
+    let powl = PowlBuilder::new()
+        .atom("START")
+        .atom("END")
+        .atom("body")
+        .atom("redo")
+        .choice_graph(
+            "loop_graph",
+            &["START", "body", "redo", "END"],
+            &[
+                ("START", "body"),
+                ("body", "redo"),
+                ("redo", "body"),
+                ("body", "END"),
+            ],
+        )
+        .root("loop_graph")
+        .build()
+        .expect("a POWL 2.0 ChoiceGraph may contain a lawful cyclic back-edge");
 
-    let no_redo = PowlNodeKind::Loop {
-        body: PowlNodeId(2),
-        redo: None,
-    };
-    match no_redo {
-        PowlNodeKind::Loop { redo: None, .. } => {}
-        other => panic!("expected redo-less Loop; got {other:?}"),
-    }
+    assert_eq!(powl.node_count(), 5, "four atoms plus the choice graph");
 }
 
 #[test]
 fn typed_loop_node_admits_exactly_arity_two() {
-    // ARITY == 2 satisfies `Require<{ARITY==2}>: IsTrue` — this compiles.
+    // The independent type-law surface remains exported: ARITY == 2 satisfies
+    // `Require<{ARITY==2}>: IsTrue` and therefore compiles.
     let node =
         TypedPowlLoopNode::<(PowlNodeId, PowlNodeId), 2>::new((PowlNodeId(0), PowlNodeId(1)));
     assert_eq!(node.children.0, PowlNodeId(0));
     assert_eq!(node.children.1, PowlNodeId(1));
     // TypedPowlLoopNode::<_, 3> does NOT compile: Require<{3==2}> has no IsTrue impl.
-    // That arity law is enforced at the type level (a compile-fail fixture would
-    // witness rejection); this positive case pins the admitted arity.
+    // The upstream compile-fail fixture owns the negative witness; this positive
+    // case pins the exact admitted arity without confusing it with dynamic AST shape.
 }

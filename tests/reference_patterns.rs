@@ -4,16 +4,14 @@
 // pattern catalogue must construct each pattern, not name it. The crate's own
 // doc (law.rs) cites Russell, van der Aalst & ter Hofstede (2016), *Workflow
 // Patterns: The Definitive Guide* — the 20 basic control-flow patterns (WCP-1..20).
-// `wasm4pm_compat::law::WorkflowPattern` exports 17 of them.
+// `wasm4pm_compat::law::WorkflowPattern` exports all 20 basic patterns.
 //
 // Completeness is failing-when-fake here on two axes:
-//   1. The exhaustive `match` below has NO wildcard arm — if the crate added a
-//      pattern we didn't construct, this file would not compile (missing arm).
-//   2. Every variant we name must exist — a ghost pattern would not compile.
+//   1. The exhaustive `match` below has NO wildcard arm — if the crate adds a
+//      pattern we didn't construct, this file does not compile (missing arm).
+//   2. Every variant we name must exist — a ghost pattern does not compile.
 // So a green build is itself the proof that exactly the in-surface patterns are
-// each constructed and mapped to their WCP number. The 26 patterns of the full
-// 43-pattern taxonomy that the crate does NOT export are OUT-OF-SURFACE and are
-// not claimed (R-1) — see reference/COVERAGE.md §2.3.
+// each constructed and mapped to their canonical WCP number.
 
 use wasm4pm_compat::law::WorkflowPattern;
 
@@ -35,8 +33,11 @@ fn wcp_number(p: WorkflowPattern) -> u32 {
         WorkflowPattern::ImplicitTermination => 11,
         WorkflowPattern::MultipleInstancesWithoutSync => 12,
         WorkflowPattern::MultipleInstancesWithDesignTimeKnowledge => 13,
+        WorkflowPattern::MultipleInstancesWithRunTimeKnowledge => 14,
+        WorkflowPattern::MultipleInstancesWithDynamicRunTimeKnowledge => 15,
         WorkflowPattern::DeferredChoice => 16,
         WorkflowPattern::InterleavedParallelRouting => 17,
+        WorkflowPattern::Milestone => 18,
         WorkflowPattern::CancelActivity => 19,
         WorkflowPattern::CancelCase => 20,
     }
@@ -58,20 +59,23 @@ fn all_in_surface_patterns() -> Vec<WorkflowPattern> {
         WorkflowPattern::ImplicitTermination,
         WorkflowPattern::MultipleInstancesWithoutSync,
         WorkflowPattern::MultipleInstancesWithDesignTimeKnowledge,
+        WorkflowPattern::MultipleInstancesWithRunTimeKnowledge,
+        WorkflowPattern::MultipleInstancesWithDynamicRunTimeKnowledge,
         WorkflowPattern::DeferredChoice,
         WorkflowPattern::InterleavedParallelRouting,
+        WorkflowPattern::Milestone,
         WorkflowPattern::CancelActivity,
         WorkflowPattern::CancelCase,
     ]
 }
 
 #[test]
-fn all_seventeen_in_surface_patterns_are_constructed() {
+fn all_twenty_basic_workflow_patterns_are_constructed() {
     let patterns = all_in_surface_patterns();
     assert_eq!(
         patterns.len(),
-        17,
-        "the crate exports 17 in-surface patterns"
+        20,
+        "the crate exports all 20 basic control-flow patterns"
     );
 
     // Each constructed pattern maps to a distinct WCP number — proving each is a
@@ -82,9 +86,9 @@ fn all_seventeen_in_surface_patterns_are_constructed() {
     numbers.sort_unstable();
     numbers.dedup();
     assert_eq!(
-        numbers.len(),
-        17,
-        "every pattern must be a distinct, reachable construction (no two collapse)"
+        numbers,
+        (1_u32..=20).collect::<Vec<_>>(),
+        "the in-surface census must cover WCP-1 through WCP-20 exactly once"
     );
 }
 

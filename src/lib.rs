@@ -97,6 +97,9 @@ pub mod cli;
 #[cfg(feature = "discovery")]
 pub mod discovery;
 
+pub mod ecosystem;
+pub mod errc;
+pub mod errc_claim_assurance;
 pub mod error;
 pub mod fixture_db;
 pub mod handlers;
@@ -130,6 +133,7 @@ pub mod verifier;
 pub mod diag;
 pub mod doctor_check;
 pub mod output;
+pub mod standing;
 
 pub mod diff;
 pub mod visualize;
@@ -162,7 +166,27 @@ pub fn run() -> clap_noun_verb::Result<()> {
     clap_noun_verb::run()
 }
 
+pub use ecosystem::{
+    certify_ecosystem, EcosystemMember, EcosystemObservation, EcosystemReceipt, EcosystemRefusal,
+    EcosystemRole, RoleCoverage, RoleRequirement, ECOSYSTEM_AUTHORITY_CEILING,
+    ECOSYSTEM_CLAIM_CEILING, ECOSYSTEM_PROFILE,
+};
+pub use errc::{
+    certify_errc, ErrcClaim, ErrcMeasure, ErrcObservation, ErrcQuadrant, ErrcReceipt, ErrcRefusal,
+    ErrcSource, PreservedInvariant, QuadrantCounts, ERRC_CLAIM_CEILING, ERRC_PROFILE,
+    ERRC_SOURCE_ARTIFACT, ERRC_SOURCE_COMMIT, ERRC_SOURCE_REPOSITORY,
+};
+pub use errc_claim_assurance::{
+    certify_errc_claim_assurance, ErrcClaimAssuranceReceipt, ErrcClaimAssuranceRefusal,
+    ErrcClaimWitness, ERRC_CLAIM_ASSURANCE_CEILING, ERRC_CLAIM_ASSURANCE_PROFILE,
+    ERRC_CLAIM_ASSURANCE_SOURCE_ARTIFACT,
+};
 pub use error::AffidavitError;
+pub use standing::{
+    certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,
+    StandingObservation, StandingReceipt, StandingRefusal, SubjectIdentity, VerificationEvidence,
+    STANDING_PROFILE,
+};
 pub use types::{
     canonical_bytes, Blake3Hash, CheckOutcome, ObjectRef, OperationEvent, ProfileId, Receipt,
     Verdict,

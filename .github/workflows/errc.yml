@@ -1,0 +1,64 @@
+# ERRC fast court — exact-head routing/admission only.
+#
+# This workflow is deliberately incapable of crowning repository ALIVE. It
+# certifies the exact PR head, deterministic path→court routing, and structured
+# JSON/TOML admission, then emits a durable PARTIAL_ALIVE receipt. Heavy courts
+# remain authoritative for execution standing.
+name: errc-fast-court
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: errc-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast-court:
+    name: exact-head ERRC fast court
+    runs-on: ubuntu-24.04
+    env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+    steps:
+      - name: Checkout exact candidate with base history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+          fetch-depth: 0
+
+      - name: Assert exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          observed="$(git rev-parse HEAD)"
+          test "$observed" = "$CANDIDATE_SHA"
+          printf 'candidate=%s\n' "$observed"
+          python3 --version
+
+      - name: Verify ERRC court implementation
+        run: python3 -m unittest discover -s scripts/tests -p 'test_ci_errc.py'
+
+      - name: Manufacture fast-court receipt
+        id: errc
+        run: |
+          python3 scripts/ci_errc.py \
+            --base "$BASE_SHA" \
+            --head "$CANDIDATE_SHA" \
+            --report evidence/ci/errc-fast.json \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload exact-head ERRC receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: errc-fast-${{ env.CANDIDATE_SHA }}
+          path: evidence/ci/errc-fast.json
+          if-no-files-found: error
+          retention-days: 14
