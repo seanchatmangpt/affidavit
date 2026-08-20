@@ -11,10 +11,19 @@ permissions:
 jobs:
   composition:
     runs-on: ubuntu-latest
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          ref: ${{ env.EXPECTED_HEAD }}
           persist-credentials: false
+      - name: Assert exact admitted subject
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD"
+          printf 'EXACT_HEAD=%s\n' "$actual"
       - name: Exact composition court
         run: |
           set -euo pipefail
