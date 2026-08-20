@@ -7,7 +7,16 @@ MANIFEST=Path(__file__).parents[2]/"profiles/v26.9.1-ecosystem-composition.json"
 class CompositionTests(unittest.TestCase):
     def setUp(self): self.x=json.loads(MANIFEST.read_text())
     def test_exact_closure_is_admitted_without_crown_transfer(self):
-        r=m.verify(self.x); self.assertEqual(r["composition_standing"],"ALIVE"); self.assertEqual(r["release_crown_standing"],"PARTIAL_ALIVE"); self.assertFalse(r["standing_transfer"])
+        r=m.verify(self.x); self.assertEqual(r["composition_standing"],"ALIVE"); self.assertEqual(r["release_crown_standing"],"PARTIAL_ALIVE"); self.assertEqual(r["pin_count"],10); self.assertEqual(r["world_count"],3); self.assertFalse(r["standing_transfer"])
+    def test_dsrust_is_compiler_oracle_only(self):
+        self.x["separations"]["dsrust"]="PLANNER"
+        with self.assertRaisesRegex(m.Refusal,"DSRUST_AUTHORITY"): m.verify(self.x)
+    def test_worlds_cannot_transfer_release_crown(self):
+        self.x["world_registry"]["rrgym"]["crown_required"]=True
+        with self.assertRaisesRegex(m.Refusal,"WORLD_CROWN_TRANSFER"): m.verify(self.x)
+    def test_ww3gym_remains_simulation_only(self):
+        self.x["world_registry"]["ww3gym"]["authority"]="WORLD_ONLY"
+        with self.assertRaisesRegex(m.Refusal,"WORLD_AUTHORITY"): m.verify(self.x)
     def test_planner_authority_collapse_refused(self):
         self.x["separations"]["planner_policy_role_agent_authority"]="COLLAPSED"
         with self.assertRaisesRegex(m.Refusal,"ROLE_COLLAPSE"): m.verify(self.x)
