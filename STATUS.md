@@ -30,7 +30,7 @@ only be driven from Rust. v26.9.6 closes that gap.
 | `python3 -m unittest discover -s scripts/tests -p 'test_ci_errc.py'` | 11 passed |
 | `cargo fmt --all -- --check` | clean |
 | `cargo build --all-targets` | ok |
-| `cargo test --all-targets` | 822 passed, 0 failed |
+| `cargo test --all-targets` | 823 passed, 0 failed |
 | `cargo test --doc` | 32 passed, 0 failed |
 | `cargo clippy --all-targets -- -D warnings` | clean |
 

@@ -58,7 +58,7 @@ had already shipped; the statuses below carry the evidence.
 | B10 | Info | **FIXED** | `linkme` declared but unused | `src/doctor_check.rs` distributed slice, consumed at `handlers.rs:4456` |
 | B11 | Med | **FIXED** | `affi --version` reported the clap-noun-verb version (`cli 26.6.2`) | `src/bin/affi.rs` answers the bare top-level flag |
 | B12 | Med | **FIXED** | `why`, `fix`, `install-git-hook`, `monitor` shipped undeclared in the ontology | declared in `ontology/affi-cli.ttl`; blocked by `registry.rs` parity test |
-| B13 | Low | **Open** | `clap-noun-verb` appends its rendering of each verb's return value to stdout, so redirecting certify output yields unparseable JSON | mitigated by `--out` on the federation verbs; other verbs still affected |
+| B13 | Low | **Partial** | `clap-noun-verb` appends its rendering of each verb's return value to stdout, so `--format json` output is not parseable | fixed for the 8 federation verbs (they exit with their own code before the runtime renders); the other 69 verbs are still affected — see P1-6 |
 
 ---
 
@@ -89,13 +89,15 @@ not the completions. Generate them from `REGISTRY` instead, and add PowerShell
 fails if the checked-in completions differ from the generated ones.
 
 ### [P1-6] Return-value rendering contract (B13)
-**Status:** Open
-**What:** Every verb's stdout carries a trailing `null` from the framework's
-return-value rendering, so `affi receipt verify --format json > v.json` is not
-parseable. The federation verbs route around this with `--out`; the general fix
-is either a `--quiet`-by-default data path or an upstream change.
+**Status:** Open for 69 of 77 verbs
+**What:** `clap-noun-verb` renders each verb's return value to stdout after the
+handler returns, appending a bare `null`, so `affi receipt verify --format json |
+jq` fails. The 8 federation verbs fix this by exiting with their own code before
+the runtime renders (`emit_court` in `src/handlers.rs`); the same seam has not
+been applied to the rest. The general fix is either that seam applied uniformly,
+a `--quiet`-by-default data path, or an upstream change.
 **Done when:** `affi <any verb> --format json` produces a single JSON document on
-stdout.
+stdout, witnessed by a test per verb group.
 
 ---
 

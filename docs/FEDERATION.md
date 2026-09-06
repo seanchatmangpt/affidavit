@@ -64,15 +64,22 @@ bare "invalid input".
 
 ---
 
-## Always use `--out`
+## Output: `--out` and `--format json`
 
-`certify` and `assure` accept `--out <PATH>`. **Prefer it over shell
-redirection.** The `clap-noun-verb` runtime appends its own rendering of every
-verb's return value to stdout, so `affi standing certify ... > standing.json`
-produces a file with a trailing token that no receipt parser accepts. `--out`
-writes the sealed receipt as a clean artifact, so `certify` → `verify` composes.
+`certify` and `assure` accept `--out <PATH>`, which writes the sealed receipt
+as a clean artifact so `certify` → `verify` composes in a script. A refused
+certification writes no artifact.
 
-A refused certification writes no artifact.
+`--format json` prints the full court report — `court`, `profile`, `accepted`,
+`reason`, and the sealed `receipt` — as a **single parseable JSON document on
+every path**, ACCEPT and REJECT alike, so `affi errc certify --format json | jq`
+works. (The `clap-noun-verb` runtime otherwise renders each verb's return value
+to stdout after the handler returns, appending a bare `null`; the federation
+courts exit with their own code before that happens. Other `affi` verbs are
+still affected — see ROADMAP B13.)
+
+Human-format output splits the streams the usual way: the verdict line goes to
+stderr, the sealed receipt to stdout.
 
 ---
 

@@ -27,10 +27,14 @@ release identity back in line with the code.
   - `affi errc assure` / `affi errc verify-assurance` —
     `affidavit/errc-claim-assurance/v1`
 - **`VerbGroup::Federation`** in `src/registry.rs` — the eleventh taxonomy group.
-- **`--out <PATH>`** on every `certify`/`assure` verb. The `clap-noun-verb`
-  runtime appends its own rendering of each verb's return value to stdout, so a
-  shell redirect of certify output is not parseable; `--out` writes the sealed
-  receipt as a clean artifact so `certify | verify` composes in a real script.
+- **`--out <PATH>`** on every `certify`/`assure` verb — writes the sealed
+  receipt as a clean artifact so `certify` → `verify` composes in a real script.
+- **Machine-consumable `--format json`** on all eight federation verbs. The
+  `clap-noun-verb` runtime renders each verb's return value to stdout after the
+  handler returns, appending a bare `null` to otherwise valid JSON — so
+  `--format json | jq` failed on ACCEPT while working on REJECT. The federation
+  courts now exit with their own code on every path, emitting exactly one JSON
+  document. Other verbs are still affected (ROADMAP B13).
 - **Ontology/registry/projection parity tests** (`src/registry.rs`):
   `every_registry_verb_is_declared_in_the_ontology` and
   `every_registry_entry_has_a_verb_projection`. `ontology/affi-cli.ttl` is the
@@ -77,7 +81,7 @@ release identity back in line with the code.
 - Removed `src/handlers_stubs.rs` — 300 lines of `todo!()` referenced by nothing
   in `src/`, `tests/`, `benches/`, `examples/`, or `build.rs`. `generate_verbs.py`
   regenerates it on demand.
-- Test suite: 822 tests + 32 doctests, all passing under
+- Test suite: 823 tests + 32 doctests, all passing under
   `cargo test --all-targets`, `cargo test --doc`, and
   `cargo clippy --all-targets -- -D warnings`.
 

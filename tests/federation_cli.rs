@@ -649,6 +649,78 @@ fn the_registry_advertises_the_federation_courts_to_guide_search() {
 }
 
 #[test]
+fn json_format_output_is_a_single_parseable_document_on_every_path() {
+    // The `clap-noun-verb` runtime renders each verb's return value to stdout
+    // after the handler returns, appending a bare `null` to otherwise valid
+    // JSON. The federation courts exit with their own code before that happens,
+    // so `--format json` is directly machine-consumable on ACCEPT and REJECT
+    // alike. Without that, `affi errc certify --format json | jq` would fail on
+    // success and work on failure.
+    let dir = TempDir::new().expect("tempdir");
+    let source = admitted_source(&dir);
+    let observation = write(&dir, "standing-observation.json", ALIVE_OBSERVATION);
+
+    let accepted = affi(&dir)
+        .args([
+            "standing",
+            "certify",
+            "--receipt",
+            &source,
+            "--observation",
+            &observation,
+            "--scope",
+            "repo:affidavit",
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let accepted: serde_json::Value =
+        serde_json::from_slice(&accepted).expect("ACCEPT --format json must be one JSON document");
+    assert_eq!(accepted["accepted"], true);
+    assert_eq!(accepted["court"], "standing/certify");
+
+    let mut refused_observation: serde_json::Value =
+        serde_json::from_str(ALIVE_OBSERVATION).expect("observation parses");
+    refused_observation["replay"] = serde_json::Value::Null;
+    let refused_path = write(
+        &dir,
+        "no-replay.json",
+        &serde_json::to_string_pretty(&refused_observation).expect("serializes"),
+    );
+
+    let refused = affi(&dir)
+        .args([
+            "standing",
+            "certify",
+            "--receipt",
+            &source,
+            "--observation",
+            &refused_path,
+            "--scope",
+            "repo:affidavit",
+            "--format",
+            "json",
+        ])
+        .assert()
+        .code(REJECT)
+        .get_output()
+        .stdout
+        .clone();
+    let refused: serde_json::Value =
+        serde_json::from_slice(&refused).expect("REJECT --format json must be one JSON document");
+    assert_eq!(refused["accepted"], false);
+    assert_eq!(refused["receipt"], serde_json::Value::Null);
+    assert!(refused["reason"]
+        .as_str()
+        .expect("reason is a string")
+        .contains("alive_missing_replay"));
+}
+
+#[test]
 fn a_sealed_receipt_written_with_out_is_byte_exact_json() {
     // `--out` exists because the clap-noun-verb runtime appends its own
     // rendering of each verb's return value to stdout; a shell redirect of the

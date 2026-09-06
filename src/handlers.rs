@@ -4687,10 +4687,17 @@ fn emit_court(
         }
     }
 
-    if outcome.code != crate::diag::exit_codes::OK {
-        std::process::exit(outcome.code);
-    }
-    Ok(())
+    // Exit with the court's code on every path, not just refusals. The
+    // `clap-noun-verb` runtime renders each verb's return value to stdout after
+    // the handler returns, which appends a bare `null` to otherwise valid JSON
+    // — so `affi errc certify --format json | jq` would fail on ACCEPT while
+    // working on REJECT (where the refusal path already exited first). Exiting
+    // here makes every federation court emit exactly its own report and nothing
+    // else. `--select` is unaffected: it projects the verb's return value,
+    // which is `()` for every verb that prints directly.
+    use std::io::Write as _;
+    std::io::stdout().flush().map_err(io_err)?;
+    std::process::exit(outcome.code);
 }
 
 /// `affi standing certify` — seal a standing claim over an admitted receipt.
