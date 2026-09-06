@@ -22,9 +22,13 @@ fn the_golden_example_runs_and_demonstrates_accept_then_reject() {
     let repo_root = env!("CARGO_MANIFEST_DIR");
     let script = format!("{repo_root}/examples/golden_run.sh");
 
+    // Hand the script the binary this test run already built. Without it the
+    // script would shell out to `cargo build` from inside `cargo test`, which
+    // is slow at best and contends for the build lock at worst.
     let output = Command::new("bash")
         .arg(&script)
         .current_dir(repo_root)
+        .env("AFFI_BIN", env!("CARGO_BIN_EXE_affi"))
         .output()
         .expect("bash is available to run the golden example");
 
