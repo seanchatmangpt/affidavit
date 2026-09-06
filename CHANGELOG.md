@@ -131,6 +131,37 @@ release identity back in line with the code.
 - **`docs/glossary.md` stated the genesis seed resolves to
   `affidavit-v26.6.22-genesis`** — normative documentation of the live binary,
   now corrected and covered by the release-identity gates.
+- **Two module docs materially overstated what their code does.**
+  `1000x_post_quantum_sealing.rs` claimed "quantum-resistant existential
+  unforgeability" and "100-year provenance security" over three `mock_*`
+  functions that compute unkeyed BLAKE3 and ignore the secret key entirely;
+  `1000x_gpu_verifier.rs` claimed its shader "runs iterative BLAKE3" when the
+  shader's own comment says `simplified to 1 round for prototype speed` (BLAKE3
+  uses seven) and its format check compares against a literal marked
+  `// Placeholder`. Both headers now state plainly what the code computes, that
+  their verdicts are not authoritative, and what would have to change before
+  the original claims hold. The code was always internally honest — the docs
+  were not, and in a certification tool that is the more dangerous half.
+- **`cargo build --release --all-features`, the command README gave users, does
+  not compile.** `discovery`/`conformance`/`predictive` need `wasm4pm` APIs and
+  `mutation` needs `clnrm-core` APIs that the deliberate local stubs do not
+  expose; CI never noticed because it builds default features only. The
+  `remediation` feature was separately broken by a missing `tracing` dependency
+  (fixed here). README now gives a command that works plus a
+  feature-status table verified row by row with `cargo check --lib --features
+  <name>` — four features are still broken (`discovery`, `conformance`,
+  `predictive`, `mutation`); closing them out is ROADMAP P1-7, and gating
+  feature combinations in CI is P1-8. Per AGENTS.md §1 the stubs were not
+  broadened to paper over this — that would manufacture a green that means
+  nothing.
+- **README claimed "65+ canonical verbs" three lines above its own "79"**, and
+  advertised two capabilities without saying they sit behind features that do
+  not build.
+- **`wasm-encoder` was a mandatory dependency** — downloaded, compiled and
+  linked into every build, and carried in the published dependency graph —
+  whose only consumer is an orphaned file the compiler never sees. Removed. A
+  provenance tool should not ship a supply-chain edge for code that does not
+  exist.
 
 ### Internal
 - Removed `src/handlers_stubs.rs` — 300 lines of `todo!()` referenced by nothing

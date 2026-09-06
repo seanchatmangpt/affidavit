@@ -68,6 +68,12 @@ had already shipped; the statuses below carry the evidence.
 | B19 | High | **FIXED** | `web/` genesis seed pinned to `affidavit-v26.6.17-genesis` — the browser verifier rejected every real receipt for three releases | `tests/release_identity.rs` |
 | B20 | Med | **FIXED** | `examples/golden_run.sh` exited 101 and no test or workflow ran it | build-from-root fix; `tests/golden_run.rs` |
 
+| B21 | High | **FIXED** | Module docs claimed quantum-resistant unforgeability over `mock_*` functions that compute unkeyed BLAKE3, and in-shader BLAKE3 over a shader doing one mix round against a `// Placeholder` constant | `src/1000x_post_quantum_sealing.rs`, `src/1000x_gpu_verifier.rs` module headers rewritten to state what the code does |
+| B22 | Med | **FIXED** | `wasm-encoder` was a mandatory dependency linked into every build and published, with no compiled consumer | removed from `[dependencies]` |
+| B23 | Med | **FIXED** | The `remediation` feature omitted `tracing`, which its own module imports, so it could never build | `Cargo.toml` feature list |
+| B24 | Med | **FIXED** | README told users to run `cargo build --release --all-features`, which fails, and claimed "65+ canonical verbs" three lines from its own "79" | README install block + feature-status table |
+| B25 | Med | **Open** | Seven targets with `required-features` are silently skipped by CI, and `--features gpu`/`remediation` fail clippy | see P1-8 |
+
 ---
 
 ## Shipped in 26.9.6
@@ -99,6 +105,36 @@ not the completions. Generate them from `REGISTRY` instead, and add PowerShell
 **New file:** `src/bin/gen_completions.rs` or a build script
 **Done when:** adding a `VerbEntry` and regenerating is the only step, and a test
 fails if the checked-in completions differ from the generated ones.
+
+### [P1-7] Make `--all-features` build, or stop offering it
+**Status:** Open
+**What:** `cargo build --all-features` — which README told users to run until
+v26.9.6 — fails. `discovery`/`conformance`/`predictive` need `wasm4pm` APIs
+(`ilp_discovery`, `process_tree`, `models::EventLog`) that `stubs/wasm4pm` does
+not expose; `mutation` needs `clnrm-core` APIs (`determinism::rng`) the stub
+does not expose. CI never noticed because `rust.yml` builds default features
+only. v26.9.6 fixed the `remediation` feature (a missing `tracing` dep — it now
+builds) and replaced the README command with one that works plus a
+feature-status table verified row by row with `cargo check --lib --features
+<name>`. Four features remain broken: `discovery`, `conformance`, `predictive`,
+`mutation`.
+**The constraint:** AGENTS.md §1 forbids broadening a stub without an observed
+integration proof, so this is *not* "add the missing functions to the stub". It
+is either a real upstream integration or an explicit removal of the features.
+**Done when:** every feature in the `all` list either builds under a CI job or
+is deleted from `Cargo.toml`, and a workflow step exercises the combination.
+
+### [P1-8] Feature combinations are unguarded by CI
+**Status:** Open
+**What:** `rust.yml` runs `cargo build/test --all-targets` with default features
+only, so seven targets carrying `required-features` (the `quality-monitor` and
+`discovery` benches, the `lsp` and `discovery` examples) are silently skipped,
+and `--features gpu` / `--features remediation` fail
+`clippy -- -D warnings` (a `manual_div_ceil` in
+`src/1000x_gpu_verifier.rs:366` among others) without anyone learning.
+**Done when:** CI builds and lints at least `lsp,shell,quality-monitor,gpu,pqc`
+in addition to default, and the currently-broken features are excluded by name
+rather than by accident.
 
 ### [P1-6] Return-value rendering contract (B13)
 **Status:** Open for 71 of 79 verbs
@@ -144,6 +180,11 @@ published crate stops shipping them, and
 `orphaned_sources_are_declared_or_excluded` in `tests/release_identity.rs`
 prevents the list growing silently. That bounds the problem; it does not solve
 it.
+Nine of the seventeen no longer build, and two
+(`1000x_semantic_isomorphism_e2e.rs`, `1000x_time_travel_dx.rs`) do not parse —
+proof they have not been compiled since they were written. Removing them also
+retired `wasm-encoder`, a **mandatory** dependency compiled into every build
+whose only consumer was one of these orphans.
 **Done when:** each file is either wired behind a feature gate (as
 `1000x_gpu_verifier.rs`, `1000x_auto_remediate_dx.rs`, and
 `1000x_post_quantum_sealing.rs` already are) with tests that compile it, or

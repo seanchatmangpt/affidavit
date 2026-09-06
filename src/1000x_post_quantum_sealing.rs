@@ -1,21 +1,41 @@
-//! 1000X COMBINATORIAL MAXIMALISM: Quantum-Resistant Sealing.
+//! Post-quantum sealing — **SPECIFICATION AND SHAPE ONLY. NOT CRYPTOGRAPHY.**
 //!
-//! Innovation: Hybrid BLAKE3 + Dilithium/Kyber post-quantum cryptographic
-//! signature scheme for Receipts, ensuring 100-year provenance security.
+//! # What this module actually is
 //!
-//! This implementation provides the spec and the logic for the hybrid
-//! sealing mechanism, upgrading the core receipt assembler to be
-//! quantum-resistant.
+//! This is the *data layout and control flow* for a hybrid post-quantum seal.
+//! Every cryptographic primitive in it is a stand-in:
+//! [`mock_dilithium_sign`], [`mock_dilithium_verify`], and
+//! [`mock_kyber_encapsulate`] compute unkeyed BLAKE3 digests. There is no
+//! ML-DSA implementation here, no ML-KEM implementation here, and no secret
+//! key material is used for anything — `dilithium_sk` is accepted and ignored.
 //!
-//! # Post-Quantum Sealing Spec (PQ-SEAL-v1)
-//! 1. **Integrity:** The receipt uses a standard BLAKE3 rolling chain hash.
-//! 2. **Authentication (PQC):** The finalized chain hash is signed using
-//!    ML-DSA (Dilithium), providing quantum-resistant existential unforgeability.
-//! 3. **Confidentiality/Binding (PQC):** An ephemeral secret is encapsulated
-//!    using ML-KEM (Kyber) and bound to the receipt, allowing for
-//!    long-term auditability and non-repudiation by the specific issuer.
-//! 4. **Hybrid Binding:** The PqcSeal commits to both the BLAKE3 digest and
-//!    the Kyber ciphertext, which are then signed by Dilithium.
+//! Therefore this module provides **no** existential unforgeability, **no**
+//! quantum resistance, and **no** non-repudiation. A `PqcSeal` is forgeable by
+//! anyone who can run BLAKE3, which is everyone. It must not be relied on as a
+//! security control, and a receipt carrying one is not more trustworthy than
+//! the plain BLAKE3 chain underneath it.
+//!
+//! It is useful for exactly one thing: pinning the wire format and the
+//! assemble/verify flow so that swapping in a real PQC backend is a local
+//! change. The tamper-detection test passes because the chain hash changes, not
+//! because a signature fails to verify.
+//!
+//! # The shape it pins (PQ-SEAL-v1)
+//! 1. **Integrity:** the receipt uses the standard BLAKE3 rolling chain hash.
+//!    This part is real — it is [`crate::chain`].
+//! 2. **Authentication:** the finalized chain hash *would be* signed with
+//!    ML-DSA (Dilithium). Today it is hashed.
+//! 3. **Binding:** an ephemeral secret *would be* encapsulated with ML-KEM
+//!    (Kyber). Today the "ciphertext" is a hash of the public key.
+//! 4. **Hybrid binding:** the seal commits to both the BLAKE3 digest and the
+//!    Kyber ciphertext, which are then passed to the signing step.
+//!
+//! # Before this can claim anything
+//!
+//! Replace the three `mock_*` functions with a vetted implementation (e.g.
+//! `pqcrypto-dilithium` / `pqcrypto-kyber`), add key management, and add a test
+//! that a seal produced under one key fails verification under another — which
+//! no test here can currently express, because verification ignores keys.
 
 use crate::chain::{recompute_chain, ChainAssembler, ChainError};
 use crate::types::{OperationEvent, Receipt};

@@ -25,23 +25,49 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 
 `affidavit` has been supercharged with 30+ features focused on **Combinatorial Maximalism** and world-class DX:
 
-*   ⚡ **High-Performance:** Parallelized verification across multi-core architectures.
-*   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts.
-*   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers.
-*   🤖 **Intelligent CLI:** 65+ canonical verbs, ontology-driven help, and powerful ad-hoc querying.
+*   🏛️ **Evidence Federation:** Certify receipt-bound standing, cross-repo quorums, and formal ERRC transformations — see [`docs/FEDERATION.md`](docs/FEDERATION.md).
+*   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts *(behind the `discovery` feature; see Feature status below)*.
+*   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers *(behind the `mutation` feature; see Feature status below)*.
+*   🤖 **Intelligent CLI:** 79 canonical verbs, ontology-driven help, and powerful ad-hoc querying.
 
 ---
 
 ## 🛠️ Installation & Quick Start
 
 ### Build from Source
-Ensure you have the latest stable Rust toolchain installed.
+The toolchain is date-pinned in `rust-toolchain.toml`; rustup will fetch it for you.
 
 ```bash
 git clone https://github.com/seanchatmangpt/affidavit
 cd affidavit
-cargo build --release --all-features
+cargo build --release
 ```
+
+Run the full verification ladder with `just validate` (formatting, build, tests,
+doctests, clippy, and the ERRC fast court).
+
+#### Feature status
+
+The default feature set is what ships and what CI gates. Several optional
+features do **not** currently compile, so `--all-features` fails:
+
+Each row below was verified with `cargo check --lib --features <name>` at
+v26.9.6:
+
+| Feature | State |
+|---------|-------|
+| `default` (`core`) | ✅ builds, tested, and linted in CI |
+| `inspection`, `lsp`, `shell`, `quality-monitor`, `file-watch`, `webhook`, `otel`, `gpu`, `pqc`, `remediation` | ⚠️ build, but no CI job covers them (ROADMAP P1-8) |
+| `discovery`, `conformance`, `predictive` | ❌ do not compile — they need `wasm4pm` APIs (`ilp_discovery`, `process_tree`, `models::EventLog`) that the local stub at `stubs/wasm4pm` does not expose |
+| `mutation` | ❌ does not compile — needs `clnrm-core` APIs (`determinism::rng`) the local stub does not expose |
+
+`remediation` was in the failing group until v26.9.6; it was missing a
+`tracing` dependency its own module imports.
+
+`stubs/wasm4pm` and `stubs/clnrm-core` are deliberate capability boundaries
+(see [`AGENTS.md`](AGENTS.md) §1), not oversights: broadening one without an
+observed integration proof would manufacture a green that means nothing. Closing
+these out is tracked as ROADMAP P1-7.
 
 ### The "Golden Run" in 30 Seconds
 Run the end-to-end smoke test to see `affidavit` in action:

@@ -158,7 +158,13 @@ syn = { version = "2", features = ["full", "visit", "extra-traits", "parsing"], 
 quote = { version = "1", optional = true }
 proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 tempfile = { version = "3", optional = true }
-wasm-encoder = "0.252.0"
+# wasm-encoder was a MANDATORY dependency — compiled and linked into every build
+# and carried in the published dependency graph — while its only consumer,
+# src/1000x_receipt_to_wasm_qol.rs, is declared by no `mod` and therefore never
+# compiled. A provenance tool should not ship a supply-chain edge for code that
+# does not exist. Re-add it as an optional dependency behind a feature if that
+# file is ever wired up (ROADMAP P2-8).
+# wasm-encoder = "0.252.0"
 
 [dev-dependencies]
 assert_cmd = "2"
@@ -225,7 +231,8 @@ gpu = ["wgpu", "bytemuck", "pollster"]
 
 # 1000X Innovation Hardening
 # Automatic code remediation based on policy violations.
-remediation = ["syn", "quote", "proc-macro2", "tempfile"]
+# `tracing` is required: src/1000x_auto_remediate_dx.rs:37 imports it.
+remediation = ["syn", "quote", "proc-macro2", "tempfile", "tracing"]
 # Post-Quantum Cryptography support.
 pqc = []
 
