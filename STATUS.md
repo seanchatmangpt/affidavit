@@ -20,8 +20,12 @@ only be driven from Rust. v26.9.6 closes that gap.
 | `src/federation.rs` adapter | ✅ Shipped | `src/federation.rs` unit tests (13) |
 | Registry ↔ ontology ↔ projection parity | ✅ Enforced | `src/registry.rs` parity tests |
 | Release identity (`affi --version`, genesis seed, CHANGELOG, README count) | ✅ Enforced | `tests/release_identity.rs` |
-| Completions across all 77 verbs and 4 nouns | ✅ Shipped | `completions/affi.{bash,zsh,fish}` |
+| Completions across all 79 verbs and 6 nouns | ✅ Shipped | `completions/affi.{bash,zsh,fish}` |
 | `just validate` (AGENTS.md §6 ladder) | ✅ Shipped | `justfile` |
+| `verify` reaches stage 3 and exits 2 on a tampered receipt | ✅ Fixed | `tests/e2e.rs`, `tests/cli_dispatch.rs`, `tests/golden_run.rs` |
+| Registry ↔ ontology ↔ projection agree on `(verb, noun)` pairs, both directions | ✅ Enforced | `src/registry.rs` parity tests |
+| Browser verifier uses the binary's genesis seed | ✅ Fixed | `tests/release_identity.rs` |
+| `examples/golden_run.sh` runs and is exercised by a test | ✅ Fixed | `tests/golden_run.rs` |
 
 **Verification ladder at this head** — every court green:
 
@@ -30,7 +34,7 @@ only be driven from Rust. v26.9.6 closes that gap.
 | `python3 -m unittest discover -s scripts/tests -p 'test_ci_errc.py'` | 11 passed |
 | `cargo fmt --all -- --check` | clean |
 | `cargo build --all-targets` | ok |
-| `cargo test --all-targets` | 823 passed, 0 failed |
+| `cargo test --all-targets` | 826 passed, 0 failed |
 | `cargo test --doc` | 32 passed, 0 failed |
 | `cargo clippy --all-targets -- -D warnings` | clean |
 

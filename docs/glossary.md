@@ -75,7 +75,7 @@ const GENESIS_SEED_STR: &str = concat!("affidavit-v", env!("CARGO_PKG_VERSION"),
 pub const GENESIS_SEED: &[u8] = GENESIS_SEED_STR.as_bytes();
 ```
 
-For v26.6.22 this resolves to `affidavit-v26.6.22-genesis`. `chain_hash_0 =
+For v26.9.6 this resolves to `affidavit-v26.9.6-genesis`. `chain_hash_0 =
 blake3(GENESIS_SEED)`, and an empty receipt's chain hash equals the genesis hash.
 Receipts from a different release version will fail stage 3 (`chain_integrity`)
 because their genesis seed differs — this is the intended cross-version boundary.

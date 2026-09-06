@@ -86,3 +86,39 @@ fn the_readme_states_the_live_verb_count() {
         "README.md must state `{claim}` to match src/registry.rs"
     );
 }
+
+#[test]
+fn the_browser_verifier_uses_the_same_genesis_seed_as_the_binary() {
+    // web/ ships a TypeScript re-implementation of the chain verifier. Its
+    // genesis seed is a hand-typed literal, and it had silently drifted three
+    // releases behind (26.6.17 while the crate was 26.6.22) — which means the
+    // browser verifier rejected every receipt the binary produced. Nothing
+    // caught it because the web lane's only gate is `tsc --noEmit`, which
+    // cannot know what the Rust seed is. This test can.
+    let expected = format!("affidavit-v{PKG_VERSION}-genesis");
+    for relative in ["/web/lib/verify-client.ts", "/web/app/visualizer/model.ts"] {
+        let path = format!("{}{relative}", env!("CARGO_MANIFEST_DIR"));
+        let Ok(source) = fs::read_to_string(&path) else {
+            // The web lane is an optional sibling; skip if it is not checked out.
+            continue;
+        };
+        let stale: Vec<&str> = source
+            .match_indices("affidavit-v")
+            .map(|(i, _)| {
+                let rest = &source[i..];
+                let end = rest.find('"').unwrap_or(rest.len());
+                &rest[..end]
+            })
+            .filter(|seed| *seed != expected)
+            .collect();
+        assert!(
+            stale.is_empty(),
+            "{path} carries genesis seed(s) {stale:?} but the binary uses `{expected}`. \
+             A drifted seed makes the browser verifier reject every real receipt."
+        );
+        assert!(
+            source.contains(&expected),
+            "{path} does not mention the current genesis seed `{expected}`"
+        );
+    }
+}

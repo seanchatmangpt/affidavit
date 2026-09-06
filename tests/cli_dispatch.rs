@@ -202,7 +202,7 @@ fn dispatch_verify_tampered_reject() {
     affi(&dir)
         .args(["receipt", "verify", "receipt.json"])
         .assert()
-        .failure() // non-zero exit
-        // Tampered receipt fails at deserialization (chain hash mismatch)—stronger than verify rejection
-        .stderr(predicate::str::contains("chain hash mismatch")); // deserialization gate closed (ADR-3)
+        .code(2) // the stable REJECT code from src/diag.rs
+        .stderr(predicate::str::contains("chain_integrity: FAIL"))
+        .stderr(predicate::str::contains("chain hash mismatch"));
 }

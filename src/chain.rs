@@ -159,6 +159,40 @@ pub fn deserialize_receipt(bytes: &[u8]) -> Result<Receipt, ChainError> {
     serde_json::from_slice(bytes).map_err(ChainError::Decode)
 }
 
+/// Deserialize a receipt **without** re-running the chain law.
+///
+/// [`Receipt`]'s hand-written `Deserialize` recomputes the rolling hash and
+/// refuses a mismatch, which is the right default: a tampered receipt should
+/// not become a `Receipt` value by accident. But it also means a tampered
+/// receipt can never reach the certify pipeline, so stage 3
+/// (`chain_integrity`) — the stage whose entire job is to catch exactly this —
+/// was unreachable from every CLI path, and `affi receipt verify` answered a
+/// framework parse error with exit 1 instead of the documented REJECT (2).
+///
+/// This is the forensic seam for verbs that must *adjudicate* a suspect file
+/// rather than consume a trusted one: `verify`, `why`, and `fix`. It is
+/// `pub(crate)`, and it does not weaken the seal — `Receipt::sealed` remains
+/// private, so external code still cannot mint a receipt by any route.
+///
+/// The returned value is explicitly **not** trusted. Its `chain_hash` is
+/// whatever the file claimed. Run it through [`crate::verifier::verify`], which
+/// recomputes the chain and reports the failing stage by name.
+pub(crate) fn deserialize_receipt_unchecked(bytes: &[u8]) -> Result<Receipt, ChainError> {
+    #[derive(serde::Deserialize)]
+    struct UncheckedReceipt {
+        format_version: String,
+        events: Vec<OperationEvent>,
+        chain_hash: Blake3Hash,
+    }
+
+    let raw: UncheckedReceipt = serde_json::from_slice(bytes).map_err(ChainError::Decode)?;
+    Ok(Receipt::sealed(
+        raw.format_version,
+        raw.events,
+        raw.chain_hash,
+    ))
+}
+
 /// Persist the working set of events to `.affi/working.json` as canonical JSON.
 ///
 /// Creates the parent directory if it does not yet exist.

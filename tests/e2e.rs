@@ -126,12 +126,17 @@ fn e2e_tamper_detection() {
     let tampered = receipt.replace("\"create\"", "\"forged\"");
     fs::write(dir.path().join("tampered.json"), tampered).expect("write tampered receipt");
 
-    // Tampered receipt fails at deserialization (stronger than verify rejection)
+    // A tampered receipt must be ADJUDICATED, not merely refused at the door:
+    // stage 3 (`chain_integrity`) has to run and FAIL by name, and the verb has
+    // to exit with the documented REJECT (2). Before v26.9.6 the trusting
+    // loader turned this into a framework parse error and exit 1, so stage 3
+    // was unreachable from every CLI path.
     affi(&dir)
         .args(["receipt", "verify", "tampered.json"])
         .assert()
-        .failure() // non-zero exit
-        .stderr(predicate::str::contains("chain hash mismatch")); // deserialization forgery gate (ADR-3)
+        .code(2) // the stable REJECT code from src/diag.rs, not a generic failure
+        .stderr(predicate::str::contains("chain_integrity: FAIL"))
+        .stderr(predicate::str::contains("chain hash mismatch"));
 }
 
 #[test]

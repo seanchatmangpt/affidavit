@@ -8,7 +8,7 @@
 
 ## Current State
 
-affidavit ships **77 canonical CLI verbs** across 11 groups backed by a
+affidavit ships **79 canonical CLI verbs** across 11 groups backed by a
 compile-time static registry (`src/registry.rs`). The 7-stage certify pipeline is
 production-ready. The BLAKE3 chain, sealed receipts, and determinism guarantees
 are stable. As of v26.9.6 the evidence federation kernel has an operator surface.
@@ -53,12 +53,20 @@ had already shipped; the statuses below carry the evidence.
 | B5 | Med  | **FIXED** | `monitor` was a stub; `FileWatcher` not wired | `handlers.rs:3052` behind the `file-watch` feature |
 | B6 | Med  | **FIXED** | REJECT used a generic exit code | `handlers.rs` uses `exit_codes::REJECT` (2) |
 | B7 | Low  | **FIXED** | Duplicate `receipt-throughput.rs` | removed from `src/verbs/` |
-| B8 | Low  | **Partial** | Completions covered ~4 of 69 verbs | v26.9.6 covers all 77 verbs and all 4 nouns in bash/zsh/fish; **no PowerShell**, and they are still hand-maintained (see P1-5) |
+| B8 | Low  | **Partial** | Completions covered ~4 of 69 verbs | v26.9.6 covers all 79 verbs and all 6 nouns in bash/zsh/fish; **no PowerShell**, and they are still hand-maintained (see P1-5) |
 | B9 | Low  | **FIXED** | README verb count wrong | witnessed by `tests/release_identity.rs` |
 | B10 | Info | **FIXED** | `linkme` declared but unused | `src/doctor_check.rs` distributed slice, consumed at `handlers.rs:4456` |
 | B11 | Med | **FIXED** | `affi --version` reported the clap-noun-verb version (`cli 26.6.2`) | `src/bin/affi.rs` answers the bare top-level flag |
 | B12 | Med | **FIXED** | `why`, `fix`, `install-git-hook`, `monitor` shipped undeclared in the ontology | declared in `ontology/affi-cli.ttl`; blocked by `registry.rs` parity test |
-| B13 | Low | **Partial** | `clap-noun-verb` appends its rendering of each verb's return value to stdout, so `--format json` output is not parseable | fixed for the 8 federation verbs (they exit with their own code before the runtime renders); the other 69 verbs are still affected — see P1-6 |
+| B13 | Med | **Partial** | `clap-noun-verb` appends its rendering of each verb's return value to stdout, so `--format json` output is not parseable | fixed for the 8 federation verbs (they exit with their own code before the runtime renders); the other 71 verbs are still affected — see P1-6 |
+
+| B14 | High | **FIXED** | `verify` could not reach stage 3: a tampered receipt exited 1 with a parse error, not the documented REJECT (2) | `chain.rs::deserialize_receipt_unchecked`; `tests/e2e.rs`, `tests/golden_run.rs` |
+| B15 | Med | **FIXED** | `verify-family` exited 0 while reporting REJECTs — CI stayed green over a tampered store | `handlers.rs::family_exit` |
+| B16 | Med | **FIXED** | 41 REGISTRY rows used snake_case tokens the CLI cannot dispatch | `no_registry_verb_token_uses_snake_case` |
+| B17 | Med | **FIXED** | `receipt-throughput` had a registry row, a projection and a handler but no `pub mod` line, so it was never compiled | `src/verbs/mod.rs`; parity test now walks the module list |
+| B18 | Med | **FIXED** | `affi doctor` and `guide search` were dispatchable but absent from REGISTRY and the ontology | both registered and declared; parity tests compare `(verb, noun)` pairs |
+| B19 | High | **FIXED** | `web/` genesis seed pinned to `affidavit-v26.6.17-genesis` — the browser verifier rejected every real receipt for three releases | `tests/release_identity.rs` |
+| B20 | Med | **FIXED** | `examples/golden_run.sh` exited 101 and no test or workflow ran it | build-from-root fix; `tests/golden_run.rs` |
 
 ---
 
@@ -70,8 +78,12 @@ had already shipped; the statuses below carry the evidence.
 | **Ontology parity** | `every_registry_verb_is_declared_in_the_ontology`, `every_registry_entry_has_a_verb_projection` |
 | **Release identity** | version bump to 26.9.6, `affi --version` fixed, `tests/release_identity.rs` |
 | **`just validate`** | the AGENTS.md §6 ladder as one recipe |
-| **Completions** | all 77 verbs, all 4 nouns, bash/zsh/fish |
+| **Completions** | all 79 verbs, all 6 nouns, bash/zsh/fish |
 | **`docs/FEDERATION.md`** | operator guide, exit-code contract, executed worked example |
+| **Stage 3 reachable** | `chain::deserialize_receipt_unchecked` forensic seam; `verify`/`why`/`fix` all repaired |
+| **(verb, noun) parity, both directions** | caught `receipt-throughput` uncompiled, `affi doctor`/`guide search` unregistered, 41 snake_case tokens, 4 wrong-noun declarations |
+| **Web seed guard** | `tests/release_identity.rs` pins the TypeScript verifier's genesis seed to the crate version |
+| **Golden example runs** | `examples/golden_run.sh` fixed; `tests/golden_run.rs` executes it |
 
 ---
 
@@ -89,7 +101,7 @@ not the completions. Generate them from `REGISTRY` instead, and add PowerShell
 fails if the checked-in completions differ from the generated ones.
 
 ### [P1-6] Return-value rendering contract (B13)
-**Status:** Open for 69 of 77 verbs
+**Status:** Open for 71 of 79 verbs
 **What:** `clap-noun-verb` renders each verb's return value to stdout after the
 handler returns, appending a bare `null`, so `affi receipt verify --format json |
 jq` fails. The 8 federation verbs fix this by exiting with their own code before
@@ -113,7 +125,7 @@ naturally correct across releases.
 ### [P2-4] REPL upgrade: registry-driven dispatch
 **Status:** Open
 **What:** `src/bin/affi-shell.rs` hand-maintains a 15-arm dispatch against a
-77-verb registry, and does not reference `registry.rs` at all. Drive it from the
+79-verb registry, and does not reference `registry.rs` at all. Drive it from the
 registry, add tab completion, and add a `Session` that tracks the active
 working-chain.
 
@@ -121,6 +133,18 @@ working-chain.
 **Status:** Open
 **What:** Auto-generate `man/affi-<noun>-<verb>.1` from registry entries.
 **Dependency:** P1-5 (same generation seam)
+
+### [P2-7] Regroup benchmark and governance verbs under their own nouns
+**Status:** Open
+**What:** `ontology/affi-cli.ttl` declares `bench` and `governance` nouns, but
+`receipt-throughput`, `variance`, `profile`, and `audit` all ship under the
+`receipt` noun. v26.9.6 marked those two nouns RESERVED and pointed the four
+verbs at `ReceiptNoun` so the ontology describes the binary that exists rather
+than one that does not. Moving them is a breaking CLI change and needs its own
+release: projection, handlers, registry, completions, and a deprecation period
+for `affi receipt <verb>`.
+**Done when:** `affi bench variance` and `affi governance audit` work, the
+ontology's RESERVED comments are removed, and the old spellings warn.
 
 ### [P2-6] Federation receipt DAG
 **Status:** Open
@@ -136,7 +160,7 @@ verify a whole ancestry, not one link.
 
 ```
 P1-5 (generated completions) → P2-5 (man pages)
-P1-6 (stdout contract)       → clean machine consumption for all 77 verbs
+P1-6 (stdout contract)       → clean machine consumption for all 79 verbs
 P2-4 (REPL from registry)    → one dispatch surface instead of two
 P2-6 (federation DAG)        → multi-release standing histories
 ```

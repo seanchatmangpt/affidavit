@@ -465,7 +465,7 @@ pub fn verify_family(receipts_dir: String, format: Option<String>) -> Result<()>
             "{}",
             adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
         );
-        return Ok(());
+        return family_exit(rejected);
     }
     outln!("verify-family: {accepted}/{total} receipts accepted, {rejected} rejected");
     for r in &results {
@@ -483,6 +483,19 @@ pub fn verify_family(receipts_dir: String, format: Option<String>) -> Result<()>
         } else {
             outln!("  [{mark}] hash={} events={}", r["chain_hash"], r["events"]);
         }
+    }
+    family_exit(rejected)
+}
+
+/// Exit non-zero when any receipt in the family was rejected.
+///
+/// `verify-family` used to report rejects on stdout and still exit 0, so a CI
+/// job that piped it stayed green over a store containing tampered receipts —
+/// the one thing it exists to catch. The stable contract is the same as
+/// `verify`: any REJECT means exit 2.
+fn family_exit(rejected: usize) -> Result<()> {
+    if rejected > 0 {
+        std::process::exit(crate::diag::exit_codes::REJECT);
     }
     Ok(())
 }

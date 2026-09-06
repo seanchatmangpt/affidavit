@@ -1,6 +1,6 @@
 # affi.bash — bash completion for the `affi` CLI (affidavit Provenance Layer).
 #
-# Generated from src/registry.rs — 77 verbs across 11 groups.
+# Generated from src/registry.rs — 79 verbs across 11 groups.
 # Covers all verbs from the compile-time static registry.
 #
 # Install (pick one):
@@ -26,7 +26,7 @@ _affi() {
     local receipt_verbs="emit assemble verify show inspect stats why fix diagnose diff graph replay timeline root_cause audit query model conformance coverage_analysis tech_debt security_debt emit_batch emit_from_cicd emit_from_cloud emit_from_github emit_from_gitlab emit_from_monitoring emit_from_sbom emit_from_security verify_compliance verify_sla verify_family policy_enforce license_compliance gdpr_proof hipaa pci_dss sign notarize attest assemble_with_signature assemble_and_notarize sbom_attest sbom_scan sbom_blast_radius sbom_compliance sbom_ntia anomaly_detect predict trend_analysis variance find_blast_radius explain_incident causality_chain bus_factor dora_metrics team_velocity portfolio_health orphaned_code dependency_matrix catalog search profile install_git_hook monitor visualize test receipt_throughput"
 
     local affi_verbs="doctor"
-    local guide_verbs="search tutorial examples man"
+    local guide_verbs="search"
 
     # Federation courts (v26.9.6): the evidence kernel's CLI surface.
     local standing_verbs="certify verify"

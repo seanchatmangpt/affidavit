@@ -6,7 +6,7 @@
 //! **Philosophy:** Certify, don't decide. The verifier checks a receipt against
 //! a format standard without deciding whether work is honest (Rice's theorem).
 //!
-//! **Usage:** Run with `--help` to see 77 commands across 11 groups (emit,
+//! **Usage:** Run with `--help` to see 79 commands across 11 groups (emit,
 //! verify, sbom, audit, and the federation courts `standing` / `ecosystem` /
 //! `errc`). For guided examples, see the
 //! [README](https://github.com/seanchatmangpt/affidavit/blob/main/README.md).

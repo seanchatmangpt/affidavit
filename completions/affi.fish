@@ -1,6 +1,6 @@
 # affi.fish — fish completion for the `affi` CLI (affidavit Provenance Layer).
 #
-# Generated from src/registry.rs — 77 verbs across 11 groups.
+# Generated from src/registry.rs — 79 verbs across 11 groups.
 # Covers all verbs from the compile-time static registry.
 #
 # Install: cp completions/affi.fish ~/.config/fish/completions/affi.fish
@@ -163,3 +163,7 @@ end
 complete -c affi -n '__affi_using_noun standing' -l scope     -d 'Bounded authority scope' -r
 complete -c affi -n '__affi_using_noun errc'     -l parent    -d 'Sealed parent ERRC receipt' -r
 complete -c affi -n '__affi_using_noun errc'     -l witnesses -d 'Claim witness ledger JSON' -r
+
+# --- guide ------------------------------------------------------------------
+complete -c affi -f -n '__affi_using_noun guide; and __affi_no_verb' -a search -d 'Search the verb registry by keyword'
+complete -c affi -n '__affi_using_noun guide' -l keyword -d 'Keyword to search for' -r

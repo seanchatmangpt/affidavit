@@ -119,7 +119,12 @@ affi:ReceiptNoun a cnv:Noun ;
         affi:WhyVerb ,
         affi:FixVerb ,
         affi:InstallGitHookVerb ,
-        affi:MonitorVerb ;
+        affi:MonitorVerb,
+        # Dispatched under `receipt` today; see the RESERVED bench/governance nouns
+        affi:AuditVerb ,
+        affi:VarianceVerb ,
+        affi:ProfileVerb ,
+        affi:ReceiptThroughputVerb ;
     rdfs:comment "Receipt noun (maximalist): emit, assemble, verify, query, analyze, audit, and govern 300+ repos"@en .
 
 # --- Shared Arguments ---
@@ -990,17 +995,22 @@ affi:EffectEventArg a cnv:Argument ;
 # BENCH NOUN — surface `affi bench <verb>`.
 # ============================================================================
 
+# RESERVED, NOT SHIPPED. `receipt-throughput`, `variance`, and `profile` are
+# dispatched under the `receipt` noun today; regrouping them under `bench` is a
+# deliberate future CLI change (ROADMAP P2-7), not a description of the current
+# binary. This noun is therefore declared without verbs: the registry parity
+# test compares (verb, noun) pairs, so claiming them here would assert a
+# surface that does not exist.
 affi:BenchNoun a cnv:Noun ;
     cnv:hasNounName "bench" ;
-    cnv:nounAbout "Throughput, variance, and profiling benchmarks" ;
-    cnv:hasVerbs affi:ReceiptThroughputVerb , affi:VarianceVerb , affi:ProfileVerb ;
-    rdfs:comment "The bench noun: affi bench <receipt-throughput|variance|profile>"@en .
+    cnv:nounAbout "RESERVED for a future regrouping of throughput, variance, and profiling benchmarks" ;
+    rdfs:comment "Reserved. Today these verbs ship as affi receipt <receipt-throughput|variance|profile>"@en .
 
 # --- Verb: receipt-throughput -----------------------------------------------
 affi:ReceiptThroughputVerb a cnv:Verb ;
     cnv:hasVerbName "receipt-throughput" ;
     cnv:verbAbout "Measure end-to-end latency of the emit -> assemble -> verify pipeline" ;
-    cnv:belongsToNoun affi:BenchNoun ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
     cnv:hasArguments affi:BenchIterationsArg .
 
@@ -1008,7 +1018,7 @@ affi:ReceiptThroughputVerb a cnv:Verb ;
 affi:VarianceVerb a cnv:Verb ;
     cnv:hasVerbName "variance" ;
     cnv:verbAbout "Measure control-flow surprise (anomaly score) and its computation cost" ;
-    cnv:belongsToNoun affi:BenchNoun ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
     cnv:hasArguments affi:BenchReceiptArg , affi:BenchIterationsArg .
 
@@ -1016,7 +1026,7 @@ affi:VarianceVerb a cnv:Verb ;
 affi:ProfileVerb a cnv:Verb ;
     cnv:hasVerbName "profile" ;
     cnv:verbAbout "Run a sustained workload for flamegraph profiling" ;
-    cnv:belongsToNoun affi:BenchNoun ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
     cnv:hasArguments affi:BenchReceiptArg , affi:BenchDurationArg .
 
@@ -1045,17 +1055,17 @@ affi:BenchDurationArg a cnv:Argument ;
 # GOVERNANCE NOUN — surface `affi governance audit`.
 # ============================================================================
 
+# RESERVED, NOT SHIPPED. `audit` is dispatched under the `receipt` noun today.
 affi:GovernanceNoun a cnv:Noun ;
     cnv:hasNounName "governance" ;
-    cnv:nounAbout "Autonomous governance and rule enforcement" ;
-    cnv:hasVerbs affi:AuditVerb ;
-    rdfs:comment "The governance noun: affi governance audit"@en .
+    cnv:nounAbout "RESERVED for a future regrouping of autonomous governance and rule enforcement" ;
+    rdfs:comment "Reserved. Today this verb ships as affi receipt audit"@en .
 
 # --- Verb: audit ------------------------------------------------------------
 affi:AuditVerb a cnv:Verb ;
     cnv:hasVerbName "audit" ;
     cnv:verbAbout "Run the Autonomous Governance Agent over the workspace" ;
-    cnv:belongsToNoun affi:GovernanceNoun ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" .
 
 
@@ -1248,6 +1258,62 @@ affi:MonitorOutputArg a cnv:Argument ;
     cnv:argumentAbout "Path to write monitoring output to" ;
     cnv:valueType "String" ;
     cnv:required "false" .
+
+# ============================================================================
+# TOOL-LEVEL NOUNS — `affi affi <verb>` and `affi guide <verb>`.
+#
+# These two commands shipped dispatchable but were never declared here, and were
+# also missing from src/registry.rs, so they were undiscoverable through
+# `guide search` and the completions. Declared in v26.9.6; the registry parity
+# tests now check (verb, noun) pairs, so this cannot recur.
+# ============================================================================
+
+affi:AffiNoun a cnv:Noun ;
+    cnv:hasNounName "affi" ;
+    cnv:nounAbout "Tool-level operations on the affi installation itself" ;
+    cnv:hasVerbs affi:DoctorVerb ;
+    rdfs:comment "The affi noun: affi affi doctor"@en .
+
+affi:GuideNoun a cnv:Noun ;
+    cnv:hasNounName "guide" ;
+    cnv:nounAbout "Command discovery over the verb registry" ;
+    cnv:hasVerbs affi:GuideSearchVerb ;
+    rdfs:comment "The guide noun: affi guide search"@en .
+
+# --- Verb: doctor -----------------------------------------------------------
+affi:DoctorVerb a cnv:Verb ;
+    cnv:hasVerbName "doctor" ;
+    cnv:verbAbout "Run environment and receipt-store health checks; optionally apply safe automatic fixes" ;
+    cnv:belongsToNoun affi:AffiNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:DoctorReceiptsArg , affi:DoctorFixArg .
+
+affi:DoctorReceiptsArg a cnv:Argument ;
+    cnv:hasArgumentName "receipts" ;
+    cnv:argumentAbout "Path to the receipt store to check" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:DoctorFixArg a cnv:Argument ;
+    cnv:hasArgumentName "fix" ;
+    cnv:argumentAbout "Apply the safe automatic repairs the check identifies" ;
+    cnv:valueType "bool" ;
+    cnv:required "false" ;
+    cnv:defaultValue "false" .
+
+# --- Verb: guide search -----------------------------------------------------
+affi:GuideSearchVerb a cnv:Verb ;
+    cnv:hasVerbName "search" ;
+    cnv:verbAbout "Search the verb registry by keyword to discover relevant commands" ;
+    cnv:belongsToNoun affi:GuideNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:GuideKeywordArg , affi:FormatArg .
+
+affi:GuideKeywordArg a cnv:Argument ;
+    cnv:hasArgumentName "keyword" ;
+    cnv:argumentAbout "Keyword matched against verb names, summaries, and keywords" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
 
 # ============================================================================
 # FEDERATION NOUNS — the v26.9.x evidence kernel, surfaced in v26.9.6.

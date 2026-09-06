@@ -23,7 +23,7 @@ The project's doctrine: **certify, don't decide.** The verifier checks a receipt
 
 The root build situation changed — earlier docs that say "the root crate cannot compile" are now **stale**:
 
-- The root `affidavit` crate **builds and tests**. The real published `wasm4pm-compat 26.8.7` is the admitted structural dependency; `wasm4pm` and `clnrm-core` remain fenced by local stubs via `[patch.crates-io]` in `Cargo.toml` (`stubs/`). `cargo build --all-targets` and `cargo test --all-targets` pass (823 tests + 32 doctests); `cargo fmt --all -- --check` passes. Run the whole AGENTS.md §6 ladder with `just validate`.
+- The root `affidavit` crate **builds and tests**. The real published `wasm4pm-compat 26.8.7` is the admitted structural dependency; `wasm4pm` and `clnrm-core` remain fenced by local stubs via `[patch.crates-io]` in `Cargo.toml` (`stubs/`). `cargo build --all-targets` and `cargo test --all-targets` pass (826 tests + 32 doctests); `cargo fmt --all -- --check` passes. Run the whole AGENTS.md §6 ladder with `just validate`.
 - `cargo clippy --all-targets -- -D warnings` passes too: `src/lib.rs` denies `clippy::print_stdout`, and library output routes through `src/output.rs` (via the crate-internal `outln!` / `out!` macros) instead of raw `println!`. Use `outln!` (or an `Out`) for new library output; the `clippy` CI job now blocks. Don't delete `stubs/` or the `[patch]` block to "fix" deps.
 - Buildable, tested subprojects also live elsewhere: **`affidavit-core/`** (zero-dep `no_std` verifier + process mining — `cargo test` green), **`web/`** (Next.js — `npx tsc --noEmit`), **`tools/confevo/`** (Python — `python3 -m unittest`).
 - Full operational map, per-area validate commands, and conventions: **[`AGENTS.md`](AGENTS.md)** (and **[`affidavit-core/AGENTS.md`](affidavit-core/AGENTS.md)** for that crate's strict invariants).
@@ -47,7 +47,7 @@ affidavit/
 │   ├── verifier.rs           # 7-stage certify pipeline
 │   ├── types.rs              # Domain types (Event, Receipt, Verdict)
 │   ├── admission.rs          # Validation gates
-│   ├── registry.rs           # Compile-time verb registry (77 verbs, 11 groups)
+│   ├── registry.rs           # Compile-time verb registry (79 verbs, 11 groups)
 │   ├── diag.rs               # Stable exit codes & structured diagnostics
 │   ├── output.rs             # Unified Out handle (human/JSON/YAML)
 │   ├── discovery.rs          # Type discovery & schema registry
@@ -189,7 +189,7 @@ The verifier maps 1:1 to a C4 Level-3 component view:
 
 ## CLI Surface
 
-The CLI exposes **77 canonical verbs** across 11 groups, defined in `src/registry.rs`. Run `affi --help` for the full list or use `affi guide search <keyword>` for fuzzy lookup.
+The CLI exposes **79 canonical verbs** across 11 groups, defined in `src/registry.rs`. Run `affi --help` for the full list or use `affi guide search <keyword>` for fuzzy lookup.
 
 **Verb groups:** Core · Diagnostics · Analysis · Ingestion · Compliance · Attestation · SBOM · Insights · Engineering · Tooling · Federation
 

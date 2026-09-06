@@ -74,7 +74,7 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-Affidavit v26.9.6 ships **77 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
+Affidavit v26.9.6 ships **79 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
 
 **Core Verbs (The Provenance Loop):**
 - `affi emit` — Record a new operation-event.

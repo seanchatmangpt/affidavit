@@ -2,7 +2,7 @@
 #
 # affi.zsh — zsh completion for the `affi` CLI (affidavit Provenance Layer).
 #
-# Generated from src/registry.rs — 77 verbs across 11 groups.
+# Generated from src/registry.rs — 79 verbs across 11 groups.
 #
 # Install (per-user):
 #   mkdir -p ~/.zsh/completions
@@ -127,10 +127,7 @@ _affi() {
                     ;;
                 guide)
                     _values 'verb' \
-                        'search[Fuzzy verb keyword search]' \
-                        'tutorial[Interactive tutorial]' \
-                        'examples[Show usage examples]' \
-                        'man[Show man page for a verb]'
+                        'search[Search the verb registry by keyword]'
                     ;;
             esac
             ;;

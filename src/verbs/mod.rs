@@ -52,6 +52,7 @@ pub mod portfolio_health;
 pub mod predict;
 pub mod profile;
 pub mod query;
+pub mod receipt_throughput;
 pub mod replay;
 pub mod root_cause;
 pub mod sbom_attest;

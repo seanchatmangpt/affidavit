@@ -20,7 +20,9 @@ release identity back in line with the code.
   OCEL court and the affidavit certify pipeline), parses a bounded observation,
   and seals the profile receipt. It performs **no adjudication of its own** —
   every accept/refuse decision belongs to `admission` or to the kernel.
-- **Eight new verbs across three new nouns** (69 → 77 verbs, 10 → 11 groups):
+- **Eight new verbs across three new nouns** (69 → 79 registry entries, 10 → 11
+  groups; the extra two are `affi doctor` and `guide search`, which shipped
+  dispatchable but unregistered — see Fixed):
   - `affi standing certify` / `affi standing verify` — `affidavit/standing/v2`
   - `affi ecosystem certify` / `affi ecosystem verify` — `affidavit/ecosystem/v1`
   - `affi errc certify` / `affi errc verify` — `affidavit/errc/v1`
@@ -58,8 +60,10 @@ release identity back in line with the code.
   assembled by 26.6.22 will fail stage 3 (`chain_integrity`) under 26.9.6.**
   This is the intended release-boundary behaviour, not a regression: re-emit and
   re-assemble against the new binary.
-- **Shell completions** now cover all 77 verbs and the three federation nouns
-  across bash, zsh, and fish.
+- **Shell completions** now cover all 79 verbs and all six nouns across bash,
+  zsh, and fish. They previously advertised a `quality` noun and `guide
+  tutorial`/`examples`/`man` verbs that the binary does not have, and omitted
+  `receipt-throughput`.
 - **`justfile`**: removed the stale header claiming the Rust recipes cannot run
   because `wasm4pm-compat 26.6.13` does not compile. The real published
   `wasm4pm-compat 26.8.7` is admitted and the full ladder passes.
@@ -76,12 +80,63 @@ release identity back in line with the code.
 - **Ontology drift**: `why`, `fix`, `install-git-hook`, and `monitor` shipped in
   the projection without ever being declared in `ontology/affi-cli.ttl`. All
   four are now declared, and the parity test blocks the drift from returning.
+- **`affi receipt verify` could not reach stage 3.** `Receipt`'s `Deserialize`
+  re-runs the chain law, so a tampered receipt failed at the door with a
+  framework parse error and **exit 1**, not the documented REJECT (**2**) — and
+  `chain_integrity`, the stage whose entire job is catching exactly this, was
+  unreachable from every CLI path. `chain::deserialize_receipt_unchecked` is a
+  `pub(crate)` forensic seam that lets `verify` adjudicate a suspect file
+  instead of refusing to open it; the stage now FAILs by name and the verb exits
+  2. The seal is untouched — `Receipt::sealed` stays private. This also repaired
+  `affi receipt why` (its `chain_integrity` explanation branch was structurally
+  unreachable) and `affi receipt fix` (its primary action, quarantining a
+  tampered receipt, could never execute).
+- **`affi receipt verify-family` exited 0 while reporting REJECTs**, so a CI job
+  piping it stayed green over a store containing tampered receipts. Any reject
+  now exits 2.
+- **41 registry rows named commands that do not exist.** `src/registry.rs` used
+  snake_case verb tokens (`verify_compliance`) while the CLI dispatches
+  kebab-case (`verify-compliance`), so `lookup` missed and `guide search`
+  printed names an operator cannot type. A new test rejects any `_` in a verb
+  token.
+- **`receipt-throughput` was advertised but not compiled.** It had a registry
+  entry, a `#[verb]` projection, and a handler — but no `pub mod` line in
+  `src/verbs/mod.rs`, so it was never built or dispatchable. The parity test now
+  walks the module list rather than the directory, so a file nobody declared can
+  no longer masquerade as a shipped verb.
+- **`affi doctor` and `guide search` were absent from the registry entirely**,
+  making them undiscoverable through `guide search`, `--help` grouping, and the
+  completions. Both are now registered and declared in the ontology, and the
+  parity tests compare `(verb, noun)` pairs in both directions — a name-only
+  check had passed `guide search` purely because a distinct `receipt search`
+  exists.
+- **The ontology claimed a CLI surface that does not exist.** It declared
+  `receipt-throughput`, `variance`, and `profile` under a `bench` noun and
+  `audit` under `governance`, while all four ship under `receipt`. The four now
+  point at `ReceiptNoun`; `bench` and `governance` are marked RESERVED with the
+  regrouping tracked as ROADMAP P2-7.
+- **The browser verifier rejected every real receipt.** `web/` hard-codes the
+  genesis seed, and it had drifted three releases behind
+  (`affidavit-v26.6.17-genesis` while the crate was 26.6.22). `tsc --noEmit`,
+  the web lane's only gate, cannot know the Rust seed;
+  `tests/release_identity.rs` now does.
+- **`examples/golden_run.sh` was broken and untested.** It ran `cargo run` from
+  inside a temp dir, so cargo resolved the toolchain from that directory, missed
+  `rust-toolchain.toml`, fell back to stable, and died on wasm4pm-compat's
+  `#![feature(...)]` (E0554, exit 101). It now builds once from the repo root
+  and invokes the binary directly — and `tests/golden_run.rs` executes it, so
+  the example README points newcomers at is a court rather than a claim.
+- **`affi-shell` hard-coded its version banner**; it now derives it from
+  `CARGO_PKG_VERSION` like everything else.
+- **`docs/glossary.md` stated the genesis seed resolves to
+  `affidavit-v26.6.22-genesis`** — normative documentation of the live binary,
+  now corrected and covered by the release-identity gates.
 
 ### Internal
 - Removed `src/handlers_stubs.rs` — 300 lines of `todo!()` referenced by nothing
   in `src/`, `tests/`, `benches/`, `examples/`, or `build.rs`. `generate_verbs.py`
   regenerates it on demand.
-- Test suite: 823 tests + 32 doctests, all passing under
+- Test suite: 826 tests + 32 doctests, all passing under
   `cargo test --all-targets`, `cargo test --doc`, and
   `cargo clippy --all-targets -- -D warnings`.
 
