@@ -1,16 +1,17 @@
 # affidavit — Project Roadmap
 
-**Version:** 26.6.19 → beyond  
-**Date:** 2026-06-21  
-**Status:** living document — updated each release
+**Version:** 26.9.6 → beyond
+**Date:** 2026-09-06
+**Status:** living document — re-verified against the code each release
 
 ---
 
 ## Current State
 
-affidavit ships **67 canonical CLI verbs** across 10 groups backed by a compile-time
-static registry (`src/registry.rs`). The 7-stage certify pipeline is production-ready.
-The BLAKE3 chain, sealed receipts, and determinism guarantees are stable.
+affidavit ships **77 canonical CLI verbs** across 11 groups backed by a
+compile-time static registry (`src/registry.rs`). The 7-stage certify pipeline is
+production-ready. The BLAKE3 chain, sealed receipts, and determinism guarantees
+are stable. As of v26.9.6 the evidence federation kernel has an operator surface.
 
 ### What works
 - Full emit → assemble → verify lifecycle
@@ -18,170 +19,138 @@ The BLAKE3 chain, sealed receipts, and determinism guarantees are stable.
   verify_commitments, evaluate_profile, emit_verdict
 - Sealed receipts (private `_seal` field, E0451 unconstructable bypass)
 - Compile-time genesis seed (`concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis")`)
+  and `affi --version` reporting that same version
 - Stable exit-code catalog (`src/diag.rs`)
-- Unified output handle (`src/output.rs`, not yet wired into all handlers)
-- `affi doctor` environment health check
+- Unified output handle (`src/output.rs`) plus the crate-internal `outln!`/`out!`
+  macros keeping `#![deny(clippy::print_stdout)]` honest
+- `affi doctor` (with `--fix`) over a `linkme`-discovered `DoctorCheck` registry
+- **Federation courts** — `affi standing`, `affi ecosystem`, `affi errc` over the
+  `standing` / `ecosystem` / `errc` / `errc_claim_assurance` certifiers
+  (see `docs/FEDERATION.md`)
+- Registry ↔ ontology ↔ projection parity, enforced by tests
 - OCEL, SBOM, conformance, quality-monitor features behind feature flags
 
-### Active build situation
-`wasm4pm-compat v26.6.13` (registry) is broken on current nightly Rust. Workaround:
-`stubs/wasm4pm-compat/` local path crate with `[patch.crates-io]` override.
+### Build state
+The root crate builds, tests, and lints clean. The real published
+`wasm4pm-compat 26.8.7` is the admitted structural dependency; `wasm4pm` and
+`clnrm-core` remain fenced by local stubs via `[patch.crates-io]`. A stub is a
+named capability boundary, not proof upstream behaviour executed — do not
+silently broaden one. Run the full AGENTS.md §6 ladder with `just validate`.
 
 ---
 
 ## Bug Ledger
 
-| # | Sev | Status | Defect | Location |
+Re-verified against the code at 26.9.6. Several items previously listed as open
+had already shipped; the statuses below carry the evidence.
+
+| # | Sev | Status | Defect | Evidence |
 |---|-----|--------|--------|----------|
-| B1 | High | **FIXED** | Output stream split (stdout vs stderr) | `handlers.rs` |
-| B2 | High | **FIXED** | Hand-built JSON via `format!` (injection risk) | `handlers.rs` |
-| B3 | High | **Partial** | `load_receipts_from_path` warns but doesn't surface load failures as REJECT results | `handlers.rs:87` |
-| B4 | High | **FIXED** | Genesis seed version drift (hardcoded vs compile-time) | `chain.rs:25-27` |
-| B5 | Med  | **Open** | `monitor` verb is a stub; real `FileWatcher` not wired | `handlers.rs:2645` |
-| B6 | Med  | **FIXED** | Exit codes: REJECT now uses `exit_codes::REJECT` (2) | `handlers.rs:360,378` |
-| B7 | Low  | **FIXED** | Duplicate `receipt-throughput.rs` / `receipt_throughput.rs` | `src/verbs/` |
-| B8 | Low  | **Open** | Shell completions cover only ~4 of 67 verbs; no PowerShell | `completions/` |
-| B9 | Low  | **FIXED** | README claimed 59 verbs; now correctly states 67 | `README.md` |
-| B10 | Info | **Open** | `linkme` declared but unused; `doctor`'s `DoctorCheck` registry would be first use | `Cargo.toml:42` |
+| B1 | High | **FIXED** | Output stream split (stdout vs stderr) | `src/output.rs`, `src/macros.rs` |
+| B2 | High | **FIXED** | Hand-built JSON via `format!` (injection risk) | `handlers.rs` uses `serde_json::json!` |
+| B3 | High | **FIXED** | `load_receipts_from_path` swallowed load failures | `handlers.rs:429` emits a REJECT entry per failure |
+| B4 | High | **FIXED** | Genesis seed version drift | `chain.rs:25`; witnessed by `tests/release_identity.rs` |
+| B5 | Med  | **FIXED** | `monitor` was a stub; `FileWatcher` not wired | `handlers.rs:3052` behind the `file-watch` feature |
+| B6 | Med  | **FIXED** | REJECT used a generic exit code | `handlers.rs` uses `exit_codes::REJECT` (2) |
+| B7 | Low  | **FIXED** | Duplicate `receipt-throughput.rs` | removed from `src/verbs/` |
+| B8 | Low  | **Partial** | Completions covered ~4 of 69 verbs | v26.9.6 covers all 77 verbs and all 4 nouns in bash/zsh/fish; **no PowerShell**, and they are still hand-maintained (see P1-5) |
+| B9 | Low  | **FIXED** | README verb count wrong | witnessed by `tests/release_identity.rs` |
+| B10 | Info | **FIXED** | `linkme` declared but unused | `src/doctor_check.rs` distributed slice, consumed at `handlers.rs:4456` |
+| B11 | Med | **FIXED** | `affi --version` reported the clap-noun-verb version (`cli 26.6.2`) | `src/bin/affi.rs` answers the bare top-level flag |
+| B12 | Med | **FIXED** | `why`, `fix`, `install-git-hook`, `monitor` shipped undeclared in the ontology | declared in `ontology/affi-cli.ttl`; blocked by `registry.rs` parity test |
+| B13 | Low | **Open** | `clap-noun-verb` appends its rendering of each verb's return value to stdout, so redirecting certify output yields unparseable JSON | mitigated by `--out` on the federation verbs; other verbs still affected |
 
 ---
 
-## P0 — Correctness & Build Stability
+## Shipped in 26.9.6
 
-These are immediate blocking items or high-severity correctness fixes.
-
-### [P0-1] wasm4pm-compat stub completeness
-**Status:** In progress  
-**What:** The local stub at `stubs/wasm4pm-compat/src/lib.rs` must cover the full
-API surface used by ~100 reference tests (powl, bpmn, eventlog, dfg, declare,
-causal_net, ocpq, conformance, correlation, process_tree, receipt, temporal, …).  
-**Done when:** `cargo test` passes with no compilation errors from wasm4pm_compat imports.
-
-### [P0-2] Fix B3: surface load failures in verify_family / query
-**Status:** Open  
-**What:** `load_receipts_from_path` in `handlers.rs:71` currently skips unreadable
-receipts with a warning. Callers like `verify_family` and `query` should surface
-these as explicit REJECT entries rather than silently omitting them from results.  
-**Location:** `src/handlers.rs:71-96`, `src/handlers.rs:383-430`  
-**Done when:** `verify_family` output includes a REJECT entry for each file that
-fails to parse, with the parse error as the reason.
-
-### [P0-3] Wire monitor to real FileWatcher (B5)
-**Status:** Open  
-**What:** `handlers.rs:2645` prints a stub message. The `FileWatcher` type in
-`src/quality.rs:1158` already implements continuous monitoring. Wire them together.  
-**Location:** `src/handlers.rs:2630-2660`, `src/quality.rs`  
-**Done when:** `affi quality monitor` actually starts the file watcher loop.
+| Item | What landed |
+|------|-------------|
+| **Federation CLI surface** | `src/federation.rs` + 8 verbs across 3 new nouns; the kernel is reachable |
+| **Ontology parity** | `every_registry_verb_is_declared_in_the_ontology`, `every_registry_entry_has_a_verb_projection` |
+| **Release identity** | version bump to 26.9.6, `affi --version` fixed, `tests/release_identity.rs` |
+| **`just validate`** | the AGENTS.md §6 ladder as one recipe |
+| **Completions** | all 77 verbs, all 4 nouns, bash/zsh/fish |
+| **`docs/FEDERATION.md`** | operator guide, exit-code contract, executed worked example |
 
 ---
 
-## P1 — High-Leverage Features
+## P1 — High-Leverage, Still Open
 
-### [P1-1] Integrate Out handle into remaining handlers
-**Status:** Open  
-**What:** `src/output.rs` defines `Out` (human/json/yaml routing, strict
-data→stdout / chatter→stderr). About a third of handlers still use raw `println!`
-for both data and informational messages. Route all data output through `Out`.  
-**Scope:** `src/handlers.rs` (major), `src/verbs/*.rs`
+### [P1-5] Generate shell completions from the registry
+**Status:** Open
+**What:** `completions/affi.{bash,zsh,fish}` are hand-maintained. v26.9.6 brought
+them back into sync, but nothing prevents the next verb from desynchronising
+them again — the registry parity tests cover the ontology and the projection,
+not the completions. Generate them from `REGISTRY` instead, and add PowerShell
+(closes B8 fully).
+**New file:** `src/bin/gen_completions.rs` or a build script
+**Done when:** adding a `VerbEntry` and regenerating is the only step, and a test
+fails if the checked-in completions differ from the generated ones.
 
-### [P1-2] `affi doctor --fix` for environment repairs
-**Status:** Open  
-**What:** Environment doctor already reports findings. Add `--fix` flag that
-auto-applies safe repairs: regenerate stale shell completions, archive stale
-`working.json`, check for outdated genesis seed format.  
-**Location:** `src/verbs/doctor.rs`, `src/handlers.rs`
-
-### [P1-3] `affi fix` verb — receipt store safe repairs
-**Status:** Open  
-**What:** Two safe operations on receipts: Finalize (re-seal a working receipt
-whose chain is still intact) and Quarantine (move a tampered receipt aside with
-a `.quarantine` extension and a sidecar explaining why). Must be `--dry-run` first.  
-**New file:** `src/verbs/fix.rs`
-
-### [P1-4] `affi why <RECEIPT>` — explain rejection
-**Status:** Open  
-**What:** Given a REJECT verdict, explain in plain language why each stage failed
-and suggest concrete remediation steps. Builds on `diagnose` but goes further.  
-**Location:** `src/verbs/diagnose.rs` or new `src/verbs/why.rs`
-
-### [P1-5] Shell completions from registry
-**Status:** Open  
-**What:** Generate bash/zsh/fish/pwsh completions programmatically from
-`src/registry.rs` rather than maintaining hand-written stubs. Completions cover
-all 67 verbs with argument hints.  
-**New file:** `src/bin/gen_completions.rs` or build script
-
-### [P1-6] `affi guide search <keyword>` — verb discovery
-**Status:** Open  
-**What:** Fuzzy keyword search over the registry's summary and keyword fields.
-Returns ranked verb suggestions. Already wired in `registry.rs` via the `search`
-method; expose it as a CLI verb in the `guide` noun group.  
-**Location:** `src/verbs/guide.rs`, `src/registry.rs`
+### [P1-6] Return-value rendering contract (B13)
+**Status:** Open
+**What:** Every verb's stdout carries a trailing `null` from the framework's
+return-value rendering, so `affi receipt verify --format json > v.json` is not
+parseable. The federation verbs route around this with `--out`; the general fix
+is either a `--quiet`-by-default data path or an upstream change.
+**Done when:** `affi <any verb> --format json` produces a single JSON document on
+stdout.
 
 ---
 
 ## P2 — Depth & Polish
 
-### [P2-1] `affi watch` daemon
-**Status:** Open  
-**What:** Replaces the `monitor` stub with a proper `affi watch <PATH>` command
-that starts the `FileWatcher` event loop, debounces rapid changes, and runs
-`verify` on each receipt on save. Hooks into quality rules.  
-**Dependency:** P0-3
-
 ### [P2-2] Content-addressed verdict cache
-**Status:** Open  
+**Status:** Open
 **What:** Cache `(receipt_content_address, verifier_version) → Verdict`. Skip
 re-verification when neither the receipt nor the binary has changed. Critical for
-large receipt stores.
-
-### [P2-3] DoctorCheck framework with linkme registry
-**Status:** Open  
-**What:** Formalize `DoctorCheck` as a trait with a `linkme` distributed slice so
-plugins can register checks. Uses the `Finding { check, status, finding,
-remediation, auto_fixable }` type. This gives `linkme` its first idiomatic use (B10).
+large receipt stores. The genesis-seed/version binding makes the cache key
+naturally correct across releases.
 
 ### [P2-4] REPL upgrade: registry-driven dispatch
-**Status:** Open  
-**What:** The `affi-shell` REPL currently has a hand-maintained 11-of-67 verb
-dispatch. Drive it from `registry.rs` so all verbs are available. Add tab-completion
-and a `Session` object that tracks the active working-chain.  
-**Location:** `src/bin/affi-shell.rs`
+**Status:** Open
+**What:** `src/bin/affi-shell.rs` hand-maintains a 15-arm dispatch against a
+77-verb registry, and does not reference `registry.rs` at all. Drive it from the
+registry, add tab completion, and add a `Session` that tracks the active
+working-chain.
 
 ### [P2-5] Generated man pages
-**Status:** Open  
-**What:** Auto-generate `man/affi-<noun>-<verb>.1` from registry entries. Replaces
-or supplements `affi guide man`.
+**Status:** Open
+**What:** Auto-generate `man/affi-<noun>-<verb>.1` from registry entries.
+**Dependency:** P1-5 (same generation seam)
+
+### [P2-6] Federation receipt DAG
+**Status:** Open
+**What:** Every federation profile already carries `previous_receipt` for
+receipt-DAG lineage, but nothing walks the chain. Add
+`affi standing lineage <RECEIPT>` / `affi ecosystem lineage` to resolve and
+verify a whole ancestry, not one link.
+**Dependency:** v26.9.6 federation courts
 
 ---
 
 ## Workstream Map
 
-Dependency order (→ means "unblocks"):
-
 ```
-P0-1 (stub) → cargo test green
-P0-2 (B3)   → accurate verify_family results
-P0-3 (B5)   → P2-1 (watch daemon)
-
-P1-1 (Out)  → consistent stdout/stderr contract for all verbs
-P1-2 (fix)  → P1-3 (receipt repairs)
-P1-5 (completions) → P2-5 (man pages)
-P1-6 (guide search) → P2-4 (REPL)
-
-P2-3 (DoctorCheck) → richer affi doctor findings
+P1-5 (generated completions) → P2-5 (man pages)
+P1-6 (stdout contract)       → clean machine consumption for all 77 verbs
+P2-4 (REPL from registry)    → one dispatch surface instead of two
+P2-6 (federation DAG)        → multi-release standing histories
 ```
 
 ---
 
 ## Release Milestones
 
-| Release | Theme | P-items |
-|---------|-------|---------|
-| 26.6.22 | Correctness sprint | P0-1, P0-2, P0-3 |
-| 26.6.25 | DX sprint | P1-1, P1-2, P1-4, P1-6 |
-| 26.7.1  | Feature sprint | P1-3, P1-5, P2-1, P2-3 |
-| 26.7.5  | Polish sprint | P2-2, P2-4, P2-5 |
+| Release | Theme | Items |
+|---------|-------|-------|
+| 26.6.22 | Correctness sprint | B1–B7, output routing, clippy gate |
+| 26.9.1  | Federation kernel (library) | standing, ecosystem, errc, claim assurance |
+| **26.9.6** | **Federation surface + release identity** | **the kernel becomes reachable; B11, B12** |
+| next    | Generation sprint | P1-5, P2-5 |
+| later   | Contract sprint | P1-6, P2-2 |
+| later   | Lineage sprint | P2-4, P2-6 |
 
 ---
 
@@ -194,10 +163,11 @@ P2-3 (DoctorCheck) → richer affi doctor findings
 | ADR-3 | `ChainAssembler::finalize` as only canonical seam | ✓ stable |
 | ADR-4 | No wall-clock in events (`seq` ordering only) | ✓ stable |
 | ADR-5 | Canonical/sorted JSON for deterministic hashing | ✓ stable |
-| ADR-6 | Nightly Rust toolchain required (wasm4pm-compat) | ⚠ mitigated via stub |
+| ADR-6 | Date-pinned nightly toolchain | ✓ stable (`rust-toolchain.toml`) |
 | ADR-7 | `#![deny(clippy::print_stdout)]` at library root | ✓ stable |
+| ADR-8 | The CLI reaches kernel laws; it never adds one | ✓ stable (`src/federation.rs`) |
 
 ---
 
-*See `docs/innovation/00-SYNTHESIS.md` for the full bug ledger narrative and
-`docs/roadmap/` for the 10-workstream 2030 program plan.*
+*See `AGENTS.md` for execution doctrine, `docs/FEDERATION.md` for the federation
+courts, and `docs/roadmap/` for the 10-workstream 2030 program plan.*

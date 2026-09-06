@@ -101,6 +101,7 @@ pub mod ecosystem;
 pub mod errc;
 pub mod errc_claim_assurance;
 pub mod error;
+pub mod federation;
 pub mod fixture_db;
 pub mod handlers;
 
@@ -182,6 +183,7 @@ pub use errc_claim_assurance::{
     ERRC_CLAIM_ASSURANCE_SOURCE_ARTIFACT,
 };
 pub use error::AffidavitError;
+pub use federation::{CourtOutcome, STANDING_CAPABILITY, STANDING_CAPABILITY_DIGEST};
 pub use standing::{
     certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,
     StandingObservation, StandingReceipt, StandingRefusal, SubjectIdentity, VerificationEvidence,

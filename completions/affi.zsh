@@ -2,7 +2,7 @@
 #
 # affi.zsh — zsh completion for the `affi` CLI (affidavit Provenance Layer).
 #
-# Generated from src/registry.rs — 69 verbs across 10 groups.
+# Generated from src/registry.rs — 77 verbs across 11 groups.
 #
 # Install (per-user):
 #   mkdir -p ~/.zsh/completions
@@ -26,8 +26,10 @@ _affi() {
             _values 'noun' \
                 'receipt[Receipt chain operations (69 verbs)]' \
                 'affi[Tool-level operations]' \
-                'quality[Quality monitoring]' \
-                'guide[Help and discovery]'
+                'guide[Help and discovery]' \
+                'standing[Certify receipt-bound ecosystem standing]' \
+                'ecosystem[Federate sealed member standing receipts]' \
+                'errc[Certify formal ERRC transformation receipts]'
             ;;
         verb)
             case "${words[2]}" in
@@ -106,9 +108,22 @@ _affi() {
                     _values 'verb' \
                         'doctor[Environment and receipt-store health checks]'
                     ;;
-                quality)
+                standing)
                     _values 'verb' \
-                        'monitor[Continuous quality monitoring]'
+                        'certify[Seal a standing claim over an admitted receipt]' \
+                        'verify[Re-run the standing law over a sealed receipt]'
+                    ;;
+                ecosystem)
+                    _values 'verb' \
+                        'certify[Federate sealed member standing receipts]' \
+                        'verify[Re-run the federation law over a sealed receipt]'
+                    ;;
+                errc)
+                    _values 'verb' \
+                        'certify[Seal a declared ERRC transformation]' \
+                        'verify[Re-run the ERRC laws over a sealed receipt]' \
+                        'assure[Seal a one-witness-per-claim assurance ledger]' \
+                        'verify-assurance[Re-run the claim-assurance law]'
                     ;;
                 guide)
                     _values 'verb' \

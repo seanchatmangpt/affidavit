@@ -69,3 +69,7 @@ thesis/chapters/*.tex
 # Build artifacts from stub crates and rustc
 librust_out.rlib
 stubs/wasm4pm-compat/target/
+
+# Python bytecode caches (scripts/, tools/)
+__pycache__/
+*.py[cod]

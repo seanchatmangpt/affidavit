@@ -12,7 +12,9 @@
 # `ggen sync`; the pack supplies the queries + templates that render thin #[verb]
 # wrappers under src/verbs/, each delegating to crate::handlers::<verb>.
 #
-# Surface: `affi receipt <emit|assemble|verify|show|inspect|diff|stats|graph|replay|model|conformance|diagnose|visualize|catalog>`.
+# Surface: `affi receipt <emit|assemble|verify|show|inspect|diff|stats|graph|replay|model|conformance|diagnose|visualize|catalog>`
+# plus the v26.9.6 federation nouns `affi <standing|ecosystem|errc> <verb>` (see the
+# FEDERATION NOUNS block at the end of this file).
 # =============================================================================
 
 affi: a owl:Ontology ;
@@ -20,7 +22,7 @@ affi: a owl:Ontology ;
     rdfs:comment "Provenance Layer CLI — 80+ verbs for unified organizational provenance and governance across 300+ repos."@en ;
     dcterms:creator "Sean Chatman" ;
     owl:imports cnv: ;
-    owl:versionInfo "26.7.0-maximalist" .
+    owl:versionInfo "26.9.6-federation" .
 
 # ============================================================================
 # RECEIPT NOUN — surface `affi receipt <verb>`.
@@ -112,7 +114,12 @@ affi:ReceiptNoun a cnv:Noun ;
         affi:SbomComplianceVerb ,
         affi:SbomScanVerb ,
         affi:SbomBlastRadiusVerb ,
-        affi:SbomAttestVerb ;
+        affi:SbomAttestVerb,
+        # Repair, explanation, and live monitoring (declared in v26.9.6)
+        affi:WhyVerb ,
+        affi:FixVerb ,
+        affi:InstallGitHookVerb ,
+        affi:MonitorVerb ;
     rdfs:comment "Receipt noun (maximalist): emit, assemble, verify, query, analyze, audit, and govern 300+ repos"@en .
 
 # --- Shared Arguments ---
@@ -1134,5 +1141,254 @@ affi:SbomAttestVerb a cnv:Verb ;
 affi:AttestReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
     cnv:argumentAbout "Optional receipt reference to bind the attestation to" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+# ============================================================================
+# RECEIPT NOUN — verbs that shipped in the projection before they were declared
+# here. Declared in v26.9.6 so ontology and projection agree exactly; the
+# registry/ontology parity test in src/registry.rs blocks this drift returning.
+# ============================================================================
+
+# --- Verb: why --------------------------------------------------------------
+affi:WhyVerb a cnv:Verb ;
+    cnv:hasVerbName "why" ;
+    cnv:verbAbout "Explain in plain language why a receipt was rejected, with stage-by-stage remediation" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:WhyReceiptArg , affi:FormatArg .
+
+affi:WhyReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt whose rejection should be explained" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+# --- Verb: fix --------------------------------------------------------------
+affi:FixVerb a cnv:Verb ;
+    cnv:hasVerbName "fix" ;
+    cnv:verbAbout "Apply a safe structural repair to a receipt: quarantine a tampered file or finalize a stale working receipt" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:FixReceiptArg , affi:FixActionArg , affi:FixDryRunArg , affi:FormatArg .
+
+affi:FixReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the receipt to repair" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:FixActionArg a cnv:Argument ;
+    cnv:hasArgumentName "action" ;
+    cnv:argumentAbout "Repair to apply: finalize or quarantine" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:FixDryRunArg a cnv:Argument ;
+    cnv:hasArgumentName "dry-run" ;
+    cnv:argumentAbout "Preview the repair without writing any file" ;
+    cnv:valueType "bool" ;
+    cnv:required "false" ;
+    cnv:defaultValue "false" .
+
+# --- Verb: install-git-hook -------------------------------------------------
+affi:InstallGitHookVerb a cnv:Verb ;
+    cnv:hasVerbName "install-git-hook" ;
+    cnv:verbAbout "Install a post-commit Git hook that monitors code quality violations" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:HookThresholdArg .
+
+affi:HookThresholdArg a cnv:Argument ;
+    cnv:hasArgumentName "threshold" ;
+    cnv:argumentAbout "Violation threshold at which the hook fails the commit" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+# --- Verb: monitor ----------------------------------------------------------
+affi:MonitorVerb a cnv:Verb ;
+    cnv:hasVerbName "monitor" ;
+    cnv:verbAbout "Monitor code quality in real-time using Western Electric control-chart rules" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:MonitorWatchArg , affi:MonitorMetricsArg , affi:MonitorRulesArg , affi:MonitorBaselineCommitsArg , affi:MonitorIntervalArg , affi:MonitorOutputArg , affi:FormatArg .
+
+affi:MonitorWatchArg a cnv:Argument ;
+    cnv:hasArgumentName "watch" ;
+    cnv:argumentAbout "Path to watch for quality measurements" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:MonitorMetricsArg a cnv:Argument ;
+    cnv:hasArgumentName "metrics" ;
+    cnv:argumentAbout "Comma-separated metric names to track" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:MonitorRulesArg a cnv:Argument ;
+    cnv:hasArgumentName "rules" ;
+    cnv:argumentAbout "Western Electric rule subset to apply" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:MonitorBaselineCommitsArg a cnv:Argument ;
+    cnv:hasArgumentName "baseline-commits" ;
+    cnv:argumentAbout "Number of commits used to establish the control-chart baseline" ;
+    cnv:valueType "u32" ;
+    cnv:required "false" .
+
+affi:MonitorIntervalArg a cnv:Argument ;
+    cnv:hasArgumentName "interval" ;
+    cnv:argumentAbout "Polling interval in seconds" ;
+    cnv:valueType "u64" ;
+    cnv:required "false" .
+
+affi:MonitorOutputArg a cnv:Argument ;
+    cnv:hasArgumentName "output" ;
+    cnv:argumentAbout "Path to write monitoring output to" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+# ============================================================================
+# FEDERATION NOUNS — the v26.9.x evidence kernel, surfaced in v26.9.6.
+#
+# `affi standing <verb>`, `affi ecosystem <verb>`, `affi errc <verb>`.
+#
+# Each verb is a CONSTRUCT-only court over an already-admitted receipt. The
+# certifiers themselves live in src/{standing,ecosystem,errc,
+# errc_claim_assurance}.rs; src/federation.rs is the adapter these projections
+# delegate to via crate::handlers. No accept/refuse law is declared here — the
+# CLI reaches the kernel's laws, it never adds one.
+# ============================================================================
+
+affi:StandingNoun a cnv:Noun ;
+    cnv:hasNounName "standing" ;
+    cnv:nounAbout "Certify and verify receipt-bound ecosystem standing (affidavit/standing/v2)" ;
+    cnv:hasVerbs affi:StandingCertifyVerb , affi:StandingVerifyVerb ;
+    rdfs:comment "The standing noun: affi standing <certify|verify>"@en .
+
+affi:EcosystemNoun a cnv:Noun ;
+    cnv:hasNounName "ecosystem" ;
+    cnv:nounAbout "Federate sealed member standing receipts into a quorum-scored ecosystem receipt (affidavit/ecosystem/v1)" ;
+    cnv:hasVerbs affi:EcosystemCertifyVerb , affi:EcosystemVerifyVerb ;
+    rdfs:comment "The ecosystem noun: affi ecosystem <certify|verify>"@en .
+
+affi:ErrcNoun a cnv:Noun ;
+    cnv:hasNounName "errc" ;
+    cnv:nounAbout "Certify formal ERRC transformation receipts and their claim-assurance ledgers (affidavit/errc/v1)" ;
+    cnv:hasVerbs affi:ErrcCertifyVerb , affi:ErrcVerifyVerb , affi:ErrcAssureVerb , affi:ErrcVerifyAssuranceVerb ;
+    rdfs:comment "The errc noun: affi errc <certify|verify|assure|verify-assurance>"@en .
+
+# --- Shared federation arguments --------------------------------------------
+
+affi:FederationSourceReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the core/v1 receipt to admit as the certification subject" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:FederationObservationArg a cnv:Argument ;
+    cnv:hasArgumentName "observation" ;
+    cnv:argumentAbout "Path to the JSON observation admitted for certification" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:FederationOutArg a cnv:Argument ;
+    cnv:hasArgumentName "out" ;
+    cnv:argumentAbout "Write the sealed receipt to this path instead of stdout" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:SealedReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the sealed profile receipt to re-verify" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+# --- Verb: standing certify -------------------------------------------------
+affi:StandingCertifyVerb a cnv:Verb ;
+    cnv:hasVerbName "certify" ;
+    cnv:verbAbout "Seal a standing claim over an admitted receipt (affidavit/standing/v2)" ;
+    cnv:belongsToNoun affi:StandingNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:FederationSourceReceiptArg , affi:FederationObservationArg , affi:StandingScopeArg , affi:FederationOutArg , affi:FormatArg .
+
+affi:StandingScopeArg a cnv:Argument ;
+    cnv:hasArgumentName "scope" ;
+    cnv:argumentAbout "Bounded authority scope for the CLI's certification capability; an empty scope is refused" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+# --- Verb: standing verify --------------------------------------------------
+affi:StandingVerifyVerb a cnv:Verb ;
+    cnv:hasVerbName "verify" ;
+    cnv:verbAbout "Re-run the standing law over a sealed standing receipt" ;
+    cnv:belongsToNoun affi:StandingNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SealedReceiptArg , affi:FormatArg .
+
+# --- Verb: ecosystem certify ------------------------------------------------
+affi:EcosystemCertifyVerb a cnv:Verb ;
+    cnv:hasVerbName "certify" ;
+    cnv:verbAbout "Federate sealed member standing receipts into one quorum-scored receipt" ;
+    cnv:belongsToNoun affi:EcosystemNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:FederationSourceReceiptArg , affi:FederationObservationArg , affi:FederationOutArg , affi:FormatArg .
+
+# --- Verb: ecosystem verify -------------------------------------------------
+affi:EcosystemVerifyVerb a cnv:Verb ;
+    cnv:hasVerbName "verify" ;
+    cnv:verbAbout "Re-run the federation law over a sealed ecosystem receipt" ;
+    cnv:belongsToNoun affi:EcosystemNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SealedReceiptArg , affi:FormatArg .
+
+# --- Verb: errc certify -----------------------------------------------------
+affi:ErrcCertifyVerb a cnv:Verb ;
+    cnv:hasVerbName "certify" ;
+    cnv:verbAbout "Seal a declared ERRC transformation (affidavit/errc/v1)" ;
+    cnv:belongsToNoun affi:ErrcNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:FederationSourceReceiptArg , affi:FederationObservationArg , affi:FederationOutArg , affi:FormatArg .
+
+# --- Verb: errc verify ------------------------------------------------------
+affi:ErrcVerifyVerb a cnv:Verb ;
+    cnv:hasVerbName "verify" ;
+    cnv:verbAbout "Re-run the ERRC directional and preservation laws over a sealed receipt" ;
+    cnv:belongsToNoun affi:ErrcNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SealedReceiptArg , affi:FormatArg .
+
+# --- Verb: errc assure ------------------------------------------------------
+affi:ErrcAssureVerb a cnv:Verb ;
+    cnv:hasVerbName "assure" ;
+    cnv:verbAbout "Seal a one-witness-per-claim assurance ledger over a sealed ERRC receipt" ;
+    cnv:belongsToNoun affi:ErrcNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:ErrcParentArg , affi:ErrcWitnessesArg , affi:FederationOutArg , affi:FormatArg .
+
+affi:ErrcParentArg a cnv:Argument ;
+    cnv:hasArgumentName "parent" ;
+    cnv:argumentAbout "Path to the sealed parent ERRC receipt" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:ErrcWitnessesArg a cnv:Argument ;
+    cnv:hasArgumentName "witnesses" ;
+    cnv:argumentAbout "Path to the JSON array of claim witnesses, exactly one per parent claim" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+# --- Verb: errc verify-assurance --------------------------------------------
+affi:ErrcVerifyAssuranceVerb a cnv:Verb ;
+    cnv:hasVerbName "verify-assurance" ;
+    cnv:verbAbout "Re-run the claim-assurance law, optionally binding to the exact parent ERRC receipt" ;
+    cnv:belongsToNoun affi:ErrcNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArguments affi:SealedReceiptArg , affi:OptionalErrcParentArg , affi:FormatArg .
+
+affi:OptionalErrcParentArg a cnv:Argument ;
+    cnv:hasArgumentName "parent" ;
+    cnv:argumentAbout "Optional sealed parent ERRC receipt to bind the assurance ledger to" ;
     cnv:valueType "String" ;
     cnv:required "false" .

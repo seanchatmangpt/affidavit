@@ -1,10 +1,53 @@
-# Affidavit v26.6.22 — Status Report (**1000x Initiative Complete**)
+# Affidavit v26.9.6 — Status Report
 
-**Date:** 2026-06-22
-**Status:** **1000x Initiative Complete** — 30 Features Integrated across 6 Categories
-**Version:** 26.6.22 (full features + combinatorial maximalism)
+**Date:** 2026-09-06
+**Status:** **Federation surface complete** — the evidence kernel is reachable from `affi`
+**Version:** 26.9.6
 
 ---
+
+## Current Release — v26.9.6
+
+The v26.9.x BCRE federation kernel shipped as library code in 26.9.1:
+`certify_standing`, `certify_ecosystem`, `certify_errc`, and
+`certify_errc_claim_assurance` were implemented, unit tested, and exported — but
+no verb, handler, or registry entry referenced any of them. The kernel could
+only be driven from Rust. v26.9.6 closes that gap.
+
+| Capability | State | Witness |
+|------------|-------|---------|
+| Federation CLI courts (8 verbs, 3 nouns) | ✅ Shipped | `tests/federation_cli.rs` (15 E2E tests through the real binary) |
+| `src/federation.rs` adapter | ✅ Shipped | `src/federation.rs` unit tests (13) |
+| Registry ↔ ontology ↔ projection parity | ✅ Enforced | `src/registry.rs` parity tests |
+| Release identity (`affi --version`, genesis seed, CHANGELOG, README count) | ✅ Enforced | `tests/release_identity.rs` |
+| Completions across all 77 verbs and 4 nouns | ✅ Shipped | `completions/affi.{bash,zsh,fish}` |
+| `just validate` (AGENTS.md §6 ladder) | ✅ Shipped | `justfile` |
+
+**Verification ladder at this head** — every court green:
+
+| Court | Result |
+|-------|--------|
+| `python3 -m unittest discover -s scripts/tests -p 'test_ci_errc.py'` | 11 passed |
+| `cargo fmt --all -- --check` | clean |
+| `cargo build --all-targets` | ok |
+| `cargo test --all-targets` | 822 passed, 0 failed |
+| `cargo test --doc` | 32 passed, 0 failed |
+| `cargo clippy --all-targets -- -D warnings` | clean |
+
+**Release boundary:** the chain genesis seed is derived from
+`CARGO_PKG_VERSION`, so receipts assembled by 26.6.22 fail stage 3
+(`chain_integrity`) under 26.9.6. This is intended — re-emit and re-assemble.
+
+See [`docs/FEDERATION.md`](docs/FEDERATION.md) and the
+[CHANGELOG](CHANGELOG.md#2696--2026-09-06).
+
+---
+
+## Historical: the 1000x Initiative (v26.6.17–26.6.22)
+
+*The sections below record the 1000x Initiative as reported at v26.6.22. They are
+kept as the historical record; `ROADMAP.md` carries the re-verified current
+status of every ledger item.*
 
 ## Executive Summary
 

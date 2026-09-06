@@ -1,4 +1,4 @@
-//! # Verb Registry — Single Source of Truth for All 69 Verbs
+//! # Verb Registry — Single Source of Truth for All 77 Verbs
 //!
 //! This module is the W4 keystone: a compile-time static registry that eliminates
 //! drift between documentation, shell completions, and the actual verb set.
@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 69);
+//! assert_eq!(verb_count(), 77);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -47,6 +47,8 @@ pub enum VerbGroup {
     Engineering,
     /// Tooling and infrastructure: catalog, search, profile, install_git_hook, monitor, etc.
     Tooling,
+    /// Evidence federation kernel: standing, ecosystem, and ERRC certification courts.
+    Federation,
 }
 
 impl VerbGroup {
@@ -63,6 +65,7 @@ impl VerbGroup {
             Self::Insights => "Insights",
             Self::Engineering => "Engineering",
             Self::Tooling => "Tooling",
+            Self::Federation => "Federation",
         }
     }
 
@@ -79,6 +82,7 @@ impl VerbGroup {
             Self::Insights => "Predictive and anomaly-detection insights derived from receipt chains",
             Self::Engineering => "Engineering health and productivity metrics extracted from receipt history",
             Self::Tooling => "Infrastructure tooling: catalog management, search, profiling, and hook installation",
+            Self::Federation => "Evidence federation courts: standing, ecosystem quorum, and ERRC transformation certification",
         }
     }
 }
@@ -126,7 +130,7 @@ impl VerbEntry {
     }
 }
 
-/// The complete verb registry — 69 entries, one per live verb.
+/// The complete verb registry — 77 entries, one per live verb.
 ///
 /// Ordering mirrors `src/verbs/mod.rs` (alphabetical) for easy cross-referencing.
 pub static REGISTRY: &[VerbEntry] = &[
@@ -623,6 +627,79 @@ pub static REGISTRY: &[VerbEntry] = &[
         "Run the built-in receipt self-test suite to validate the local installation",
         &["test", "self-test", "smoke-test", "sanity", "validate"],
     ),
+    // ── Federation ──────────────────────────────────────────────────────────
+    VerbEntry::new(
+        "certify",
+        "standing",
+        VerbGroup::Federation,
+        "Seal a standing claim over an admitted receipt (affidavit/standing/v2)",
+        &["certify", "standing", "alive", "evidence", "federation", "kernel"],
+    )
+    .with_example(
+        "affi standing certify --receipt r.json --observation o.json --scope repo:acme/app --out standing.json",
+    ),
+    VerbEntry::new(
+        "verify",
+        "standing",
+        VerbGroup::Federation,
+        "Re-run the standing law over a sealed standing receipt",
+        &["verify", "standing", "certify", "seal", "federation"],
+    )
+    .with_example("affi standing verify --receipt standing.json"),
+    VerbEntry::new(
+        "certify",
+        "ecosystem",
+        VerbGroup::Federation,
+        "Federate sealed member standing receipts into one quorum-scored receipt",
+        &["certify", "ecosystem", "federation", "quorum", "role", "cross-repo"],
+    )
+    .with_example(
+        "affi ecosystem certify --receipt r.json --observation federation.json --out eco.json",
+    ),
+    VerbEntry::new(
+        "verify",
+        "ecosystem",
+        VerbGroup::Federation,
+        "Re-run the federation law over a sealed ecosystem receipt",
+        &["verify", "ecosystem", "federation", "quorum", "seal"],
+    )
+    .with_example("affi ecosystem verify --receipt ecosystem.json"),
+    VerbEntry::new(
+        "certify",
+        "errc",
+        VerbGroup::Federation,
+        "Seal a declared ERRC transformation (affidavit/errc/v1)",
+        &["certify", "errc", "eliminate", "reduce", "raise", "create", "transformation"],
+    )
+    .with_example("affi errc certify --receipt r.json --observation errc.json --out errc.json"),
+    VerbEntry::new(
+        "verify",
+        "errc",
+        VerbGroup::Federation,
+        "Re-run the ERRC directional and preservation laws over a sealed receipt",
+        &["verify", "errc", "directional", "preservation", "fence", "seal"],
+    )
+    .with_example("affi errc verify --receipt errc.json"),
+    VerbEntry::new(
+        "assure",
+        "errc",
+        VerbGroup::Federation,
+        "Seal a one-witness-per-claim assurance ledger over a sealed ERRC receipt",
+        &["assure", "errc", "claim", "witness", "ledger", "assurance", "bijection"],
+    )
+    .with_example(
+        "affi errc assure --parent errc.json --witnesses w.json --out assurance.json",
+    ),
+    VerbEntry::new(
+        "verify_assurance",
+        "errc",
+        VerbGroup::Federation,
+        "Re-run the claim-assurance law, optionally binding to the exact parent ERRC receipt",
+        &["verify_assurance", "errc", "claim", "assurance", "parent", "binding"],
+    )
+    .with_example(
+        "affi errc verify-assurance --receipt assurance.json --parent errc.json",
+    ),
 ];
 
 /// Look up a verb by `(verb, noun)` pair.
@@ -712,7 +789,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 69; // 67 original + why + fix
+        let expected = 77; // 67 original + why + fix + 8 federation courts
         assert_eq!(
             verb_count(),
             expected,
@@ -795,6 +872,94 @@ mod tests {
         assert!(suggestions.len() <= 5);
     }
 
+    /// Extract every `cnv:hasVerbName "..."` / `cnv:hasNounName "..."` literal
+    /// from the authoritative ontology.
+    fn ontology_names(property: &str) -> std::collections::HashSet<String> {
+        let ttl = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/ontology/affi-cli.ttl"
+        ))
+        .expect("ontology/affi-cli.ttl is readable");
+        let needle = format!("{property} \"");
+        ttl.lines()
+            .filter_map(|line| {
+                let rest = line.trim().strip_prefix(needle.as_str())?;
+                rest.split('"').next().map(str::to_string)
+            })
+            .collect()
+    }
+
+    /// The ontology is the authoritative input for the CLI surface
+    /// (AGENTS.md §5): `src/verbs/**` is a projection of it. ggen cannot run in
+    /// every environment, so this test is what keeps the projection and its
+    /// source from drifting — it is the reason four verbs that had shipped
+    /// undeclared (`why`, `fix`, `install-git-hook`, `monitor`) were declared
+    /// in v26.9.6. Registry names use `_`; the ontology uses `-`.
+    #[test]
+    fn every_registry_verb_is_declared_in_the_ontology() {
+        let declared_verbs = ontology_names("cnv:hasVerbName");
+        let declared_nouns = ontology_names("cnv:hasNounName");
+
+        let undeclared: Vec<String> = REGISTRY
+            .iter()
+            .filter(|entry| !declared_verbs.contains(&entry.verb.replace('_', "-")))
+            .map(|entry| format!("{} {}", entry.noun, entry.verb))
+            .collect();
+        assert!(
+            undeclared.is_empty(),
+            "these verbs exist in REGISTRY but are not declared in ontology/affi-cli.ttl: {undeclared:?}. \
+             Declare them in the ontology — the projection is not the source of truth."
+        );
+
+        let undeclared_nouns: Vec<&str> = REGISTRY
+            .iter()
+            .map(|entry| entry.noun)
+            .filter(|noun| !declared_nouns.contains(*noun))
+            .collect();
+        assert!(
+            undeclared_nouns.is_empty(),
+            "these nouns exist in REGISTRY but are not declared in ontology/affi-cli.ttl: {undeclared_nouns:?}"
+        );
+    }
+
+    /// Every registry entry must have a real `#[verb(...)]` projection, or the
+    /// registry is advertising a command the binary cannot run.
+    #[test]
+    fn every_registry_entry_has_a_verb_projection() {
+        let verbs_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src/verbs");
+        let mut projected = std::collections::HashSet::new();
+        for entry in std::fs::read_dir(verbs_dir).expect("src/verbs is readable") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path).expect("verb source is readable");
+            for line in src.lines() {
+                let Some(rest) = line.trim().strip_prefix("#[verb(\"") else {
+                    continue;
+                };
+                let mut parts = rest.split('"');
+                let (Some(verb), Some(_), Some(noun)) = (parts.next(), parts.next(), parts.next())
+                else {
+                    continue;
+                };
+                projected.insert((verb.to_string(), noun.to_string()));
+            }
+        }
+
+        let unprojected: Vec<String> = REGISTRY
+            .iter()
+            .filter(|entry| {
+                !projected.contains(&(entry.verb.replace('_', "-"), entry.noun.to_string()))
+            })
+            .map(|entry| format!("{} {}", entry.noun, entry.verb))
+            .collect();
+        assert!(
+            unprojected.is_empty(),
+            "REGISTRY advertises verbs with no #[verb] projection in src/verbs/: {unprojected:?}"
+        );
+    }
+
     #[test]
     fn all_groups_have_at_least_one_entry() {
         let groups = [
@@ -808,6 +973,7 @@ mod tests {
             VerbGroup::Insights,
             VerbGroup::Engineering,
             VerbGroup::Tooling,
+            VerbGroup::Federation,
         ];
         for group in groups {
             let entries = by_group(group);

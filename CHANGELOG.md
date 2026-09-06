@@ -2,6 +2,85 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.9.6] — 2026-09-06
+
+**Theme: the evidence federation kernel becomes reachable.**
+
+The v26.9.x BCRE federation kernel landed as library code — `certify_standing`,
+`certify_ecosystem`, `certify_errc`, and `certify_errc_claim_assurance` were
+implemented, unit tested, and exported from `src/lib.rs`, but no verb, handler,
+or registry entry referenced any of them. The kernel could only be driven from
+Rust. This release gives it a real, tested operator surface and brings the
+release identity back in line with the code.
+
+### Added
+- **Federation courts** (`src/federation.rs`): the adapter layer between the CLI
+  and the four kernel certifiers. Loads a `core/v1` receipt, drives it through
+  the real Layer 2 gate (`admission::admit`, which runs both the wasm4pm-compat
+  OCEL court and the affidavit certify pipeline), parses a bounded observation,
+  and seals the profile receipt. It performs **no adjudication of its own** —
+  every accept/refuse decision belongs to `admission` or to the kernel.
+- **Eight new verbs across three new nouns** (69 → 77 verbs, 10 → 11 groups):
+  - `affi standing certify` / `affi standing verify` — `affidavit/standing/v2`
+  - `affi ecosystem certify` / `affi ecosystem verify` — `affidavit/ecosystem/v1`
+  - `affi errc certify` / `affi errc verify` — `affidavit/errc/v1`
+  - `affi errc assure` / `affi errc verify-assurance` —
+    `affidavit/errc-claim-assurance/v1`
+- **`VerbGroup::Federation`** in `src/registry.rs` — the eleventh taxonomy group.
+- **`--out <PATH>`** on every `certify`/`assure` verb. The `clap-noun-verb`
+  runtime appends its own rendering of each verb's return value to stdout, so a
+  shell redirect of certify output is not parseable; `--out` writes the sealed
+  receipt as a clean artifact so `certify | verify` composes in a real script.
+- **Ontology/registry/projection parity tests** (`src/registry.rs`):
+  `every_registry_verb_is_declared_in_the_ontology` and
+  `every_registry_entry_has_a_verb_projection`. `ontology/affi-cli.ttl` is the
+  authoritative CLI input (AGENTS.md §5) but `ggen` cannot run in every
+  environment, so these tests are what keep the projection honest.
+- **`tests/federation_cli.rs`** — 15 end-to-end tests driving the real `affi`
+  binary: certify → verify round trips, tamper detection, the ALIVE evidence
+  law, unmet role quorums, ERRC directional refusals, and the assurance
+  bijection. Library tests pass whether or not the CLI surface exists; these do
+  not.
+- **`tests/release_identity.rs`** — holds `affi --version`, `GENESIS_SEED`,
+  `CHANGELOG.md`, and the README verb count to the package version.
+- **`just validate`** — the AGENTS.md §6 verification ladder as one recipe.
+- **`docs/FEDERATION.md`** — the operator guide for the federation courts, with
+  a complete worked example and the exit-code contract.
+
+### Changed
+- **Version**: `26.6.22` → `26.9.6` in `Cargo.toml`, `Cargo.lock`, `ggen.toml`,
+  and the `affi-shell` banner. Because the chain genesis seed is
+  `concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis")`, **receipts
+  assembled by 26.6.22 will fail stage 3 (`chain_integrity`) under 26.9.6.**
+  This is the intended release-boundary behaviour, not a regression: re-emit and
+  re-assemble against the new binary.
+- **Shell completions** now cover all 77 verbs and the three federation nouns
+  across bash, zsh, and fish.
+- **`justfile`**: removed the stale header claiming the Rust recipes cannot run
+  because `wasm4pm-compat 26.6.13` does not compile. The real published
+  `wasm4pm-compat 26.8.7` is admitted and the full ladder passes.
+- **`ROADMAP.md`** re-verified against the code: B3, B5, B6, B10, P0-2, P0-3,
+  P1-2, P1-3, P1-4 and P1-6 were marked open but had already shipped.
+
+### Fixed
+- **`affi --version` reported the framework version.** `clap-noun-verb` builds
+  its root command with its own `CARGO_PKG_VERSION`, so `affi --version`
+  answered `cli 26.6.2`. Since the genesis seed is bound to the affidavit
+  version, an operator diagnosing a cross-version `chain_integrity` failure was
+  reading the wrong number. `src/bin/affi.rs` now answers a bare top-level
+  `--version`/`-V` itself; subcommand `--version` still reaches the framework.
+- **Ontology drift**: `why`, `fix`, `install-git-hook`, and `monitor` shipped in
+  the projection without ever being declared in `ontology/affi-cli.ttl`. All
+  four are now declared, and the parity test blocks the drift from returning.
+
+### Internal
+- Removed `src/handlers_stubs.rs` — 300 lines of `todo!()` referenced by nothing
+  in `src/`, `tests/`, `benches/`, `examples/`, or `build.rs`. `generate_verbs.py`
+  regenerates it on demand.
+- Test suite: 822 tests + 32 doctests, all passing under
+  `cargo test --all-targets`, `cargo test --doc`, and
+  `cargo clippy --all-targets -- -D warnings`.
+
 ## [26.6.22] — 2026-06-22
 
 ### Changed

@@ -1,6 +1,6 @@
 # affidavit — Provenance Layer Documentation
 
-**Version:** 26.6.22  
+**Version:** 26.9.6  
 **Project:** Receipt Assembly & Certification  
 **Language:** Rust (2021 edition)  
 **License:** MIT OR Apache-2.0
@@ -23,7 +23,7 @@ The project's doctrine: **certify, don't decide.** The verifier checks a receipt
 
 The root build situation changed — earlier docs that say "the root crate cannot compile" are now **stale**:
 
-- The root `affidavit` crate **builds and tests**. The previously-broken upstream crates (`wasm4pm`, `wasm4pm-compat`, `clnrm-core`) are replaced by local stubs via `[patch.crates-io]` in `Cargo.toml` (`stubs/`). `cargo build --all-targets` and `cargo test` pass (789 tests, incl. doctests); `cargo fmt --all -- --check` passes.
+- The root `affidavit` crate **builds and tests**. The real published `wasm4pm-compat 26.8.7` is the admitted structural dependency; `wasm4pm` and `clnrm-core` remain fenced by local stubs via `[patch.crates-io]` in `Cargo.toml` (`stubs/`). `cargo build --all-targets` and `cargo test --all-targets` pass (822 tests + 32 doctests); `cargo fmt --all -- --check` passes. Run the whole AGENTS.md §6 ladder with `just validate`.
 - `cargo clippy --all-targets -- -D warnings` passes too: `src/lib.rs` denies `clippy::print_stdout`, and library output routes through `src/output.rs` (via the crate-internal `outln!` / `out!` macros) instead of raw `println!`. Use `outln!` (or an `Out`) for new library output; the `clippy` CI job now blocks. Don't delete `stubs/` or the `[patch]` block to "fix" deps.
 - Buildable, tested subprojects also live elsewhere: **`affidavit-core/`** (zero-dep `no_std` verifier + process mining — `cargo test` green), **`web/`** (Next.js — `npx tsc --noEmit`), **`tools/confevo/`** (Python — `python3 -m unittest`).
 - Full operational map, per-area validate commands, and conventions: **[`AGENTS.md`](AGENTS.md)** (and **[`affidavit-core/AGENTS.md`](affidavit-core/AGENTS.md)** for that crate's strict invariants).
@@ -47,12 +47,17 @@ affidavit/
 │   ├── verifier.rs           # 7-stage certify pipeline
 │   ├── types.rs              # Domain types (Event, Receipt, Verdict)
 │   ├── admission.rs          # Validation gates
-│   ├── registry.rs           # Compile-time verb registry (69 verbs, 10 groups)
+│   ├── registry.rs           # Compile-time verb registry (77 verbs, 11 groups)
 │   ├── diag.rs               # Stable exit codes & structured diagnostics
 │   ├── output.rs             # Unified Out handle (human/JSON/YAML)
 │   ├── discovery.rs          # Type discovery & schema registry
 │   ├── ocel.rs               # Object-Centric Event Logs integration
 │   ├── handlers.rs           # Event dispatch & routing
+│   ├── federation.rs         # Federation courts: the CLI seam over the evidence kernel
+│   ├── standing.rs           # Ecosystem standing v2 certifier
+│   ├── ecosystem.rs          # Cross-repo evidence federation certifier
+│   ├── errc.rs               # Formal ERRC v1 transformation certifier
+│   ├── errc_claim_assurance.rs # One-witness-per-claim assurance ledger
 │   ├── lsp/                  # Language server integration
 │   ├── tracing.rs            # Observable spans & telemetry
 │   ├── quality.rs            # Western Electric SPC monitoring
@@ -184,13 +189,13 @@ The verifier maps 1:1 to a C4 Level-3 component view:
 
 ## CLI Surface
 
-The CLI exposes **69 canonical verbs** across 10 groups, defined in `src/registry.rs`. Run `affi --help` for the full list or use `affi guide search <keyword>` for fuzzy lookup.
+The CLI exposes **77 canonical verbs** across 11 groups, defined in `src/registry.rs`. Run `affi --help` for the full list or use `affi guide search <keyword>` for fuzzy lookup.
 
-**Verb groups:** Core · Diagnostics · Analysis · Ingestion · Compliance · Attestation · SBOM · Insights · Engineering · Tooling
+**Verb groups:** Core · Diagnostics · Analysis · Ingestion · Compliance · Attestation · SBOM · Insights · Engineering · Tooling · Federation
 
 ### Core Commands (Noun-Verb Pattern)
 
-Affidavit v26.6.22 provides a comprehensive CLI organized into 9 primary verb families:
+Affidavit v26.9.6 provides a comprehensive CLI organized into 10 primary verb families:
 
 **Core Provenance (11 verbs):**
 `emit`, `assemble`, `verify`, `show`, `inspect`, `diagnose`, `stats`, `graph`, `replay`, `model`, `conformance`
@@ -215,6 +220,13 @@ Affidavit v26.6.22 provides a comprehensive CLI organized into 9 primary verb fa
 
 **Analysis & Troubleshooting (14 verbs):**
 `causality-chain`, `dependency-matrix`, `security-debt`, `tech-debt`, `root-cause`, `explain-incident`, `find-blast-radius`, `bus-factor`, `orphaned-code`, `coverage-analysis`, `dora-metrics`, `team-velocity`, `find-slow-test`, `regression-analysis`
+
+**Evidence Federation (8 verbs, new in v26.9.6):**
+`standing certify`, `standing verify`, `ecosystem certify`, `ecosystem verify`, `errc certify`, `errc verify`, `errc assure`, `errc verify-assurance`
+
+These are the operator surface over the federation kernel (`src/standing.rs`,
+`src/ecosystem.rs`, `src/errc.rs`, `src/errc_claim_assurance.rs`) via the
+adapter in `src/federation.rs`. See `docs/FEDERATION.md`.
 
 **Developer Tools (6 verbs):**
 `doctor`, `diff`, `visualize`, `catalog`, `search`, `query`, `timeline`, `profile`, `receipt-throughput`, `install-git-hook`, `test`
@@ -368,11 +380,22 @@ All fallible operations use `Result<T, E>` with proper error propagation. Tests 
 
 ### Add a New Verb (Command)
 
-1. Create `src/verbs/myverb.rs`
-2. Implement `pub async fn handle_myverb(args: MyVerbArgs) -> Result<()>`
-3. Add to `src/verbs/mod.rs` and `src/cli.rs`
-4. Add a test in the module
-5. (Optional) Add an example in `examples/`
+`ontology/affi-cli.ttl` is the authoritative input (AGENTS.md §5); everything
+else is a projection of it. `ggen` cannot run in every environment, so the
+parity tests in `src/registry.rs` are what keep the projection honest — they
+fail if you skip step 1 or step 4.
+
+1. Declare the verb (and its arguments, and its noun if new) in
+   `ontology/affi-cli.ttl`
+2. Create `src/verbs/myverb.rs` with a thin `#[verb("my-verb", "mynoun")]`
+   wrapper delegating to `crate::handlers::my_verb`
+3. Add the `pub mod` line to `src/verbs/mod.rs` and the handler to
+   `src/handlers.rs`
+4. Add a `VerbEntry` to `REGISTRY` in `src/registry.rs` and bump the count in
+   `registry_entry_count_matches_constant`
+5. Add a test that fails if the wiring is removed
+6. Update `completions/affi.{bash,zsh,fish}`
+7. (Optional) Add an example in `examples/`
 
 ### Extend the Verifier
 
@@ -546,5 +569,5 @@ MIT OR Apache-2.0
 
 ---
 
-**Last Updated:** 2026-06-22  
+**Last Updated:** 2026-09-06  
 **Maintained by:** Sean Chatman (xpointsh@gmail.com)
