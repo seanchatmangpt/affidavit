@@ -25,6 +25,30 @@ exclude = [
   "*.py",
   ".claude/",
   "scripts/",
+  # Never-compiled sources. These 17 files live under src/ but are declared in
+  # no `mod` and mapped by no `#[path]`, so the compiler never sees them —
+  # publishing them would ship 164 KB of code that has never been type-checked
+  # as if it were part of the crate. They are kept in the repository (they are
+  # the 1000x-initiative drafts and are candidates for future feature gates,
+  # see ROADMAP P2-8) but excluded from the package. `orphaned_sources_are_declared_or_excluded`
+  # in tests/release_identity.rs holds this list to reality.
+  "src/1000x_autonomous_governance.rs",
+  "src/1000x_chaos_e2e.rs",
+  "src/1000x_cli_telepathy_qol.rs",
+  "src/1000x_distributed_sharding.rs",
+  "src/1000x_formal_verification_spec.rs",
+  "src/1000x_holographic_lsp_dx.rs",
+  "src/1000x_nlp_query_qol.rs",
+  "src/1000x_otel_hyper_spec.rs",
+  "src/1000x_receipt_to_wasm_qol.rs",
+  "src/1000x_semantic_isomorphism_e2e.rs",
+  "src/1000x_swarm_e2e.rs",
+  "src/1000x_tdd_synthesizer_dx.rs",
+  "src/1000x_time_travel_dx.rs",
+  "src/generation.rs",
+  "src/metrics.rs",
+  "src/mining.rs",
+  "src/mutation.rs",
 ]
 
 [[bin]]

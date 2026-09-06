@@ -136,7 +136,14 @@ release identity back in line with the code.
 - Removed `src/handlers_stubs.rs` — 300 lines of `todo!()` referenced by nothing
   in `src/`, `tests/`, `benches/`, `examples/`, or `build.rs`. `generate_verbs.py`
   regenerates it on demand.
-- Test suite: 826 tests + 32 doctests, all passing under
+- 17 files under `src/` (164 KB: the 13 `1000x_*.rs` drafts plus
+  `generation.rs`, `metrics.rs`, `mining.rs`, `mutation.rs`) are declared by no
+  `mod` and mapped by no `#[path]`, so the compiler never sees them — yet
+  `cargo package` shipped them. They are now named in Cargo.toml's `exclude`,
+  and `orphaned_sources_are_declared_or_excluded` refuses to let the list grow
+  silently. Nothing was deleted; deciding each file's fate is tracked as
+  ROADMAP P2-8.
+- Test suite: 827 tests + 32 doctests, all passing under
   `cargo test --all-targets`, `cargo test --doc`, and
   `cargo clippy --all-targets -- -D warnings`.
 

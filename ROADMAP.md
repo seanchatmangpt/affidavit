@@ -134,6 +134,21 @@ working-chain.
 **What:** Auto-generate `man/affi-<noun>-<verb>.1` from registry entries.
 **Dependency:** P1-5 (same generation seam)
 
+### [P2-8] Resolve the 17 never-compiled sources under `src/`
+**Status:** Open
+**What:** 164 KB across 17 files (13 `1000x_*.rs` drafts plus `generation.rs`,
+`metrics.rs`, `mining.rs`, `mutation.rs`) sit in `src/` declared by no `mod` and
+mapped by no `#[path]`, so the compiler never sees them — never type-checked,
+never linted, never tested. v26.9.6 named them in Cargo.toml's `exclude` so the
+published crate stops shipping them, and
+`orphaned_sources_are_declared_or_excluded` in `tests/release_identity.rs`
+prevents the list growing silently. That bounds the problem; it does not solve
+it.
+**Done when:** each file is either wired behind a feature gate (as
+`1000x_gpu_verifier.rs`, `1000x_auto_remediate_dx.rs`, and
+`1000x_post_quantum_sealing.rs` already are) with tests that compile it, or
+deleted. Deciding per file needs the author, not an agent.
+
 ### [P2-7] Regroup benchmark and governance verbs under their own nouns
 **Status:** Open
 **What:** `ontology/affi-cli.ttl` declares `bench` and `governance` nouns, but

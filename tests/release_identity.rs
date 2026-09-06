@@ -122,3 +122,52 @@ fn the_browser_verifier_uses_the_same_genesis_seed_as_the_binary() {
         );
     }
 }
+
+#[test]
+fn orphaned_sources_are_declared_or_excluded() {
+    // A file under src/ that no `mod` declares and no `#[path]` maps is never
+    // seen by the compiler: it is never type-checked, never linted, and never
+    // tested — yet `cargo package` would ship it as part of the crate. Either
+    // wire it up or name it in Cargo.toml's `exclude`. This test refuses the
+    // third option of leaving it silently in between.
+    let root = env!("CARGO_MANIFEST_DIR");
+    let lib_rs = fs::read_to_string(format!("{root}/src/lib.rs")).expect("src/lib.rs is readable");
+    let manifest =
+        fs::read_to_string(format!("{root}/Cargo.toml")).expect("Cargo.toml is readable");
+
+    let mut orphans = Vec::new();
+    for entry in fs::read_dir(format!("{root}/src")).expect("src/ is readable") {
+        let path = entry.expect("dir entry").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .expect("file name is UTF-8")
+            .to_string();
+        if file_name == "lib.rs" {
+            continue;
+        }
+        let stem = file_name.trim_end_matches(".rs");
+
+        // Declared as `mod <stem>;` (possibly `pub`, possibly cfg-gated above)?
+        let declared = lib_rs.contains(&format!("mod {stem};"));
+        // Mapped by `#[path = "<file>"]`?
+        let mapped = lib_rs.contains(&format!("#[path = \"{file_name}\"]"));
+        // Named in the package `exclude` list?
+        let excluded = manifest.contains(&format!("\"src/{file_name}\""));
+
+        if !declared && !mapped && !excluded {
+            orphans.push(file_name);
+        }
+    }
+    orphans.sort();
+
+    assert!(
+        orphans.is_empty(),
+        "these files sit in src/ but are never compiled and are not excluded from the \
+         published package: {orphans:?}. Declare them with `mod`, map them with `#[path]`, \
+         or add them to Cargo.toml's `exclude`."
+    );
+}
