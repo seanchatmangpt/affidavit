@@ -171,3 +171,83 @@ fn orphaned_sources_are_declared_or_excluded() {
          or add them to Cargo.toml's `exclude`."
     );
 }
+
+#[test]
+fn shell_completions_offer_only_dispatchable_verbs() {
+    // The completions are hand-maintained, and they had copied the registry's
+    // old snake_case spelling: 39 of the names they offered (`verify_compliance`,
+    // `root_cause`, `emit_from_github`, …) are rejected by the binary, which
+    // dispatches kebab-case. A completion that types a command the CLI refuses
+    // is worse than no completion. They also advertised a `quality` noun and
+    // three `guide` verbs that do not exist.
+    //
+    // Generating them from REGISTRY is the real fix (ROADMAP P1-5); until then
+    // this test is what keeps them honest.
+    let live: std::collections::HashSet<String> = affidavit::registry::REGISTRY
+        .iter()
+        .map(|entry| entry.verb.to_string())
+        .collect();
+    let nouns: std::collections::HashSet<String> = affidavit::registry::REGISTRY
+        .iter()
+        .map(|entry| entry.noun.to_string())
+        .collect();
+
+    for shell in ["bash", "zsh", "fish"] {
+        let path = format!("{}/completions/affi.{shell}", env!("CARGO_MANIFEST_DIR"));
+        let source = fs::read_to_string(&path).expect("completion script is readable");
+
+        // Any token that looks like a verb name but carries `_` cannot be
+        // dispatched. Shell *variable* names (receipt_verbs, affi_verbs) are
+        // not offered to the user, so only quoted/offered tokens are checked.
+        let offered: Vec<&str> = match shell {
+            // bash: the space-separated word lists assigned to *_verbs
+            "bash" => source
+                .split("_verbs=\"")
+                .skip(1)
+                .filter_map(|rest| rest.split('"').next())
+                .flat_map(str::split_whitespace)
+                .collect(),
+            // zsh: 'verb[Description]'
+            "zsh" => source
+                .split('\'')
+                .filter(|chunk| chunk.contains('['))
+                .filter_map(|chunk| chunk.split('[').next())
+                .filter(|tok| {
+                    !tok.is_empty()
+                        && tok.chars().all(|c| {
+                            c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_'
+                        })
+                })
+                .collect(),
+            // fish: `-a <token>`
+            _ => source
+                .split(" -a ")
+                .skip(1)
+                .filter_map(|rest| rest.split_whitespace().next())
+                .filter(|tok| {
+                    tok.chars().all(|c| {
+                        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_'
+                    })
+                })
+                .collect(),
+        };
+
+        assert!(
+            !offered.is_empty(),
+            "parsed no completion tokens out of {path} — the parser is wrong, not the file"
+        );
+
+        let undispatchable: Vec<&&str> = offered
+            .iter()
+            // Flags are offered too and are not registry entries.
+            .filter(|tok| !tok.starts_with('-'))
+            .filter(|tok| !matches!(**tok, "help"))
+            .filter(|tok| !live.contains(**tok) && !nouns.contains(**tok))
+            .collect();
+        assert!(
+            undispatchable.is_empty(),
+            "completions/affi.{shell} offers tokens the binary does not dispatch: {undispatchable:?}. \
+             The CLI uses kebab-case; every offered verb must appear in REGISTRY."
+        );
+    }
+}

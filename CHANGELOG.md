@@ -48,7 +48,20 @@ release identity back in line with the code.
   bijection. Library tests pass whether or not the CLI surface exists; these do
   not.
 - **`tests/release_identity.rs`** — holds `affi --version`, `GENESIS_SEED`,
-  `CHANGELOG.md`, and the README verb count to the package version.
+  `CHANGELOG.md`, the README verb count, the browser verifier's genesis seed,
+  the never-compiled-sources list, and the shell completions to the package
+  version and the registry.
+- **Five anti-forgery tests for the kernel's derived fields.** `coverage` and
+  `standing` (ecosystem) and `claim_ids` (claim assurance) are *derived*, not
+  inputs — so a forger can rewrite one, recompute `receipt_hash` over the
+  doctored material (the algorithm is deterministic and public), and produce a
+  receipt that hashes correctly. `CoverageMismatch`, `StandingMismatch` and
+  `ClaimSetMismatch` are the only things standing between that attacker and a
+  forged federation, and **none of the three had a single test**. They now do,
+  including the JSON round trip an operator actually uses and the proof that
+  `verify_against(parent)` is load-bearing rather than optional: a shrunken
+  claim ledger passes standalone `verify()` and is caught only against its
+  parent.
 - **`just validate`** — the AGENTS.md §6 verification ladder as one recipe.
 - **`docs/FEDERATION.md`** — the operator guide for the federation courts, with
   a complete worked example and the exit-code contract.
@@ -61,9 +74,14 @@ release identity back in line with the code.
   This is the intended release-boundary behaviour, not a regression: re-emit and
   re-assemble against the new binary.
 - **Shell completions** now cover all 79 verbs and all six nouns across bash,
-  zsh, and fish. They previously advertised a `quality` noun and `guide
-  tutorial`/`examples`/`man` verbs that the binary does not have, and omitted
-  `receipt-throughput`.
+  zsh, and fish, **using the kebab-case names the binary actually dispatches**.
+  They had copied the registry's old snake_case spelling, so 39 of the names
+  they offered (`verify_compliance`, `root_cause`, `emit_from_github`, …) were
+  rejected outright — a completion that types a command the CLI refuses is
+  worse than none. They also advertised a `quality` noun and `guide
+  tutorial`/`examples`/`man` verbs that do not exist, and omitted
+  `receipt-throughput`. `shell_completions_offer_only_dispatchable_verbs` now
+  holds all three files to the registry.
 - **`justfile`**: removed the stale header claiming the Rust recipes cannot run
   because `wasm4pm-compat 26.6.13` does not compile. The real published
   `wasm4pm-compat 26.8.7` is admitted and the full ladder passes.
@@ -174,7 +192,7 @@ release identity back in line with the code.
   and `orphaned_sources_are_declared_or_excluded` refuses to let the list grow
   silently. Nothing was deleted; deciding each file's fate is tracked as
   ROADMAP P2-8.
-- Test suite: 827 tests + 32 doctests, all passing under
+- Test suite: 833 tests + 32 doctests, all passing under
   `cargo test --all-targets`, `cargo test --doc`, and
   `cargo clippy --all-targets -- -D warnings`.
 

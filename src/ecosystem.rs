@@ -857,4 +857,144 @@ mod tests {
             Err(EcosystemRefusal::ZeroAliveRequirement(_))
         ));
     }
+
+    /// A forger who edits a DERIVED field and recomputes the receipt hash.
+    ///
+    /// `coverage` is not an input — `certify_ecosystem` computes it from
+    /// `requirements` and `members`. If `verify()` only checked the hash, an
+    /// attacker could rewrite `coverage` to claim a quorum was met, recompute
+    /// `receipt_hash` over the doctored material (the algorithm is
+    /// deterministic and public), and present a receipt that hashes correctly.
+    ///
+    /// `CoverageMismatch` is the only thing standing between that attacker and
+    /// a forged federation, and until now nothing exercised it. This test
+    /// recomputes the hash exactly as the module does, so it fails for the one
+    /// reason that matters rather than tripping the hash check first.
+    #[test]
+    fn a_forged_coverage_is_refused_even_when_the_receipt_hash_matches() {
+        let admitted = admitted_receipt();
+        let receipt = certify_ecosystem(&admitted, observation(&admitted)).expect("certified");
+
+        // Rewrite the derived topology: claim an unsatisfied role is satisfied.
+        let mut coverage = receipt.coverage.clone();
+        coverage[0].alive += 7;
+        coverage[0].satisfied = true;
+        assert_ne!(
+            coverage, receipt.coverage,
+            "the tamper must actually change coverage"
+        );
+
+        // Recompute the hash over the doctored material — the forger's move.
+        let receipt_hash = compute_receipt_hash(
+            &receipt.profile,
+            &receipt.claim_ceiling,
+            &receipt.authority_ceiling,
+            &receipt.subject,
+            &receipt.observation_commitment,
+            &receipt.admitted_receipt_hash,
+            &receipt.requirements,
+            &receipt.members,
+            &coverage,
+            receipt.standing,
+            &receipt.previous_receipt,
+        )
+        .expect("hash");
+
+        let forged = EcosystemReceipt {
+            coverage,
+            receipt_hash,
+            ..receipt
+        };
+
+        assert_eq!(
+            forged.verify(),
+            Err(EcosystemRefusal::CoverageMismatch),
+            "a self-consistent hash must not rescue a doctored coverage table"
+        );
+    }
+
+    /// The same attack against the derived `standing` field.
+    ///
+    /// `standing` is computed from members and coverage. Promoting it to ALIVE
+    /// with a matching hash is the most valuable forgery this format admits —
+    /// it is the crown the whole federation exists to withhold.
+    #[test]
+    fn a_forged_alive_standing_is_refused_even_when_the_receipt_hash_matches() {
+        let admitted = admitted_receipt();
+        let mut base = observation(&admitted);
+        // Downgrade one member so the honest federation is NOT Alive.
+        base.members[1].standing_receipt =
+            member_receipt(&admitted, "seanchatmangpt/ggen", Standing::PartialAlive);
+        let receipt = certify_ecosystem(&admitted, base).expect("certified");
+        assert_ne!(
+            receipt.standing,
+            Standing::Alive,
+            "the honest federation must not already be Alive, or this proves nothing"
+        );
+
+        let receipt_hash = compute_receipt_hash(
+            &receipt.profile,
+            &receipt.claim_ceiling,
+            &receipt.authority_ceiling,
+            &receipt.subject,
+            &receipt.observation_commitment,
+            &receipt.admitted_receipt_hash,
+            &receipt.requirements,
+            &receipt.members,
+            &receipt.coverage,
+            Standing::Alive,
+            &receipt.previous_receipt,
+        )
+        .expect("hash");
+
+        let forged = EcosystemReceipt {
+            standing: Standing::Alive,
+            receipt_hash,
+            ..receipt
+        };
+
+        assert_eq!(
+            forged.verify(),
+            Err(EcosystemRefusal::StandingMismatch),
+            "ALIVE must be derived from the members, never asserted"
+        );
+    }
+
+    /// Deserialization must run the same law: a forged receipt cannot be
+    /// loaded from JSON either, which is the path an operator actually uses.
+    #[test]
+    fn a_forged_standing_cannot_be_deserialized_from_json() {
+        let admitted = admitted_receipt();
+        let mut base = observation(&admitted);
+        base.members[1].standing_receipt =
+            member_receipt(&admitted, "seanchatmangpt/ggen", Standing::PartialAlive);
+        let receipt = certify_ecosystem(&admitted, base).expect("certified");
+
+        let receipt_hash = compute_receipt_hash(
+            &receipt.profile,
+            &receipt.claim_ceiling,
+            &receipt.authority_ceiling,
+            &receipt.subject,
+            &receipt.observation_commitment,
+            &receipt.admitted_receipt_hash,
+            &receipt.requirements,
+            &receipt.members,
+            &receipt.coverage,
+            Standing::Alive,
+            &receipt.previous_receipt,
+        )
+        .expect("hash");
+        let forged = EcosystemReceipt {
+            standing: Standing::Alive,
+            receipt_hash,
+            ..receipt
+        };
+
+        let json = serde_json::to_string(&forged).expect("serializes");
+        let reloaded: Result<EcosystemReceipt, _> = serde_json::from_str(&json);
+        assert!(
+            reloaded.is_err(),
+            "a forged federation must not survive a round trip through JSON"
+        );
+    }
 }

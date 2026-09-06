@@ -643,4 +643,100 @@ mod tests {
         );
         assert_eq!(receipt.claim_ceiling, ERRC_CLAIM_ASSURANCE_CEILING);
     }
+
+    /// A forger who edits the DERIVED claim-id set and recomputes the hash.
+    ///
+    /// `claim_ids` is copied from the verified parent by
+    /// `certify_errc_claim_assurance`; it is not an input. An attacker who
+    /// wants an assurance receipt to appear complete over a *smaller* claim set
+    /// than its parent actually has can drop ids, recompute `receipt_hash` over
+    /// the doctored material, and produce something that is internally
+    /// consistent — `verify()` alone accepts it, because the bijection between
+    /// `claim_ids` and `witnesses` still holds.
+    ///
+    /// Only `verify_against(parent)` catches it, via `ClaimSetMismatch`. That
+    /// makes the parent argument load-bearing rather than optional
+    /// convenience, and nothing exercised it until now.
+    #[test]
+    fn a_shrunken_claim_set_is_refused_when_checked_against_its_parent() {
+        let parent = parent_receipt("candidate-forgery");
+        let witnesses: Vec<ErrcClaimWitness> =
+            parent.claims.iter().map(|c| witness(&c.id)).collect();
+        let honest = certify_errc_claim_assurance(&parent, witnesses).expect("certified");
+        assert!(
+            honest.claim_ids.len() > 1,
+            "the parent needs more than one claim for this forgery to mean anything"
+        );
+
+        // Drop a claim and its witness, keeping the ledger self-consistent.
+        let dropped = honest.claim_ids[0].clone();
+        let claim_ids: Vec<String> = honest
+            .claim_ids
+            .iter()
+            .filter(|id| **id != dropped)
+            .cloned()
+            .collect();
+        let witnesses: Vec<ErrcClaimWitness> = honest
+            .witnesses
+            .iter()
+            .filter(|w| w.claim_id != dropped)
+            .cloned()
+            .collect();
+
+        let receipt_hash = compute_receipt_hash(
+            &honest.profile,
+            &honest.source,
+            &honest.claim_ceiling,
+            &honest.errc_receipt_hash,
+            &claim_ids,
+            &witnesses,
+        )
+        .expect("hash");
+
+        let forged = ErrcClaimAssuranceReceipt {
+            claim_ids,
+            witnesses,
+            receipt_hash,
+            ..honest
+        };
+
+        // Standalone verification cannot see the theft: the ledger is a valid
+        // bijection over the claims it admits to.
+        assert_eq!(
+            forged.verify(),
+            Ok(()),
+            "the doctored ledger is internally consistent — that is precisely why \
+             verify_against(parent) exists"
+        );
+
+        // Against the parent, the theft is named.
+        assert_eq!(
+            forged.verify_against(&parent),
+            Err(ErrcClaimAssuranceRefusal::ClaimSetMismatch),
+            "an assurance receipt must cover every claim its parent makes"
+        );
+    }
+
+    /// The parent-binding half of the same law: a ledger built for one parent
+    /// must not verify against a different one, even though both are valid.
+    #[test]
+    fn an_assurance_ledger_does_not_transfer_to_a_different_parent() {
+        let parent = parent_receipt("candidate-a");
+        let other = parent_receipt("candidate-b");
+        assert_ne!(
+            parent.receipt_hash, other.receipt_hash,
+            "the two parents must be distinct receipts"
+        );
+
+        let witnesses: Vec<ErrcClaimWitness> =
+            parent.claims.iter().map(|c| witness(&c.id)).collect();
+        let ledger = certify_errc_claim_assurance(&parent, witnesses).expect("certified");
+
+        assert_eq!(ledger.verify_against(&parent), Ok(()));
+        assert_eq!(
+            ledger.verify_against(&other),
+            Err(ErrcClaimAssuranceRefusal::ParentHashMismatch),
+            "assurance is bound to an exact parent, not to a claim-id shape"
+        );
+    }
 }

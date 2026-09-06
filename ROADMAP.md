@@ -74,6 +74,9 @@ had already shipped; the statuses below carry the evidence.
 | B24 | Med | **FIXED** | README told users to run `cargo build --release --all-features`, which fails, and claimed "65+ canonical verbs" three lines from its own "79" | README install block + feature-status table |
 | B25 | Med | **Open** | Seven targets with `required-features` are silently skipped by CI, and `--features gpu`/`remediation` fail clippy | see P1-8 |
 
+| B26 | High | **FIXED** | Shell completions offered 39 snake_case verb names the binary rejects — a completion that types a refused command | all three files regenerated from REGISTRY; `shell_completions_offer_only_dispatchable_verbs` |
+| B27 | High | **FIXED** | The three checks that make the kernel unforgeable (`CoverageMismatch`, `StandingMismatch`, `ClaimSetMismatch`) had zero tests | 5 anti-forgery tests in `src/ecosystem.rs` and `src/errc_claim_assurance.rs` |
+
 ---
 
 ## Shipped in 26.9.6
@@ -90,6 +93,8 @@ had already shipped; the statuses below carry the evidence.
 | **(verb, noun) parity, both directions** | caught `receipt-throughput` uncompiled, `affi doctor`/`guide search` unregistered, 41 snake_case tokens, 4 wrong-noun declarations |
 | **Web seed guard** | `tests/release_identity.rs` pins the TypeScript verifier's genesis seed to the crate version |
 | **Golden example runs** | `examples/golden_run.sh` fixed; `tests/golden_run.rs` executes it |
+| **Completions dispatchable** | kebab-case throughout, held to REGISTRY by a test |
+| **Kernel unforgeability tested** | derived-field forgeries with matching hashes are refused by name |
 
 ---
 
