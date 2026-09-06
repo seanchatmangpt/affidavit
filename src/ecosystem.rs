@@ -584,7 +584,16 @@ fn require_text(field: &'static str, value: &str) -> Result<(), EcosystemRefusal
 
 fn require_blake3(field: &'static str, value: &Blake3Hash) -> Result<(), EcosystemRefusal> {
     let hex = value.as_hex();
-    if hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    // Lowercase only. `is_ascii_hexdigit` also accepts A-F, which would let
+    // the same digest appear as two distinct strings and therefore hash to
+    // two distinct receipt identities — a canonicalisation hole under ADR-5.
+    // Every digest this crate produces is lowercase (`blake3::Hash::to_hex`),
+    // so this narrows admission to what is already canonical.
+    if hex.len() == 64
+        && hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
         Ok(())
     } else {
         Err(EcosystemRefusal::MalformedBlake3(field))

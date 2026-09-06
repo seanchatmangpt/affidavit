@@ -133,6 +133,17 @@ release identity back in line with the code.
   `audit` under `governance`, while all four ship under `receipt`. The four now
   point at `ReceiptNoun`; `bench` and `governance` are marked RESERVED with the
   regrouping tracked as ROADMAP P2-7.
+- **BLAKE3 digests are now canonically lowercase in all four kernel profiles.**
+  The validators used `is_ascii_hexdigit`, which accepts `A-F`, so the same
+  digest could be written two ways — and because the digest *string* is hashed
+  into the receipt identity, the two spellings produced two different receipt
+  hashes for identical evidence. That is a canonicalisation hole in a format
+  whose entire value is that identical content has identical identity (ADR-5),
+  and the refusal docstring advertised it as intended
+  ("64 lowercase/uppercase hex digits"). **This narrows what is admitted:** a
+  hand-authored receipt carrying uppercase digits that was previously accepted
+  is now refused by name. No receipt this crate has ever produced is affected —
+  `Blake3Hash` is built from `blake3::Hash::to_hex`, which is lowercase.
 - **The browser verifier rejected every real receipt.** `web/` hard-codes the
   genesis seed, and it had drifted three releases behind
   (`affidavit-v26.6.17-genesis` while the crate was 26.6.22). `tsc --noEmit`,
@@ -192,7 +203,7 @@ release identity back in line with the code.
   and `orphaned_sources_are_declared_or_excluded` refuses to let the list grow
   silently. Nothing was deleted; deciding each file's fate is tracked as
   ROADMAP P2-8.
-- Test suite: 833 tests + 32 doctests, all passing under
+- Test suite: 835 tests + 32 doctests, all passing under
   `cargo test --all-targets`, `cargo test --doc`, and
   `cargo clippy --all-targets -- -D warnings`.
 

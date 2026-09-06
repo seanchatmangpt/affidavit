@@ -163,7 +163,7 @@ pub enum StandingRefusal {
     UnsupportedAuthorityConstraint,
     /// A required identity/text field was empty.
     EmptyField(&'static str),
-    /// A claimed BLAKE3 commitment was not exactly 64 lowercase/uppercase hex digits.
+    /// A claimed BLAKE3 commitment was not exactly 64 lowercase hex digits.
     MalformedBlake3(&'static str),
     /// ALIVE was requested without observed execution.
     AliveMissingExecution,
@@ -469,7 +469,16 @@ fn require_text(field: &'static str, value: &str) -> Result<(), StandingRefusal>
 
 fn require_blake3(field: &'static str, value: &Blake3Hash) -> Result<(), StandingRefusal> {
     let hex = value.as_hex();
-    if hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    // Lowercase only. `is_ascii_hexdigit` also accepts A-F, which would let
+    // the same digest appear as two distinct strings and therefore hash to
+    // two distinct receipt identities — a canonicalisation hole under ADR-5.
+    // Every digest this crate produces is lowercase (`blake3::Hash::to_hex`),
+    // so this narrows admission to what is already canonical.
+    if hex.len() == 64
+        && hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
         Ok(())
     } else {
         Err(StandingRefusal::MalformedBlake3(field))
@@ -658,5 +667,49 @@ mod tests {
         let mut json = serde_json::to_value(&receipt).unwrap();
         json["subject"]["candidate"] = serde_json::Value::String("tampered".to_string());
         assert!(serde_json::from_value::<StandingReceipt>(json).is_err());
+    }
+
+    /// Digests must be canonically lowercase.
+    ///
+    /// `is_ascii_hexdigit` accepts `A-F`, so before v26.9.6 the same BLAKE3
+    /// digest could be written two ways — and because the digest string is
+    /// hashed into the receipt identity, the two spellings produced two
+    /// different receipt hashes for the same evidence. That is a
+    /// canonicalisation hole in a format whose whole value is that identical
+    /// content has identical identity (ADR-5).
+    ///
+    /// No receipt this crate has ever produced is affected: `Blake3Hash` is
+    /// built from `blake3::Hash::to_hex`, which is lowercase.
+    #[test]
+    fn an_uppercase_digest_is_refused_as_non_canonical() {
+        let admitted = admitted_receipt();
+        let mut observation = alive_observation();
+        let upper = observation.observation_commitment.as_hex().to_uppercase();
+        assert_ne!(
+            upper,
+            observation.observation_commitment.as_hex(),
+            "the fixture digest must contain a-f for this test to mean anything"
+        );
+        observation.observation_commitment = Blake3Hash::from_hex(upper);
+
+        assert!(
+            matches!(
+                certify_standing(&admitted, &authority("repo:affidavit"), observation),
+                Err(StandingRefusal::MalformedBlake3(_))
+            ),
+            "an uppercase digest is not canonical and must be refused by name"
+        );
+    }
+
+    /// The lowercase form of the same digest is admitted, so the rule is a
+    /// canonicalisation constraint and not an accidental rejection of hex.
+    #[test]
+    fn the_lowercase_form_of_the_same_digest_is_admitted() {
+        let admitted = admitted_receipt();
+        let observation = alive_observation();
+        assert!(
+            certify_standing(&admitted, &authority("repo:affidavit"), observation).is_ok(),
+            "canonical lowercase digests must still certify"
+        );
     }
 }

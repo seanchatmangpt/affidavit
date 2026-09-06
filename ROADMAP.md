@@ -77,6 +77,8 @@ had already shipped; the statuses below carry the evidence.
 | B26 | High | **FIXED** | Shell completions offered 39 snake_case verb names the binary rejects — a completion that types a refused command | all three files regenerated from REGISTRY; `shell_completions_offer_only_dispatchable_verbs` |
 | B27 | High | **FIXED** | The three checks that make the kernel unforgeable (`CoverageMismatch`, `StandingMismatch`, `ClaimSetMismatch`) had zero tests | 5 anti-forgery tests in `src/ecosystem.rs` and `src/errc_claim_assurance.rs` |
 
+| B28 | Med | **FIXED** | Digest validators accepted uppercase hex, so one digest had two spellings and therefore two receipt identities (ADR-5 hole) | lowercase-only in all four kernel modules; `an_uppercase_digest_is_refused_as_non_canonical` |
+
 ---
 
 ## Shipped in 26.9.6
