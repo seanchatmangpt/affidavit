@@ -1,0 +1,35 @@
+name: v26.9.1 ecosystem composition court
+on:
+  pull_request:
+    paths:
+      - "profiles/v26.9.1-ecosystem-composition.json"
+      - "scripts/verify_v26_9_1_ecosystem_composition.py"
+      - "scripts/tests/test_v26_9_1_ecosystem_composition.py"
+      - ".github/workflows/v26-9-1-composition.yml"
+permissions:
+  contents: read
+jobs:
+  composition:
+    runs-on: ubuntu-latest
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          persist-credentials: false
+      - name: Assert exact admitted subject
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD"
+          printf 'EXACT_HEAD=%s\n' "$actual"
+      - name: Exact composition court
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_v26_9_1_ecosystem_composition.py --self-test
+          python3 -m unittest -v scripts/tests/test_v26_9_1_ecosystem_composition.py
+          python3 -m py_compile scripts/verify_v26_9_1_ecosystem_composition.py scripts/tests/test_v26_9_1_ecosystem_composition.py
+          receipt="$(mktemp)"
+          python3 scripts/verify_v26_9_1_ecosystem_composition.py --manifest profiles/v26.9.1-ecosystem-composition.json --receipt "$receipt"
+          python3 scripts/verify_v26_9_1_ecosystem_composition.py --replay "$receipt"
