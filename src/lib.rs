@@ -108,6 +108,7 @@ pub mod handlers;
 pub mod lsp;
 
 pub mod ocel;
+pub mod portable_protocol;
 pub mod quality;
 pub mod quality_correlation;
 pub mod quality_extended;
