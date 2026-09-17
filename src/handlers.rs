@@ -375,9 +375,12 @@ pub fn verify(
 ) -> Result<()> {
     let (code, verdict) = adapt(crate::cli::verify(&receipt))?;
     use crate::diag::exit_codes;
+    // Transport contract (ARDPRD §6, witnessed by tests/cli_dispatch.rs): the
+    // library denies clippy::print_stdout at root, so substantive verdict
+    // output — human and JSON alike — routes to stderr, keeping stdout clean.
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&verdict).map_err(anyhow::Error::from))?;
-        println!("{s}");
+        eprintln!("{s}");
         if code != 0 {
             // B6: REJECT must surface as exit_codes::REJECT (2), not as a generic
             // Err(NounVerbError) which the framework would map to exit 1.  The
@@ -386,7 +389,7 @@ pub fn verify(
         }
         return Ok(());
     }
-    println!(
+    eprintln!(
         "verdict: {} [{}] — {}",
         if verdict.accepted { "ACCEPT" } else { "REJECT" },
         verdict.profile.as_str(),
@@ -394,7 +397,7 @@ pub fn verify(
     );
     for outcome in &verdict.outcomes {
         let mark = if outcome.passed { "PASS" } else { "FAIL" };
-        println!("{}: {} — {}", outcome.stage, mark, outcome.detail);
+        eprintln!("{}: {} — {}", outcome.stage, mark, outcome.detail);
     }
     if code != 0 {
         // B6: REJECT must surface as exit_codes::REJECT (2), not as a generic
@@ -724,13 +727,15 @@ pub fn sign(
 /// `affi receipt show` — print a human-readable dump of a receipt chain.
 pub fn show(receipt: String, format: Option<String>) -> Result<()> {
     let parsed = adapt(crate::cli::show(&receipt))?;
+    // Transport contract (ARDPRD §6): substantive receipt output routes to
+    // stderr; stdout stays clean (lib root denies clippy::print_stdout).
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&parsed).map_err(anyhow::Error::from))?;
-        println!("{s}");
+        eprintln!("{s}");
         return Ok(());
     }
-    println!("receipt format: {}", parsed.format_version);
-    println!("events: {}", parsed.events.len());
+    eprintln!("receipt format: {}", parsed.format_version);
+    eprintln!("events: {}", parsed.events.len());
     for event in &parsed.events {
         let objects = if event.objects.is_empty() {
             "(none)".to_string()
@@ -753,7 +758,7 @@ pub fn show(receipt: String, format: Option<String>) -> Result<()> {
                 .join(", ")
         };
         let short_hash: String = event.payload_commitment.as_hex().chars().take(12).collect();
-        println!(
+        eprintln!(
             "  [{seq:>3}] {ty} id={id} commit={commit} objects=[{objects}]",
             seq = event.seq,
             ty = event.event_type,
@@ -761,7 +766,7 @@ pub fn show(receipt: String, format: Option<String>) -> Result<()> {
             commit = short_hash
         );
     }
-    println!("chain hash: {}", parsed.chain_hash);
+    eprintln!("chain hash: {}", parsed.chain_hash);
     Ok(())
 }
 
