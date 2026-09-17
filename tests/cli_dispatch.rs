@@ -36,7 +36,7 @@ fn lifecycle_up_to_assemble(dir: &TempDir) -> std::path::PathBuf {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "emit",
             "--object",
             "o1:artifact",
@@ -50,7 +50,7 @@ fn lifecycle_up_to_assemble(dir: &TempDir) -> std::path::PathBuf {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "emit",
             "--object",
             "o2:artifact",
@@ -76,7 +76,7 @@ fn dispatch_emit_first() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "emit",
             "--object",
             "o1:artifact",
@@ -96,7 +96,7 @@ fn dispatch_emit_second() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "emit",
             "--object",
             "o1:artifact",
@@ -110,7 +110,7 @@ fn dispatch_emit_second() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "emit",
             "--object",
             "o2:artifact",
@@ -130,7 +130,7 @@ fn dispatch_assemble() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "emit",
             "--object",
             "o1:artifact",
@@ -144,7 +144,7 @@ fn dispatch_assemble() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "emit",
             "--object",
             "o2:artifact",
@@ -167,7 +167,7 @@ fn dispatch_verify_honest_accept() {
     let dir = TempDir::new().expect("tempdir");
     lifecycle_up_to_assemble(&dir);
     affi(&dir)
-        .args(["receipt", "verify", "receipt.json"])
+        .args(["receipt", "verify", "--receipt", "receipt.json"])
         .assert()
         .success() // exit code 0
         .stderr(predicate::str::contains("verdict: ACCEPT")); // dispatch (output on stderr per §6)
@@ -178,7 +178,7 @@ fn dispatch_show_is_not_verify() {
     let dir = TempDir::new().expect("tempdir");
     lifecycle_up_to_assemble(&dir);
     affi(&dir)
-        .args(["receipt", "show", "receipt.json"])
+        .args(["receipt", "show", "--receipt", "receipt.json"])
         .assert()
         .success()
         .stderr(predicate::str::contains("chain hash:")) // dispatch (output on stderr per §6)
@@ -200,7 +200,7 @@ fn dispatch_verify_tampered_reject() {
     fs::write(&receipt, tampered).expect("write tampered receipt");
 
     affi(&dir)
-        .args(["receipt", "verify", "receipt.json"])
+        .args(["receipt", "verify", "--receipt", "receipt.json"])
         .assert()
         .failure() // non-zero exit
         // Tampered receipt fails at deserialization (chain hash mismatch)—stronger than verify rejection

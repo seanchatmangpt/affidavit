@@ -23,7 +23,7 @@ fn e2e_complete_lifecycle_honest() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "init",
             "--object",
             "app:service",
@@ -39,7 +39,7 @@ fn e2e_complete_lifecycle_honest() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "transform",
             "--object",
             "data:artifact",
@@ -55,7 +55,7 @@ fn e2e_complete_lifecycle_honest() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "release",
             "--object",
             "app:service",
@@ -77,7 +77,7 @@ fn e2e_complete_lifecycle_honest() {
 
     // Stage 3: Verify honest receipt (must ACCEPT)
     affi(&dir)
-        .args(["receipt", "verify", "honest.json"])
+        .args(["receipt", "verify", "--receipt", "honest.json"])
         .assert()
         .success() // exit 0
         .stderr(predicate::str::contains("verdict: ACCEPT"))
@@ -85,7 +85,7 @@ fn e2e_complete_lifecycle_honest() {
 
     // Stage 4: Show receipt details
     affi(&dir)
-        .args(["receipt", "show", "honest.json"])
+        .args(["receipt", "show", "--receipt", "honest.json"])
         .assert()
         .success()
         .stderr(predicate::str::contains("receipt format:"))
@@ -105,7 +105,7 @@ fn e2e_tamper_detection() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "create",
             "--object",
             "file:artifact",
@@ -128,7 +128,7 @@ fn e2e_tamper_detection() {
 
     // Tampered receipt fails at deserialization (stronger than verify rejection)
     affi(&dir)
-        .args(["receipt", "verify", "tampered.json"])
+        .args(["receipt", "verify", "--receipt", "tampered.json"])
         .assert()
         .failure() // non-zero exit
         .stderr(predicate::str::contains("chain hash mismatch")); // deserialization forgery gate (ADR-3)
@@ -167,7 +167,7 @@ fn e2e_objectless_receipt_rejected_by_ocel_court() {
     .expect("write objectless receipt");
 
     affi(&dir)
-        .args(["receipt", "verify", "objectless.json"])
+        .args(["receipt", "verify", "--receipt", "objectless.json"])
         .assert()
         .failure() // non-zero exit — the court refused it
         .stderr(predicate::str::contains("EmptyEventObjectLinks"));
@@ -182,7 +182,7 @@ fn e2e_qualified_objects() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "transform",
             "--object",
             "dataset:artifact:input",
@@ -200,7 +200,7 @@ fn e2e_qualified_objects() {
 
     // Show must display qualified object correctly (id:type/qualifier format)
     affi(&dir)
-        .args(["receipt", "show", "qualified.json"])
+        .args(["receipt", "show", "--receipt", "qualified.json"])
         .assert()
         .success()
         .stderr(predicate::str::contains("dataset:artifact/input"));
@@ -215,7 +215,7 @@ fn e2e_stdin_payload() {
         .args([
             "receipt",
             "emit",
-            "--type",
+            "--r#type",
             "stdin_test",
             "--object",
             "test:artifact",
@@ -232,7 +232,7 @@ fn e2e_stdin_payload() {
         .success();
 
     affi(&dir)
-        .args(["receipt", "verify", "from_stdin.json"])
+        .args(["receipt", "verify", "--receipt", "from_stdin.json"])
         .assert()
         .success()
         .stderr(predicate::str::contains("verdict: ACCEPT"));
