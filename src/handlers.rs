@@ -158,7 +158,10 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
 
     if format.as_deref() == Some("json") {
         let out = serde_json::json!({"emitted": emitted, "total": total});
-        println!("{}", adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
     } else {
         println!("emit-batch: {emitted}/{total} events emitted");
     }
@@ -167,7 +170,12 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
 
 /// `affi receipt emit-from-github` — emit from a GitHub event payload.
 pub fn emit_from_github(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "github", "repo": repo, "event_type": event_type})).map_err(anyhow::Error::from))?;
+    let payload = adapt(
+        serde_json::to_string(
+            &serde_json::json!({"source": "github", "repo": repo, "event_type": event_type}),
+        )
+        .map_err(anyhow::Error::from),
+    )?;
     let objects = vec![format!("{repo}:repo")];
     let gh_event_type = format!("github.{event_type}");
     let output = adapt(crate::cli::emit(&gh_event_type, &objects, &payload))?;
@@ -185,7 +193,12 @@ pub fn emit_from_github(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-gitlab` — emit from a GitLab event payload.
 pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "gitlab", "repo": repo, "event_type": event_type})).map_err(anyhow::Error::from))?;
+    let payload = adapt(
+        serde_json::to_string(
+            &serde_json::json!({"source": "gitlab", "repo": repo, "event_type": event_type}),
+        )
+        .map_err(anyhow::Error::from),
+    )?;
     let objects = vec![format!("{repo}:repo")];
     let gl_event_type = format!("gitlab.{event_type}");
     let output = adapt(crate::cli::emit(&gl_event_type, &objects, &payload))?;
@@ -203,7 +216,12 @@ pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-cicd` — emit from CI/CD job outcome.
 pub fn emit_from_cicd(provider: String, job_status: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "cicd", "provider": provider, "job_status": job_status})).map_err(anyhow::Error::from))?;
+    let payload = adapt(
+        serde_json::to_string(
+            &serde_json::json!({"source": "cicd", "provider": provider, "job_status": job_status}),
+        )
+        .map_err(anyhow::Error::from),
+    )?;
     let objects = vec![format!("ci:{provider}:job")];
     let event_type = format!("cicd.{provider}.{job_status}");
     let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
@@ -305,7 +323,10 @@ pub fn assemble_with_signature(
             "signing_method": method,
             "signed": true,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     println!("assembled receipt -> {}", output.receipt_path);
@@ -329,7 +350,10 @@ pub fn assemble_and_notarize(
             "notary": provider,
             "notarized": true,
         });
-        println!("{}", adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?);
+        println!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out_val).map_err(anyhow::Error::from))?
+        );
         return Ok(());
     }
     println!("assembled receipt -> {}", output.receipt_path);
@@ -571,7 +595,11 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
     for (name, ok, note) in &framework_checks {
         println!(
             "  {} {name}: {note}",
-            if *ok { "evidence present for control" } else { "evidence absent for control" }
+            if *ok {
+                "evidence present for control"
+            } else {
+                "evidence absent for control"
+            }
         );
     }
     if !all_pass {
@@ -3872,7 +3900,6 @@ pub fn sbom_attest(
     Ok(())
 }
 
-
 // ============================================================================
 // DOCTOR — environment and receipt-store health checks
 // ============================================================================
@@ -3940,7 +3967,8 @@ fn check_working_dir() -> DoctorFinding {
             status: CheckStatus::Warn,
             message: ".affi/ directory exists but no working.json found".to_string(),
             remediation: Some(
-                "Run 'affi emit --type <event_type> --object <id:type>' to start a receipt chain.".to_string(),
+                "Run 'affi emit --type <event_type> --object <id:type>' to start a receipt chain."
+                    .to_string(),
             ),
             auto_fixable: false,
         }
@@ -3950,7 +3978,8 @@ fn check_working_dir() -> DoctorFinding {
             status: CheckStatus::Warn,
             message: "No .affi/ directory found in the current working directory".to_string(),
             remediation: Some(
-                "Run 'affi emit' to initialise the .affi/ directory and begin a receipt chain.".to_string(),
+                "Run 'affi emit' to initialise the .affi/ directory and begin a receipt chain."
+                    .to_string(),
             ),
             auto_fixable: false,
         }
@@ -4062,8 +4091,10 @@ pub fn doctor(receipts: Option<String>) -> Result<()> {
     }
 
     if !all_ok {
-        eprintln!("
-One or more checks FAILED. Run 'affi doctor --fix' to apply safe automatic remediations.");
+        eprintln!(
+            "
+One or more checks FAILED. Run 'affi doctor --fix' to apply safe automatic remediations."
+        );
         // B6: doctor failure is a distinct condition; use exit_codes::IO_ERROR (4)
         // because the failures detected are environment/I/O problems, not REJECT verdicts.
         std::process::exit(crate::diag::exit_codes::IO_ERROR);

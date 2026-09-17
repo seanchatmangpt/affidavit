@@ -207,9 +207,10 @@ impl SbomArtifactCollector {
     /// Load bundle from file with verification
     pub fn load_bundle(&self, path: PathBuf) -> Result<SbomForensicsBundle> {
         if !path.exists() {
-            return Err(AffidavitError::Execution(
-                format!("SBOM bundle file not found: {}", path.display()),
-            ));
+            return Err(AffidavitError::Execution(format!(
+                "SBOM bundle file not found: {}",
+                path.display()
+            )));
         }
 
         let content = std::fs::read_to_string(&path)?;
@@ -221,9 +222,17 @@ impl SbomArtifactCollector {
     /// Check if a value is sensitive and should be redacted
     fn is_sensitive_value(&self, value: &str) -> bool {
         let sensitive_patterns = [
-            "password", "secret", "token", "key", "credential",
-            "aws_", "github_", "gitlab_", "docker_",
-            "private", "api_key",
+            "password",
+            "secret",
+            "token",
+            "key",
+            "credential",
+            "aws_",
+            "github_",
+            "gitlab_",
+            "docker_",
+            "private",
+            "api_key",
         ];
 
         sensitive_patterns
@@ -325,11 +334,8 @@ mod tests {
     #[test]
     fn test_bundle_creation() {
         let collector = SbomArtifactCollector::new().unwrap();
-        let bundle = collector.create_bundle(
-            "test-sbom",
-            "CycloneDX",
-            Some("Test bundle".to_string()),
-        );
+        let bundle =
+            collector.create_bundle("test-sbom", "CycloneDX", Some("Test bundle".to_string()));
 
         assert_eq!(bundle.metadata.sbom_id, "test-sbom");
         assert_eq!(bundle.metadata.sbom_format, "CycloneDX");

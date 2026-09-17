@@ -25,8 +25,16 @@ fn ocel_log_exposes_event_and_object_sets() {
     // Event and object set sizes reflect the constructed log.
     assert_eq!(log.event_set().len(), 2, "two events constructed");
     assert_eq!(log.object_set().len(), 3, "three objects constructed");
-    assert_eq!(log.count_objects_of_type("order"), 1, "one order-typed object");
-    assert_eq!(log.count_objects_of_type("item"), 2, "two item-typed objects");
+    assert_eq!(
+        log.count_objects_of_type("order"),
+        1,
+        "one order-typed object"
+    );
+    assert_eq!(
+        log.count_objects_of_type("item"),
+        2,
+        "two item-typed objects"
+    );
 
     // Event identity.
     let evts = log.event_set();
@@ -37,9 +45,15 @@ fn ocel_log_exposes_event_and_object_sets() {
 
     // Object identity.
     let objs = log.object_set();
-    let ord = objs.iter().find(|o| o.id == "ord-1").expect("ord-1 present");
+    let ord = objs
+        .iter()
+        .find(|o| o.id == "ord-1")
+        .expect("ord-1 present");
     assert_eq!(ord.object_type, "order");
-    let itm = objs.iter().find(|o| o.id == "itm-1").expect("itm-1 present");
+    let itm = objs
+        .iter()
+        .find(|o| o.id == "itm-1")
+        .expect("itm-1 present");
     assert_eq!(itm.object_type, "item");
 }
 

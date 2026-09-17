@@ -6,7 +6,7 @@
 // are ergonomic builders that carry the key and land the value in the correct
 // OcelAttributeValue variant. This witnesses both layers and their round-trips.
 
-use wasm4pm_compat::ocel::{OcelAttribute, OcelAttributeValue as V, OCELType, OCELTypeAttribute};
+use wasm4pm_compat::ocel::{OCELType, OCELTypeAttribute, OcelAttribute, OcelAttributeValue as V};
 
 #[test]
 fn ocel_type_declares_attribute_schema() {
@@ -28,8 +28,7 @@ fn ocel_type_declares_attribute_schema() {
     assert_eq!(order_type.attributes.len(), 2, "two attribute declarations");
     assert_eq!(order_type.attributes[0].name, "total");
     assert_eq!(
-        order_type.attributes[0].value_type,
-        "float",
+        order_type.attributes[0].value_type, "float",
         "first attribute's declared value type"
     );
     assert_eq!(order_type.attributes[1].name, "priority");

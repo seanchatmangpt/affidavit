@@ -632,8 +632,7 @@ pub fn did_you_mean(input: &str) -> Vec<&'static VerbEntry> {
     let mut matches: Vec<&'static VerbEntry> = REGISTRY
         .iter()
         .filter(|e| {
-            e.verb.contains(&*input_lower)
-                || e.keywords.iter().any(|k| k.contains(&*input_lower))
+            e.verb.contains(&*input_lower) || e.keywords.iter().any(|k| k.contains(&*input_lower))
         })
         .collect();
     matches.sort_by_key(|e| {
@@ -672,9 +671,21 @@ mod tests {
     fn all_entries_have_non_empty_fields() {
         for entry in REGISTRY {
             assert!(!entry.verb.is_empty(), "verb is empty");
-            assert!(!entry.noun.is_empty(), "noun is empty for verb {}", entry.verb);
-            assert!(!entry.summary.is_empty(), "summary is empty for verb {}", entry.verb);
-            assert!(!entry.keywords.is_empty(), "keywords is empty for verb {}", entry.verb);
+            assert!(
+                !entry.noun.is_empty(),
+                "noun is empty for verb {}",
+                entry.verb
+            );
+            assert!(
+                !entry.summary.is_empty(),
+                "summary is empty for verb {}",
+                entry.verb
+            );
+            assert!(
+                !entry.keywords.is_empty(),
+                "keywords is empty for verb {}",
+                entry.verb
+            );
         }
     }
 
