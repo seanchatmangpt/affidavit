@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - "src/dfcm.rs"
+      - "Cargo.lock"
       - "src/lib.rs"
       - "tests/dfcm_chicago.rs"
       - ".github/workflows/dfcm.yml"
