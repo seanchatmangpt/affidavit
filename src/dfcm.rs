@@ -282,7 +282,7 @@ fn evaluate(
             let mut gaps = BTreeSet::new();
             for req in &path.subjects {
                 let Some(obs) = by_exact.get(&req.subject).copied() else {
-                    let mut candidates = by_repo
+                    let mut candidates: Vec<String> = by_repo
                         .get(req.subject.repository.as_str())
                         .map(|xs| xs.iter().map(|x| x.subject.candidate.clone()).collect())
                         .unwrap_or_default();
