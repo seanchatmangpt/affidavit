@@ -145,8 +145,20 @@ fn one_failed_path_does_not_destroy_a_qualified_alternative() {
     assert!(receipt.closed);
     assert!(receipt.minimal_frontiers.is_empty());
     let paths = &receipt.obligations[0].paths;
-    assert!(!paths.iter().find(|p| p.name == "broken-path").unwrap().satisfied);
-    assert!(paths.iter().find(|p| p.name == "alive-path").unwrap().satisfied);
+    assert!(
+        !paths
+            .iter()
+            .find(|p| p.name == "broken-path")
+            .unwrap()
+            .satisfied
+    );
+    assert!(
+        paths
+            .iter()
+            .find(|p| p.name == "alive-path")
+            .unwrap()
+            .satisfied
+    );
 }
 
 #[test]
@@ -288,11 +300,7 @@ fn canonical_input_order_has_one_receipt_identity() {
                 description: "B".to_string(),
                 paths: vec![ProofPath {
                     name: "b".to_string(),
-                    subjects: vec![requirement(
-                        b.clone(),
-                        EvidenceKind::ExactHeadCourt,
-                        court,
-                    )],
+                    subjects: vec![requirement(b.clone(), EvidenceKind::ExactHeadCourt, court)],
                 }],
             },
             Obligation {
@@ -300,11 +308,7 @@ fn canonical_input_order_has_one_receipt_identity() {
                 description: "A".to_string(),
                 paths: vec![ProofPath {
                     name: "a".to_string(),
-                    subjects: vec![requirement(
-                        a.clone(),
-                        EvidenceKind::ExactHeadCourt,
-                        court,
-                    )],
+                    subjects: vec![requirement(a.clone(), EvidenceKind::ExactHeadCourt, court)],
                 }],
             },
         ],

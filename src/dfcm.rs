@@ -353,7 +353,10 @@ fn minimal_frontiers(
     let mut frontiers = vec![BTreeSet::new()];
     for obligation in obligations.iter().filter(|o| !o.satisfied) {
         let paths: Vec<_> = obligation.paths.iter().filter(|p| !p.satisfied).collect();
-        let required = frontiers.len().checked_mul(paths.len()).unwrap_or(usize::MAX);
+        let required = frontiers
+            .len()
+            .checked_mul(paths.len())
+            .unwrap_or(usize::MAX);
         if required > budget {
             return Err(DfcmRefusal::FrontierBudgetExceeded { budget, required });
         }
@@ -536,8 +539,8 @@ fn hash_material(
         minimal_frontiers,
         closed,
     };
-    let canonical = serde_json::to_vec(&material)
-        .map_err(|e| DfcmRefusal::Serialization(e.to_string()))?;
+    let canonical =
+        serde_json::to_vec(&material).map_err(|e| DfcmRefusal::Serialization(e.to_string()))?;
     let mut bytes = Vec::with_capacity(DFCM_PROFILE.len() + canonical.len() + 1);
     bytes.extend_from_slice(DFCM_PROFILE.as_bytes());
     bytes.push(0);
@@ -646,14 +649,15 @@ pub fn v26_9_18_profile(s: V26_9_18Subjects) -> DfcmProfile {
         EvidenceKind::ExactHeadCourt,
         EvidenceKind::HostedCi,
     ];
-    let one = |id: &str, description: &str, name: &str, subjects: Vec<SubjectRequirement>| Obligation {
-        id: id.into(),
-        description: description.into(),
-        paths: vec![ProofPath {
-            name: name.into(),
-            subjects,
-        }],
-    };
+    let one =
+        |id: &str, description: &str, name: &str, subjects: Vec<SubjectRequirement>| Obligation {
+            id: id.into(),
+            description: description.into(),
+            paths: vec![ProofPath {
+                name: name.into(),
+                subjects,
+            }],
+        };
     DfcmProfile {
         release: "v26.9.18".into(),
         certifier: s.affidavit,
