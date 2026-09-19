@@ -605,7 +605,7 @@ impl<'de> Deserialize<'de> for DfcmReceipt {
             minimal_frontiers: raw.minimal_frontiers,
             closed: raw.closed,
             receipt_hash: raw.receipt_hash,
-            };
+        };
         receipt.verify().map_err(D::Error::custom)?;
         Ok(receipt)
     }
