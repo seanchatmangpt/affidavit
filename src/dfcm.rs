@@ -127,6 +127,7 @@ pub struct MinimalFrontier {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct DfcmReceipt {
     pub profile: String,
     pub claim_ceiling: String,
@@ -137,8 +138,6 @@ pub struct DfcmReceipt {
     pub minimal_frontiers: Vec<MinimalFrontier>,
     pub closed: bool,
     pub receipt_hash: Blake3Hash,
-    #[serde(skip)]
-    _seal: (),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -217,7 +216,6 @@ pub fn certify_dfcm(
         minimal_frontiers,
         closed,
         receipt_hash,
-        _seal: (),
     })
 }
 
@@ -353,10 +351,7 @@ fn minimal_frontiers(
     let mut frontiers = vec![BTreeSet::new()];
     for obligation in obligations.iter().filter(|o| !o.satisfied) {
         let paths: Vec<_> = obligation.paths.iter().filter(|p| !p.satisfied).collect();
-        let required = frontiers
-            .len()
-            .checked_mul(paths.len())
-            .unwrap_or(usize::MAX);
+        let required = frontiers.len().saturating_mul(paths.len());
         if required > budget {
             return Err(DfcmRefusal::FrontierBudgetExceeded { budget, required });
         }
@@ -610,8 +605,7 @@ impl<'de> Deserialize<'de> for DfcmReceipt {
             minimal_frontiers: raw.minimal_frontiers,
             closed: raw.closed,
             receipt_hash: raw.receipt_hash,
-            _seal: (),
-        };
+            };
         receipt.verify().map_err(D::Error::custom)?;
         Ok(receipt)
     }
