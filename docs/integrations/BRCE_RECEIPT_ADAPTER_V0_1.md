@@ -1,6 +1,7 @@
 # BRCE Receipt Adapter Profile v0.1
 
-**Status:** Draft adapter specification  
+**Specification status:** FINAL_SPEC v0.1 (v26.9.24)  
+**Implementation standing:** NOT_CLAIMED  
 **Normative source:** BRCE Protocol RFC v0.1 in `engineering-standards`  
 **Affidavit role:** evidence carrier and verifier only
 
@@ -364,3 +365,8 @@ or if receipt verification itself grants DO authority.
 This document specifies an adapter contract only.
 
 No BRCE runtime implementation, TLA+ execution, or new Affidavit receipt verifier is claimed by this documentation PR.
+
+
+## v26.9.24 specification closure
+
+The receipt-adapter contract is complete as a specification. Runtime verifier, BRCE actuation integration, and TLA+ execution remain outside this document's evidence ceiling until separately implemented and observed.
