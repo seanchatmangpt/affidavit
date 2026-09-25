@@ -125,10 +125,7 @@ pub fn certify_gall_crown(manifest: &CrownManifest) -> Result<CrownReceipt, Crow
         if gate.status == GateStatus::Pass && !gate.positive_observed {
             return Err(CrownRefusal::VacuousPass { gate: gate.gate });
         }
-        if gate.status == GateStatus::Pass
-            && gate.falsifier_required
-            && !gate.falsifier_attempted
-        {
+        if gate.status == GateStatus::Pass && gate.falsifier_required && !gate.falsifier_attempted {
             return Err(CrownRefusal::MissingFalsifier { gate: gate.gate });
         }
     }
@@ -154,8 +151,7 @@ pub fn certify_gall_crown(manifest: &CrownManifest) -> Result<CrownReceipt, Crow
         "Gate 12 positive KNOWN execution remains open; cross-repository standing cannot be ALIVE"
             .to_string()
     } else {
-        "All 12 supplied Chicago gate witnesses satisfy the v26.9.18 structural court"
-            .to_string()
+        "All 12 supplied Chicago gate witnesses satisfy the v26.9.18 structural court".to_string()
     };
 
     let mut receipt = CrownReceipt {
@@ -210,8 +206,8 @@ mod tests {
 
     #[test]
     fn all_twelve_pass_issues_alive_receipt() {
-        let receipt = certify_gall_crown(&manifest(GateStatus::Pass, GateStatus::Pass))
-            .expect("valid crown");
+        let receipt =
+            certify_gall_crown(&manifest(GateStatus::Pass, GateStatus::Pass)).expect("valid crown");
         assert_eq!(receipt.standing, CrownStanding::Alive);
         assert!(receipt.receipt_digest.starts_with("blake3:"));
     }

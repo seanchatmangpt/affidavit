@@ -101,7 +101,9 @@ pub mod ecosystem;
 pub mod errc;
 pub mod errc_claim_assurance;
 pub mod error;
-pub mod fixture_db;\n/// GALL-007 evidence-only twelve-gate Chicago crown certification.\npub mod gall;
+pub mod fixture_db;
+/// GALL-007 evidence-only twelve-gate Chicago crown certification.
+pub mod gall;
 pub mod handlers;
 
 #[cfg(feature = "lsp")]
