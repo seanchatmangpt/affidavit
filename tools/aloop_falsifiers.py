@@ -107,9 +107,10 @@ def write_case(case_dir, receipts, events):
 
 def check_case(case_dir):
     receipts, events, order, parse_errors = load_case(case_dir)
-    violations = list(parse_errors)
-    for p in parse_errors:
-        violations.append({"falsifier": "F05", "term": "R_missing_identity", "detail": p})
+    # parse errors enter as typed violations only — a raw string here crashes the
+    # uar_count aggregation (v["falsifier"] on str), found by dogfood 2026-09-25
+    violations = [{"falsifier": "F05", "term": "R_missing_identity", "detail": p}
+                  for p in parse_errors]
     if not events and not parse_errors:
         violations.append({"falsifier": "F01", "term": "R_missing_replay",
                            "detail": "no events in chain"})
@@ -217,19 +218,28 @@ def check_case(case_dir):
 def build_dag(case_dir):
     receipts, events, _, parse_errors = load_case(case_dir)
     nodes, edges = [], []
-    for e in events:
-        nodes.append({"id": f"E:{e['event_id']}", "kind": "event", "seq": e.get("seq"),
+
+    def eid_of(e, i):
+        # foreign-shaped events (lane phase logs) may lack event_id — synthesize a
+        # stable id instead of crashing (dogfood defect 2026-09-25)
+        return e.get("event_id") or f"evt-{e.get('seq', i)}"
+
+    for i, e in enumerate(events):
+        nodes.append({"id": f"E:{eid_of(e, i)}", "kind": "event", "seq": e.get("seq"),
                       "work_order_id": e.get("work_order_id")})
-    for r in receipts:
-        nodes.append({"id": f"R:{r['work_order_id']}", "kind": "receipt",
-                      "standing": r.get("standing", {}).get("value")})
-    by_seq = sorted(events, key=lambda e: e.get("seq", -1))
-    for a, b in zip(by_seq, by_seq[1:]):
-        edges.append({"from": f"E:{b['event_id']}", "to": f"E:{a['event_id']}", "kind": "seq"})
-    for e in events:
-        edges.append({"from": f"E:{e['event_id']}", "to": f"R:{e.get('work_order_id')}", "kind": "claimed_by"})
-    ids = {r["work_order_id"] for r in receipts}
-    hash_to_event = {e.get("hash"): e["event_id"] for e in events if e.get("hash")}
+    for i, r in enumerate(receipts):
+        wid = r.get("work_order_id") or f"unnamed-{i}"
+        nodes.append({"id": f"R:{wid}", "kind": "receipt",
+                      "standing": r.get("standing", {}).get("value") if isinstance(r.get("standing"), dict) else None})
+    order_by_seq = sorted(range(len(events)), key=lambda i: events[i].get("seq", -1))
+    for ia, ib in zip(order_by_seq, order_by_seq[1:]):
+        edges.append({"from": f"E:{eid_of(events[ib], ib)}",
+                      "to": f"E:{eid_of(events[ia], ia)}", "kind": "seq"})
+    for i, e in enumerate(events):
+        if e.get("work_order_id"):
+            edges.append({"from": f"E:{eid_of(e, i)}", "to": f"R:{e['work_order_id']}", "kind": "claimed_by"})
+    ids = {r["work_order_id"] for r in receipts if r.get("work_order_id")}
+    hash_to_event = {e.get("hash"): eid_of(e, i) for i, e in enumerate(events) if e.get("hash")}
     for r in receipts:
         rb = r.get("replay_binding", {})
         for pred in rb.get("predecessor_work_order_ids", []):
@@ -437,6 +447,29 @@ def self_test(tmp=None):
                                      ev[2].__setitem__("reconstructed", True),
                                      ev[2].__setitem__("hash", canonical(ev[2]))))
     expect("F11_reconstructed_marked_clean", *m, "F11", "R_not_fed_back", want_absent=True)
+    # permanent guard for the parse-error path (dogfood defect 2026-09-25): a malformed
+    # events line must yield a typed F05 violation, never a crash in the aggregation
+    d = tmp / "F05_malformed_line"
+    write_case(d, *copy.deepcopy(case))
+    p = d / "events.ndjson"
+    lines = p.read_text().splitlines()
+    lines[1] = lines[1][:40] + ",,,"
+    p.write_text("\n".join(lines) + "\n")
+    rep = check_case(d)
+    hit = any(v["falsifier"] == "F05" and v["term"] == "R_missing_identity"
+              and "events.ndjson" in str(v.get("detail", "")) for v in rep["violations"])
+    results.append(("F05_malformed_line_typed_no_crash", "F05", "R_missing_identity", hit, rep))
+    # permanent guard: DAG builders must tolerate foreign-shaped corpora (lane phase
+    # logs without event_id, manifests without work_order_id) — never crash
+    d = tmp / "DAG_foreign_shape"
+    (d / "receipts").mkdir(parents=True)
+    (d / "receipts" / "foreign.json").write_text(json.dumps({"lane": "x", "notes": "no work_order_id"}))
+    (d / "events.ndjson").write_text(
+        json.dumps({"ts": "2026-09-25T00:00:00Z", "phase": "orient", "notes": "no event_id"}) + "\n")
+    dag = build_dag(d)
+    cyc, brg = detect_cycles(dag), detect_bridges(dag)
+    dag_ok = isinstance(dag.get("nodes"), list) and cyc["acyclic"] and isinstance(brg["bridges"], list)
+    results.append(("DAG_foreign_shape_no_crash", "DAG", "cycle/bridge", dag_ok, cyc))
 
     # DAG witnesses
     d = tmp / "00_golden_clean"
