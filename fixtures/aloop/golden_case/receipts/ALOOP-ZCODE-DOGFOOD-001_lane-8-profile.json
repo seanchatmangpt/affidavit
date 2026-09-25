@@ -1,0 +1,63 @@
+{
+  "authority": {
+    "actor": "lane-8",
+    "ceiling": "DO",
+    "grant": "operator-dispatch ALOOP-ZCODE-DOGFOOD-001"
+  },
+  "consequence": {
+    "commits": [],
+    "files_changed": [
+      "schemas/aloop-execution-receipt.schema.json"
+    ],
+    "remote_effects": []
+  },
+  "consequences": [
+    {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "kind": "file"
+    },
+    {
+      "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "kind": "artifact"
+    }
+  ],
+  "identity": {
+    "base_sha": "0abd0cc351b08c8c19414410e0cd365bfeac0ccb",
+    "repo": "affidavit",
+    "subject": "aloop-execution-receipt-profile",
+    "subject_sha": "0abd0cc351b08c8c19414410e0cd365bfeac0ccb"
+  },
+  "origin_authority": {
+    "actor": "lane-8",
+    "ceiling": "DO",
+    "grant": "operator-dispatch ALOOP-ZCODE-DOGFOOD-001"
+  },
+  "provider": {
+    "authority_ceiling": "DO",
+    "name": "zcode",
+    "transport": "local-session"
+  },
+  "provider_execution_id": "lane-8-run-0001",
+  "replay": {
+    "commands": [
+      {
+        "cmd": "tools/aloop_falsifiers.py self-test",
+        "cwd": ".",
+        "exit": 0
+      }
+    ]
+  },
+  "replay_binding": {
+    "chain_hash_algo": "sha256",
+    "chain_head_hash": "e5e2cd2350d60194e61a44d09d616e92d2e907b222ba537991f865fae50f06cd",
+    "event_ids": [
+      "e0",
+      "e1"
+    ]
+  },
+  "standing": {
+    "derived_from": "self-test witnessed",
+    "value": "PARTIAL_ALIVE"
+  },
+  "work_order_id": "ALOOP-ZCODE-DOGFOOD-001/lane-8-profile"
+}
