@@ -7,34 +7,151 @@
     "F-05"
   ],
   "repo": "seanchatmangpt/affidavit",
-  "subject_sha": "f3b01d77909ef37f1a1775fe2a3ed88ddc54d030",
+  "subject_sha": "9d158477fc4706f4fdaf30cfc073c547b57e783e",
   "subject": {
     "repo": "seanchatmangpt/affidavit",
-    "sha": "f3b01d77909ef37f1a1775fe2a3ed88ddc54d030",
-    "ref": "origin/main"
+    "sha": "9d158477fc4706f4fdaf30cfc073c547b57e783e",
+    "ref": "origin/main",
+    "merged_pr": 83,
+    "implementation_commit": "e574b421010784737db031a5008459e79903aa36"
   },
-  "standing": "BLOCKED",
-  "type": "CAPABILITY_GAP:BRCE_LEDGER_ADAPTER_NOT_IMPLEMENTED",
-  "blocked_type": "CAPABILITY_GAP",
-  "broken_term": "R_missing_consequence",
-  "detail": "No executable BRCE ledger/receipt adapter exists at the subject SHA; docs/integrations/BRCE_RECEIPT_ADAPTER_V0_1.md is a specification with Implementation standing NOT_CLAIMED. No ledger of DO-class actions with durable receipt digests can be produced, so the zero-unreceipted-actuation court (AC-08) cannot be evaluated and F-05 cannot be discharged.",
+  "standing": "ALIVE",
+  "type": "BRCE_ZERO_UNRECEIPTED_ACTUATION_COURT",
+  "detail": "Court src/brce.rs::court executed at the merged subject via examples/brce_court: real JSON-lines ledgers and real file consequences in two independent run dirs; lawful receipted write, idempotent retry (executed=true changed=false), expired-grant DO refused with zero consequence, crash after DO before receipt reconciled to a brce-reconciliation/v1 receipt (EFFECT_CONFIRMED), crash before consequence reconciled NO_EFFECT_CONFIRMED. Pre-reconcile court REFUSED (ZERO_UNRECEIPTED_ACTUATION, CRASH_WINDOW_RECONCILED); post-reconcile ADMITTED. Supersedes the typed BLOCKED receipt of PR#82 at f3b01d77.",
+  "supersedes": {
+    "standing": "BLOCKED",
+    "type": "CAPABILITY_GAP:BRCE_LEDGER_ADAPTER_NOT_IMPLEMENTED",
+    "subject_sha": "f3b01d77909ef37f1a1775fe2a3ed88ddc54d030",
+    "pr": 82
+  },
   "execution": {
-    "command": "git archive f3b01d77909ef37f1a1775fe2a3ed88ddc54d030 | tar -x -C tree && (cd tree && sh probe.sh)",
-    "probe_sha256": "d4ccb8c52ec01600d383bbe8b4384ce858b568918f6dd44e759dc9919e19e543",
-    "probe_source": "#!/bin/sh\n# BRCE ledger capability probe over an extracted affidavit subject tree (cwd).\n# Exits 0 iff executable (non-doc) code implementing a BRCE ledger/receipt adapter exists.\nhits=$(grep -rIl -i -E 'brce|consequence_id|brce-actuation|unreceipted' --include='*.rs' --include='*.py' --include='*.sh' --include='*.ts' --include='*.js' --include='*.ex' --include='*.exs' --include='*.toml' . 2>/dev/null)\necho \"executable_brce_hits:\"; echo \"$hits\"\necho \"doc_brce_hits:\"; grep -rIl -i 'brce' --include='*.md' . | sort\necho \"adapter_claim_status:\"; grep -n -E 'NOT_CLAIMED|No BRCE runtime implementation' docs/integrations/BRCE_RECEIPT_ADAPTER_V0_1.md\n[ -n \"$hits\" ] && exit 0 || exit 3\n",
-    "exit_code": 3,
-    "exit_meaning": "3 = zero executable (non-markdown) files reference BRCE; 0 would mean an implementation candidate exists",
-    "output_sha256": "82318634393de4d7b32f5d2aea8b3e0c11b9ff541ab9f1ea74a235210fc749d5",
-    "output": "executable_brce_hits:\n\ndoc_brce_hits:\n./docs/ERRC.md\n./docs/integrations/BRCE_RECEIPT_ADAPTER_V0_1.md\n./docs/integrations/README.md\nadapter_claim_status:\n4:**Implementation standing:** NOT_CLAIMED  \n367:No BRCE runtime implementation, TLA+ execution, or new Affidavit receipt verifier is claimed by this documentation PR.\n"
+    "command": "git archive 9d158477fc4706f4fdaf30cfc073c547b57e783e | tar -x -C tree && cd tree && cargo run -q --example brce_court -- <work_dir> 9d158477fc4706f4fdaf30cfc073c547b57e783e",
+    "toolchain": "rustc 1.99.0-nightly (3d6c19bb9 2026-08-11); cargo 1.99.0-nightly (b07e5a086 2026-08-07) [rust-toolchain.toml nightly-2026-08-12]",
+    "exit_code": 0,
+    "exit_meaning": "0 iff court ADMITTED both runs, replay digests equal, replay consequence-free, every mutant killed",
+    "output_sha256": "d5bf6c22169f8fa62d37ead66066f0cae9e1ef7084665147448f6a06449c0357",
+    "rerun_byte_identical": true,
+    "scenario_log": [
+      "c-lawful: receipted",
+      "c-idem: retry executed=true changed=false",
+      "c-expired: REFUSED(GRANT_EXPIRED:grant-c-expired)",
+      "crash: pipeline dropped after c-crash DO and c-precrash PREPARED",
+      "pre-reconcile court: REFUSED {ZeroUnreceiptedActuation, CrashWindowReconciled}",
+      "reconcile c-crash: EffectConfirmed",
+      "reconcile c-precrash: NoEffectConfirmed"
+    ]
+  },
+  "court": {
+    "standing": "ADMITTED",
+    "rules": [
+      "CHAIN_INTEGRITY",
+      "ZERO_UNRECEIPTED_ACTUATION",
+      "DO_REQUIRES_AUTHORITY",
+      "CONSTRUCT_REQUIRES_ADMISSION",
+      "RECEIPT_DIGEST_VALID",
+      "AT_MOST_ONCE_CONSEQUENCE",
+      "CRASH_WINDOW_RECONCILED",
+      "UNKNOWN_NOT_PROMOTED"
+    ],
+    "refusals": [],
+    "records": 36,
+    "receipts": 4,
+    "consequences_observed": 3,
+    "ledger_head": "d3fe6c9278a4839042b25518edb8461b660068189aed4a954edc985fae9bee23",
+    "zero_unreceipted_actuation": true
+  },
+  "ledger": {
+    "format": "JSON-lines, BLAKE3 chain H(seq,prev,entry)",
+    "ledger_blake3": "a88e85605f36358cc0c589d311ec8accdd42ced2dd2cd0557fb2c13b71521099",
+    "records": 36,
+    "receipts": 4,
+    "head": "d3fe6c9278a4839042b25518edb8461b660068189aed4a954edc985fae9bee23"
+  },
+  "replay": {
+    "consequence_free": true,
+    "consequences_after_replay": 3,
+    "consequences_before_replay": 3,
+    "digest_equal": true,
+    "digest_run_a": "7e90c82673f15cbe24c2fa2d7ca7ffeb0e7c6bc5676eb88e4478331f205685f7",
+    "digest_run_a_rejudged": "7e90c82673f15cbe24c2fa2d7ca7ffeb0e7c6bc5676eb88e4478331f205685f7",
+    "digest_run_b": "7e90c82673f15cbe24c2fa2d7ca7ffeb0e7c6bc5676eb88e4478331f205685f7"
   },
   "anti_vacuity": {
-    "mutation": "add src/zz_mutant_brce.rs containing 'pub struct BrceLedger;'",
-    "mutant_exit_code": 0,
-    "restored_exit_code": 3
+    "mutants": [
+      {
+        "rule": "CHAIN_INTEGRITY",
+        "mutation": "flip Done.result.changed in place, chain not recomputed",
+        "standing": "REFUSED",
+        "killed": true
+      },
+      {
+        "rule": "ZERO_UNRECEIPTED_ACTUATION",
+        "mutation": "external effect 'rogue-unreceipted' written outside the pipeline",
+        "standing": "REFUSED",
+        "killed": true
+      },
+      {
+        "rule": "DO_REQUIRES_AUTHORITY",
+        "mutation": "Done appended for an attempt that never passed PREPARED/authority",
+        "standing": "REFUSED",
+        "killed": true
+      },
+      {
+        "rule": "CONSTRUCT_REQUIRES_ADMISSION",
+        "mutation": "every Admitted outcome rewritten to Refused, construct kept",
+        "standing": "REFUSED",
+        "killed": true
+      },
+      {
+        "rule": "RECEIPT_DIGEST_VALID",
+        "mutation": "receipt.effect.changed flipped after sealing; ledger re-chained",
+        "standing": "REFUSED",
+        "killed": true
+      },
+      {
+        "rule": "AT_MOST_ONCE_CONSEQUENCE",
+        "mutation": "second PREPARED+Done(changed=true) for an already-receipted consequence",
+        "standing": "REFUSED",
+        "killed": true
+      },
+      {
+        "rule": "CRASH_WINDOW_RECONCILED",
+        "mutation": "PREPARED appended with no Done/receipt/reconciliation",
+        "standing": "REFUSED",
+        "killed": true
+      },
+      {
+        "rule": "UNKNOWN_NOT_PROMOTED",
+        "mutation": "EXECUTION_UNKNOWN reconciliation followed by an executed=true receipt",
+        "standing": "REFUSED",
+        "killed": true
+      }
+    ],
+    "killed": 8,
+    "total": 8
   },
-  "ledger": null,
-  "authority": "NONE (observation only; no DO performed)",
+  "gates": {
+    "subject": "e574b421010784737db031a5008459e79903aa36 (PR#83 head; merge 9d158477 tree-equal to it plus main)",
+    "cargo_fmt_check": 0,
+    "cargo_clippy_all_targets_D_warnings": 0,
+    "cargo_test_all_targets": {
+      "exit": 0,
+      "passed": 806,
+      "failed": 0
+    },
+    "cargo_test_doc": {
+      "exit": 0,
+      "passed": 32,
+      "ignored": 6
+    },
+    "brce_ledger_tests": {
+      "passed": 12,
+      "failed": 0
+    },
+    "mock_grep_touched_files": 0,
+    "act_rust_yml_fmt": "BLOCKED(TRANSPORT_FAILURE:act-runtime) act cannot resolve pinned dtolnay/rust-toolchain@7c8d7d13 (pre-existing)"
+  },
+  "authority": "NONE (court is receipt-level evidence; Verification does not imply DO)",
   "evidence_ceiling": "LOCAL_RUN",
-  "generated_at": "2026-09-25T13:17:29+00:00",
-  "unblock": "Implement docs/integrations/BRCE_RECEIPT_ADAPTER_V0_1.md section 'Implementation plan' step 1 (canonical Rust structures for affidavit/brce-actuation/v1, brce-reconciliation/v1, brce-replay/v1) plus a ledger emitter; then regenerate this receipt with standing ALIVE from a real ledger run."
+  "generated_at": "2026-09-25T16:19:02+00:00"
 }
