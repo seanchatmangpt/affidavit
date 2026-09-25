@@ -56,6 +56,14 @@ Overview of all integration points and extension mechanisms.
 
 ---
 
+### BRCE consequence-control protocol
+
+[BRCE Receipt Adapter Profile v0.1](./BRCE_RECEIPT_ADAPTER_V0_1.md) maps the standalone BRCE protocol onto Affidavit's certify-don't-decide receipt boundary. It specifies exact-subject actuation, reconciliation, replay, and optional TLA+ evidence profiles without granting execution authority.
+
+**Use when:** another system implements BRCE and needs independently verifiable, replay-bound evidence carriers.
+
+---
+
 ## 🚀 Quick Start by Use Case
 
 **"I want IDE support for receipt verification"**
