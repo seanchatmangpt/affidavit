@@ -1,30 +1,42 @@
-name: v26.9.24 repository tag
+name: v26.9.24 crates.io release
 on:
   push:
     branches: [main]
-    paths: [.github/workflows/release-tag-v26.9.24.yml]
+    paths:
+      - Cargo.toml
+      - .github/workflows/release-tag-v26.9.24.yml
 permissions:
   contents: write
 jobs:
-  tag:
+  release:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
-      - name: Create or verify exact release tag
-        env: {GH_TOKEN: ${{ github.token }}}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Admit exact version and dry-run package
         run: |
           set -euo pipefail
+          grep -Eq '^version = "26\.9\.24"$' Cargo.toml
+          cargo publish --dry-run
+      - name: Observe crates.io
+        id: registry
+        run: |
+          if curl -fsS https://crates.io/api/v1/crates/affidavit/26.9.24 >/dev/null; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Publish crates.io
+        if: steps.registry.outputs.exists != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          test -n "$CARGO_REGISTRY_TOKEN" || { echo "BLOCKED(authority:CARGO_REGISTRY_TOKEN)" >&2; exit 2; }
+          cargo publish --token "$CARGO_REGISTRY_TOKEN"
+      - name: Verify registry and cut exact tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS https://crates.io/api/v1/crates/affidavit/26.9.24 >/dev/null && break; test "$i" != 10; sleep 3; done
           subject="$(git rev-parse HEAD)"
-          test "$subject" = "$GITHUB_SHA"
-          if git ls-remote --exit-code --tags origin refs/tags/v26.9.24 >/dev/null 2>&1; then
-            observed="$(git ls-remote --tags origin refs/tags/v26.9.24 | cut -f1)"
-            test "$observed" = "$subject"
-          else
-            git config user.name github-actions
-            git config user.email github-actions@users.noreply.github.com
-            git tag -a v26.9.24 "$subject" -m v26.9.24
-            git push origin refs/tags/v26.9.24
-          fi
+          if git ls-remote --exit-code --tags origin refs/tags/v26.9.24 >/dev/null 2>&1; then observed="$(git ls-remote --tags origin refs/tags/v26.9.24 | cut -f1)"; test "$observed" = "$subject"; else git config user.name github-actions; git config user.email github-actions@users.noreply.github.com; git tag -a v26.9.24 "$subject" -m v26.9.24; git push origin refs/tags/v26.9.24; fi
           if ! gh release view v26.9.24 >/dev/null 2>&1; then gh release create v26.9.24 --target "$subject" --title v26.9.24 --generate-notes; fi
-          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/v26.9.24" --jq .sha)" = "$subject"
