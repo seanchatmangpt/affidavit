@@ -1,7 +1,7 @@
 # BRCE Receipt Adapter Profile v0.1
 
 **Specification status:** FINAL_SPEC v0.1 (v26.9.24)  
-**Implementation standing:** NOT_CLAIMED  
+**Implementation standing:** PARTIAL_ALIVE (v26.9.25) — steps 1-5 implemented in `src/brce.rs`; TLA+ ingestion (step 6) and CLI verbs (step 7) NOT_CLAIMED; see "v26.9.25 implementation" below  
 **Normative source:** BRCE Protocol RFC v0.1 in `engineering-standards`  
 **Affidavit role:** evidence carrier and verifier only
 
@@ -370,3 +370,48 @@ No BRCE runtime implementation, TLA+ execution, or new Affidavit receipt verifie
 ## v26.9.24 specification closure
 
 The receipt-adapter contract is complete as a specification. Runtime verifier, BRCE actuation integration, and TLA+ execution remain outside this document's evidence ceiling until separately implemented and observed.
+
+
+## v26.9.25 implementation
+
+Standing is scoped to what `tests/brce_ledger.rs` and `examples/brce_court.rs` execute.
+
+| Step | Scope | Standing | Evidence |
+|---|---|---|---|
+| 1 | Rust structures for `brce-actuation/v1`, `brce-reconciliation/v1`, `brce-replay/v1` | ALIVE | `src/brce.rs` `BrceReceipt`, `Entry`, `PROFILE_*` |
+| 2 | Deterministic serialization + digest verification | ALIVE | `digest`, `BrceReceipt::compute_digest`, hash-chained `BrceLedger` |
+| 3 | Subject / construct / authority substitution falsifiers | ALIVE | `do_without_valid_authority_is_refused_with_zero_consequence` |
+| 4 | Crash-window reconciliation fixtures | ALIVE | three `crash_*` tests + `unobservable_crash_window_stays_refused` |
+| 5 | Consequence-free replay | ALIVE | `replay_is_consequence_free_and_digest_equal` |
+| 6 | TLA+ model-check receipt ingestion | NOT_CLAIMED | not implemented |
+| 7 | CLI verbs | NOT_CLAIMED | not implemented (court runs via `cargo run --example brce_court`) |
+
+Components:
+
+- `BrceLedger`: append-only JSON-lines ledger; each record is BLAKE3-chained
+  (`H(seq, prev, entry)`) and fsync'd on append. The ledger accepts any entry; it is not an
+  authority.
+- `BrcePipeline`: parse -> route -> admit/refuse -> construct -> DO (`prepare` writes the
+  RFC-0001 §14 `PREPARED` intent before the actuator runs, `execute` records `Done`) -> receipt.
+  DO is refused unless the grant binds subject, operation, target and construct digest, is
+  unexpired and has uses left. A non-idempotent retry of a consequence with an open crash window
+  is BLOCKED (`RECONCILE_BEFORE_RETRY`).
+- `BrcePipeline::reconcile`: every `PREPARED` consequence without a receipt resolves to
+  `EFFECT_CONFIRMED` (a `brce-reconciliation/v1` receipt is persisted), `NO_EFFECT_CONFIRMED`,
+  `EXECUTION_UNKNOWN` or `BLOCKED_RECONCILIATION`. The last two are never promoted to executed.
+- `court(ledger, world)`: refuses on eight rules: `CHAIN_INTEGRITY`,
+  `ZERO_UNRECEIPTED_ACTUATION` (every `Done` and every consequence observed in the world has a
+  receipt), `DO_REQUIRES_AUTHORITY`, `CONSTRUCT_REQUIRES_ADMISSION`, `RECEIPT_DIGEST_VALID`,
+  `AT_MOST_ONCE_CONSEQUENCE`, `CRASH_WINDOW_RECONCILED`, `UNKNOWN_NOT_PROMOTED`. It reports a
+  consequence-free `replay_digest` recomputed from ledger content.
+- `mutant_suite`: one unlawful mutation per rule; each must be refused by its rule.
+
+Reproduce:
+
+```bash
+cargo test --test brce_ledger
+cargo run --example brce_court -- <work_dir> <subject_sha>   # exit 0 iff admitted + replay equal + all mutants killed
+```
+
+The evidence ceiling in §11 is unchanged: a court `ADMITTED` verdict is receipt-level evidence
+and grants no authority (`Verification ⇏ DO`).
