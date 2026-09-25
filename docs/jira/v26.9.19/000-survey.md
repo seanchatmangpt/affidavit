@@ -1,0 +1,17 @@
+# affidavit: v26.9.19 GitHub survey receipt
+
+- Date: 2026-09-19 (v26.9.19 gh survey wave)
+- GitHub repo: seanchatmangpt/affidavit
+- Local path: `/Users/sac/affidavit`
+- Default branch: main | Archived: false | Last push: 2026-09-19T06:34:19Z
+- Open PRs: 26
+  - #76 gall/v26.9.18-final-specs GALL v26.9.18: Chicago standing crown specs;#75 v26.9.16/rfc-closure v26.9.18: add working-backwards DfCM exact-subject crown;#74 dependabot/npm_and_yarn/web/types/node-26.5.1 npm: bump @types/node from 22.19.21 to 26.5.1 in /web;#73 dependabot/npm_and_yarn/web/multi-de36fa8f59 npm: bump react-dom and @types/react-dom in /web;#72 dependabot/npm_and_yarn/web/multi-7f19880bf6 npm: bump react and @types/react in /web;#71 dependabot/npm_and_yarn/web/next-16.3.5 npm: bump next from 15.5.19 to 16.3.5 in /web;#66 dependabot/cargo/quote-1.0.47 cargo: bump quote from 1.0.45 to 1.0.47;#65 dependabot/cargo/trybuild-1.0.120 cargo: bump trybuild from 1.0.116 to 1.0.120;#64 dependabot/cargo/syn-3.0.3 cargo: bump syn from 2.0.117 to 3.0.3;#63 dependabot/cargo/pollster-1.0.1 cargo: bump pollster from 0.3.0 to 1.0.1;#62 dependabot/cargo/wgpu-30.0.0 cargo: bump wgpu from 0.19.4 to 30.0.0;#61 dependabot/cargo/regex-1.13.1 cargo: bump regex from 1.12.4 to 1.13.1;#59 dependabot/cargo/prometheus-0.14.0 cargo: bump prometheus from 0.13.4 to 0.14.0;#58 docs/refresh-agents-20260823 docs: rebuild AGENTS.md certification contract;#57 agent/v26-9-1-ecosystem-composition-20260820 crown: admit dependency-closed v26.9.1 ecosystem composition;#56 agent/foreign-receipt-conformance-v1 feat(certify): verify foreign portable receipts;#55 agent/v2030-1-1-prd-ard-20260819 docs: align affidavit with Chatman Ecosystem v2030.1.1;#54 integration/all-relevant-20260819 merge: consolidate relevant Affidavit branches;#51 dependabot/github_actions/actions/upload-artifact-7.0.1 ci: bump actions/upload-artifact from 4.6.2 to 7.0.1;#40 dependabot/github_actions/actions/setup-python-7 ci: bump actions/setup-python from 5 to 7;#39 dependabot/github_actions/actions/setup-node-7 ci: bump actions/setup-node from 4 to 7;#38 dependabot/npm_and_yarn/web/typescript-7.0.2 npm: bump typescript from 5.9.3 to 7.0.2 in /web;#21 dependabot/cargo/shlex-2.0.1 cargo: bump shlex from 1.3.0 to 2.0.1;#19 dependabot/cargo/criterion-0.8.2 cargo: bump criterion from 0.5.1 to 0.8.2;#17 dependabot/cargo/opentelemetry-jaeger-0.22.0 cargo: bump opentelemetry-jaeger from 0.19.0 to 0.22.0;#14 dependabot/github_actions/actions/checkout-7 ci: bump actions/checkout from 4 to 7
+- Unmerged origin branches without open PR: agent/format-result-20260812 agent/format-transport-20260812 audit/stubs-wip-2026-08-08 brand/forward-deployment-os-2026-08 claude/confident-mendel-mrolti claude/v26-9-6-release-ua9k2i claude/vigilant-hawking-l7is37 feat/breed-aware-receipt-model feat/dfcm-federated-capabilities-v26.9.1 feat/ecosystem-standing-receipts-20260812 feat/real-compliance-gates worktree-agent-a92dd597bb24e3709
+- Local branches ahead of upstream: none
+- Local-only branches with unique commits: feat/v26.9.17-release-affidavit:3 fix/affidavit-v26.9.17-boundary:3 worktree-agent-a54199ede365de59e:1
+- Uncommitted changes at survey time: T2/U0 path(s); sample:  M Cargo.lock; M Cargo.toml;
+- Network: OK
+
+Method: gh api repos/<repo> + gh pr list (open, limit 50) + git fetch --all --prune + ls-remote + branch -r --no-merged (origin only) + for-each-ref upstream tracks.
+
+6 work-item ticket(s) written alongside this receipt.
