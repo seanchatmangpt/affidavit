@@ -1,6 +1,7 @@
 # PRD v26.9.18 — GALL-007: Chicago Standing Crown
 
-**Status:** DRAFT IMPLEMENTATION SPEC
+**Status:** FINAL_SPEC — closed for v26.9.24
+**Implementation standing:** MERGED@a45ed48f9554ed62ef9f09b85fd3c4f4960d73c9 (PR #76; rust CI build-and-test, clippy -D warnings, rustfmt green on that exact head)
 **Release:** v26.9.18
 **Repository:** `seanchatmangpt/affidavit`
 **Owner:** affidavit
