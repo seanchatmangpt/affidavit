@@ -1,0 +1,40 @@
+{
+  "schema": "chatman/release-receipt/v1",
+  "release": "v26.9.25",
+  "name": "brce-ledger",
+  "requirements": [
+    "AC-08",
+    "F-05"
+  ],
+  "repo": "seanchatmangpt/affidavit",
+  "subject_sha": "f3b01d77909ef37f1a1775fe2a3ed88ddc54d030",
+  "subject": {
+    "repo": "seanchatmangpt/affidavit",
+    "sha": "f3b01d77909ef37f1a1775fe2a3ed88ddc54d030",
+    "ref": "origin/main"
+  },
+  "standing": "BLOCKED",
+  "type": "CAPABILITY_GAP:BRCE_LEDGER_ADAPTER_NOT_IMPLEMENTED",
+  "blocked_type": "CAPABILITY_GAP",
+  "broken_term": "R_missing_consequence",
+  "detail": "No executable BRCE ledger/receipt adapter exists at the subject SHA; docs/integrations/BRCE_RECEIPT_ADAPTER_V0_1.md is a specification with Implementation standing NOT_CLAIMED. No ledger of DO-class actions with durable receipt digests can be produced, so the zero-unreceipted-actuation court (AC-08) cannot be evaluated and F-05 cannot be discharged.",
+  "execution": {
+    "command": "git archive f3b01d77909ef37f1a1775fe2a3ed88ddc54d030 | tar -x -C tree && (cd tree && sh probe.sh)",
+    "probe_sha256": "d4ccb8c52ec01600d383bbe8b4384ce858b568918f6dd44e759dc9919e19e543",
+    "probe_source": "#!/bin/sh\n# BRCE ledger capability probe over an extracted affidavit subject tree (cwd).\n# Exits 0 iff executable (non-doc) code implementing a BRCE ledger/receipt adapter exists.\nhits=$(grep -rIl -i -E 'brce|consequence_id|brce-actuation|unreceipted' --include='*.rs' --include='*.py' --include='*.sh' --include='*.ts' --include='*.js' --include='*.ex' --include='*.exs' --include='*.toml' . 2>/dev/null)\necho \"executable_brce_hits:\"; echo \"$hits\"\necho \"doc_brce_hits:\"; grep -rIl -i 'brce' --include='*.md' . | sort\necho \"adapter_claim_status:\"; grep -n -E 'NOT_CLAIMED|No BRCE runtime implementation' docs/integrations/BRCE_RECEIPT_ADAPTER_V0_1.md\n[ -n \"$hits\" ] && exit 0 || exit 3\n",
+    "exit_code": 3,
+    "exit_meaning": "3 = zero executable (non-markdown) files reference BRCE; 0 would mean an implementation candidate exists",
+    "output_sha256": "82318634393de4d7b32f5d2aea8b3e0c11b9ff541ab9f1ea74a235210fc749d5",
+    "output": "executable_brce_hits:\n\ndoc_brce_hits:\n./docs/ERRC.md\n./docs/integrations/BRCE_RECEIPT_ADAPTER_V0_1.md\n./docs/integrations/README.md\nadapter_claim_status:\n4:**Implementation standing:** NOT_CLAIMED  \n367:No BRCE runtime implementation, TLA+ execution, or new Affidavit receipt verifier is claimed by this documentation PR.\n"
+  },
+  "anti_vacuity": {
+    "mutation": "add src/zz_mutant_brce.rs containing 'pub struct BrceLedger;'",
+    "mutant_exit_code": 0,
+    "restored_exit_code": 3
+  },
+  "ledger": null,
+  "authority": "NONE (observation only; no DO performed)",
+  "evidence_ceiling": "LOCAL_RUN",
+  "generated_at": "2026-09-25T13:17:29+00:00",
+  "unblock": "Implement docs/integrations/BRCE_RECEIPT_ADAPTER_V0_1.md section 'Implementation plan' step 1 (canonical Rust structures for affidavit/brce-actuation/v1, brce-reconciliation/v1, brce-replay/v1) plus a ledger emitter; then regenerate this receipt with standing ALIVE from a real ledger run."
+}
