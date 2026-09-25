@@ -90,6 +90,7 @@ mod macros;
 
 pub mod admission;
 pub mod bench;
+pub mod brce;
 pub mod catalog;
 pub mod chain;
 pub mod cli;
