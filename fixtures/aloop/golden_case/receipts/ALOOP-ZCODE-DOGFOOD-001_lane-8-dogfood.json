@@ -1,0 +1,80 @@
+{
+  "authority": {
+    "actor": "lane-8",
+    "ceiling": "DO",
+    "grant": "operator-dispatch ALOOP-ZCODE-DOGFOOD-001"
+  },
+  "commands": [
+    {
+      "cmd": "tools/aloop_falsifiers.py check",
+      "cwd": ".",
+      "exit": 0
+    }
+  ],
+  "consequence": {
+    "commits": [],
+    "files_changed": [
+      "docs/ALOOP_EXECUTION_RECEIPT.md"
+    ],
+    "remote_effects": []
+  },
+  "consequences": [
+    {
+      "hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "kind": "artifact"
+    }
+  ],
+  "evidence": [
+    {
+      "exit": 0,
+      "kind": "falsifier",
+      "verifier": "tools/aloop_falsifiers.py check"
+    }
+  ],
+  "exit_status": "ok",
+  "identity": {
+    "base_sha": "0abd0cc351b08c8c19414410e0cd365bfeac0ccb",
+    "repo": "affidavit",
+    "subject": "aloop-dogfood-scan",
+    "subject_sha": "0abd0cc351b08c8c19414410e0cd365bfeac0ccb"
+  },
+  "origin_authority": {
+    "actor": "lane-8",
+    "ceiling": "DO",
+    "grant": "operator-dispatch ALOOP-ZCODE-DOGFOOD-001"
+  },
+  "provider": {
+    "authority_ceiling": "DO",
+    "name": "zcode",
+    "transport": "local-session"
+  },
+  "provider_execution_id": "lane-8-run-0002",
+  "replay": {
+    "commands": [
+      {
+        "cmd": "tools/aloop_falsifiers.py check",
+        "cwd": ".",
+        "exit": 0
+      }
+    ]
+  },
+  "replay_binding": {
+    "chain_hash_algo": "sha256",
+    "chain_head_hash": "dd9b6e3aaeffb918f8cc8c52be8e5b8b2e351e8b503d5bd98b44eb3a55600bc0",
+    "event_ids": [
+      "e2"
+    ],
+    "predecessor_work_order_ids": [
+      "ALOOP-ZCODE-DOGFOOD-001/lane-8-profile"
+    ]
+  },
+  "standing": {
+    "derived_from": "dogfood scan run",
+    "value": "PARTIAL_ALIVE"
+  },
+  "timestamps": {
+    "finished_at": "2026-09-25T09:40:06Z",
+    "started_at": "2026-09-25T09:40:00Z"
+  },
+  "work_order_id": "ALOOP-ZCODE-DOGFOOD-001/lane-8-dogfood"
+}
