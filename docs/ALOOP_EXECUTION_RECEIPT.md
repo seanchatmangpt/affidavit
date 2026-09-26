@@ -13,7 +13,10 @@ receipt (R = identity, authority, consequence, replay, standing).
 | `schemas/aloop-execution-receipt.schema.json` | ALOOP profile: ExecutionReceipt = R v2 + execution fields + namespaced provider extensions; dfcm schema inlined at `$defs/dfcmReceipt` (self-contained, zero network refs) |
 | `tools/check_dfcm_schema_sync.py` | byte-sync guard: vendored == `~/.zcode/dfcm` == `~/.claude/dfcm` twin; profile inline == vendored |
 | `tools/aloop_falsifiers.py` | the eleven ZeroUnreceiptedActuation falsifiers + causal-DAG derivation + cycle/bridge detection + deterministic golden case |
-| `fixtures/aloop/golden_case/` | committed golden case (2 receipts, 3-event sha256 chain) |
+| `fixtures/aloop/golden_case/` | committed golden case (2 receipts, 3-event sha256 chain); a projection of `emit-golden`, never hand-edited |
+| `tools/tests/test_aloop_falsifiers.py` | Chicago pytest suite: golden-projection drift guard, profile conformance, adversarial corpus, benchmark regression bound |
+| `tools/bench/bench_aloop_falsifiers.py` | deterministic benchmark (synthetic conformant cases 1k/10k/50k events) |
+| `tools/bench/aloop_falsifiers.bench.json` | committed bench receipt (wall + process-CPU µs/event) |
 
 ## Contract binding
 
@@ -42,7 +45,7 @@ Mapping onto R v2 (`~/.zcode/dfcm/receipt.schema.json`):
   through `subject_sha`. A repo that cannot be locally verified is REFUSED
   (fail-closed), never silently passed.
 
-## The eleven falsifiers (each witnessed by `tools/aloop_falsifiers.py self-test`)
+## The eleven falsifiers + F00 profile gate (each witnessed by `tools/aloop_falsifiers.py self-test`)
 
 | # | falsifier | broken term |
 |---|---|---|
@@ -57,6 +60,31 @@ Mapping onto R v2 (`~/.zcode/dfcm/receipt.schema.json`):
 | F09 | subject mismatch | `R_missing_identity` |
 | F10 | authority mismatch | `R_missing_authority` |
 | F11 | post-hoc fabricated event | `R_not_fed_back` |
+
+| F00 | receipt does not conform to `schemas/aloop-execution-receipt.schema.json` (requires `jsonschema`; otherwise `profile_validation: SKIPPED(jsonschema-missing)` is reported, never hidden) | `mu_on_O` |
+
+Hardening (v26.9.26) widened the existing falsifiers to close false-accepts and
+crashes found by an adversarial corpus:
+
+* malformed input (non-JSON / non-object lines or receipt files, invalid UTF-8,
+  non-integer or boolean `seq`) is a typed F05/F01 refusal, never a traceback;
+* F01 also refuses a chain that does not start at seq 0 (truncated prefix re-chained)
+  and a receipt that claims an event id absent from the chain (phantom claim);
+* F02 is strictly monotonic (a duplicated seq is not an append order);
+* F03 refuses an event with no `actuation_id` (unattributable actuation);
+* F04 refuses one event claimed by several receipts and one work order receipted
+  twice (duplicate delivery);
+* F05 refuses duplicate `event_id`s, an unsupported `hash_algo` (explicitly, not as a
+  silent mismatch) and a `replay_binding.chain_head_hash` that is not the hash of the
+  receipt's last claimed event (replay mismatch);
+* F08 also joins `provider_execution_id` between each receipt and the events it claims;
+* F09 refuses a claim across work orders and a non-40-hex event `subject_sha`;
+* F11 compares RFC 3339 instants (offset-normalized), refuses naive/unparseable
+  timestamps, and only `reconstructed: true` (the boolean) is an honest marking.
+
+The committed golden receipts previously failed their own profile schema (missing
+`commands`, `evidence`, `exit_status`, `timestamps`); `golden_case()` now emits
+profile-valid receipts and the fixture was regenerated with `emit-golden`.
 
 An event marked `reconstructed: true` is not refused (honest post-hoc
 reconstruction); it is counted separately in the report so the honest count —
@@ -79,3 +107,11 @@ cycle and would hide real weak points.
 `tools/aloop_falsifiers.py check <case_dir>` over a directory of lane receipts +
 event chains prints a JSON verdict with `uar_count` (F07 violations) and
 `reconstructed_unclaimed`, exit 1 if refused.
+
+## Verification
+
+```bash
+python3 -m pytest tools/tests -q           # needs pytest + jsonschema
+python3 tools/aloop_falsifiers.py self-test
+python3 tools/bench/bench_aloop_falsifiers.py --out tools/bench/aloop_falsifiers.bench.json
+```

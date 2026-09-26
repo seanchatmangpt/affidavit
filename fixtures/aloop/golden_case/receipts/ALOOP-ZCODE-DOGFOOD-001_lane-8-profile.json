@@ -4,6 +4,13 @@
     "ceiling": "DO",
     "grant": "operator-dispatch ALOOP-ZCODE-DOGFOOD-001"
   },
+  "commands": [
+    {
+      "cmd": "tools/aloop_falsifiers.py self-test",
+      "cwd": ".",
+      "exit": 0
+    }
+  ],
   "consequence": {
     "commits": [],
     "files_changed": [
@@ -21,6 +28,14 @@
       "kind": "artifact"
     }
   ],
+  "evidence": [
+    {
+      "exit": 0,
+      "kind": "falsifier",
+      "verifier": "tools/aloop_falsifiers.py self-test"
+    }
+  ],
+  "exit_status": "ok",
   "identity": {
     "base_sha": "0abd0cc351b08c8c19414410e0cd365bfeac0ccb",
     "repo": "affidavit",
@@ -58,6 +73,10 @@
   "standing": {
     "derived_from": "self-test witnessed",
     "value": "PARTIAL_ALIVE"
+  },
+  "timestamps": {
+    "finished_at": "2026-09-25T09:05:04Z",
+    "started_at": "2026-09-25T09:00:00Z"
   },
   "work_order_id": "ALOOP-ZCODE-DOGFOOD-001/lane-8-profile"
 }
