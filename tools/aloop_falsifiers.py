@@ -629,6 +629,32 @@ def self_test(tmp=None):
     m = mutate(case, lambda rs, ev: rs[0]["identity"].__setitem__("subject_sha", "zz"))
     expect("H08_profile_nonconformant", *m, "F00", "mu_on_O")
 
+    # permanent guard for the parse-error path (from 3da2bbf, dogfood defect 2026-09-25):
+    # a malformed events line must yield a typed F05 violation, never a crash
+    d = tmp / "F05_malformed_line"
+    write_case(d, *copy.deepcopy(case))
+    p = d / "events.ndjson"
+    lines = p.read_text().splitlines()
+    lines[1] = lines[1][:40] + ",,,"
+    p.write_text("\n".join(lines) + "\n")
+    rep = check_case(d)
+    hit = any(v["falsifier"] == "F05" and v["term"] == "R_missing_identity"
+              and "events.ndjson" in str(v.get("detail", "")) for v in rep["violations"])
+    results.append(("F05_malformed_line_typed_no_crash", "F05", "R_missing_identity", hit, rep))
+    # permanent guard (from 3da2bbf): DAG builders tolerate foreign-shaped corpora (lane
+    # phase logs without event_id, manifests without work_order_id) — never crash; the
+    # id-less nodes are listed in dag["dropped"] instead of receiving synthesized ids
+    d = tmp / "DAG_foreign_shape"
+    (d / "receipts").mkdir(parents=True, exist_ok=True)
+    (d / "receipts" / "foreign.json").write_text(json.dumps({"lane": "x", "notes": "no work_order_id"}))
+    (d / "events.ndjson").write_text(
+        json.dumps({"ts": "2026-09-25T00:00:00Z", "phase": "orient", "notes": "no event_id"}) + "\n")
+    dag = build_dag(d)
+    cyc, brg = detect_cycles(dag), detect_bridges(dag)
+    dag_ok = isinstance(dag.get("nodes"), list) and cyc["acyclic"] and isinstance(brg["bridges"], list) \
+        and len(dag["dropped"]) == 2
+    results.append(("DAG_foreign_shape_no_crash", "DAG", "cycle/bridge", dag_ok, cyc))
+
     # DAG witnesses
     d = tmp / "00_golden_clean"
     dag = build_dag(d)
