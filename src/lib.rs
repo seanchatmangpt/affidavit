@@ -98,6 +98,7 @@ pub mod cli;
 #[cfg(feature = "discovery")]
 pub mod discovery;
 
+pub mod dfcm;
 pub mod ecosystem;
 pub mod execution_manifest;
 pub mod errc;
