@@ -89,6 +89,7 @@
 mod macros;
 
 pub mod admission;
+pub mod architecture;
 pub mod bench;
 pub mod brce;
 pub mod catalog;
@@ -99,10 +100,10 @@ pub mod cli;
 pub mod discovery;
 
 pub mod ecosystem;
-pub mod execution_manifest;
 pub mod errc;
 pub mod errc_claim_assurance;
 pub mod error;
+pub mod execution_manifest;
 pub mod fixture_db;
 /// GALL-007 evidence-only twelve-gate Chicago crown certification.
 pub mod gall;
@@ -170,6 +171,11 @@ pub fn run() -> clap_noun_verb::Result<()> {
     clap_noun_verb::run()
 }
 
+pub use architecture::{
+    ArchitectureQualificationReceipt, ArchitectureRefusal, ArchitectureStanding,
+    ArchitectureStandingLedger, EvidenceSource, QualificationEvidence, Supersession,
+    ARCHITECTURE_QUERY_SCHEMA, ARCHITECTURE_RECEIPT_SCHEMA,
+};
 pub use ecosystem::{
     certify_ecosystem, EcosystemMember, EcosystemObservation, EcosystemReceipt, EcosystemRefusal,
     EcosystemRole, RoleCoverage, RoleRequirement, ECOSYSTEM_AUTHORITY_CEILING,

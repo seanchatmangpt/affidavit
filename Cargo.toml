@@ -58,6 +58,10 @@ harness = false
 required-features = ["discovery"]
 
 [[bench]]
+name = "architecture_receipts"
+harness = false
+
+[[bench]]
 name = "quality_western_electric"
 harness = false
 required-features = ["quality-monitor"]
