@@ -99,10 +99,10 @@ pub mod cli;
 pub mod discovery;
 
 pub mod ecosystem;
-pub mod execution_manifest;
 pub mod errc;
 pub mod errc_claim_assurance;
 pub mod error;
+pub mod execution_manifest;
 pub mod fixture_db;
 /// GALL-007 evidence-only twelve-gate Chicago crown certification.
 pub mod gall;
