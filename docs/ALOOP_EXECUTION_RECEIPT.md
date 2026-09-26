@@ -82,13 +82,51 @@ crashes found by an adversarial corpus:
 * F11 compares RFC 3339 instants (offset-normalized), refuses naive/unparseable
   timestamps, and only `reconstructed: true` (the boolean) is an honest marking.
 
+Court round 2 (affidavit#85 at `01d17e40`) closed five false-accept classes and one
+destructive-IO defect:
+
+* **clause ids + anti-vacuity**: every violation carries `clause` (`F<nn>.<name>`).
+  `tools/tests` pins every clause by id (a row whose refusal is that clause), and
+  `test_every_refusal_clause_has_a_clause_pinned_witness` reads the clause set from the
+  verifier's source, so a clause added without a witness fails the suite. A sweep that
+  replaced each of the 39 refusal clauses (plus F00 and 5 guard mutants) with `pass`
+  killed 45/45 (at `01d17e40` 10/30 clauses survived, including `F05.prev_link`).
+* **consequence binding (F06)**: `consequences[].hash` must equal the set of the claimed
+  events' `consequence_hash` (`F06.unbound_consequence` / `F06.unreceipted_consequence`),
+  and `consequence.{commits,files_changed,remote_effects}` must equal the union of the
+  claimed events' same-named lists (`F06.field_mismatch`). A receipt can no longer
+  certify a consequence no event produced.
+* **omission is refused**: every event field a falsifier reads is required and owned by
+  that falsifier (`F<nn>.event_field_missing`): subject_sha/work_order_id -> F09,
+  provider/provider_execution_id -> F08, actor/authority_grant -> F10,
+  consequence_hash -> F06, ts/recorded_at -> F11, event_type/hash/hash_algo -> F05;
+  `prev_hash` must be present (null only at the root). F08 also joins the event
+  `provider` with the claiming receipt's `provider.name`; F09 compares subjects
+  whenever an event is claimed (a missing receipt subject is a mismatch).
+* **no self-waiver**: `reconstructed: true` waives only the F11 timing check. An
+  unclaimed event is F07 however it is marked; the report counts `reconstructed`
+  and `reconstructed_unclaimed` (the latter are also UAR).
+* **chain binding**: `replay_binding.chain_head_hash` is required by the profile and by
+  the checker (`F05.head_missing`) whenever a receipt claims events.
+* **input**: duplicate JSON keys are a parse refusal (parser-dependent payload); a
+  `predecessor_work_order_ids` entry naming an absent receipt is `F01.dangling_predecessor`
+  (and listed in the DAG's `dropped`).
+* **tail anchor**: a suffix truncation that also drops the tail's receipt is
+  undetectable from inside a case (the chain has no internal anchor for its own end).
+  `check <case> --anchor <tail-hash>` compares against an externally held tail hash
+  (`F01.anchor`); without it the report states `anchor: NONE(...)`.
+* **safe emit**: `emit-golden <dir>` removes only a previous case
+  (`receipts/*.json`, `events.ndjson`); any other entry is
+  `REFUSED(UNSAFE_OVERWRITE)` (exit 2) and nothing is deleted.
+
 The committed golden receipts previously failed their own profile schema (missing
 `commands`, `evidence`, `exit_status`, `timestamps`); `golden_case()` now emits
 profile-valid receipts and the fixture was regenerated with `emit-golden`.
 
-An event marked `reconstructed: true` is not refused (honest post-hoc
-reconstruction); it is counted separately in the report so the honest count —
-including RECONSTRUCTED — always survives.
+An event marked `reconstructed: true` is exempt from F11 only (honest post-hoc
+reconstruction); it is counted (`reconstructed`) and must still be claimed by a
+receipt, so the honest count — including RECONSTRUCTED — survives without letting the
+subject waive ZeroUnreceiptedActuation.
 
 ## Causal DAG
 
@@ -104,7 +142,7 @@ cycle and would hide real weak points.
 
 ## Dogfood
 
-`tools/aloop_falsifiers.py check <case_dir>` over a directory of lane receipts +
+`tools/aloop_falsifiers.py check <case_dir> [--anchor <tail-hash>]` over a directory of lane receipts +
 event chains prints a JSON verdict with `uar_count` (F07 violations) and
 `reconstructed_unclaimed`, exit 1 if refused.
 

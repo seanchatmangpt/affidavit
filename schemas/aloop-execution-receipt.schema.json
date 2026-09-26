@@ -481,7 +481,8 @@
     "replay_binding": {
       "type": "object",
       "required": [
-        "event_ids"
+        "event_ids",
+        "chain_head_hash"
       ],
       "properties": {
         "event_ids": {

@@ -27,22 +27,39 @@ The eleven falsifiers, each naming the broken term of the dfcm failure taxonomy:
     F10 authority_mismatch        event vs receipt origin_authority R_missing_authority
     F11 posthoc_fabricated        recorded before it claims to have
                                   happened, unmarked                R_not_fed_back
-An event honestly marked reconstructed:true is not a violation; it is counted and
-reported separately (RECONSTRUCTED), so the honest count survives.
+An event honestly marked reconstructed:true is exempt from F11 (timing) only; it is
+counted (RECONSTRUCTED) and must still be claimed by a receipt, or it is an
+unreceipted actuation (F07) like any other: the subject cannot waive the invariant.
+Every violation carries a `clause` (F<nn>.<name>) naming the exact refusal clause;
+every clause has its own witness in tools/tests (anti-vacuity).
 
 An affidavit certifies what occurred; it NEVER decides planning policy.
 
 Usage:
-    aloop_falsifiers.py check <case_dir>
+    aloop_falsifiers.py check <case_dir> [--anchor HASH]   # HASH = externally held chain tail
     aloop_falsifiers.py dag <case_dir> [--out FILE]    # DAG + cycle/bridge detection
     aloop_falsifiers.py emit-golden <case_dir>         # deterministic golden case
     aloop_falsifiers.py self-test [tmpdir]             # witness every refusal
 """
-import copy, json, hashlib, re, shutil, sys, tempfile
+import copy, json, hashlib, re, sys, tempfile
 from datetime import datetime
 from pathlib import Path
 
 RECEIPT_REQUIRED = ("work_order_id", "origin_authority", "provider", "provider_execution_id")
+# every event field a falsifier reads, with the falsifier that owns it: leaving a field
+# out is refused by that falsifier (F<nn>.event_field_missing), never skipped.
+# seq (F01.seq_type), event_id (F05.event_id_missing), actuation_id (F03.no_actuation_id)
+# and prev_hash (F05.prev_hash_key, null at the root) have their own clauses.
+EVENT_REQUIRED = (
+    ("event_type", "F05"), ("hash_algo", "F05"), ("hash", "F05"),
+    ("work_order_id", "F09"), ("subject_sha", "F09"),
+    ("provider", "F08"), ("provider_execution_id", "F08"),
+    ("actor", "F10"), ("authority_grant", "F10"),
+    ("consequence_hash", "F06"),
+    ("ts", "F11"), ("recorded_at", "F11"),
+)
+# receipt.consequence.<key> must equal the union of the claimed events' <key>
+CONSEQUENCE_KEYS = ("commits", "files_changed", "remote_effects")
 FALSIFIERS = {
     "F00": ("profile_nonconformant", "mu_on_O"),
     "F01": ("missing_event", "R_missing_replay"),
@@ -96,6 +113,21 @@ def parse_ts(v):
     return d if d.tzinfo is not None else None
 
 
+def _no_dup_keys(pairs):
+    """object_pairs_hook: a JSON object with a repeated key is ambiguous (the hash
+    commits the last value, a first-wins parser reads the first) -> parse error."""
+    out = {}
+    for k, v in pairs:
+        if k in out:
+            raise ValueError(f"duplicate key {k!r}; payload is parser-dependent")
+        out[k] = v
+    return out
+
+
+def _loads(text):
+    return json.loads(text, object_pairs_hook=_no_dup_keys)
+
+
 def load_case(case_dir):
     """Load receipts + events. Anything that is not a JSON object is a parse error
     (typed, refused by check_case) instead of a crash downstream."""
@@ -105,8 +137,8 @@ def load_case(case_dir):
     if rdir.is_dir():
         for p in sorted(rdir.glob("*.json")):
             try:
-                obj = json.loads(p.read_text())
-            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                obj = _loads(p.read_text())
+            except ValueError as e:  # JSONDecodeError, UnicodeDecodeError, duplicate key
                 parse_errors.append(f"receipt {p.name}: {e}")
                 continue
             if not isinstance(obj, dict):
@@ -127,8 +159,8 @@ def load_case(case_dir):
             if not line:
                 continue
             try:
-                obj = json.loads(line)
-            except json.JSONDecodeError as e:
+                obj = _loads(line)
+            except ValueError as e:
                 parse_errors.append(f"events.ndjson line {i + 1}: {e}")
                 continue
             if not isinstance(obj, dict):
@@ -139,10 +171,41 @@ def load_case(case_dir):
     return receipts, events, order, parse_errors
 
 
+class UnsafeOverwrite(Exception):
+    """write_case refuses to clear a directory that holds anything but a case."""
+
+
+def _clear_case_dir(case_dir):
+    """Remove ONLY a previous case (receipts/*.json + events.ndjson). Anything else in
+    the directory (other files, subdirectories, non-json receipts) is a refusal:
+    emit-golden must never be able to wipe fixtures/ or a working tree."""
+    if not case_dir.exists():
+        return
+    if not case_dir.is_dir() or case_dir.is_symlink():
+        raise UnsafeOverwrite(f"{case_dir} exists and is not a plain directory")
+    foreign = []
+    for p in case_dir.iterdir():
+        if p.name == "events.ndjson" and p.is_file() and not p.is_symlink():
+            continue
+        if p.name == "receipts" and p.is_dir() and not p.is_symlink():
+            foreign += [q for q in p.iterdir() if not (q.suffix == ".json" and q.is_file() and not q.is_symlink())]
+            continue
+        foreign.append(p)
+    if foreign:
+        raise UnsafeOverwrite(f"{case_dir} holds non-case entries {sorted(str(x.relative_to(case_dir)) for x in foreign)[:5]}; refused, nothing deleted")
+    rdir = case_dir / "receipts"
+    if rdir.is_dir():
+        for q in rdir.iterdir():
+            q.unlink()
+    ev = case_dir / "events.ndjson"
+    if ev.exists():
+        ev.unlink()
+
+
 def write_case(case_dir, receipts, events):
     case_dir = Path(case_dir)
-    shutil.rmtree(case_dir, ignore_errors=True)
-    (case_dir / "receipts").mkdir(parents=True)
+    _clear_case_dir(case_dir)
+    (case_dir / "receipts").mkdir(parents=True, exist_ok=True)
     used = set()
     for r in receipts:
         stem = str(r.get("work_order_id") or "no_work_order").replace("/", "_")
@@ -173,80 +236,112 @@ def profile_errors(receipts):
         body = {k: v for k, v in r.items() if k != "__file__"}
         for err in sorted(validator.iter_errors(body), key=lambda e: list(e.absolute_path)):
             loc = "/".join(str(x) for x in err.absolute_path) or "<root>"
-            out.append({"falsifier": "F00", "term": "mu_on_O",
+            out.append({"falsifier": "F00", "clause": "F00.profile", "term": "mu_on_O",
                         "detail": f"receipt {r.get('__file__')} violates ALOOP profile at {loc}: {err.message[:160]}"})
     return out, "CHECKED"
 
 
 # ---------------------------------------------------------------- checks
 
-def V(f, detail):
-    return {"falsifier": f, "term": FALSIFIERS[f][1], "detail": detail}
+def V(f, clause, detail):
+    """One typed refusal. `clause` names the exact refusal clause (F<nn>.<name>) so a
+    witness can pin the clause, not just the falsifier family (anti-vacuity: every
+    clause must be killable by its own witness; see tools/tests)."""
+    return {"falsifier": f, "clause": f"{f}.{clause}", "term": FALSIFIERS[f][1], "detail": detail}
 
 
-def check_case(case_dir, validate_profile=True):
+def _hashes(items):
+    return {c.get("hash") for c in items if isinstance(c, dict) and isinstance(c.get("hash"), str)}
+
+
+def _strs(v):
+    return {x for x in v if isinstance(x, str)} if isinstance(v, list) else set()
+
+
+def check_case(case_dir, validate_profile=True, anchor=None):
+    """Verdict over a case directory. `anchor` (optional) is an externally held chain
+    head hash (e.g. from a transparency log or the dispatcher's receipt); without it a
+    tail truncation that also drops the tail's receipts is indistinguishable from a
+    shorter honest run — the chain has no internal anchor for its own end."""
     receipts, events, order, parse_errors = load_case(case_dir)
-    violations = [V("F05", p) for p in parse_errors]
+    violations = [V("F05", "parse", p) for p in parse_errors]
     if not events and not parse_errors:
-        violations.append(V("F01", "no events in chain"))
+        violations.append(V("F01", "empty", "no events in chain"))
 
     # receipt identity + duplicate delivery of receipts
     claimed, wo_seen = {}, {}
     for r in receipts:
         for miss in [k for k in RECEIPT_REQUIRED if k not in r]:
-            violations.append(V("F08", f"receipt {r.get('__file__')} missing {miss}"))
+            violations.append(V("F08", "receipt_field_missing", f"receipt {r.get('__file__')} missing {miss}"))
         wo = r.get("work_order_id")
         if wo in wo_seen:
-            violations.append(V("F04", f"work order {wo} receipted twice ({wo_seen[wo]}, {r.get('__file__')}); duplicate delivery"))
+            violations.append(V("F04", "wo_twice", f"work order {wo} receipted twice ({wo_seen[wo]}, {r.get('__file__')}); duplicate delivery"))
         wo_seen.setdefault(wo, r.get("__file__"))
         rb = r.get("replay_binding") if isinstance(r.get("replay_binding"), dict) else {}
         eids = rb.get("event_ids", [])
         if not isinstance(eids, list):
-            violations.append(V("F05", f"receipt {wo} replay_binding.event_ids is not a list"))
+            violations.append(V("F05", "event_ids_type", f"receipt {wo} replay_binding.event_ids is not a list"))
             eids = []
         for eid in eids:
             if not isinstance(eid, str):
-                violations.append(V("F05", f"receipt {wo} claims non-string event id {eid!r}"))
+                violations.append(V("F05", "claim_type", f"receipt {wo} claims non-string event id {eid!r}"))
                 continue
             claimed.setdefault(eid, []).append(r)
+    # predecessor edges must resolve inside the case (closed world): a dangling
+    # predecessor is a replay reference to a receipt that is not present
+    for r in receipts:
+        rb = r.get("replay_binding") if isinstance(r.get("replay_binding"), dict) else {}
+        for pred in rb.get("predecessor_work_order_ids", []) or []:
+            if pred not in wo_seen:
+                violations.append(V("F01", "dangling_predecessor", f"receipt {r.get('work_order_id')} replays from absent work order {pred!r}"))
 
-    # event identity: seq type, unique event_id
+    # event identity: seq type, unique event_id, required fields (omission is never a pass)
     ids = {}
     for e in events:
         if not is_seq(e.get("seq")):
-            violations.append(V("F01", f"event {e.get('event_id')} seq {e.get('seq')!r} is not a non-negative integer"))
+            violations.append(V("F01", "seq_type", f"event {e.get('event_id')} seq {e.get('seq')!r} is not a non-negative integer"))
         eid = e.get("event_id")
         if not isinstance(eid, str) or not eid:
-            violations.append(V("F05", f"event at seq {e.get('seq')!r} has no event_id"))
+            violations.append(V("F05", "event_id_missing", f"event at seq {e.get('seq')!r} has no event_id"))
         elif eid in ids:
-            violations.append(V("F05", f"event_id {eid} appears twice in chain; receipts cannot bind it uniquely"))
+            violations.append(V("F05", "event_id_dup", f"event_id {eid} appears twice in chain; receipts cannot bind it uniquely"))
         ids.setdefault(eid, e)
+        for field, f in EVENT_REQUIRED:
+            v = e.get(field)
+            if not (isinstance(v, str) and v):
+                violations.append(V(f, "event_field_missing", f"event {eid} field {field} missing or not a non-empty string ({v!r}); omission cannot bypass {f}"))
+        if "prev_hash" not in e:
+            violations.append(V("F05", "prev_hash_key", f"event {eid} has no prev_hash key (null only for the chain root)"))
 
     by_seq = sorted(events, key=seq_key)
     # F01 missing event: chain must start at 0 and be gap-free; claims must resolve
     seqs = [e.get("seq") for e in by_seq if is_seq(e.get("seq"))]
     if seqs and seqs[0] != 0:
-        violations.append(V("F01", f"chain starts at seq {seqs[0]}; prefix 0..{seqs[0] - 1} missing"))
+        violations.append(V("F01", "prefix", f"chain starts at seq {seqs[0]}; prefix 0..{seqs[0] - 1} missing"))
     for a, b in zip(seqs, seqs[1:]):
         if b - a > 1:
-            violations.append(V("F01", f"seq gap {a} -> {b}"))
+            violations.append(V("F01", "gap", f"seq gap {a} -> {b}"))
     for eid, rs in claimed.items():
         if eid not in ids:
-            violations.append(V("F01", f"receipt(s) {sorted(str(r.get('work_order_id')) for r in rs)} claim event {eid} absent from chain"))
+            violations.append(V("F01", "phantom_claim", f"receipt(s) {sorted(str(r.get('work_order_id')) for r in rs)} claim event {eid} absent from chain"))
+    if anchor is not None:
+        tail = by_seq[-1].get("hash") if by_seq else None
+        if tail != anchor:
+            violations.append(V("F01", "anchor", f"chain tail {str(tail)[:12]}… != external anchor {str(anchor)[:12]}…; chain truncated or extended relative to the anchor"))
     # F02 reordered (strict: equal seq twice is also not an append order)
     file_seqs = [events[i].get("seq") for i in order]
     num = [s if is_seq(s) else -1 for s in file_seqs]
     if any(a >= b for a, b in zip(num, num[1:])):
-        violations.append(V("F02", f"append order {file_seqs} is not strictly seq-monotonic"))
+        violations.append(V("F02", "order", f"append order {file_seqs} is not strictly seq-monotonic"))
     # F03 duplicate actuation (and actuation with no id at all)
     seen = set()
     for e in events:
         aid = e.get("actuation_id")
         if not isinstance(aid, str) or not aid:
-            violations.append(V("F03", f"event {e.get('event_id')} carries no actuation_id; actuation not attributable to a grant"))
+            violations.append(V("F03", "no_actuation_id", f"event {e.get('event_id')} carries no actuation_id; actuation not attributable to a grant"))
             continue
         if aid in seen:
-            violations.append(V("F03", f"actuation {aid} executed twice; second run has no fresh grant"))
+            violations.append(V("F03", "dup", f"actuation {aid} executed twice; second run has no fresh grant"))
         seen.add(aid)
     # F04 duplicate consequence across distinct actuations; one event claimed twice
     cons = {}
@@ -254,45 +349,65 @@ def check_case(case_dir, validate_profile=True):
         cons.setdefault(e.get("consequence_hash"), set()).add(str(e.get("actuation_id")))
     for ch, acts in cons.items():
         if ch and len(acts) > 1:
-            violations.append(V("F04", f"consequence {str(ch)[:12]}… claimed by {sorted(acts)}; receipts no longer discriminate"))
+            violations.append(V("F04", "consequence_shared", f"consequence {str(ch)[:12]}… claimed by {sorted(acts)}; receipts no longer discriminate"))
     for eid, rs in claimed.items():
         wos = sorted({str(r.get("work_order_id")) for r in rs})
         if len(rs) > 1:
-            violations.append(V("F04", f"event {eid} claimed by {len(rs)} receipts {wos}; one actuation, many certifications"))
+            violations.append(V("F04", "multi_claim", f"event {eid} claimed by {len(rs)} receipts {wos}; one actuation, many certifications"))
     # F05 broken chain + replay binding head
     prev = None
     for e in by_seq:
         if e.get("prev_hash") != prev:
-            violations.append(V("F05", f"event {e.get('event_id')} prev_hash does not link predecessor"))
+            violations.append(V("F05", "prev_link", f"event {e.get('event_id')} prev_hash does not link predecessor"))
         c = canonical(e)
         if c is None:
-            violations.append(V("F05", f"event {e.get('event_id')} hash_algo {e.get('hash_algo')!r} unsupported by this verifier; refused, not passed"))
+            violations.append(V("F05", "hash_algo", f"event {e.get('event_id')} hash_algo {e.get('hash_algo')!r} unsupported by this verifier; refused, not passed"))
         elif c != e.get("hash"):
-            violations.append(V("F05", f"event {e.get('event_id')} hash does not commit its payload"))
+            violations.append(V("F05", "hash", f"event {e.get('event_id')} hash does not commit its payload"))
         prev = e.get("hash")
+    mine_of = {}
     for r in receipts:
         rb = r.get("replay_binding") if isinstance(r.get("replay_binding"), dict) else {}
+        eids = rb.get("event_ids", []) if isinstance(rb.get("event_ids", []), list) else []
+        mine = [ids[x] for x in eids if isinstance(x, str) and x in ids]
+        mine_of[id(r)] = mine
         head = rb.get("chain_head_hash")
-        mine = [ids[x] for x in rb.get("event_ids", []) if isinstance(x, str) and x in ids]
-        if head is not None and mine:
+        if mine and head is None:
+            violations.append(V("F05", "head_missing", f"receipt {r.get('work_order_id')} claims events but binds no chain_head_hash; receipt not bound to the chain"))
+        elif head is not None and mine:
             want = max(mine, key=seq_key).get("hash")
             if head != want:
-                violations.append(V("F05", f"receipt {r.get('work_order_id')} chain_head_hash {str(head)[:12]}… != hash of its last claimed event {str(want)[:12]}…; replay mismatch"))
-    # F06 receipt without consequence
+                violations.append(V("F05", "head_mismatch", f"receipt {r.get('work_order_id')} chain_head_hash {str(head)[:12]}… != hash of its last claimed event {str(want)[:12]}…; replay mismatch"))
+    # F06 receipt without consequence + consequence binding to the claimed events
     for r in receipts:
+        wo = r.get("work_order_id")
         c = r.get("consequence") if isinstance(r.get("consequence"), dict) else {}
+        agg = r.get("consequences") if isinstance(r.get("consequences"), list) else []
         empty_r = not (c.get("commits") or c.get("files_changed") or c.get("remote_effects"))
-        empty_a = not r.get("consequences")
-        if empty_r and empty_a:
-            violations.append(V("F06", f"receipt {r.get('work_order_id')} records no consequence"))
-    # F07 consequence without receipt (unreceipted actuation; the UAR count)
-    reconstructed = 0
+        if empty_r and not agg:
+            violations.append(V("F06", "empty", f"receipt {wo} records no consequence"))
+        mine = mine_of[id(r)]
+        ev_h = {e.get("consequence_hash") for e in mine if isinstance(e.get("consequence_hash"), str)}
+        r_h = _hashes(agg)
+        for h in sorted(r_h - ev_h):
+            violations.append(V("F06", "unbound_consequence", f"receipt {wo} certifies consequence {h[:12]}… that no claimed event produced"))
+        for h in sorted(ev_h - r_h):
+            violations.append(V("F06", "unreceipted_consequence", f"receipt {wo} omits consequence {h[:12]}… produced by its claimed events"))
+        for key in CONSEQUENCE_KEYS:
+            ev_set = set().union(*[_strs(e.get(key)) for e in mine]) if mine else set()
+            r_set = _strs(c.get(key))
+            if r_set != ev_set:
+                violations.append(V("F06", "field_mismatch", f"receipt {wo} consequence.{key} {sorted(r_set)} != union of claimed events' {key} {sorted(ev_set)}"))
+    # F07 consequence without receipt (unreceipted actuation; the UAR count).
+    # reconstructed:true waives only the F11 timing check, never F07: an unreceipted
+    # actuation stays unreceipted however it is marked (the subject cannot waive the
+    # invariant it is judged by).
+    reconstructed = sum(1 for e in events if e.get("reconstructed") is True)
+    reconstructed_unclaimed = 0
     for e in events:
         if e.get("event_id") not in claimed:
-            if e.get("reconstructed") is True:
-                reconstructed += 1
-                continue
-            violations.append(V("F07", f"actuation event {e.get('event_id')} ({e.get('actuation_id')}) claimed by no receipt"))
+            reconstructed_unclaimed += e.get("reconstructed") is True
+            violations.append(V("F07", "unclaimed", f"actuation event {e.get('event_id')} ({e.get('actuation_id')}) claimed by no receipt"))
     # F08 provider identity rewrite
     names = {}
     for e in events:
@@ -303,32 +418,35 @@ def check_case(case_dir, validate_profile=True):
     for peid, ns in names.items():
         real = {n for n in ns if isinstance(n, str) and n}
         if len(real) > 1:
-            violations.append(V("F08", f"provider_execution_id {peid} carried by providers {sorted(real)}"))
+            violations.append(V("F08", "provider_rewrite", f"provider_execution_id {peid} carried by providers {sorted(real)}"))
     # F08 (join) / F09 subject / F10 authority on every claim; F11 post-hoc fabrication
     for e in events:
         esub = e.get("subject_sha")
         if esub is not None and not (isinstance(esub, str) and HEX40.match(esub)):
-            violations.append(V("F09", f"event {e.get('event_id')} subject_sha {esub!r} is not a 40-hex git commit"))
+            violations.append(V("F09", "subject_format", f"event {e.get('event_id')} subject_sha {esub!r} is not a 40-hex git commit"))
         for r in claimed.get(e.get("event_id"), []):
             wo = r.get("work_order_id")
             if e.get("work_order_id") != wo:
-                violations.append(V("F09", f"event {e.get('event_id')} belongs to work order {e.get('work_order_id')} but is claimed by receipt {wo}"))
+                violations.append(V("F09", "cross_wo", f"event {e.get('event_id')} belongs to work order {e.get('work_order_id')} but is claimed by receipt {wo}"))
             if e.get("provider_execution_id") != r.get("provider_execution_id"):
-                violations.append(V("F08", f"event {e.get('event_id')} provider_execution_id {e.get('provider_execution_id')} != receipt {wo} {r.get('provider_execution_id')}"))
+                violations.append(V("F08", "peid_join", f"event {e.get('event_id')} provider_execution_id {e.get('provider_execution_id')} != receipt {wo} {r.get('provider_execution_id')}"))
+            prov = r.get("provider") if isinstance(r.get("provider"), dict) else {}
+            if e.get("provider") != prov.get("name"):
+                violations.append(V("F08", "provider_join", f"event {e.get('event_id')} provider {e.get('provider')!r} != receipt {wo} provider {prov.get('name')!r}"))
             ident = r.get("identity") if isinstance(r.get("identity"), dict) else {}
             rsub = ident.get("subject_sha")
-            if esub and rsub and esub != rsub:
-                violations.append(V("F09", f"event {e['event_id']} subject {str(esub)[:12]}… != receipt {wo} subject {str(rsub)[:12]}…"))
+            if esub != rsub:
+                violations.append(V("F09", "subject_mismatch", f"event {e.get('event_id')} subject {str(esub)[:12]}… != receipt {wo} subject {str(rsub)[:12]}…"))
             oa = r.get("origin_authority") if isinstance(r.get("origin_authority"), dict) else {}
             if (e.get("actor"), e.get("authority_grant")) != (oa.get("actor"), oa.get("grant")):
-                violations.append(V("F10", f"event {e.get('event_id')} acted as ({e.get('actor')}, {e.get('authority_grant')}) but receipt {wo} records ({oa.get('actor')}, {oa.get('grant')})"))
+                violations.append(V("F10", "authority", f"event {e.get('event_id')} acted as ({e.get('actor')}, {e.get('authority_grant')}) but receipt {wo} records ({oa.get('actor')}, {oa.get('grant')})"))
         ts, rec = e.get("ts"), e.get("recorded_at")
         if ts is not None or rec is not None:
             t, rc = parse_ts(ts), parse_ts(rec)
             if t is None or rc is None:
-                violations.append(V("F11", f"event {e.get('event_id')} ts/recorded_at ({ts!r}, {rec!r}) not both RFC 3339 instants with offset"))
+                violations.append(V("F11", "unparseable", f"event {e.get('event_id')} ts/recorded_at ({ts!r}, {rec!r}) not both RFC 3339 instants with offset"))
             elif rc < t and e.get("reconstructed") is not True:
-                violations.append(V("F11", f"event {e.get('event_id')} recorded {rec} before its claimed occurrence {ts} with no reconstructed marking"))
+                violations.append(V("F11", "posthoc", f"event {e.get('event_id')} recorded {rec} before its claimed occurrence {ts} with no reconstructed marking"))
     schema_status = "NOT_REQUESTED"
     if validate_profile:
         errs, schema_status = profile_errors(receipts)
@@ -339,7 +457,9 @@ def check_case(case_dir, validate_profile=True):
         "receipts": len(receipts),
         "violations": violations,
         "uar_count": sum(1 for v in violations if v["falsifier"] == "F07"),
-        "reconstructed_unclaimed": reconstructed,
+        "reconstructed": reconstructed,
+        "reconstructed_unclaimed": reconstructed_unclaimed,
+        "anchor": anchor if anchor is not None else "NONE(tail truncation undetectable without an external anchor)",
         "profile_validation": schema_status,
         "verdict": "CONFORMANT" if not violations else "REFUSED",
     }
@@ -381,6 +501,9 @@ def build_dag(case_dir):
     for r in receipts_ok:
         rb = r.get("replay_binding") if isinstance(r.get("replay_binding"), dict) else {}
         for pred in rb.get("predecessor_work_order_ids", []) or []:
+            if not (isinstance(pred, str) and pred in ids):
+                dropped.append(f"predecessor edge R:{r['work_order_id']} -> {pred!r} dangling")
+                continue
             if isinstance(pred, str) and pred in ids:
                 edges.append({"from": f"R:{r['work_order_id']}", "to": f"R:{pred}", "kind": "predecessor"})
         head = rb.get("chain_head_hash")
@@ -467,6 +590,7 @@ def golden_case():
          "provider": "zcode", "provider_execution_id": "lane-8-run-0001",
          "subject_sha": GOLDEN_SUBJECT, "actuation_id": "act-0001",
          "cmd": "write schemas/aloop-execution-receipt.schema.json",
+         "files_changed": ["schemas/aloop-execution-receipt.schema.json"],
          "consequence_hash": "11" * 32, "ts": "2026-09-25T09:00:00Z",
          "recorded_at": "2026-09-25T09:00:05Z", "hash_algo": "sha256"},
         {"seq": 1, "event_id": "e1", "event_type": "verification", "work_order_id": WO1,
@@ -481,6 +605,7 @@ def golden_case():
          "provider": "zcode", "provider_execution_id": "lane-8-run-0002",
          "subject_sha": GOLDEN_SUBJECT, "actuation_id": "act-0003",
          "cmd": "dogfood scan of lane manifests",
+         "files_changed": ["docs/ALOOP_EXECUTION_RECEIPT.md"],
          "consequence_hash": "33" * 32, "ts": "2026-09-25T09:40:00Z",
          "recorded_at": "2026-09-25T09:40:06Z", "hash_algo": "sha256"},
     ]
@@ -550,11 +675,12 @@ def self_test(tmp=None):
     case = (receipts, events)
     results = []
 
-    def expect(name, rs, evs, want_f, want_term, want_absent=False):
+    def expect(name, rs, evs, want_f, want_term, want_absent=False, clause=None):
         d = tmp / name
         write_case(d, rs, evs)
         rep = check_case(d)
-        hit = any(v["falsifier"] == want_f and v["term"] == want_term for v in rep["violations"])
+        hit = any(v["falsifier"] == want_f and v["term"] == want_term
+                  and (clause is None or v["clause"] == clause) for v in rep["violations"])
         # a clean witness must be fully CONFORMANT; a refusal witness must be REFUSED
         ok = (rep["verdict"] == "CONFORMANT") if want_absent else (hit and rep["verdict"] == "REFUSED")
         results.append((name, want_f, want_term, ok, rep))
@@ -629,6 +755,56 @@ def self_test(tmp=None):
     m = mutate(case, lambda rs, ev: rs[0]["identity"].__setitem__("subject_sha", "zz"))
     expect("H08_profile_nonconformant", *m, "F00", "mu_on_O")
 
+    # v26.9.26 court round 2 (affidavit#85): clause-pinned witnesses for the
+    # false-accepts the court found at 01d17e40
+    def relink(rs, ev):
+        # rewrite a prev_hash AND recompute every downstream hash + receipt heads: only
+        # the linkage clause can see it (the hash clause is satisfied)
+        ev[1]["prev_hash"] = "f" * 64
+        ev[1]["hash"] = canonical(ev[1])
+        ev[2]["prev_hash"] = ev[1]["hash"]
+        ev[2]["hash"] = canonical(ev[2])
+        rs[0]["replay_binding"]["chain_head_hash"] = ev[1]["hash"]
+        rs[1]["replay_binding"]["chain_head_hash"] = ev[2]["hash"]
+    expect("H09_prev_hash_relinked_rehashed", *mutate(case, relink), "F05", "R_missing_identity",
+           clause="F05.prev_link")
+    m = mutate(case, lambda rs, ev: rs[0].__setitem__("consequences", [{"hash": "ee" * 32, "kind": "file"}]))
+    expect("H10_receipt_consequence_unbound", *m, "F06", "R_missing_consequence",
+           clause="F06.unbound_consequence")
+    m = mutate(case, lambda rs, ev: rs[0]["consequence"].__setitem__("files_changed", ["src/main.rs"]))
+    expect("H11_receipt_files_changed_rewrite", *m, "F06", "R_missing_consequence",
+           clause="F06.field_mismatch")
+
+    def recon_unclaimed(rs, ev):
+        add_event(rs, ev, event_id="e3", actuation_id="act-9999", consequence_hash="99" * 32,
+                  cmd="git push --force", reconstructed=True)
+    expect("H12_unreceipted_actuation_marked_reconstructed", *mutate(case, recon_unclaimed),
+           "F07", "mu_unlawful", clause="F07.unclaimed")
+
+    def drop_subject(rs, ev):
+        for e in ev:
+            e.pop("subject_sha")
+        prev = None
+        for e in ev:
+            e["prev_hash"] = prev
+            e["hash"] = canonical(e)
+            prev = e["hash"]
+        rs[0]["replay_binding"]["chain_head_hash"] = ev[1]["hash"]
+        rs[1]["replay_binding"]["chain_head_hash"] = ev[2]["hash"]
+    expect("H13_event_field_omitted", *mutate(case, drop_subject), "F09", "R_missing_identity",
+           clause="F09.event_field_missing")
+    # emit-golden / write_case never deletes foreign data
+    victim = tmp / "H14_victim"
+    (victim / "sub").mkdir(parents=True, exist_ok=True)
+    (victim / "sub" / "keep.txt").write_text("precious\n")
+    try:
+        write_case(victim, *copy.deepcopy(case))
+        refused = False
+    except UnsafeOverwrite:
+        refused = True
+    kept = (victim / "sub" / "keep.txt").read_text() == "precious\n"
+    results.append(("H14_unsafe_overwrite_refused", "IO", "UNSAFE_OVERWRITE", refused and kept, {"refused": refused, "kept": kept}))
+
     # permanent guard for the parse-error path (from 3da2bbf, dogfood defect 2026-09-25):
     # a malformed events line must yield a typed F05 violation, never a crash
     d = tmp / "F05_malformed_line"
@@ -682,7 +858,8 @@ def self_test(tmp=None):
 
 def main(argv):
     if len(argv) >= 2 and argv[0] == "check":
-        rep = check_case(argv[1])
+        anchor = argv[argv.index("--anchor") + 1] if "--anchor" in argv[2:-1] else None
+        rep = check_case(argv[1], anchor=anchor)
         print(json.dumps(rep, indent=2))
         return 0 if rep["verdict"] == "CONFORMANT" else 1
     if len(argv) >= 2 and argv[0] == "dag":
@@ -695,7 +872,11 @@ def main(argv):
         print(out)
         return 0 if dag["cycles"]["acyclic"] else 1
     if len(argv) >= 2 and argv[0] == "emit-golden":
-        write_case(argv[1], *golden_case())
+        try:
+            write_case(argv[1], *golden_case())
+        except UnsafeOverwrite as e:
+            print(f"REFUSED(UNSAFE_OVERWRITE): {e}", file=sys.stderr)
+            return 2
         print(f"golden case written to {argv[1]}")
         return 0
     if argv[:1] == ["self-test"]:

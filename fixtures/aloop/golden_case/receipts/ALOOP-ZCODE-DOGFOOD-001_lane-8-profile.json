@@ -64,7 +64,7 @@
   },
   "replay_binding": {
     "chain_hash_algo": "sha256",
-    "chain_head_hash": "e5e2cd2350d60194e61a44d09d616e92d2e907b222ba537991f865fae50f06cd",
+    "chain_head_hash": "bdfa2a83f320c84cbc4a3933ba8cd4e556e9ed15d5153114aa2628f3f34d595f",
     "event_ids": [
       "e0",
       "e1"

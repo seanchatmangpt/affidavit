@@ -10,38 +10,38 @@
     {
       "events": 1000,
       "receipts": 100,
-      "check_s": 0.1354,
-      "dag_s": 0.0172,
-      "check_us_per_event": 135.44,
-      "dag_us_per_event": 17.15,
-      "check_cpu_s": 0.1307,
-      "dag_cpu_s": 0.0171,
-      "check_cpu_us_per_event": 130.74,
-      "dag_cpu_us_per_event": 17.13
+      "check_s": 0.2806,
+      "dag_s": 0.019,
+      "check_us_per_event": 280.56,
+      "dag_us_per_event": 19.04,
+      "check_cpu_s": 0.1402,
+      "dag_cpu_s": 0.019,
+      "check_cpu_us_per_event": 140.21,
+      "dag_cpu_us_per_event": 19.04
     },
     {
       "events": 10000,
       "receipts": 1000,
-      "check_s": 1.4645,
-      "dag_s": 0.2064,
-      "check_us_per_event": 146.45,
-      "dag_us_per_event": 20.64,
-      "check_cpu_s": 1.3532,
-      "dag_cpu_s": 0.1767,
-      "check_cpu_us_per_event": 135.32,
-      "dag_cpu_us_per_event": 17.67
+      "check_s": 2.1438,
+      "dag_s": 0.3425,
+      "check_us_per_event": 214.38,
+      "dag_us_per_event": 34.25,
+      "check_cpu_s": 1.3411,
+      "dag_cpu_s": 0.2366,
+      "check_cpu_us_per_event": 134.11,
+      "dag_cpu_us_per_event": 23.66
     },
     {
       "events": 50000,
       "receipts": 5000,
-      "check_s": 8.8771,
-      "dag_s": 1.4134,
-      "check_us_per_event": 177.54,
-      "dag_us_per_event": 28.27,
-      "check_cpu_s": 6.8375,
-      "dag_cpu_s": 1.0633,
-      "check_cpu_us_per_event": 136.75,
-      "dag_cpu_us_per_event": 21.27
+      "check_s": 8.889,
+      "dag_s": 4.2401,
+      "check_us_per_event": 177.78,
+      "dag_us_per_event": 84.8,
+      "check_cpu_s": 6.6785,
+      "dag_cpu_s": 1.6941,
+      "check_cpu_us_per_event": 133.57,
+      "dag_cpu_us_per_event": 33.88
     }
   ]
 }
