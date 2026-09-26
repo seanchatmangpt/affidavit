@@ -82,10 +82,10 @@ fn bench_supersede_chain(c: &mut Criterion) {
     let r = certify(16);
     c.bench_function("architecture/supersede_and_verify_chain/16", |b| {
         b.iter(|| {
-            let next = black_box(&r)
+            let s = black_box(&r)
                 .supersede("sha256:sbb-b", "git:subject-b", vec!["sha256:ev-b".into()])
                 .expect("supersede");
-            next.verify_chain(&r).expect("chain");
+            s.verify(&r).expect("chain");
         })
     });
 }

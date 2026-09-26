@@ -173,7 +173,8 @@ pub fn run() -> clap_noun_verb::Result<()> {
 
 pub use architecture::{
     ArchitectureQualificationReceipt, ArchitectureRefusal, ArchitectureStanding,
-    ARCHITECTURE_RECEIPT_SCHEMA,
+    ArchitectureStandingLedger, EvidenceSource, QualificationEvidence, Supersession,
+    ARCHITECTURE_QUERY_SCHEMA, ARCHITECTURE_RECEIPT_SCHEMA,
 };
 pub use ecosystem::{
     certify_ecosystem, EcosystemMember, EcosystemObservation, EcosystemReceipt, EcosystemRefusal,

@@ -5,7 +5,8 @@
 
 use affidavit::{
     ArchitectureQualificationReceipt as Receipt, ArchitectureRefusal as Refusal,
-    ArchitectureStanding as Standing, ARCHITECTURE_RECEIPT_SCHEMA,
+    ArchitectureStanding as Standing, ArchitectureStandingLedger as Ledger, EvidenceSource,
+    QualificationEvidence, ARCHITECTURE_QUERY_SCHEMA, ARCHITECTURE_RECEIPT_SCHEMA,
 };
 use std::time::Instant;
 
@@ -42,6 +43,15 @@ fn qualified() -> Receipt {
 
 fn replay(r: &Receipt) -> Result<(), Refusal> {
     r.verify_replay(ABB, CONTRACT, SBB, SUBJECT)
+}
+
+/// Recompute the unkeyed self-digest after editing fields: models an
+/// adversary who rewrites a receipt and reseals it (integrity is public).
+fn resealed(mut r: Receipt) -> Receipt {
+    r.receipt_digest.clear();
+    let bytes = serde_json::to_vec(&r).unwrap();
+    r.receipt_digest = format!("blake3:{}", blake3::hash(&bytes).to_hex());
+    r
 }
 
 #[test]
@@ -174,7 +184,7 @@ fn forged_do_authority_is_refused() {
 }
 
 #[test]
-fn tampered_fields_fail_replay() {
+fn unresealed_tampering_fails_replay() {
     let base = qualified();
 
     let mut forged_evidence = base.clone();
@@ -196,8 +206,17 @@ fn tampered_fields_fail_replay() {
     assert_eq!(replay(&forged_digest), Err(Refusal::ReplayMismatch));
 
     let mut forged_prior = base.clone();
-    forged_prior.prior_receipt_digest = Some("blake3:ghost".into());
+    forged_prior.prior_receipt_digest = Some(format!("blake3:{}", "f".repeat(64)));
     assert_eq!(replay(&forged_prior), Err(Refusal::ReplayMismatch));
+
+    let mut malformed_prior = base.clone();
+    malformed_prior.prior_receipt_digest = Some("blake3:ghost".into());
+    assert_eq!(
+        replay(&resealed(malformed_prior)),
+        Err(Refusal::MalformedDigest {
+            field: "prior_receipt_digest"
+        })
+    );
 }
 
 #[test]
@@ -253,6 +272,11 @@ fn supersession_requires_a_real_replacement_and_intact_prior() {
         current.supersede(SBB, "git:next", ev(&["sha256:ev"])),
         Err(Refusal::NotAReplacement)
     );
+    // Same digest body under a different algorithm label is not a new SBB.
+    assert_eq!(
+        current.supersede("sha512:sbb-0001", "git:next", ev(&["sha256:ev"])),
+        Err(Refusal::NotAReplacement)
+    );
 
     let mut tampered = current.clone();
     tampered.producer_digest = "sha256:forged".into();
@@ -272,7 +296,8 @@ fn chain_verification_detects_wrong_prior_and_reuse() {
     let a = qualified();
     let b = a
         .supersede("sha256:sbb-0002", "git:next", ev(&["sha256:ev-b"]))
-        .unwrap();
+        .unwrap()
+        .successor;
     assert_eq!(b.verify_chain(&a), Ok(()));
     assert_eq!(
         b.verify_replay(ABB, CONTRACT, "sha256:sbb-0002", "git:next"),
@@ -282,7 +307,8 @@ fn chain_verification_detects_wrong_prior_and_reuse() {
     // A second-generation link verifies against its own prior only.
     let c = b
         .supersede("sha256:sbb-0003", "git:next2", ev(&["sha256:ev-c"]))
-        .unwrap();
+        .unwrap()
+        .successor;
     assert_eq!(c.verify_chain(&b), Ok(()));
     assert_eq!(c.verify_chain(&a), Err(Refusal::ChainBroken));
 
@@ -350,5 +376,338 @@ fn certify_and_replay_stay_within_regression_bound() {
     assert!(
         per_op_us < 2_000.0,
         "certify+replay regressed: {per_op_us:.1} us/op (bound 2000 us/op)"
+    );
+}
+
+#[test]
+fn supersession_puts_superseded_on_the_replaced_sbb_not_the_successor() {
+    let a = qualified();
+    let s = a
+        .supersede("sha256:sbb-0002", "git:next", ev(&["sha256:ev-b"]))
+        .unwrap();
+    assert_eq!(s.successor.standing, Standing::Qualified);
+    assert_eq!(s.successor.sbb_digest, "sha256:sbb-0002");
+    assert_eq!(s.retired.standing, Standing::Superseded);
+    assert_eq!(s.retired.sbb_digest, SBB);
+    assert_eq!(
+        s.retired.prior_receipt_digest.as_deref(),
+        Some(a.receipt_digest.as_str())
+    );
+    assert_eq!(
+        s.retired.superseded_by_receipt_digest.as_deref(),
+        Some(s.successor.receipt_digest.as_str())
+    );
+    assert_eq!(s.verify(&a), Ok(()));
+    assert_eq!(
+        s.successor
+            .verify_replay(ABB, CONTRACT, "sha256:sbb-0002", "git:next"),
+        Ok(())
+    );
+    // A retirement record cannot itself be superseded again.
+    assert_eq!(
+        s.retired
+            .supersede("sha256:sbb-0009", "git:x", ev(&["sha256:ev"])),
+        Err(Refusal::NotSupersedable)
+    );
+    // Swapping the halves is refused.
+    let mut swapped = s.clone();
+    std::mem::swap(&mut swapped.retired, &mut swapped.successor);
+    assert!(swapped.verify(&a).is_err());
+}
+
+#[test]
+fn ledger_query_returns_the_current_sbb_after_replacement() {
+    let a = qualified();
+    let mut ledger = Ledger::new();
+    ledger.admit(a.clone()).unwrap();
+    assert_eq!(ledger.current_qualified(ABB), vec![&a]);
+
+    let s = a
+        .supersede("sha256:sbb-0002", "git:next", ev(&["sha256:ev-b"]))
+        .unwrap();
+    ledger.admit_supersession(s.clone()).unwrap();
+    assert_eq!(ledger.len(), 3);
+
+    let current = ledger.current_qualified(ABB);
+    assert_eq!(current.len(), 1);
+    assert_eq!(current[0].sbb_digest, "sha256:sbb-0002");
+    assert_eq!(
+        ledger.standing_of(&a.receipt_digest),
+        Some(Standing::Superseded)
+    );
+    assert_eq!(
+        ledger.standing_of(&s.successor.receipt_digest),
+        Some(Standing::Qualified)
+    );
+    assert_eq!(ledger.standing_of("blake3:absent"), None);
+    assert!(ledger.current_qualified("sha256:other-abb").is_empty());
+
+    let q: serde_json::Value = serde_json::from_str(&ledger.query_json(ABB)).unwrap();
+    assert_eq!(q["schema"], ARCHITECTURE_QUERY_SCHEMA);
+    assert_eq!(q["confers_do_authority"], false);
+    assert_eq!(q["current_qualified"].as_array().unwrap().len(), 1);
+    assert_eq!(q["current_qualified"][0]["sbb_digest"], "sha256:sbb-0002");
+    assert_eq!(q["superseded"][0]["sbb_digest"], SBB);
+    assert_eq!(
+        q["superseded"][0]["retired_receipt_digest"],
+        a.receipt_digest.as_str()
+    );
+
+    // Idempotent re-admission.
+    ledger.admit_supersession(s).unwrap();
+    assert_eq!(ledger.len(), 3);
+}
+
+#[test]
+fn ledger_refuses_orphan_forked_and_directly_admitted_chain_links() {
+    let a = qualified();
+    let s = a
+        .supersede("sha256:sbb-0002", "git:next", ev(&["sha256:ev-b"]))
+        .unwrap();
+
+    let mut empty = Ledger::new();
+    assert_eq!(
+        empty.admit_supersession(s.clone()),
+        Err(Refusal::OrphanChainLink)
+    );
+    assert_eq!(
+        empty.admit(s.successor.clone()),
+        Err(Refusal::OrphanChainLink)
+    );
+    assert!(empty.is_empty());
+
+    let mut ledger = Ledger::new();
+    ledger.admit(a.clone()).unwrap();
+    assert_eq!(ledger.admit(s.successor.clone()), Err(Refusal::ChainBroken));
+    assert_eq!(ledger.admit(s.retired.clone()), Err(Refusal::ChainBroken));
+    ledger.admit_supersession(s).unwrap();
+
+    let fork = a
+        .supersede("sha256:sbb-0003", "git:fork", ev(&["sha256:ev-f"]))
+        .unwrap();
+    assert_eq!(
+        ledger.admit_supersession(fork),
+        Err(Refusal::AlreadySuperseded)
+    );
+    assert_eq!(ledger.current_qualified(ABB).len(), 1);
+
+    // A resealed forged successor (arbitrary well-formed prior) is an orphan.
+    let mut forged = qualified();
+    forged.sbb_digest = "sha256:sbb-evil".into();
+    forged.prior_receipt_digest = Some(format!("blake3:{}", "a".repeat(64)));
+    let forged = resealed(forged);
+    assert_eq!(forged.verify_integrity(), Ok(()));
+    assert_eq!(ledger.admit(forged), Err(Refusal::OrphanChainLink));
+}
+
+#[test]
+fn standing_and_chain_fields_must_agree() {
+    assert_eq!(
+        Receipt::certify(
+            ABB,
+            CONTRACT,
+            SBB,
+            SUBJECT,
+            ev(&["sha256:ev"]),
+            PRODUCER,
+            vec![],
+            Standing::Superseded
+        ),
+        Err(Refusal::StandingChainMismatch)
+    );
+
+    let mut orphan_superseded = qualified();
+    orphan_superseded.standing = Standing::Superseded;
+    assert_eq!(
+        resealed(orphan_superseded).verify_integrity(),
+        Err(Refusal::StandingChainMismatch)
+    );
+
+    let mut qualified_with_successor = qualified();
+    qualified_with_successor.superseded_by_receipt_digest =
+        Some(format!("blake3:{}", "b".repeat(64)));
+    assert_eq!(
+        resealed(qualified_with_successor).verify_integrity(),
+        Err(Refusal::StandingChainMismatch)
+    );
+
+    let mut candidate_with_prior = qualified();
+    candidate_with_prior.standing = Standing::Candidate;
+    candidate_with_prior.prior_receipt_digest = Some(format!("blake3:{}", "c".repeat(64)));
+    assert_eq!(
+        resealed(candidate_with_prior).verify_integrity(),
+        Err(Refusal::StandingChainMismatch)
+    );
+
+    let mut self_loop = qualified();
+    self_loop.standing = Standing::Superseded;
+    let d = format!("blake3:{}", "d".repeat(64));
+    self_loop.prior_receipt_digest = Some(d.clone());
+    self_loop.superseded_by_receipt_digest = Some(d);
+    assert_eq!(
+        resealed(self_loop).verify_integrity(),
+        Err(Refusal::StandingChainMismatch)
+    );
+}
+
+#[test]
+fn resealed_malformed_digests_are_refused_on_parse_and_replay() {
+    let mut bad_abb = qualified();
+    bad_abb.abb_digest = "NOT A DIGEST".into();
+    let bad_abb = resealed(bad_abb);
+    assert_eq!(
+        Receipt::from_json_verified(&bad_abb.to_json()),
+        Err(Refusal::MalformedDigest {
+            field: "abb_digest"
+        })
+    );
+
+    let mut bad_producer = qualified();
+    bad_producer.producer_digest = "NOT A DIGEST".into();
+    assert_eq!(
+        Receipt::from_json_verified(&resealed(bad_producer).to_json()),
+        Err(Refusal::MalformedDigest {
+            field: "producer_digest"
+        })
+    );
+
+    let mut empty_subject = qualified();
+    empty_subject.exact_subject_digest.clear();
+    let empty_subject = resealed(empty_subject);
+    assert_eq!(
+        Receipt::from_json_verified(&empty_subject.to_json()),
+        Err(Refusal::MissingExactSubject)
+    );
+    assert_eq!(
+        empty_subject.verify_replay(ABB, CONTRACT, SBB, ""),
+        Err(Refusal::MissingExactSubject)
+    );
+
+    let mut bad_evidence = qualified();
+    bad_evidence.qualification_evidence_digests = ev(&["sha256:zz", "zz"]);
+    assert_eq!(
+        resealed(bad_evidence).verify_integrity(),
+        Err(Refusal::MalformedDigest {
+            field: "qualification_evidence_digests"
+        })
+    );
+}
+
+#[test]
+fn invisible_characters_in_digest_bodies_are_refused() {
+    assert_eq!(
+        Receipt::certify(
+            ABB,
+            CONTRACT,
+            "sha256:ab\u{200b}",
+            SUBJECT,
+            ev(&["sha256:ev"]),
+            PRODUCER,
+            vec![],
+            Standing::Qualified
+        ),
+        Err(Refusal::MalformedDigest {
+            field: "sbb_digest"
+        })
+    );
+}
+
+#[test]
+fn forged_evidence_is_refused_against_observed_bytes_even_when_resealed() {
+    let xaas = QualificationEvidence::observe(
+        EvidenceSource::Xaas,
+        "sha256:producer-xaas",
+        b"xaas conformance run 42: 0 deviations",
+    )
+    .unwrap();
+    let runtime = QualificationEvidence::observe(
+        EvidenceSource::Runtime,
+        "sha256:producer-runtime",
+        b"runtime trace: p99 12ms, 0 errors",
+    )
+    .unwrap();
+    let autofde = QualificationEvidence::observe(
+        EvidenceSource::AutofdeLab,
+        PRODUCER,
+        b"autofde-lab qualification: pass",
+    )
+    .unwrap();
+    let r = Receipt::certify_from_evidence(
+        ABB,
+        CONTRACT,
+        SBB,
+        SUBJECT,
+        &[xaas.clone(), runtime.clone(), autofde.clone()],
+        PRODUCER,
+        vec![],
+        Standing::Qualified,
+    )
+    .unwrap();
+    let observed: Vec<(QualificationEvidence, &[u8])> = vec![
+        (xaas.clone(), b"xaas conformance run 42: 0 deviations"),
+        (runtime.clone(), b"runtime trace: p99 12ms, 0 errors"),
+        (autofde.clone(), b"autofde-lab qualification: pass"),
+    ];
+    assert_eq!(r.verify_evidence(&observed), Ok(()));
+
+    // Resealed with a fabricated evidence digest: integrity holds (unkeyed),
+    // evidence verification refuses.
+    let mut forged = r.clone();
+    forged
+        .qualification_evidence_digests
+        .push("sha256:fake".into());
+    forged.qualification_evidence_digests.sort();
+    let forged = resealed(forged);
+    assert_eq!(replay(&forged), Ok(()));
+    assert_eq!(
+        forged.verify_evidence(&observed),
+        Err(Refusal::ForgedEvidence)
+    );
+
+    // Bytes that do not match the recorded content digest.
+    let tampered: Vec<(QualificationEvidence, &[u8])> = vec![
+        (xaas, b"xaas conformance run 42: 3 deviations"),
+        (runtime, b"runtime trace: p99 12ms, 0 errors"),
+        (autofde, b"autofde-lab qualification: pass"),
+    ];
+    assert_eq!(r.verify_evidence(&tampered), Err(Refusal::ForgedEvidence));
+
+    // Missing one observation: the derived set differs.
+    assert_eq!(
+        r.verify_evidence(&observed[..2]),
+        Err(Refusal::ForgedEvidence)
+    );
+
+    assert_eq!(
+        QualificationEvidence::observe(EvidenceSource::Xaas, "sha256:p", b""),
+        Err(Refusal::MissingEvidence)
+    );
+    assert_eq!(
+        QualificationEvidence::observe(EvidenceSource::Xaas, "p", b"x"),
+        Err(Refusal::MalformedDigest {
+            field: "evidence.producer_digest"
+        })
+    );
+}
+
+#[test]
+fn changed_sbb_on_replay_and_unknown_certification_are_refused() {
+    let r = qualified();
+    assert_eq!(
+        r.verify_replay(ABB, CONTRACT, "sha256:sbb-9999", SUBJECT),
+        Err(Refusal::MutableOrChangedSbb)
+    );
+    assert_eq!(
+        Receipt::certify(
+            ABB,
+            CONTRACT,
+            SBB,
+            SUBJECT,
+            ev(&["sha256:ev"]),
+            PRODUCER,
+            vec![],
+            Standing::Unknown
+        ),
+        Err(Refusal::UnknownPromotion)
     );
 }
