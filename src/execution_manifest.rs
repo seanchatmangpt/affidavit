@@ -128,7 +128,8 @@ pub fn requalification_reason(
 ) -> Result<Option<ManifestRefusal>, ManifestRefusal> {
     before.validate()?;
     after.validate()?;
-    if before.exact_subject != after.exact_subject || before.subject_digest != after.subject_digest {
+    if before.exact_subject != after.exact_subject || before.subject_digest != after.subject_digest
+    {
         return Ok(Some(ManifestRefusal::SubjectIdentityChanged));
     }
     if before.authority_grant_digest != after.authority_grant_digest {
