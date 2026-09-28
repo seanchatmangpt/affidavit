@@ -2,7 +2,7 @@
 #
 # affi.zsh — zsh completion for the `affi` CLI (affidavit Provenance Layer).
 #
-# Generated from src/registry.rs — 69 verbs across 10 groups.
+# Generated from src/registry.rs — 79 verbs across 11 groups.
 #
 # Install (per-user):
 #   mkdir -p ~/.zsh/completions
@@ -26,8 +26,10 @@ _affi() {
             _values 'noun' \
                 'receipt[Receipt chain operations (69 verbs)]' \
                 'affi[Tool-level operations]' \
-                'quality[Quality monitoring]' \
-                'guide[Help and discovery]'
+                'guide[Help and discovery]' \
+                'standing[Certify receipt-bound ecosystem standing]' \
+                'ecosystem[Federate sealed member standing receipts]' \
+                'errc[Certify formal ERRC transformation receipts]'
             ;;
         verb)
             case "${words[2]}" in
@@ -46,76 +48,86 @@ _affi() {
                         'graph[DAG visualization (dot/mermaid/json)]' \
                         'replay[Re-execute chain from events]' \
                         'timeline[Chronological event sequence]' \
-                        'root_cause[Trace root cause of failure]' \
+                        'root-cause[Trace root cause of failure]' \
                         'audit[Full integrity scan]' \
                         'query[Filter and search events]' \
                         'model[Extract type schema]' \
                         'conformance[Check against profile rules]' \
-                        'coverage_analysis[Event coverage completeness]' \
-                        'tech_debt[Technical debt analysis]' \
-                        'security_debt[Security vulnerability analysis]' \
-                        'emit_batch[Bulk-emit events from JSON array file]' \
-                        'emit_from_cicd[Emit from CI/CD pipeline]' \
-                        'emit_from_cloud[Emit from cloud events]' \
-                        'emit_from_github[Emit from GitHub webhook]' \
-                        'emit_from_gitlab[Emit from GitLab webhook]' \
-                        'emit_from_monitoring[Emit from monitoring alerts]' \
-                        'emit_from_sbom[Emit from SBOM components]' \
-                        'emit_from_security[Emit from security scan results]' \
-                        'verify_compliance[Verify against compliance framework]' \
-                        'verify_sla[Verify against SLA targets]' \
-                        'verify_family[Verify multiple receipts for consistency]' \
-                        'policy_enforce[Enforce custom policy rules]' \
-                        'license_compliance[License compliance check]' \
-                        'gdpr_proof[GDPR evidence generation]' \
+                        'coverage-analysis[Event coverage completeness]' \
+                        'tech-debt[Technical debt analysis]' \
+                        'security-debt[Security vulnerability analysis]' \
+                        'emit-batch[Bulk-emit events from JSON array file]' \
+                        'emit-from-cicd[Emit from CI/CD pipeline]' \
+                        'emit-from-cloud[Emit from cloud events]' \
+                        'emit-from-github[Emit from GitHub webhook]' \
+                        'emit-from-gitlab[Emit from GitLab webhook]' \
+                        'emit-from-monitoring[Emit from monitoring alerts]' \
+                        'emit-from-sbom[Emit from SBOM components]' \
+                        'emit-from-security[Emit from security scan results]' \
+                        'verify-compliance[Verify against compliance framework]' \
+                        'verify-sla[Verify against SLA targets]' \
+                        'verify-family[Verify multiple receipts for consistency]' \
+                        'policy-enforce[Enforce custom policy rules]' \
+                        'license-compliance[License compliance check]' \
+                        'gdpr-proof[GDPR evidence generation]' \
                         'hipaa[HIPAA compliance check]' \
-                        'pci_dss[PCI-DSS compliance check]' \
+                        'pci-dss[PCI-DSS compliance check]' \
                         'sign[Sign receipt with a key]' \
                         'notarize[Notarize receipt with timestamp]' \
                         'attest[Attest receipt with identity]' \
-                        'assemble_with_signature[Assemble and sign in one step]' \
-                        'assemble_and_notarize[Assemble and notarize in one step]' \
-                        'sbom_attest[Attest SBOM provenance]' \
-                        'sbom_scan[Scan SBOM for vulnerabilities]' \
-                        'sbom_blast_radius[SBOM dependency blast radius]' \
-                        'sbom_compliance[SBOM compliance check]' \
-                        'sbom_ntia[NTIA minimum elements check]' \
-                        'anomaly_detect[Detect anomalous events]' \
+                        'assemble-with-signature[Assemble and sign in one step]' \
+                        'assemble-and-notarize[Assemble and notarize in one step]' \
+                        'sbom-attest[Attest SBOM provenance]' \
+                        'sbom-scan[Scan SBOM for vulnerabilities]' \
+                        'sbom-blast-radius[SBOM dependency blast radius]' \
+                        'sbom-compliance[SBOM compliance check]' \
+                        'sbom-ntia[NTIA minimum elements check]' \
+                        'anomaly-detect[Detect anomalous events]' \
                         'predict[Predict future events]' \
-                        'trend_analysis[Analyze event trends over time]' \
+                        'trend-analysis[Analyze event trends over time]' \
                         'variance[Variance analysis across receipts]' \
-                        'find_blast_radius[Find dependency blast radius]' \
-                        'explain_incident[Explain incident from receipt chain]' \
-                        'causality_chain[Build causality chain]' \
-                        'bus_factor[Bus factor analysis]' \
-                        'dora_metrics[DORA metrics from receipt chain]' \
-                        'team_velocity[Team velocity from events]' \
-                        'portfolio_health[Portfolio health across receipts]' \
-                        'orphaned_code[Find orphaned code events]' \
-                        'dependency_matrix[Build dependency matrix]' \
+                        'find-blast-radius[Find dependency blast radius]' \
+                        'explain-incident[Explain incident from receipt chain]' \
+                        'causality-chain[Build causality chain]' \
+                        'bus-factor[Bus factor analysis]' \
+                        'dora-metrics[DORA metrics from receipt chain]' \
+                        'team-velocity[Team velocity from events]' \
+                        'portfolio-health[Portfolio health across receipts]' \
+                        'orphaned-code[Find orphaned code events]' \
+                        'dependency-matrix[Build dependency matrix]' \
                         'catalog[List and search receipt fixtures]' \
                         'search[Fuzzy verb search]' \
                         'profile[Show profile schema]' \
-                        'install_git_hook[Install git hook for auto-verify]' \
+                        'install-git-hook[Install git hook for auto-verify]' \
                         'monitor[Continuous quality monitoring]' \
                         'visualize[Export receipt graph]' \
                         'test[Verb dispatch smoke test]' \
-                        'receipt_throughput[Throughput benchmark]'
+                        'receipt-throughput[Throughput benchmark]'
                     ;;
                 affi)
                     _values 'verb' \
                         'doctor[Environment and receipt-store health checks]'
                     ;;
-                quality)
+                standing)
                     _values 'verb' \
-                        'monitor[Continuous quality monitoring]'
+                        'certify[Seal a standing claim over an admitted receipt]' \
+                        'verify[Re-run the standing law over a sealed receipt]'
+                    ;;
+                ecosystem)
+                    _values 'verb' \
+                        'certify[Federate sealed member standing receipts]' \
+                        'verify[Re-run the federation law over a sealed receipt]'
+                    ;;
+                errc)
+                    _values 'verb' \
+                        'certify[Seal a declared ERRC transformation]' \
+                        'verify[Re-run the ERRC laws over a sealed receipt]' \
+                        'assure[Seal a one-witness-per-claim assurance ledger]' \
+                        'verify-assurance[Re-run the claim-assurance law]'
                     ;;
                 guide)
                     _values 'verb' \
-                        'search[Fuzzy verb keyword search]' \
-                        'tutorial[Interactive tutorial]' \
-                        'examples[Show usage examples]' \
-                        'man[Show man page for a verb]'
+                        'search[Search the verb registry by keyword]'
                     ;;
             esac
             ;;

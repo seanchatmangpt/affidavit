@@ -2,6 +2,220 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.9.24] — 2026-09-24
+
+**Theme: consolidation of the v26.9.x branch fan-out.**
+
+Merges the parallel v26.9.x workstreams (execution manifests, GALL crown
+certification, ecosystem standing receipts, ERRC courts, architecture receipts)
+into one line. The genesis seed moves to `affidavit-v26.9.24-genesis`; the browser
+verifier and visualizer carry the same seed.
+
+## [26.9.6] — 2026-09-06
+
+**Theme: the evidence federation kernel becomes reachable.**
+
+The v26.9.x BCRE federation kernel landed as library code — `certify_standing`,
+`certify_ecosystem`, `certify_errc`, and `certify_errc_claim_assurance` were
+implemented, unit tested, and exported from `src/lib.rs`, but no verb, handler,
+or registry entry referenced any of them. The kernel could only be driven from
+Rust. This release gives it a real, tested operator surface and brings the
+release identity back in line with the code.
+
+### Added
+- **Federation courts** (`src/federation.rs`): the adapter layer between the CLI
+  and the four kernel certifiers. Loads a `core/v1` receipt, drives it through
+  the real Layer 2 gate (`admission::admit`, which runs both the wasm4pm-compat
+  OCEL court and the affidavit certify pipeline), parses a bounded observation,
+  and seals the profile receipt. It performs **no adjudication of its own** —
+  every accept/refuse decision belongs to `admission` or to the kernel.
+- **Eight new verbs across three new nouns** (69 → 79 registry entries, 10 → 11
+  groups; the extra two are `affi doctor` and `guide search`, which shipped
+  dispatchable but unregistered — see Fixed):
+  - `affi standing certify` / `affi standing verify` — `affidavit/standing/v2`
+  - `affi ecosystem certify` / `affi ecosystem verify` — `affidavit/ecosystem/v1`
+  - `affi errc certify` / `affi errc verify` — `affidavit/errc/v1`
+  - `affi errc assure` / `affi errc verify-assurance` —
+    `affidavit/errc-claim-assurance/v1`
+- **`VerbGroup::Federation`** in `src/registry.rs` — the eleventh taxonomy group.
+- **`--out <PATH>`** on every `certify`/`assure` verb — writes the sealed
+  receipt as a clean artifact so `certify` → `verify` composes in a real script.
+- **Machine-consumable `--format json`** on all eight federation verbs. The
+  `clap-noun-verb` runtime renders each verb's return value to stdout after the
+  handler returns, appending a bare `null` to otherwise valid JSON — so
+  `--format json | jq` failed on ACCEPT while working on REJECT. The federation
+  courts now exit with their own code on every path, emitting exactly one JSON
+  document. Other verbs are still affected (ROADMAP B13).
+- **Ontology/registry/projection parity tests** (`src/registry.rs`):
+  `every_registry_verb_is_declared_in_the_ontology` and
+  `every_registry_entry_has_a_verb_projection`. `ontology/affi-cli.ttl` is the
+  authoritative CLI input (AGENTS.md §5) but `ggen` cannot run in every
+  environment, so these tests are what keep the projection honest.
+- **`tests/federation_cli.rs`** — 15 end-to-end tests driving the real `affi`
+  binary: certify → verify round trips, tamper detection, the ALIVE evidence
+  law, unmet role quorums, ERRC directional refusals, and the assurance
+  bijection. Library tests pass whether or not the CLI surface exists; these do
+  not.
+- **`tests/release_identity.rs`** — holds `affi --version`, `GENESIS_SEED`,
+  `CHANGELOG.md`, the README verb count, the browser verifier's genesis seed,
+  the never-compiled-sources list, and the shell completions to the package
+  version and the registry.
+- **Five anti-forgery tests for the kernel's derived fields.** `coverage` and
+  `standing` (ecosystem) and `claim_ids` (claim assurance) are *derived*, not
+  inputs — so a forger can rewrite one, recompute `receipt_hash` over the
+  doctored material (the algorithm is deterministic and public), and produce a
+  receipt that hashes correctly. `CoverageMismatch`, `StandingMismatch` and
+  `ClaimSetMismatch` are the only things standing between that attacker and a
+  forged federation, and **none of the three had a single test**. They now do,
+  including the JSON round trip an operator actually uses and the proof that
+  `verify_against(parent)` is load-bearing rather than optional: a shrunken
+  claim ledger passes standalone `verify()` and is caught only against its
+  parent.
+- **`just validate`** — the AGENTS.md §6 verification ladder as one recipe.
+- **`docs/FEDERATION.md`** — the operator guide for the federation courts, with
+  a complete worked example and the exit-code contract.
+
+### Changed
+- **Version**: `26.6.22` → `26.9.6` in `Cargo.toml`, `Cargo.lock`, `ggen.toml`,
+  and the `affi-shell` banner. Because the chain genesis seed is
+  `concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis")`, **receipts
+  assembled by 26.6.22 will fail stage 3 (`chain_integrity`) under 26.9.6.**
+  This is the intended release-boundary behaviour, not a regression: re-emit and
+  re-assemble against the new binary.
+- **Shell completions** now cover all 79 verbs and all six nouns across bash,
+  zsh, and fish, **using the kebab-case names the binary actually dispatches**.
+  They had copied the registry's old snake_case spelling, so 39 of the names
+  they offered (`verify_compliance`, `root_cause`, `emit_from_github`, …) were
+  rejected outright — a completion that types a command the CLI refuses is
+  worse than none. They also advertised a `quality` noun and `guide
+  tutorial`/`examples`/`man` verbs that do not exist, and omitted
+  `receipt-throughput`. `shell_completions_offer_only_dispatchable_verbs` now
+  holds all three files to the registry.
+- **`justfile`**: removed the stale header claiming the Rust recipes cannot run
+  because `wasm4pm-compat 26.6.13` does not compile. The real published
+  `wasm4pm-compat 26.8.7` is admitted and the full ladder passes.
+- **`ROADMAP.md`** re-verified against the code: B3, B5, B6, B10, P0-2, P0-3,
+  P1-2, P1-3, P1-4 and P1-6 were marked open but had already shipped.
+
+### Fixed
+- **`affi --version` reported the framework version.** `clap-noun-verb` builds
+  its root command with its own `CARGO_PKG_VERSION`, so `affi --version`
+  answered `cli 26.6.2`. Since the genesis seed is bound to the affidavit
+  version, an operator diagnosing a cross-version `chain_integrity` failure was
+  reading the wrong number. `src/bin/affi.rs` now answers a bare top-level
+  `--version`/`-V` itself; subcommand `--version` still reaches the framework.
+- **Ontology drift**: `why`, `fix`, `install-git-hook`, and `monitor` shipped in
+  the projection without ever being declared in `ontology/affi-cli.ttl`. All
+  four are now declared, and the parity test blocks the drift from returning.
+- **`affi receipt verify` could not reach stage 3.** `Receipt`'s `Deserialize`
+  re-runs the chain law, so a tampered receipt failed at the door with a
+  framework parse error and **exit 1**, not the documented REJECT (**2**) — and
+  `chain_integrity`, the stage whose entire job is catching exactly this, was
+  unreachable from every CLI path. `chain::deserialize_receipt_unchecked` is a
+  `pub(crate)` forensic seam that lets `verify` adjudicate a suspect file
+  instead of refusing to open it; the stage now FAILs by name and the verb exits
+  2. The seal is untouched — `Receipt::sealed` stays private. This also repaired
+  `affi receipt why` (its `chain_integrity` explanation branch was structurally
+  unreachable) and `affi receipt fix` (its primary action, quarantining a
+  tampered receipt, could never execute).
+- **`affi receipt verify-family` exited 0 while reporting REJECTs**, so a CI job
+  piping it stayed green over a store containing tampered receipts. Any reject
+  now exits 2.
+- **41 registry rows named commands that do not exist.** `src/registry.rs` used
+  snake_case verb tokens (`verify_compliance`) while the CLI dispatches
+  kebab-case (`verify-compliance`), so `lookup` missed and `guide search`
+  printed names an operator cannot type. A new test rejects any `_` in a verb
+  token.
+- **`receipt-throughput` was advertised but not compiled.** It had a registry
+  entry, a `#[verb]` projection, and a handler — but no `pub mod` line in
+  `src/verbs/mod.rs`, so it was never built or dispatchable. The parity test now
+  walks the module list rather than the directory, so a file nobody declared can
+  no longer masquerade as a shipped verb.
+- **`affi doctor` and `guide search` were absent from the registry entirely**,
+  making them undiscoverable through `guide search`, `--help` grouping, and the
+  completions. Both are now registered and declared in the ontology, and the
+  parity tests compare `(verb, noun)` pairs in both directions — a name-only
+  check had passed `guide search` purely because a distinct `receipt search`
+  exists.
+- **The ontology claimed a CLI surface that does not exist.** It declared
+  `receipt-throughput`, `variance`, and `profile` under a `bench` noun and
+  `audit` under `governance`, while all four ship under `receipt`. The four now
+  point at `ReceiptNoun`; `bench` and `governance` are marked RESERVED with the
+  regrouping tracked as ROADMAP P2-7.
+- **BLAKE3 digests are now canonically lowercase in all four kernel profiles.**
+  The validators used `is_ascii_hexdigit`, which accepts `A-F`, so the same
+  digest could be written two ways — and because the digest *string* is hashed
+  into the receipt identity, the two spellings produced two different receipt
+  hashes for identical evidence. That is a canonicalisation hole in a format
+  whose entire value is that identical content has identical identity (ADR-5),
+  and the refusal docstring advertised it as intended
+  ("64 lowercase/uppercase hex digits"). **This narrows what is admitted:** a
+  hand-authored receipt carrying uppercase digits that was previously accepted
+  is now refused by name. No receipt this crate has ever produced is affected —
+  `Blake3Hash` is built from `blake3::Hash::to_hex`, which is lowercase.
+- **The browser verifier rejected every real receipt.** `web/` hard-codes the
+  genesis seed, and it had drifted three releases behind
+  (`affidavit-v26.6.17-genesis` while the crate was 26.6.22). `tsc --noEmit`,
+  the web lane's only gate, cannot know the Rust seed;
+  `tests/release_identity.rs` now does.
+- **`examples/golden_run.sh` was broken and untested.** It ran `cargo run` from
+  inside a temp dir, so cargo resolved the toolchain from that directory, missed
+  `rust-toolchain.toml`, fell back to stable, and died on wasm4pm-compat's
+  `#![feature(...)]` (E0554, exit 101). It now builds once from the repo root
+  and invokes the binary directly — and `tests/golden_run.rs` executes it, so
+  the example README points newcomers at is a court rather than a claim.
+- **`affi-shell` hard-coded its version banner**; it now derives it from
+  `CARGO_PKG_VERSION` like everything else.
+- **`docs/glossary.md` stated the genesis seed resolves to
+  `affidavit-v26.6.22-genesis`** — normative documentation of the live binary,
+  now corrected and covered by the release-identity gates.
+- **Two module docs materially overstated what their code does.**
+  `1000x_post_quantum_sealing.rs` claimed "quantum-resistant existential
+  unforgeability" and "100-year provenance security" over three `mock_*`
+  functions that compute unkeyed BLAKE3 and ignore the secret key entirely;
+  `1000x_gpu_verifier.rs` claimed its shader "runs iterative BLAKE3" when the
+  shader's own comment says `simplified to 1 round for prototype speed` (BLAKE3
+  uses seven) and its format check compares against a literal marked
+  `// Placeholder`. Both headers now state plainly what the code computes, that
+  their verdicts are not authoritative, and what would have to change before
+  the original claims hold. The code was always internally honest — the docs
+  were not, and in a certification tool that is the more dangerous half.
+- **`cargo build --release --all-features`, the command README gave users, does
+  not compile.** `discovery`/`conformance`/`predictive` need `wasm4pm` APIs and
+  `mutation` needs `clnrm-core` APIs that the deliberate local stubs do not
+  expose; CI never noticed because it builds default features only. The
+  `remediation` feature was separately broken by a missing `tracing` dependency
+  (fixed here). README now gives a command that works plus a
+  feature-status table verified row by row with `cargo check --lib --features
+  <name>` — four features are still broken (`discovery`, `conformance`,
+  `predictive`, `mutation`); closing them out is ROADMAP P1-7, and gating
+  feature combinations in CI is P1-8. Per AGENTS.md §1 the stubs were not
+  broadened to paper over this — that would manufacture a green that means
+  nothing.
+- **README claimed "65+ canonical verbs" three lines above its own "79"**, and
+  advertised two capabilities without saying they sit behind features that do
+  not build.
+- **`wasm-encoder` was a mandatory dependency** — downloaded, compiled and
+  linked into every build, and carried in the published dependency graph —
+  whose only consumer is an orphaned file the compiler never sees. Removed. A
+  provenance tool should not ship a supply-chain edge for code that does not
+  exist.
+
+### Internal
+- Removed `src/handlers_stubs.rs` — 300 lines of `todo!()` referenced by nothing
+  in `src/`, `tests/`, `benches/`, `examples/`, or `build.rs`. `generate_verbs.py`
+  regenerates it on demand.
+- 17 files under `src/` (164 KB: the 13 `1000x_*.rs` drafts plus
+  `generation.rs`, `metrics.rs`, `mining.rs`, `mutation.rs`) are declared by no
+  `mod` and mapped by no `#[path]`, so the compiler never sees them — yet
+  `cargo package` shipped them. They are now named in Cargo.toml's `exclude`,
+  and `orphaned_sources_are_declared_or_excluded` refuses to let the list grow
+  silently. Nothing was deleted; deciding each file's fate is tracked as
+  ROADMAP P2-8.
+- Test suite: 835 tests + 32 doctests, all passing under
+  `cargo test --all-targets`, `cargo test --doc`, and
+  `cargo clippy --all-targets -- -D warnings`.
+
 ## [26.6.22] — 2026-06-22
 
 ### Changed

@@ -468,7 +468,7 @@ pub fn verify_family(receipts_dir: String, format: Option<String>) -> Result<()>
             "{}",
             adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
         );
-        return Ok(());
+        return family_exit(rejected);
     }
     outln!("verify-family: {accepted}/{total} receipts accepted, {rejected} rejected");
     for r in &results {
@@ -486,6 +486,19 @@ pub fn verify_family(receipts_dir: String, format: Option<String>) -> Result<()>
         } else {
             outln!("  [{mark}] hash={} events={}", r["chain_hash"], r["events"]);
         }
+    }
+    family_exit(rejected)
+}
+
+/// Exit non-zero when any receipt in the family was rejected.
+///
+/// `verify-family` used to report rejects on stdout and still exit 0, so a CI
+/// job that piped it stayed green over a store containing tampered receipts —
+/// the one thing it exists to catch. The stable contract is the same as
+/// `verify`: any REJECT means exit 2.
+fn family_exit(rejected: usize) -> Result<()> {
+    if rejected > 0 {
+        std::process::exit(crate::diag::exit_codes::REJECT);
     }
     Ok(())
 }
@@ -4632,6 +4645,162 @@ pub fn guide_search(keyword: String, format: Option<String>) -> Result<()> {
         );
     }
     Ok(())
+}
+
+// ============================================================================
+// Federation courts — the v26.9.x evidence kernel, reachable from the CLI
+// ============================================================================
+//
+// Each handler below is a pure adapter: it calls one court in
+// `crate::federation`, renders the court's report, and exits with the court's
+// stable code. No accept/refuse decision is made here — see the module docs on
+// `crate::federation` for the exit-code contract.
+
+/// Render one federation court report and exit with its stable code.
+///
+/// Human format sends the verdict line to stderr (chatter) and the sealed
+/// receipt to stdout (data), matching the `Out` stdout/stderr contract. JSON
+/// format sends the whole report to stdout.
+///
+/// `out` is the artifact path for the sealed receipt. Prefer it over shell
+/// redirection: the `clap-noun-verb` runtime appends its own rendering of every
+/// verb's return value to stdout, so a redirected stream picks up a trailing
+/// token that no receipt parser will accept. Writing the artifact here keeps
+/// the certify -> verify pipeline exact.
+fn emit_court(
+    outcome: crate::federation::CourtOutcome,
+    format: Option<String>,
+    out: Option<String>,
+) -> Result<()> {
+    let sealed = adapt(
+        serde_json::to_string_pretty(&outcome.report["receipt"]).map_err(anyhow::Error::from),
+    )?;
+
+    if outcome.accepted() {
+        if let Some(path) = out.as_deref() {
+            std::fs::write(path, format!("{sealed}\n")).map_err(io_err)?;
+            eprintln!("sealed receipt written to {path}");
+        }
+    }
+
+    if format.as_deref() == Some("json") {
+        let rendered =
+            adapt(serde_json::to_string_pretty(&outcome.report).map_err(anyhow::Error::from))?;
+        outln!("{rendered}");
+    } else {
+        let court = outcome.report["court"].as_str().unwrap_or("federation");
+        eprintln!(
+            "{court}: {} [{}] — {}",
+            if outcome.accepted() {
+                "ACCEPT"
+            } else {
+                "REJECT"
+            },
+            outcome.report["profile"].as_str().unwrap_or(""),
+            outcome.reason()
+        );
+        // With --out the artifact is already on disk; do not duplicate it.
+        if outcome.accepted() && out.is_none() {
+            outln!("{sealed}");
+        }
+    }
+
+    // Exit with the court's code on every path, not just refusals. The
+    // `clap-noun-verb` runtime renders each verb's return value to stdout after
+    // the handler returns, which appends a bare `null` to otherwise valid JSON
+    // — so `affi errc certify --format json | jq` would fail on ACCEPT while
+    // working on REJECT (where the refusal path already exited first). Exiting
+    // here makes every federation court emit exactly its own report and nothing
+    // else. `--select` is unaffected: it projects the verb's return value,
+    // which is `()` for every verb that prints directly.
+    use std::io::Write as _;
+    std::io::stdout().flush().map_err(io_err)?;
+    std::process::exit(outcome.code);
+}
+
+/// `affi standing certify` — seal a standing claim over an admitted receipt.
+pub fn standing_certify(
+    receipt: String,
+    observation: String,
+    scope: String,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    emit_court(
+        crate::federation::standing_certify(&receipt, &observation, &scope),
+        format,
+        out,
+    )
+}
+
+/// `affi standing verify` — re-run the standing law over a sealed receipt.
+pub fn standing_verify(receipt: String, format: Option<String>) -> Result<()> {
+    emit_court(crate::federation::standing_verify(&receipt), format, None)
+}
+
+/// `affi ecosystem certify` — federate sealed member standing receipts.
+pub fn ecosystem_certify(
+    receipt: String,
+    observation: String,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    emit_court(
+        crate::federation::ecosystem_certify(&receipt, &observation),
+        format,
+        out,
+    )
+}
+
+/// `affi ecosystem verify` — re-run the federation law over a sealed receipt.
+pub fn ecosystem_verify(receipt: String, format: Option<String>) -> Result<()> {
+    emit_court(crate::federation::ecosystem_verify(&receipt), format, None)
+}
+
+/// `affi errc certify` — seal a declared ERRC transformation.
+pub fn errc_certify(
+    receipt: String,
+    observation: String,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    emit_court(
+        crate::federation::errc_certify(&receipt, &observation),
+        format,
+        out,
+    )
+}
+
+/// `affi errc verify` — re-run the ERRC laws over a sealed receipt.
+pub fn errc_verify(receipt: String, format: Option<String>) -> Result<()> {
+    emit_court(crate::federation::errc_verify(&receipt), format, None)
+}
+
+/// `affi errc assure` — seal a one-witness-per-claim assurance ledger.
+pub fn errc_assure(
+    parent: String,
+    witnesses: String,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    emit_court(
+        crate::federation::errc_assure(&parent, &witnesses),
+        format,
+        out,
+    )
+}
+
+/// `affi errc verify-assurance` — re-run the claim-assurance law.
+pub fn errc_verify_assurance(
+    receipt: String,
+    parent: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    emit_court(
+        crate::federation::errc_verify_assurance(&receipt, parent.as_deref()),
+        format,
+        None,
+    )
 }
 
 #[cfg(test)]
