@@ -17,7 +17,8 @@ use affidavit::chain::{recompute_chain, ChainAssembler};
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
 use affidavit::types::{canonical_bytes, Blake3Hash};
 use affidavit::verifier::verify;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 use std::time::Duration;
 
 /// Profile target event count — large enough for meaningful flamegraph samples.

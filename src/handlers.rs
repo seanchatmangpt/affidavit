@@ -393,7 +393,7 @@ pub fn verify(
     // output — human and JSON alike — routes to stderr, keeping stdout clean.
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&verdict).map_err(anyhow::Error::from))?;
-        eprintln!("{s}");
+        outln!("{s}");
         if code != 0 {
             // B6: REJECT must surface as exit_codes::REJECT (2), not as a generic
             // Err(NounVerbError) which the framework would map to exit 1.  The
@@ -761,7 +761,7 @@ pub fn show(receipt: String, format: Option<String>) -> Result<()> {
     // stderr; stdout stays clean (lib root denies clippy::print_stdout).
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&parsed).map_err(anyhow::Error::from))?;
-        eprintln!("{s}");
+        outln!("{s}");
         return Ok(());
     }
     eprintln!("receipt format: {}", parsed.format_version);

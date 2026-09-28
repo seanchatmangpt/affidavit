@@ -8,7 +8,8 @@
 // Recorded baseline + regression bound: benches/architecture_receipts_baseline.json
 
 use affidavit::{ArchitectureQualificationReceipt as Receipt, ArchitectureStanding};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use std::hint::black_box;
 
 const SIZES: &[usize] = &[1, 16, 256];
 

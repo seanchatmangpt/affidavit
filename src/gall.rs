@@ -341,8 +341,8 @@ mod tests {
 
     #[test]
     fn all_twelve_pass_with_typed_predecessors_issues_alive_receipt() {
-        let receipt = certify_gall_crown(&manifest(GateStatus::Pass, GateStatus::Pass))
-            .expect("valid crown");
+        let receipt =
+            certify_gall_crown(&manifest(GateStatus::Pass, GateStatus::Pass)).expect("valid crown");
         assert_eq!(receipt.standing, CrownStanding::Alive);
         assert_eq!(receipt.predecessor_witnesses.len(), 6);
         assert!(receipt.receipt_digest.starts_with("blake3:"));

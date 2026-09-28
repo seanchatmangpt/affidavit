@@ -21,8 +21,9 @@
 use affidavit::chain::ChainAssembler;
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
 use affidavit::quality::{CodeQualityMetrics, QualityViolation, WesternElectricAnalyzer};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::collections::HashMap;
+use std::hint::black_box;
 
 // ============================================================================
 // Benchmark 1: Single Rule Detection (Per Rule)
