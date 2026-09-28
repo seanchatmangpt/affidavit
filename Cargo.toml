@@ -133,7 +133,7 @@ uuid = { version = "1", features = ["v4", "serde"], optional = true }
 
 # Phase 4: Observability (OTel Stack)
 opentelemetry = { version = "0.32", features = ["trace", "metrics"], optional = true }
-opentelemetry-jaeger = { version = "0.19", optional = true }
+opentelemetry-jaeger = { version = "0.22", optional = true }
 opentelemetry-prometheus = { version = "0.13", optional = true }
 prometheus = { version = "0.14", optional = true }
 tracing = { version = "0.1", optional = true }
@@ -141,7 +141,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = tr
 
 # Phase 5: CLI Ergonomics & REPL
 rustyline = { version = "12", features = ["derive"], optional = true }
-shlex = { version = "1", optional = true }
+shlex = { version = "2", optional = true }
 tokio = { version = "1", features = ["full"], optional = true }
 colored = { version = "2", optional = true }
 indicatif = { version = "0.17", optional = true }
@@ -157,7 +157,7 @@ criterion = { version = "0.8", optional = true }
 rand = { version = "0.8", optional = true }
 
 # GPU Acceleration (1000X)
-wgpu = { version = "0.19", optional = true }
+wgpu = { version = "30.0", optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 pollster = { version = "1.0", optional = true }
 
