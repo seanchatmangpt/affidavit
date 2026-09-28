@@ -111,7 +111,13 @@ pub fn verify(receipt: &str) -> Result<(i32, crate::types::Verdict)> {
     // The verify work runs INSIDE the span — the span wraps the adjudication,
     // not a throwaway closure. The span is recorded observably (tracing.rs).
     crate::tracing::trace_verify(receipt, || {
-        let parsed = load_receipt(receipt)?;
+        // Load WITHOUT pre-judging the chain. A tampered receipt must reach the
+        // pipeline so stage 3 (`chain_integrity`) can fail it by name and the
+        // verb can exit with the documented REJECT (2). Loading through the
+        // trusting path instead turned every tampered receipt into a framework
+        // parse error and exit 1, which made stage 3 unreachable from the CLI
+        // — the stage whose whole purpose is catching exactly this.
+        let parsed = load_receipt_unchecked(receipt)?;
 
         // Adjudicate through the REAL Layer 2 gate: admission::admit runs BOTH
         // the wasm4pm-compat OCEL court AND the affidavit certify pipeline. This
@@ -187,12 +193,29 @@ fn short_hash(h: &Blake3Hash) -> String {
 }
 
 /// Load and parse an immutable receipt file from `path`.
+///
+/// This is the *trusting* load: [`Receipt`]'s `Deserialize` recomputes the
+/// rolling chain hash and refuses a mismatch, so a value returned here already
+/// survived the chain law. Verbs that merely consume a receipt want this.
 fn load_receipt(path: &str) -> Result<Receipt> {
     let text =
         std::fs::read_to_string(path).with_context(|| format!("reading receipt {path:?}"))?;
     let receipt: Receipt =
         serde_json::from_str(&text).with_context(|| format!("parsing receipt {path:?}"))?;
     Ok(receipt)
+}
+
+/// Load a receipt file for **adjudication**, without pre-judging the chain.
+///
+/// Verbs that exist to diagnose a suspect file — `verify`, `why`, `fix` — must
+/// be able to open one that the chain law would reject; otherwise the very
+/// receipts they were written for are the ones they cannot read. The returned
+/// value is untrusted: run it through [`verifier::verify`], which recomputes
+/// the chain and names the failing stage.
+pub(crate) fn load_receipt_unchecked(path: &str) -> Result<Receipt> {
+    let bytes = std::fs::read(path).with_context(|| format!("reading receipt {path:?}"))?;
+    chain::deserialize_receipt_unchecked(&bytes)
+        .with_context(|| format!("parsing receipt {path:?}"))
 }
 
 #[allow(dead_code)]

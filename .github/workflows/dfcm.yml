@@ -1,0 +1,53 @@
+# Exact-head narrow court for the DfCM working-backwards release crown.
+name: dfcm-v26-9-18
+
+on:
+  push:
+    paths:
+      - "src/dfcm.rs"
+      - "Cargo.lock"
+      - "src/lib.rs"
+      - "tests/dfcm_chicago.rs"
+      - ".github/workflows/dfcm.yml"
+  pull_request:
+    paths:
+      - "src/dfcm.rs"
+      - "src/lib.rs"
+      - "tests/dfcm_chicago.rs"
+      - ".github/workflows/dfcm.yml"
+
+concurrency:
+  group: dfcm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  RUST_TOOLCHAIN: nightly-2026-08-12
+
+jobs:
+  exact-head-dfcm-court:
+    name: exact-head DfCM Chicago court
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Assert exact candidate
+        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+
+      - name: Install pinned nightly with rustfmt
+        uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt
+
+      - name: Format court
+        run: cargo fmt --all -- --check
+
+      - name: Execute DfCM Chicago falsifiers
+        run: cargo test --locked --test dfcm_chicago

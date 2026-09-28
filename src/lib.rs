@@ -89,6 +89,7 @@
 mod macros;
 
 pub mod admission;
+pub mod architecture;
 pub mod bench;
 pub mod brce;
 pub mod catalog;
@@ -98,11 +99,13 @@ pub mod cli;
 #[cfg(feature = "discovery")]
 pub mod discovery;
 
+pub mod dfcm;
 pub mod ecosystem;
 pub mod errc;
 pub mod errc_claim_assurance;
 pub mod error;
 pub mod execution_manifest;
+pub mod federation;
 pub mod fixture_db;
 /// GALL-007 evidence-only twelve-gate Chicago crown certification.
 pub mod gall;
@@ -112,6 +115,7 @@ pub mod handlers;
 pub mod lsp;
 
 pub mod ocel;
+pub mod portable_protocol;
 pub mod quality;
 pub mod quality_correlation;
 pub mod quality_extended;
@@ -170,6 +174,11 @@ pub fn run() -> clap_noun_verb::Result<()> {
     clap_noun_verb::run()
 }
 
+pub use architecture::{
+    ArchitectureQualificationReceipt, ArchitectureRefusal, ArchitectureStanding,
+    ArchitectureStandingLedger, EvidenceSource, QualificationEvidence, Supersession,
+    ARCHITECTURE_QUERY_SCHEMA, ARCHITECTURE_RECEIPT_SCHEMA,
+};
 pub use ecosystem::{
     certify_ecosystem, EcosystemMember, EcosystemObservation, EcosystemReceipt, EcosystemRefusal,
     EcosystemRole, RoleCoverage, RoleRequirement, ECOSYSTEM_AUTHORITY_CEILING,
@@ -186,6 +195,7 @@ pub use errc_claim_assurance::{
     ERRC_CLAIM_ASSURANCE_SOURCE_ARTIFACT,
 };
 pub use error::AffidavitError;
+pub use federation::{CourtOutcome, STANDING_CAPABILITY, STANDING_CAPABILITY_DIGEST};
 pub use standing::{
     certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,
     StandingObservation, StandingReceipt, StandingRefusal, SubjectIdentity, VerificationEvidence,

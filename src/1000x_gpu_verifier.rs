@@ -1,19 +1,41 @@
-//! 1000X COMBINATORIAL MAXIMALISM: GPU-Accelerated Verifier.
+//! GPU-accelerated verifier — **PROTOTYPE. ITS VERDICTS ARE NOT AUTHORITATIVE.**
 //!
-//! A `wgpu` compute shader implementation of the 7-stage certify pipeline,
-//! targeting 10 million receipts per second throughput via massive batching.
+//! A `wgpu` compute shader sketching the 7-stage certify pipeline as a batched
+//! GPU kernel. The data layout and dispatch are real; the adjudication is not.
 //!
-//! SPECIFICATION:
-//! 1. Data Layout: Receipts are packed into a contiguous buffer of `GpuEvent`s.
-//!    A separate `GpuReceiptMetadata` buffer tracks event offsets and expected hashes.
-//! 2. Pipeline Mapping:
-//!    - Stage 1 (Decode): Performed during CPU → GPU packing.
-//!    - Stage 2 (Format): Shader checks version field in metadata.
-//!    - Stage 3 (Integrity): Shader runs iterative BLAKE3 over event bytes.
-//!    - Stage 4 (Continuity): Shader verifies `seq` order and ID non-nullity.
-//!    - Stage 5 (Commitment): Shader validates BLAKE3 hash structure.
-//!    - Stage 6 (Profile): Shader checks event_type and commitment presence.
-//!    - Stage 7 (Verdict): Shader writes bitmask of results to output buffer.
+//! # What the shader actually computes
+//!
+//! * **Stage 3 (Integrity)** does **not** compute BLAKE3. `compress` runs a
+//!   single mix round (see the `simplified to 1 round for prototype speed`
+//!   comment in `WGSL_SHADER`); BLAKE3 uses seven. Its output will not match
+//!   [`crate::chain::recompute_chain`] for any input, so a receipt this shader
+//!   calls intact may be tampered and vice versa.
+//! * **Stage 2 (Format)** compares against `EXPECTED_FMT_HASH`, which is a
+//!   literal marked `// Placeholder` in the shader source, not
+//!   `blake3("core/v1")`.
+//!
+//! Everything downstream of those two inherits the defect. Use
+//! [`crate::verifier::verify`] — the CPU pipeline — for any verdict that
+//! matters. This module exists to hold the buffer layout, the workgroup
+//! dispatch, and the verdict-bitmask protocol steady while a real in-shader
+//! BLAKE3 is written.
+//!
+//! The "10 million receipts per second" figure is a design target for the
+//! finished kernel, not a measurement of this one. Nothing here has been
+//! benchmarked against the CPU path.
+//!
+//! # The shape it pins
+//! 1. Data layout: receipts are packed into a contiguous buffer of `GpuEvent`s.
+//!    A separate `GpuReceiptMetadata` buffer tracks event offsets and expected
+//!    hashes.
+//! 2. Pipeline mapping:
+//!    - Stage 1 (Decode): performed during CPU → GPU packing.
+//!    - Stage 2 (Format): shader compares a metadata hash — placeholder constant.
+//!    - Stage 3 (Integrity): shader folds event words — one mix round, not BLAKE3.
+//!    - Stage 4 (Continuity): shader verifies `seq` order and ID non-nullity.
+//!    - Stage 5 (Commitment): shader validates hash structure.
+//!    - Stage 6 (Profile): shader checks event_type and commitment presence.
+//!    - Stage 7 (Verdict): shader writes a bitmask of results to the output buffer.
 //! 3. Performance: Uses workgroup-local memory for chain-hash state and
 //!    SIMD-across-lanes for independent receipt verification.
 

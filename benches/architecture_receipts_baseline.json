@@ -1,0 +1,61 @@
+{
+  "bench": "benches/architecture_receipts.rs",
+  "recorded": "2026-09-26",
+  "subject_parent": "f893bd28b1e9a543af9c912e32752d80090dbf8a",
+  "host": "aarch64-apple-darwin",
+  "toolchain": "nightly-2026-08-12",
+  "profile": "bench (release)",
+  "command": "cargo bench --bench architecture_receipts -- --warm-up-time 1 --measurement-time 3",
+  "unit": "microseconds, criterion [low median high]",
+  "results": {
+    "architecture/certify/1": [
+      2.0034,
+      2.0555,
+      2.1332
+    ],
+    "architecture/certify/16": [
+      4.2686,
+      4.4254,
+      4.6551
+    ],
+    "architecture/certify/256": [
+      35.063,
+      36.355,
+      38.057
+    ],
+    "architecture/verify_replay/1": [
+      1.8057,
+      1.8249,
+      1.8454
+    ],
+    "architecture/verify_replay/16": [
+      3.4109,
+      3.4439,
+      3.4766
+    ],
+    "architecture/verify_replay/256": [
+      22.713,
+      23.445,
+      24.414
+    ],
+    "architecture/supersede_and_verify_chain/16": [
+      21.049,
+      21.216,
+      21.388
+    ],
+    "architecture/from_json_verified/16": [
+      4.9968,
+      5.067,
+      5.1385
+    ]
+  },
+  "regression_bound": {
+    "test": "tests/architecture_qualification.rs::certify_and_replay_stay_within_regression_bound",
+    "workload": "certify + verify_replay, 16 evidence digests, 2000 iterations, debug profile",
+    "bound_us_per_op": 2000
+  },
+  "authority": "NONE",
+  "evidence_ceiling": "HOST_NATIVE_BENCH",
+  "schema_under_test": "affidavit.architecture-qualification.v2",
+  "note": "supersede now emits successor + retirement record and Supersession::verify checks both halves; integrity re-validates every digest."
+}

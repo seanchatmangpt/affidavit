@@ -10,7 +10,8 @@
 use affidavit::chain::ChainAssembler;
 use affidavit::discovery::{conformance_metrics, discover_dfg_summary, quality_metrics};
 use affidavit::ocel::{build_event, object_ref, SeqCounter};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 const EVENT_COUNTS: &[usize] = &[1, 5, 10, 50, 100];
 

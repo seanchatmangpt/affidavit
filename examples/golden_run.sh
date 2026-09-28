@@ -17,8 +17,28 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MANIFEST="$REPO_ROOT/Cargo.toml"
 
+# Build once from the repo root, then invoke the built binary directly.
+#
+# `cargo run` from inside the temp dir below does NOT work: cargo resolves the
+# toolchain from the *current directory*, not from --manifest-path, so it misses
+# `rust-toolchain.toml` and falls back to stable — where wasm4pm-compat's
+# `#![feature(...)]` attributes are a hard error (E0554) and the script died
+# with exit 101 before emitting a single event.
+# `AFFI_BIN` lets a caller that has already built the binary (the test harness in
+# tests/golden_run.rs, via CARGO_BIN_EXE_affi) skip the build entirely, which
+# also avoids running a nested cargo inside `cargo test`.
+if [ -z "${AFFI_BIN:-}" ]; then
+  echo "building affi (once, from the repo root)..." >&2
+  (cd "$REPO_ROOT" && cargo build --quiet --bin affi)
+  AFFI_BIN="$REPO_ROOT/target/debug/affi"
+fi
+if [ ! -x "$AFFI_BIN" ]; then
+  echo "affi binary not found or not executable: $AFFI_BIN" >&2
+  exit 1
+fi
+
 # A stable wrapper around the actual binary.
-affi() { cargo run --quiet --manifest-path "$MANIFEST" --bin affi -- "$@"; }
+affi() { "$AFFI_BIN" "$@"; }
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

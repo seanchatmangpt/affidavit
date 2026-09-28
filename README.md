@@ -25,23 +25,49 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 
 `affidavit` has been supercharged with 30+ features focused on **Combinatorial Maximalism** and world-class DX:
 
-*   ⚡ **High-Performance:** Parallelized verification across multi-core architectures.
-*   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts.
-*   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers.
-*   🤖 **Intelligent CLI:** 65+ canonical verbs, ontology-driven help, and powerful ad-hoc querying.
+*   🏛️ **Evidence Federation:** Certify receipt-bound standing, cross-repo quorums, and formal ERRC transformations — see [`docs/FEDERATION.md`](docs/FEDERATION.md).
+*   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts *(behind the `discovery` feature; see Feature status below)*.
+*   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers *(behind the `mutation` feature; see Feature status below)*.
+*   🤖 **Intelligent CLI:** 79 canonical verbs, ontology-driven help, and powerful ad-hoc querying.
 
 ---
 
 ## 🛠️ Installation & Quick Start
 
 ### Build from Source
-Ensure you have the latest stable Rust toolchain installed.
+The toolchain is date-pinned in `rust-toolchain.toml`; rustup will fetch it for you.
 
 ```bash
 git clone https://github.com/seanchatmangpt/affidavit
 cd affidavit
-cargo build --release --all-features
+cargo build --release
 ```
+
+Run the full verification ladder with `just validate` (formatting, build, tests,
+doctests, clippy, and the ERRC fast court).
+
+#### Feature status
+
+The default feature set is what ships and what CI gates. Several optional
+features do **not** currently compile, so `--all-features` fails:
+
+Each row below was verified with `cargo check --lib --features <name>` at
+v26.9.6:
+
+| Feature | State |
+|---------|-------|
+| `default` (`core`) | ✅ builds, tested, and linted in CI |
+| `inspection`, `lsp`, `shell`, `quality-monitor`, `file-watch`, `webhook`, `otel`, `gpu`, `pqc`, `remediation` | ⚠️ build, but no CI job covers them (ROADMAP P1-8) |
+| `discovery`, `conformance`, `predictive` | ❌ do not compile — they need `wasm4pm` APIs (`ilp_discovery`, `process_tree`, `models::EventLog`) that the local stub at `stubs/wasm4pm` does not expose |
+| `mutation` | ❌ does not compile — needs `clnrm-core` APIs (`determinism::rng`) the local stub does not expose |
+
+`remediation` was in the failing group until v26.9.6; it was missing a
+`tracing` dependency its own module imports.
+
+`stubs/wasm4pm` and `stubs/clnrm-core` are deliberate capability boundaries
+(see [`AGENTS.md`](AGENTS.md) §1), not oversights: broadening one without an
+observed integration proof would manufacture a green that means nothing. Closing
+these out is tracked as ROADMAP P1-7.
 
 ### The "Golden Run" in 30 Seconds
 Run the end-to-end smoke test to see `affidavit` in action:
@@ -74,7 +100,7 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-Affidavit v26.6.22 ships **69 canonical verbs** across 10 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation.
+Affidavit v26.9.6 ships **79 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
 
 **Core Verbs (The Provenance Loop):**
 - `affi emit` — Record a new operation-event.
@@ -98,10 +124,19 @@ Affidavit v26.6.22 ships **69 canonical verbs** across 10 groups, backed by a co
 - `affi causality-chain` — Track root cause and event lineage.
 - `affi security-debt` — Calculate pending remediation metrics.
 
+**Evidence Federation (new in v26.9.6):**
+- `affi standing certify` / `verify` — Seal and re-check a receipt-bound standing claim. ALIVE is unconstructable without execution, verification, *and* replay evidence.
+- `affi ecosystem certify` / `verify` — Federate exact, already-sealed member standing receipts against a declared per-role ALIVE quorum.
+- `affi errc certify` / `verify` — Seal a formal ERRC transformation: each claim bound to one `(target, metric, unit)` coordinate under one directional law, behind a mandatory preservation fence.
+- `affi errc assure` / `verify-assurance` — Seal a one-witness-per-claim assurance ledger over a sealed ERRC receipt.
+
+See [`docs/FEDERATION.md`](docs/FEDERATION.md) for the full operator guide, the exit-code contract, and a worked example.
+
 **Health & Diagnostics:**
 - `affi doctor` — Run environment and receipt-store health checks with structured exit codes.
+- `affi --version` — Reports the affidavit version. This matters: the chain genesis seed is bound to it, so a receipt only verifies under the exact binary version that assembled it.
 
-*(Full list: `affi --help` or `affi shell`. Verb registry: `src/registry.rs`. Groups: Core · Diagnostics · Analysis · Ingestion · Compliance · Attestation · SBOM · Insights · Engineering · Tooling)*
+*(Full list: `affi --help`, or `affi guide search <keyword>`. Verb registry: `src/registry.rs`. Groups: Core · Diagnostics · Analysis · Ingestion · Compliance · Attestation · SBOM · Insights · Engineering · Tooling · Federation)*
 
 ---
 

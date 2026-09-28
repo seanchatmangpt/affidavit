@@ -1,6 +1,6 @@
 # affi.bash — bash completion for the `affi` CLI (affidavit Provenance Layer).
 #
-# Generated from src/registry.rs — 69 verbs across 10 groups.
+# Generated from src/registry.rs — 79 verbs across 11 groups.
 # Covers all verbs from the compile-time static registry.
 #
 # Install (pick one):
@@ -19,15 +19,19 @@ _affi() {
     fi
 
     # Nouns (top-level subcommands)
-    local nouns="receipt affi quality guide"
+    local nouns="receipt affi guide standing ecosystem errc"
 
     # All receipt verbs (from registry.rs — Core, Diagnostics, Analysis,
     # Ingestion, Compliance, Attestation, SBOM, Insights, Engineering, Tooling)
-    local receipt_verbs="emit assemble verify show inspect stats why fix diagnose diff graph replay timeline root_cause audit query model conformance coverage_analysis tech_debt security_debt emit_batch emit_from_cicd emit_from_cloud emit_from_github emit_from_gitlab emit_from_monitoring emit_from_sbom emit_from_security verify_compliance verify_sla verify_family policy_enforce license_compliance gdpr_proof hipaa pci_dss sign notarize attest assemble_with_signature assemble_and_notarize sbom_attest sbom_scan sbom_blast_radius sbom_compliance sbom_ntia anomaly_detect predict trend_analysis variance find_blast_radius explain_incident causality_chain bus_factor dora_metrics team_velocity portfolio_health orphaned_code dependency_matrix catalog search profile install_git_hook monitor visualize test receipt_throughput"
+    local receipt_verbs="anomaly-detect assemble assemble-and-notarize assemble-with-signature attest audit bus-factor catalog causality-chain conformance coverage-analysis dependency-matrix diagnose diff dora-metrics emit emit-batch emit-from-cicd emit-from-cloud emit-from-github emit-from-gitlab emit-from-monitoring emit-from-sbom emit-from-security explain-incident find-blast-radius fix gdpr-proof graph hipaa inspect install-git-hook license-compliance model monitor notarize orphaned-code pci-dss policy-enforce portfolio-health predict profile query receipt-throughput replay root-cause sbom-attest sbom-blast-radius sbom-compliance sbom-ntia sbom-scan search security-debt show sign soc2-audit stats team-velocity tech-debt test timeline trend-analysis variance verify verify-compliance verify-family verify-sla visualize why"
 
     local affi_verbs="doctor"
-    local quality_verbs="monitor"
-    local guide_verbs="search tutorial examples man"
+    local guide_verbs="search"
+
+    # Federation courts (v26.9.6): the evidence kernel's CLI surface.
+    local standing_verbs="certify verify"
+    local ecosystem_verbs="certify verify"
+    local errc_verbs="certify verify assure verify-assurance"
 
     case "${COMP_CWORD}" in
         1)
@@ -44,8 +48,16 @@ _affi() {
                     COMPREPLY=( $(compgen -W "${affi_verbs}" -- "${cur}") )
                     return 0
                     ;;
-                quality)
-                    COMPREPLY=( $(compgen -W "${quality_verbs}" -- "${cur}") )
+                standing)
+                    COMPREPLY=( $(compgen -W "${standing_verbs}" -- "${cur}") )
+                    return 0
+                    ;;
+                ecosystem)
+                    COMPREPLY=( $(compgen -W "${ecosystem_verbs}" -- "${cur}") )
+                    return 0
+                    ;;
+                errc)
+                    COMPREPLY=( $(compgen -W "${errc_verbs}" -- "${cur}") )
                     return 0
                     ;;
                 guide)
@@ -59,7 +71,7 @@ _affi() {
             local verb="${COMP_WORDS[2]}"
             if [[ "${noun}" == "receipt" ]]; then
                 case "${verb}" in
-                    verify|show|inspect|diagnose|why|diff|graph|replay|timeline|audit|stats|model|conformance|sign|notarize|attest|assemble_with_signature|assemble_and_notarize|fix)
+                    verify|show|inspect|diagnose|why|diff|graph|replay|timeline|audit|stats|model|conformance|sign|notarize|attest|assemble-with-signature|assemble-and-notarize|fix)
                         if [[ "${cur}" == -* ]]; then
                             COMPREPLY=( $(compgen -W "--format --json --help" -- "${cur}") )
                         else
@@ -67,7 +79,7 @@ _affi() {
                         fi
                         return 0
                         ;;
-                    emit|emit_batch|emit_from_github|emit_from_gitlab|emit_from_cicd|emit_from_cloud|emit_from_monitoring|emit_from_sbom|emit_from_security)
+                    emit|emit-batch|emit-from-github|emit-from-gitlab|emit-from-cicd|emit-from-cloud|emit-from-monitoring|emit-from-sbom|emit-from-security)
                         COMPREPLY=( $(compgen -W "--type --object --payload --working-dir --format --json --help" -- "${cur}") )
                         return 0
                         ;;
@@ -91,6 +103,25 @@ _affi() {
             elif [[ "${noun}" == "affi" && "${verb}" == "doctor" ]]; then
                 COMPREPLY=( $(compgen -W "--receipts --fix --format --json --help" -- "${cur}") )
                 return 0
+            elif [[ "${noun}" == "standing" || "${noun}" == "ecosystem" || "${noun}" == "errc" ]]; then
+                case "${verb}" in
+                    certify)
+                        COMPREPLY=( $(compgen -W "--receipt --observation --scope --out --format --help" -- "${cur}") )
+                        return 0
+                        ;;
+                    assure)
+                        COMPREPLY=( $(compgen -W "--parent --witnesses --out --format --help" -- "${cur}") )
+                        return 0
+                        ;;
+                    verify-assurance)
+                        COMPREPLY=( $(compgen -W "--receipt --parent --format --help" -- "${cur}") )
+                        return 0
+                        ;;
+                    verify)
+                        COMPREPLY=( $(compgen -W "--receipt --format --help" -- "${cur}") )
+                        return 0
+                        ;;
+                esac
             fi
             ;;
     esac

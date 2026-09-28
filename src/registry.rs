@@ -1,4 +1,4 @@
-//! # Verb Registry — Single Source of Truth for All 69 Verbs
+//! # Verb Registry — Single Source of Truth for All 79 Verbs
 //!
 //! This module is the W4 keystone: a compile-time static registry that eliminates
 //! drift between documentation, shell completions, and the actual verb set.
@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 69);
+//! assert_eq!(verb_count(), 79);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -47,6 +47,8 @@ pub enum VerbGroup {
     Engineering,
     /// Tooling and infrastructure: catalog, search, profile, install_git_hook, monitor, etc.
     Tooling,
+    /// Evidence federation kernel: standing, ecosystem, and ERRC certification courts.
+    Federation,
 }
 
 impl VerbGroup {
@@ -63,6 +65,7 @@ impl VerbGroup {
             Self::Insights => "Insights",
             Self::Engineering => "Engineering",
             Self::Tooling => "Tooling",
+            Self::Federation => "Federation",
         }
     }
 
@@ -79,6 +82,7 @@ impl VerbGroup {
             Self::Insights => "Predictive and anomaly-detection insights derived from receipt chains",
             Self::Engineering => "Engineering health and productivity metrics extracted from receipt history",
             Self::Tooling => "Infrastructure tooling: catalog management, search, profiling, and hook installation",
+            Self::Federation => "Evidence federation courts: standing, ecosystem quorum, and ERRC transformation certification",
         }
     }
 }
@@ -126,7 +130,7 @@ impl VerbEntry {
     }
 }
 
-/// The complete verb registry — 69 entries, one per live verb.
+/// The complete verb registry — 79 entries, one per live verb.
 ///
 /// Ordering mirrors `src/verbs/mod.rs` (alphabetical) for easy cross-referencing.
 pub static REGISTRY: &[VerbEntry] = &[
@@ -224,7 +228,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["timeline", "time", "sequence", "order", "chronology"],
     ),
     VerbEntry::new(
-        "root_cause",
+        "root-cause",
         "receipt",
         VerbGroup::Diagnostics,
         "Trace failure events back to their causal predecessors in the chain",
@@ -260,21 +264,21 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["conformance", "profile", "rules", "standard", "check"],
     ),
     VerbEntry::new(
-        "coverage_analysis",
+        "coverage-analysis",
         "receipt",
         VerbGroup::Analysis,
         "Measure what fraction of defined event types appear in the receipt",
         &["coverage", "coverage_analysis", "completeness", "missing", "gaps"],
     ),
     VerbEntry::new(
-        "tech_debt",
+        "tech-debt",
         "receipt",
         VerbGroup::Analysis,
         "Identify stale or low-quality events that signal accumulated technical debt",
         &["tech_debt", "debt", "quality", "stale", "maintenance"],
     ),
     VerbEntry::new(
-        "security_debt",
+        "security-debt",
         "receipt",
         VerbGroup::Analysis,
         "Surface security-relevant events with missing or weak commitments",
@@ -282,56 +286,56 @@ pub static REGISTRY: &[VerbEntry] = &[
     ),
     // ── Ingestion ────────────────────────────────────────────────────────────
     VerbEntry::new(
-        "emit_batch",
+        "emit-batch",
         "receipt",
         VerbGroup::Ingestion,
         "Ingest multiple events from a JSONL or CSV file in a single batch operation",
         &["emit_batch", "batch", "bulk", "import", "ingest", "jsonl"],
     ),
     VerbEntry::new(
-        "emit_from_cicd",
+        "emit-from-cicd",
         "receipt",
         VerbGroup::Ingestion,
         "Ingest events from a CI/CD pipeline run (GitHub Actions, GitLab CI, Jenkins, etc.)",
         &["emit_from_cicd", "cicd", "ci", "cd", "pipeline", "build"],
     ),
     VerbEntry::new(
-        "emit_from_cloud",
+        "emit-from-cloud",
         "receipt",
         VerbGroup::Ingestion,
         "Ingest events from cloud provider audit logs (AWS CloudTrail, GCP Audit, Azure Monitor)",
         &["emit_from_cloud", "cloud", "aws", "gcp", "azure", "cloudtrail"],
     ),
     VerbEntry::new(
-        "emit_from_github",
+        "emit-from-github",
         "receipt",
         VerbGroup::Ingestion,
         "Ingest events from a GitHub repository (commits, PRs, releases, workflow runs)",
         &["emit_from_github", "github", "git", "commits", "prs"],
     ),
     VerbEntry::new(
-        "emit_from_gitlab",
+        "emit-from-gitlab",
         "receipt",
         VerbGroup::Ingestion,
         "Ingest events from a GitLab project (pipelines, MRs, tags, deployments)",
         &["emit_from_gitlab", "gitlab", "git", "pipelines", "merge-requests"],
     ),
     VerbEntry::new(
-        "emit_from_monitoring",
+        "emit-from-monitoring",
         "receipt",
         VerbGroup::Ingestion,
         "Ingest events from monitoring/observability systems (Datadog, Prometheus, PagerDuty)",
         &["emit_from_monitoring", "monitoring", "observability", "datadog", "prometheus", "alerts"],
     ),
     VerbEntry::new(
-        "emit_from_sbom",
+        "emit-from-sbom",
         "receipt",
         VerbGroup::Ingestion,
         "Ingest SBOM document events (CycloneDX or SPDX) into the receipt chain",
         &["emit_from_sbom", "sbom", "cyclonedx", "spdx", "components"],
     ),
     VerbEntry::new(
-        "emit_from_security",
+        "emit-from-security",
         "receipt",
         VerbGroup::Ingestion,
         "Ingest security scan events (Snyk, Trivy, Dependabot, SARIF) into the receipt chain",
@@ -339,42 +343,42 @@ pub static REGISTRY: &[VerbEntry] = &[
     ),
     // ── Compliance ───────────────────────────────────────────────────────────
     VerbEntry::new(
-        "verify_compliance",
+        "verify-compliance",
         "receipt",
         VerbGroup::Compliance,
         "Check evidence presence for a compliance framework (evidence present/absent — not a legal determination)",
         &["verify_compliance", "compliance", "framework", "evidence", "gdpr", "hipaa", "soc2"],
     ),
     VerbEntry::new(
-        "verify_sla",
+        "verify-sla",
         "receipt",
         VerbGroup::Compliance,
         "Verify that receipt events satisfy defined SLA thresholds and time windows",
         &["verify_sla", "sla", "service-level", "latency", "uptime", "availability"],
     ),
     VerbEntry::new(
-        "verify_family",
+        "verify-family",
         "receipt",
         VerbGroup::Compliance,
         "Verify a family of related receipts all satisfy shared constraints",
         &["verify_family", "family", "group", "batch-verify", "related"],
     ),
     VerbEntry::new(
-        "policy_enforce",
+        "policy-enforce",
         "receipt",
         VerbGroup::Compliance,
         "Evaluate receipt events against a Rego or CEL policy file",
         &["policy_enforce", "policy", "rego", "cel", "opa", "enforce"],
     ),
     VerbEntry::new(
-        "license_compliance",
+        "license-compliance",
         "receipt",
         VerbGroup::Compliance,
         "Check that dependency licenses in the receipt satisfy the project's license policy",
         &["license_compliance", "license", "oss", "open-source", "spdx", "policy"],
     ),
     VerbEntry::new(
-        "gdpr_proof",
+        "gdpr-proof",
         "receipt",
         VerbGroup::Compliance,
         "Generate GDPR data-processing evidence from receipt events for auditor review",
@@ -388,14 +392,14 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["hipaa", "health", "phi", "safeguard", "audit", "healthcare"],
     ),
     VerbEntry::new(
-        "pci_dss",
+        "pci-dss",
         "receipt",
         VerbGroup::Compliance,
         "Collect PCI-DSS control evidence from receipt events for auditor review",
         &["pci_dss", "pci", "dss", "payment", "card", "control"],
     ),
     VerbEntry::new(
-        "soc2_audit",
+        "soc2-audit",
         "receipt",
         VerbGroup::Compliance,
         "Collect SOC 2 trust-service-criteria evidence from receipts for auditor review",
@@ -424,21 +428,21 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["attest", "attestation", "slsa", "provenance", "in-toto"],
     ),
     VerbEntry::new(
-        "assemble_with_signature",
+        "assemble-with-signature",
         "receipt",
         VerbGroup::Attestation,
         "Assemble and immediately sign the receipt in a single atomic operation",
         &["assemble_with_signature", "sign", "assemble", "atomic", "seal"],
     ),
     VerbEntry::new(
-        "assemble_and_notarize",
+        "assemble-and-notarize",
         "receipt",
         VerbGroup::Attestation,
         "Assemble, seal, and submit to a transparency log in one step",
         &["assemble_and_notarize", "notarize", "assemble", "atomic", "rekor"],
     ),
     VerbEntry::new(
-        "sbom_attest",
+        "sbom-attest",
         "receipt",
         VerbGroup::Attestation,
         "Attach a SLSA attestation to a previously generated SBOM document",
@@ -446,28 +450,28 @@ pub static REGISTRY: &[VerbEntry] = &[
     ),
     // ── SBOM ─────────────────────────────────────────────────────────────────
     VerbEntry::new(
-        "sbom_scan",
+        "sbom-scan",
         "receipt",
         VerbGroup::Sbom,
         "Scan a project and emit an SBOM event capturing all detected components",
         &["sbom_scan", "sbom", "scan", "components", "dependencies", "inventory"],
     ),
     VerbEntry::new(
-        "sbom_blast_radius",
+        "sbom-blast-radius",
         "receipt",
         VerbGroup::Sbom,
         "Compute the blast radius of a vulnerable component across the SBOM dependency graph",
         &["sbom_blast_radius", "blast-radius", "impact", "vulnerability", "transitive"],
     ),
     VerbEntry::new(
-        "sbom_compliance",
+        "sbom-compliance",
         "receipt",
         VerbGroup::Sbom,
         "Verify that the SBOM satisfies a license or security policy",
         &["sbom_compliance", "sbom", "compliance", "license", "security", "policy"],
     ),
     VerbEntry::new(
-        "sbom_ntia",
+        "sbom-ntia",
         "receipt",
         VerbGroup::Sbom,
         "Check an SBOM document against the NTIA minimum-element requirements",
@@ -475,7 +479,7 @@ pub static REGISTRY: &[VerbEntry] = &[
     ),
     // ── Insights ─────────────────────────────────────────────────────────────
     VerbEntry::new(
-        "anomaly_detect",
+        "anomaly-detect",
         "receipt",
         VerbGroup::Insights,
         "Detect anomalous events in the receipt chain using statistical outlier analysis",
@@ -489,7 +493,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["predict", "forecast", "probability", "failure", "ml", "trend"],
     ),
     VerbEntry::new(
-        "trend_analysis",
+        "trend-analysis",
         "receipt",
         VerbGroup::Insights,
         "Compute rolling trends over event frequency, latency, and error rates across receipts",
@@ -503,21 +507,21 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["variance", "spread", "deviation", "timing", "payload-size"],
     ),
     VerbEntry::new(
-        "find_blast_radius",
+        "find-blast-radius",
         "receipt",
         VerbGroup::Insights,
         "Find all receipt events transitively affected by a given failing event",
         &["find_blast_radius", "blast-radius", "impact", "transitive", "cascade"],
     ),
     VerbEntry::new(
-        "explain_incident",
+        "explain-incident",
         "receipt",
         VerbGroup::Insights,
         "Generate a structured incident explanation from events surrounding a failure",
         &["explain_incident", "incident", "explain", "postmortem", "rca"],
     ),
     VerbEntry::new(
-        "causality_chain",
+        "causality-chain",
         "receipt",
         VerbGroup::Insights,
         "Build a causality chain graph linking events by causal relationships",
@@ -525,42 +529,42 @@ pub static REGISTRY: &[VerbEntry] = &[
     ),
     // ── Engineering ──────────────────────────────────────────────────────────
     VerbEntry::new(
-        "bus_factor",
+        "bus-factor",
         "receipt",
         VerbGroup::Engineering,
         "Compute the bus factor for each object in the chain based on contributor events",
         &["bus_factor", "bus-factor", "knowledge", "risk", "contributors", "single-point"],
     ),
     VerbEntry::new(
-        "dora_metrics",
+        "dora-metrics",
         "receipt",
         VerbGroup::Engineering,
         "Extract DORA metrics (deployment frequency, lead time, MTTR, change failure rate) from receipts",
         &["dora_metrics", "dora", "deployment", "lead-time", "mttr", "change-failure"],
     ),
     VerbEntry::new(
-        "team_velocity",
+        "team-velocity",
         "receipt",
         VerbGroup::Engineering,
         "Measure team throughput and cycle time from emit/assemble event pairs",
         &["team_velocity", "velocity", "throughput", "cycle-time", "team"],
     ),
     VerbEntry::new(
-        "portfolio_health",
+        "portfolio-health",
         "receipt",
         VerbGroup::Engineering,
         "Aggregate health signals across a portfolio of receipts into a dashboard-ready report",
         &["portfolio_health", "portfolio", "health", "dashboard", "aggregate"],
     ),
     VerbEntry::new(
-        "orphaned_code",
+        "orphaned-code",
         "receipt",
         VerbGroup::Engineering,
         "Identify object references in the receipt that have no corresponding emit events",
         &["orphaned_code", "orphaned", "dead-code", "unreferenced", "objects"],
     ),
     VerbEntry::new(
-        "dependency_matrix",
+        "dependency-matrix",
         "receipt",
         VerbGroup::Engineering,
         "Build an object-to-object dependency matrix from co-occurrence in receipt events",
@@ -589,7 +593,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["profile", "benchmark", "perf", "performance", "timing"],
     ),
     VerbEntry::new(
-        "install_git_hook",
+        "install-git-hook",
         "receipt",
         VerbGroup::Tooling,
         "Install a git hook that auto-emits receipt events on commit, push, or tag",
@@ -603,7 +607,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["monitor", "watch", "stream", "tail", "live"],
     ),
     VerbEntry::new(
-        "receipt_throughput",
+        "receipt-throughput",
         "receipt",
         VerbGroup::Tooling,
         "Measure how many receipts per second the local store can verify under load",
@@ -622,6 +626,97 @@ pub static REGISTRY: &[VerbEntry] = &[
         VerbGroup::Tooling,
         "Run the built-in receipt self-test suite to validate the local installation",
         &["test", "self-test", "smoke-test", "sanity", "validate"],
+    ),
+    // ── Tooling (non-receipt nouns) ─────────────────────────────────────────
+    VerbEntry::new(
+        "doctor",
+        "affi",
+        VerbGroup::Tooling,
+        "Run environment and receipt-store health checks; optionally apply safe fixes",
+        &["doctor", "health", "check", "diagnose", "environment", "fix"],
+    )
+    .with_example("affi affi doctor --receipts ./receipts --fix"),
+    VerbEntry::new(
+        "search",
+        "guide",
+        VerbGroup::Tooling,
+        "Search the verb registry by keyword to discover relevant commands",
+        &["search", "guide", "discover", "find", "keyword", "help"],
+    )
+    .with_example("affi guide search federation"),
+
+    // ── Federation ──────────────────────────────────────────────────────────
+    VerbEntry::new(
+        "certify",
+        "standing",
+        VerbGroup::Federation,
+        "Seal a standing claim over an admitted receipt (affidavit/standing/v2)",
+        &["certify", "standing", "alive", "evidence", "federation", "kernel"],
+    )
+    .with_example(
+        "affi standing certify --receipt r.json --observation o.json --scope repo:acme/app --out standing.json",
+    ),
+    VerbEntry::new(
+        "verify",
+        "standing",
+        VerbGroup::Federation,
+        "Re-run the standing law over a sealed standing receipt",
+        &["verify", "standing", "certify", "seal", "federation"],
+    )
+    .with_example("affi standing verify --receipt standing.json"),
+    VerbEntry::new(
+        "certify",
+        "ecosystem",
+        VerbGroup::Federation,
+        "Federate sealed member standing receipts into one quorum-scored receipt",
+        &["certify", "ecosystem", "federation", "quorum", "role", "cross-repo"],
+    )
+    .with_example(
+        "affi ecosystem certify --receipt r.json --observation federation.json --out eco.json",
+    ),
+    VerbEntry::new(
+        "verify",
+        "ecosystem",
+        VerbGroup::Federation,
+        "Re-run the federation law over a sealed ecosystem receipt",
+        &["verify", "ecosystem", "federation", "quorum", "seal"],
+    )
+    .with_example("affi ecosystem verify --receipt ecosystem.json"),
+    VerbEntry::new(
+        "certify",
+        "errc",
+        VerbGroup::Federation,
+        "Seal a declared ERRC transformation (affidavit/errc/v1)",
+        &["certify", "errc", "eliminate", "reduce", "raise", "create", "transformation"],
+    )
+    .with_example("affi errc certify --receipt r.json --observation errc.json --out errc.json"),
+    VerbEntry::new(
+        "verify",
+        "errc",
+        VerbGroup::Federation,
+        "Re-run the ERRC directional and preservation laws over a sealed receipt",
+        &["verify", "errc", "directional", "preservation", "fence", "seal"],
+    )
+    .with_example("affi errc verify --receipt errc.json"),
+    VerbEntry::new(
+        "assure",
+        "errc",
+        VerbGroup::Federation,
+        "Seal a one-witness-per-claim assurance ledger over a sealed ERRC receipt",
+        &["assure", "errc", "claim", "witness", "ledger", "assurance", "bijection"],
+    )
+    .with_example(
+        "affi errc assure --parent errc.json --witnesses w.json --out assurance.json",
+    ),
+    VerbEntry::new(
+        "verify-assurance",
+        "errc",
+        VerbGroup::Federation,
+        "Re-run the claim-assurance law, optionally binding to the exact parent ERRC receipt",
+        &["verify_assurance", "errc", "claim", "assurance", "parent", "binding"],
+    )
+    .with_example(
+        "affi errc verify-assurance --receipt assurance.json --parent errc.json",
     ),
 ];
 
@@ -712,7 +807,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 69; // 67 original + why + fix
+        let expected = 79; // 67 original + why + fix + affi doctor + guide search + 8 federation courts
         assert_eq!(
             verb_count(),
             expected,
@@ -795,6 +890,192 @@ mod tests {
         assert!(suggestions.len() <= 5);
     }
 
+    /// Read the authoritative ontology.
+    fn ontology_source() -> String {
+        std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/ontology/affi-cli.ttl"
+        ))
+        .expect("ontology/affi-cli.ttl is readable")
+    }
+
+    /// Pull the quoted literal that follows `property` on a line, if present.
+    fn literal_after<'a>(line: &'a str, property: &str) -> Option<&'a str> {
+        let rest = line.trim().strip_prefix(property)?.trim_start();
+        rest.strip_prefix('"')?.split('"').next()
+    }
+
+    /// The `(verb, noun)` pairs the ontology declares.
+    ///
+    /// Names alone are not enough: `search` is declared under both the
+    /// `receipt` noun (payload grep) and the `guide` noun (registry
+    /// discovery), so a name-only check would call `guide search` declared
+    /// purely because `receipt search` exists. This walks each `a cnv:Verb`
+    /// block, pairs its `cnv:hasVerbName` with the `cnv:hasNounName` of the
+    /// noun its `cnv:belongsToNoun` points at, and compares pairs.
+    fn ontology_verb_noun_pairs() -> std::collections::HashSet<(String, String)> {
+        let ttl = ontology_source();
+
+        // Resource id (e.g. `affi:ReceiptNoun`) -> declared noun name.
+        let mut noun_names = std::collections::HashMap::new();
+        let mut current_resource: Option<String> = None;
+        for line in ttl.lines() {
+            let trimmed = line.trim();
+            if let Some(id) = trimmed.strip_suffix(" a cnv:Noun ;") {
+                current_resource = Some(id.trim().to_string());
+            }
+            if let (Some(resource), Some(name)) = (
+                current_resource.as_ref(),
+                literal_after(trimmed, "cnv:hasNounName"),
+            ) {
+                noun_names.insert(resource.clone(), name.to_string());
+                current_resource = None;
+            }
+        }
+
+        let mut pairs = std::collections::HashSet::new();
+        let mut verb_name: Option<String> = None;
+        let mut in_verb = false;
+        for line in ttl.lines() {
+            let trimmed = line.trim();
+            if trimmed.contains(" a cnv:Verb ;") {
+                in_verb = true;
+                verb_name = None;
+                continue;
+            }
+            if !in_verb {
+                continue;
+            }
+            if let Some(name) = literal_after(trimmed, "cnv:hasVerbName") {
+                verb_name = Some(name.to_string());
+            }
+            if let Some(rest) = trimmed.strip_prefix("cnv:belongsToNoun ") {
+                let resource = rest.trim_end_matches([';', '.', ' ']).trim();
+                if let (Some(verb), Some(noun)) = (verb_name.as_ref(), noun_names.get(resource)) {
+                    pairs.insert((verb.clone(), noun.clone()));
+                }
+                in_verb = false;
+            }
+        }
+        pairs
+    }
+
+    /// The ontology is the authoritative input for the CLI surface
+    /// (AGENTS.md §5): `src/verbs/**` is a projection of it. ggen cannot run in
+    /// every environment, so this test is what keeps the projection and its
+    /// source from drifting — it is the reason four verbs that had shipped
+    /// undeclared (`why`, `fix`, `install-git-hook`, `monitor`) were declared
+    /// in v26.9.6. Registry names use `_`; the ontology uses `-`.
+    #[test]
+    fn every_registry_verb_is_declared_in_the_ontology() {
+        let declared = ontology_verb_noun_pairs();
+        assert!(
+            !declared.is_empty(),
+            "no (verb, noun) pairs parsed out of ontology/affi-cli.ttl"
+        );
+
+        let undeclared: Vec<String> = REGISTRY
+            .iter()
+            .filter(|entry| !declared.contains(&(entry.verb.to_string(), entry.noun.to_string())))
+            .map(|entry| format!("{} {}", entry.noun, entry.verb))
+            .collect();
+        assert!(
+            undeclared.is_empty(),
+            "these commands exist in REGISTRY but are not declared in ontology/affi-cli.ttl: {undeclared:?}. \
+             Declare them in the ontology — the projection is not the source of truth."
+        );
+    }
+
+    /// Every registry entry must have a real `#[verb(...)]` projection **in a
+    /// module that is actually declared**, or the registry is advertising a
+    /// command the binary cannot run.
+    ///
+    /// Scanning `src/verbs/*.rs` alone is not enough: a file can sit in the
+    /// directory with a perfectly good `#[verb]` on it and never be compiled
+    /// because nobody added its `pub mod` line. That is exactly what happened
+    /// to `receipt-throughput`, which REGISTRY advertised for two releases
+    /// while `src/verbs/mod.rs` did not declare it. So this walks the module
+    /// list first and only reads files it names.
+    #[test]
+    fn every_registry_entry_has_a_verb_projection() {
+        let verbs_dir = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src/verbs"));
+        let mod_rs = std::fs::read_to_string(verbs_dir.join("mod.rs"))
+            .expect("src/verbs/mod.rs is readable");
+        let declared_modules: Vec<&str> = mod_rs
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("pub mod ")?.strip_suffix(';'))
+            .collect();
+        assert!(
+            !declared_modules.is_empty(),
+            "no `pub mod` declarations found in src/verbs/mod.rs"
+        );
+
+        let mut projected = std::collections::HashSet::new();
+        for module in &declared_modules {
+            let path = verbs_dir.join(format!("{module}.rs"));
+            let src = std::fs::read_to_string(&path).unwrap_or_else(|_| {
+                panic!("src/verbs/mod.rs declares `{module}` but {path:?} is unreadable")
+            });
+            for line in src.lines() {
+                let Some(rest) = line.trim().strip_prefix("#[verb(\"") else {
+                    continue;
+                };
+                let mut parts = rest.split('"');
+                let (Some(verb), Some(_), Some(noun)) = (parts.next(), parts.next(), parts.next())
+                else {
+                    continue;
+                };
+                projected.insert((verb.to_string(), noun.to_string()));
+            }
+        }
+
+        // Exact match, no normalisation. The CLI dispatches on the literal in
+        // `#[verb(...)]`; a REGISTRY row spelled `verify_compliance` names a
+        // command that does not exist, so `lookup` misses and `guide search`
+        // prints something the operator cannot type.
+        let unprojected: Vec<String> = REGISTRY
+            .iter()
+            .filter(|entry| !projected.contains(&(entry.verb.to_string(), entry.noun.to_string())))
+            .map(|entry| format!("{} {}", entry.noun, entry.verb))
+            .collect();
+        assert!(
+            unprojected.is_empty(),
+            "REGISTRY advertises verbs with no compiled #[verb] projection: {unprojected:?}. \
+             Check both the token spelling (the CLI is kebab-case) and the `pub mod` line."
+        );
+
+        // And the reverse: a compiled verb missing from REGISTRY is invisible to
+        // `--help` grouping, `guide search`, and the completions, so operators
+        // cannot discover it even though the binary answers it.
+        let registered: std::collections::HashSet<(String, String)> = REGISTRY
+            .iter()
+            .map(|entry| (entry.verb.to_string(), entry.noun.to_string()))
+            .collect();
+        let unregistered: Vec<String> = projected
+            .difference(&registered)
+            .map(|(verb, noun)| format!("{noun} {verb}"))
+            .collect();
+        assert!(
+            unregistered.is_empty(),
+            "these verbs are compiled and dispatchable but absent from REGISTRY, so they are \
+             undiscoverable: {unregistered:?}"
+        );
+    }
+
+    /// Verb tokens are what the operator types. Snake_case is never dispatchable.
+    #[test]
+    fn no_registry_verb_token_uses_snake_case() {
+        let snake: Vec<&str> = REGISTRY
+            .iter()
+            .map(|entry| entry.verb)
+            .filter(|verb| verb.contains('_'))
+            .collect();
+        assert!(
+            snake.is_empty(),
+            "these REGISTRY verb tokens use `_` but the CLI dispatches kebab-case: {snake:?}"
+        );
+    }
+
     #[test]
     fn all_groups_have_at_least_one_entry() {
         let groups = [
@@ -808,6 +1089,7 @@ mod tests {
             VerbGroup::Insights,
             VerbGroup::Engineering,
             VerbGroup::Tooling,
+            VerbGroup::Federation,
         ];
         for group in groups {
             let entries = by_group(group);

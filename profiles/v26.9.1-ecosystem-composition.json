@@ -1,0 +1,135 @@
+{
+  "base": {
+    "repository": "seanchatmangpt/affidavit",
+    "sha": "5db76507386ca3898df8117fcd93306a4ea23785"
+  },
+  "pins": {
+    "affidavit": {
+      "edges": [
+        "bcre_ecosystem_composition"
+      ],
+      "ref": "main",
+      "sha": "5db76507386ca3898df8117fcd93306a4ea23785"
+    },
+    "autofde": {
+      "edges": [
+        "production_runtime_pinning"
+      ],
+      "ref": "main",
+      "sha": "6c21cda73f7cc8873ea429f79f49c5b4b615c1fe"
+    },
+    "autofde-lab": {
+      "edges": [
+        "qlever_structural_similarity",
+        "planner_league_meta_selection_falsification"
+      ],
+      "ref": "master",
+      "sha": "5600993bdbcd085d1b5decc71fa804168a9ec05f"
+    },
+    "bcinr": {
+      "edges": [
+        "authoritative_cmca"
+      ],
+      "ref": "main",
+      "sha": "b76dcb377b297cb8826a5256b55f8b57a6b76462"
+    },
+    "chatman-ecosystem": {
+      "edges": [
+        "public_semantic_o_star",
+        "rdf_composition",
+        "independent_observation",
+        "canonical_receipt_ocel"
+      ],
+      "ref": "main",
+      "sha": "df1c660dbab1aa59fc6387a2d00ed7be69057777"
+    },
+    "dsrust": {
+      "edges": [
+        "compiler_oracle_only"
+      ],
+      "ref": "main",
+      "sha": "f24adde08c1d8850e4d7079d019643bb40f905cb"
+    },
+    "ggen": {
+      "edges": [
+        "deterministic_manufacture"
+      ],
+      "ref": "main",
+      "sha": "7fc324df397973004059c37b752a365315d7bfb8"
+    },
+    "ggen-marketplace": {
+      "edges": [
+        "deterministic_marketplace_manufacture"
+      ],
+      "ref": "main",
+      "sha": "3cc10e5066837ddfe959271b4ba11851953a7605"
+    },
+    "gymact": {
+      "edges": [
+        "executable_domain_world_court",
+        "brce_boundary"
+      ],
+      "ref": "main",
+      "sha": "b3115e2032de1d47cf30057bce3640a3826e462e"
+    },
+    "mfw": {
+      "edges": [
+        "mfw_consumption"
+      ],
+      "ref": "main",
+      "sha": "e4fbda46f13d8213b86aa4f981d2387638983066"
+    }
+  },
+  "required_edges": [
+    "public_semantic_o_star",
+    "rdf_composition",
+    "qlever_structural_similarity",
+    "planner_league_meta_selection_falsification",
+    "compiler_oracle_only",
+    "authoritative_cmca",
+    "mfw_consumption",
+    "executable_domain_world_court",
+    "brce_boundary",
+    "independent_observation",
+    "canonical_receipt_ocel",
+    "bcre_ecosystem_composition",
+    "deterministic_manufacture",
+    "deterministic_marketplace_manufacture",
+    "production_runtime_pinning"
+  ],
+  "schema": "chatman.v26.9.1.ecosystem-composition/2",
+  "separations": {
+    "bcre_brce": "DISTINCT_UNLESS_EQUIVALENCE_PROOF",
+    "dsrust": "COMPILER_ORACLE_ONLY",
+    "live_azure": "BLOCKED:LIVE_AZURE_AUTHORITY",
+    "planner_policy_role_agent_authority": "DISTINCT",
+    "ww3gym": "SIMULATION_EVALUATION_ONLY"
+  },
+  "standing_policy": {
+    "all_edge_alive_requires_exact_execution_receipts": true,
+    "composition_admission_can_be_alive_while_release_crown_is_partial": true,
+    "pin_is_not_alive": true,
+    "world_registry_is_not_release_crown": true
+  },
+  "subject": "v26.9.1-release-crown-composition",
+  "world_registry": {
+    "lifegym": {
+      "authority": "WORLD_ONLY",
+      "crown_required": false,
+      "ref": "main",
+      "sha": "73f1294792049d13334f439124764c3fdfa77744"
+    },
+    "rrgym": {
+      "authority": "WORLD_ONLY",
+      "crown_required": false,
+      "ref": "main",
+      "sha": "9f3128ae2b5b752c0f5bb091b433231d226a3585"
+    },
+    "ww3gym": {
+      "authority": "SIMULATION_EVALUATION_ONLY",
+      "crown_required": false,
+      "ref": "main",
+      "sha": "06db089173d5907c77373c1ea38978cb3bf50b3a"
+    }
+  }
+}

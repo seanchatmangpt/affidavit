@@ -114,6 +114,21 @@ impl ChainAssembler {
     }
 
     /// Append one operation-event, folding it into the running chain hash.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use affidavit::chain::ChainAssembler;
+    /// use affidavit::ocel::{build_event, object_ref, SeqCounter};
+    ///
+    /// let mut asm = ChainAssembler::new();
+    /// let mut counter = SeqCounter::new();
+    /// let ev = build_event("create", vec![object_ref("f", "artifact")], b"data", &mut counter)
+    ///     .expect("build");
+    /// asm.append(ev).expect("append");
+    /// let receipt = asm.finalize();
+    /// assert_eq!(receipt.events.len(), 1);
+    /// ```
     pub fn append(&mut self, event: OperationEvent) -> Result<(), ChainError> {
         self.running = fold_event(&self.running, &event)?;
         self.events.push(event);
@@ -136,6 +151,22 @@ impl ChainAssembler {
     }
 
     /// Finalize into an immutable `Receipt` carrying the final chain hash.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use affidavit::chain::ChainAssembler;
+    /// use affidavit::ocel::{build_event, object_ref, SeqCounter};
+    ///
+    /// let mut asm = ChainAssembler::new();
+    /// let mut counter = SeqCounter::new();
+    /// let ev = build_event("create", vec![object_ref("f", "artifact")], b"data", &mut counter)
+    ///     .expect("build");
+    /// asm.append(ev).expect("append");
+    /// let receipt = asm.finalize();
+    /// assert_eq!(receipt.events.len(), 1);
+    /// assert!(!receipt.chain_hash.as_hex().is_empty());
+    /// ```
     pub fn finalize(self) -> Receipt {
         Receipt::sealed(FORMAT_VERSION.to_string(), self.events, self.running)
     }
@@ -157,6 +188,40 @@ pub fn serialize_receipt(receipt: &Receipt) -> Result<Vec<u8>, ChainError> {
 /// Deserialize a receipt from JSON bytes.
 pub fn deserialize_receipt(bytes: &[u8]) -> Result<Receipt, ChainError> {
     serde_json::from_slice(bytes).map_err(ChainError::Decode)
+}
+
+/// Deserialize a receipt **without** re-running the chain law.
+///
+/// [`Receipt`]'s hand-written `Deserialize` recomputes the rolling hash and
+/// refuses a mismatch, which is the right default: a tampered receipt should
+/// not become a `Receipt` value by accident. But it also means a tampered
+/// receipt can never reach the certify pipeline, so stage 3
+/// (`chain_integrity`) — the stage whose entire job is to catch exactly this —
+/// was unreachable from every CLI path, and `affi receipt verify` answered a
+/// framework parse error with exit 1 instead of the documented REJECT (2).
+///
+/// This is the forensic seam for verbs that must *adjudicate* a suspect file
+/// rather than consume a trusted one: `verify`, `why`, and `fix`. It is
+/// `pub(crate)`, and it does not weaken the seal — `Receipt::sealed` remains
+/// private, so external code still cannot mint a receipt by any route.
+///
+/// The returned value is explicitly **not** trusted. Its `chain_hash` is
+/// whatever the file claimed. Run it through [`crate::verifier::verify`], which
+/// recomputes the chain and reports the failing stage by name.
+pub(crate) fn deserialize_receipt_unchecked(bytes: &[u8]) -> Result<Receipt, ChainError> {
+    #[derive(serde::Deserialize)]
+    struct UncheckedReceipt {
+        format_version: String,
+        events: Vec<OperationEvent>,
+        chain_hash: Blake3Hash,
+    }
+
+    let raw: UncheckedReceipt = serde_json::from_slice(bytes).map_err(ChainError::Decode)?;
+    Ok(Receipt::sealed(
+        raw.format_version,
+        raw.events,
+        raw.chain_hash,
+    ))
 }
 
 /// Persist the working set of events to `.affi/working.json` as canonical JSON.

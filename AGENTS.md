@@ -1,143 +1,37 @@
-# AGENTS.md — Affidavit execution doctrine
+# Affidavit Agent Operating Contract
 
-This file is operational ground truth for repository work. Read nested
-`AGENTS.md` files before changing a governed subtree.
+Scope: repository-wide unless a deeper `AGENTS.md` narrows a subtree. Live source, manifests, canonical verifiers, and executed courts outrank stale prose.
 
-## 1. Mission
+## Mission
 
-Affidavit is the Chatman ecosystem's small provenance/certification kernel. Its
-prime directive is **certify, don't decide**: construct sealed evidence carriers,
-validate bounded witnesses, and refuse malformed claims. Planning, policy
-selection, and machine-state actuation are outside this kernel unless a specific
-boundary explicitly grants them.
+Affidavit is a provenance/certification kernel. **Certify, don't decide.** Construct sealed evidence carriers, validate bounded witnesses, and refuse malformed claims. Planning, policy selection, and machine-state actuation are outside this kernel unless a specific admitted boundary grants them.
 
-The root crate is buildable. Current dependency policy is deliberately bounded:
+Dependency stubs are named capability fences, not evidence that upstream behavior executed. Discover the current real/stub dependency split from the admitted `Cargo.toml`/lockfile and docs; do not freeze package versions here or silently broaden a stub.
 
-- `wasm4pm-compat = 26.8.7` is the real published structural
-  admission/authority dependency;
-- `wasm4pm` remains fenced by `stubs/wasm4pm`;
-- `clnrm-core` remains fenced by `stubs/clnrm-core`.
+## Preserve → Fence → Calculus
 
-A stub is a named capability boundary, not proof that upstream behavior executed.
-Do not silently replace or broaden one without an observed integration proof.
+Resolve repo/ref/base to an exact commit and read applicable doctrine, manifests, generation graph, architecture/docs, task runners, CI, courts, and release policy. Preserve exact-subject identity, admission-before-crown, certify≠decide, generated-source authority, replay identity, typed refusal, and maximal reversible options. Apply Chesterton's fence before deleting a boundary. One failed transport/court/integration edge is topology, not graph failure.
 
-## 2. Foundational invariants
+Use `UNKNOWN | PARTIAL_ALIVE | ALIVE | BLOCKED | BUILD_BROKEN | UNSUPPORTED` plus typed `REFUSED_*`. `ALIVE` is unavailable without exact admitted execution, independent verification, and required replay evidence. A struct/JSON field named receipt has no standing unless the canonical verifier accepts it.
 
-1. **Exact subject** — execution standing names the exact candidate SHA/tree that
-   was actually executed.
-2. **Admission before crown** — UNKNOWN is not admitted; PARTIAL_ALIVE is not
-   ALIVE.
-3. **Zero forged receipts** — a struct or JSON object named `receipt` has no
-   standing unless the canonical verifier accepts it.
-4. **Certify ≠ decide** — receipt construction carries no ambient policy or
-   actuation authority.
-5. **Generated surfaces are projections** — `src/verbs/**` is generated from the
-   ggen ontology/config. Edit its authoritative inputs, then regenerate.
-6. **Replay is evidence** — exact command/toolchain/config identity matters.
-7. **One failed edge is topology** — classify the failing transition; do not
-   generalize one transport or court failure into whole-project failure.
+## Manufacture / authority
 
-## 3. Architecture map
+`A = μ(O*)`; `R = receipt(A)`. Separate `SELECT`, `CONSTRUCT`, `DO`. Affidavit's ERRC transformation is `CONSTRUCT`; it does not confer ambient policy, utility, optimality, causality, or actuation authority. Model/planner/generator/proof/hook output has no ambient execution authority. Consequential `DO`, where a repository boundary actually permits it, must be independently admitted and receipted.
 
-- `src/types.rs`, `src/chain.rs`, `src/admission.rs`, `src/verifier.rs` — receipt
-  trust path.
-- `src/standing.rs` — ecosystem standing v2. ALIVE is structurally
-  unconstructable without successful execution + independent verification +
-  replay evidence.
-- `src/errc.rs` — formal ERRC v1 transformation receipts. This is CONSTRUCT only;
-  see `docs/ERRC.md`.
-- `ontology/affi-cli.ttl`, `ggen.toml`, `.ggen/**` — authoritative CLI generation
-  graph and templates.
-- `src/verbs/**` — generated CLI projection; do not hand edit.
-- `affidavit-core/` — separately gated minimal core.
-- `web/`, `tools/confevo/` — independent evidence lanes.
-- `scripts/ci_errc.py` — exact-head ERRC fast court, reconstituted from pinned
-  `ggen-legacy` mechanics.
+ERRC claims bind one exact `(target, metric, unit)` coordinate, preserve a non-empty fence, and respect the live normative profile. Do not sum heterogeneous units or raise the claim ceiling beyond what the receipt mechanically verifies.
 
-## 4. ERRC reconstruction law
+## Canonical / generated surfaces
 
-The normative profile is `affidavit/errc/v1`. Its archaeological source is
-fixed to:
+The receipt trust path, standing model, ERRC model, ontology/ggen generation graph, minimal core, web/confevo lanes, and fast court are distinct boundaries. `src/verbs/**` and other declared generated surfaces are projections: change the owning ontology/config/template and regenerate through the documented ggen path. Never patch projections solely to make CI green.
 
-`seanchatmangpt/ggen-legacy@60d38265b8d1d94c43f04ca6bdb8537184e510a8:scripts/ci_errc.py`
+## Verification
 
-ERRC is not a score. Every claim is attached to one exact
-`(target, metric, unit)` coordinate and must satisfy exactly one directional
-relation:
+Follow `parse → orient → resolve → materialize → read doctrine → inspect → admit/refuse → diagnose/repair → construct → actuate → receipt → replay → standing`. Acceptance precedence is exact user behavior/command → live documented repo court → narrowest equivalent. Discover the current ERRC, Rust, core, web, and auxiliary verification commands from the admitted tree rather than freezing them here.
 
-- ELIMINATE: `baseline > 0`, `candidate = 0`
-- REDUCE: `baseline > candidate > 0`
-- RAISE: `candidate > baseline > 0`
-- CREATE: `baseline = 0`, `candidate > 0`
+A fast/static court may have an explicit standing ceiling; never promote it beyond that ceiling. Preserve command, exit, exact head, and evidence report. On failure classify the transition, repair the lawful path, encode a permanent regression witness/refusal, and rerun that boundary before expanding. Do not use `continue-on-error`, vacuous fixtures/assertions, hand-written generated outputs, or compatibility inventions to manufacture green.
 
-A non-empty preservation fence is mandatory. Heterogeneous units are never
-summed. The receipt claim ceiling excludes causality, utility, optimality, and
-actuation conclusions.
+Toolchain pins and `Cargo.lock` are replay identity. Do not float them without an explicit migration. Preserve resolver-produced lockfiles during admitted dependency changes and use locked replay when the repository doctrine requires it.
 
-## 5. Generation
+## GitHub / receipt
 
-The CLI graph is ontology-first:
-
-```text
-ontology/affi-cli.ttl
-    -> ggen.toml inference + SPARQL validation
-    -> .ggen/templates/**
-    -> src/verbs/**
-    -> Rust execution courts
-```
-
-When changing a generated CLI surface, modify the ontology/config/template and
-run the repository's documented ggen generation/check path. Never patch a
-projection solely to make CI green.
-
-## 6. Verification ladder
-
-Use the cheapest high-information court first, then expand after success:
-
-```bash
-python3 -m unittest discover -s scripts/tests -p 'test_ci_errc.py'
-python3 scripts/ci_errc.py --base <BASE_SHA> --head <HEAD_SHA> \
-  --report evidence/ci/errc-fast.json
-cargo fmt --all -- --check
-cargo build --all-targets
-cargo test --all-targets
-cargo test --doc
-cargo clippy --all-targets -- -D warnings
-```
-
-The ERRC fast court has a hard ceiling: success is `PARTIAL_ALIVE`. It verifies
-exact-head identity, path-to-court routing, and changed JSON/TOML parsing; it
-cannot stand in for Rust execution.
-
-The root Rust workflow, `affidavit-core`, web, and confevo courts own their
-respective execution claims. GitHub workflow metadata is not execution proof;
-inspect the exact-head job steps/logs.
-
-## 7. Toolchain and dependency replay
-
-`rust-toolchain.toml` is intentionally date-pinned. Do not float nightly without
-an explicit migration receipt. `Cargo.lock` is part of replay identity. During a
-dependency graduation, preserve Cargo's resolver-produced lockfile as an
-artifact even when later compilation fails; after it is committed, move the
-court to `--locked`.
-
-## 8. Failure discipline
-
-On failure:
-
-1. preserve the exact subject/head and command;
-2. classify the failed transition;
-3. locate the narrowest cause;
-4. repair the lawful path rather than skipping the verifier;
-5. encode a permanent regression witness/refusal;
-6. rerun that boundary;
-7. expand only after it succeeds.
-
-Never use `continue-on-error`, fake fixtures, vacuous assertions, hand-written
-generated outputs, or local compatibility inventions to manufacture green.
-
-## 9. Publication
-
-Use a purpose branch based on a recorded exact base SHA. Commit intentionally,
-non-force push, and keep review work in a draft PR until the exact-head courts
-support the claimed standing. Never merge or release unless explicitly asked.
+Never silently move the admitted base. Unless explicitly instructed otherwise: purpose branch, intentional commit, non-force push, draft PR, no merge/release. Final receipt exposes repo/base/tree, O/O*, dependency/stub boundary, changed/generated surfaces, transports/failures, courts/commands/exits, standing ceilings, receipt/replay, branch/SHA/PR, scoped standing, and falsifiers.

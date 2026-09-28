@@ -1,6 +1,6 @@
 [package]
 name = "affidavit"
-version = "26.6.22"
+version = "26.9.24"
 edition = "2021"
 rust-version = "1.78"
 description = "Provenance Layer — receipt assembly and certification (verify a witness against a format standard; never decide honesty)."
@@ -25,6 +25,30 @@ exclude = [
   "*.py",
   ".claude/",
   "scripts/",
+  # Never-compiled sources. These 17 files live under src/ but are declared in
+  # no `mod` and mapped by no `#[path]`, so the compiler never sees them —
+  # publishing them would ship 164 KB of code that has never been type-checked
+  # as if it were part of the crate. They are kept in the repository (they are
+  # the 1000x-initiative drafts and are candidates for future feature gates,
+  # see ROADMAP P2-8) but excluded from the package. `orphaned_sources_are_declared_or_excluded`
+  # in tests/release_identity.rs holds this list to reality.
+  "src/1000x_autonomous_governance.rs",
+  "src/1000x_chaos_e2e.rs",
+  "src/1000x_cli_telepathy_qol.rs",
+  "src/1000x_distributed_sharding.rs",
+  "src/1000x_formal_verification_spec.rs",
+  "src/1000x_holographic_lsp_dx.rs",
+  "src/1000x_nlp_query_qol.rs",
+  "src/1000x_otel_hyper_spec.rs",
+  "src/1000x_receipt_to_wasm_qol.rs",
+  "src/1000x_semantic_isomorphism_e2e.rs",
+  "src/1000x_swarm_e2e.rs",
+  "src/1000x_tdd_synthesizer_dx.rs",
+  "src/1000x_time_travel_dx.rs",
+  "src/generation.rs",
+  "src/metrics.rs",
+  "src/mining.rs",
+  "src/mutation.rs",
 ]
 
 [[bin]]
@@ -52,10 +76,18 @@ required-features = ["lsp"]
 name = "discover_shapeb"
 required-features = ["discovery"]
 
+[[example]]
+name = "conformance_report"
+required-features = ["discovery"]
+
 [[bench]]
 name = "receipt_operations"
 harness = false
 required-features = ["discovery"]
+
+[[bench]]
+name = "architecture_receipts"
+harness = false
 
 [[bench]]
 name = "quality_western_electric"
@@ -101,15 +133,15 @@ uuid = { version = "1", features = ["v4", "serde"], optional = true }
 
 # Phase 4: Observability (OTel Stack)
 opentelemetry = { version = "0.32", features = ["trace", "metrics"], optional = true }
-opentelemetry-jaeger = { version = "0.19", optional = true }
+opentelemetry-jaeger = { version = "0.22", optional = true }
 opentelemetry-prometheus = { version = "0.13", optional = true }
-prometheus = { version = "0.13", optional = true }
+prometheus = { version = "0.14", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
 # Phase 5: CLI Ergonomics & REPL
 rustyline = { version = "12", features = ["derive"], optional = true }
-shlex = { version = "1", optional = true }
+shlex = { version = "2", optional = true }
 tokio = { version = "1", features = ["full"], optional = true }
 colored = { version = "2", optional = true }
 indicatif = { version = "0.17", optional = true }
@@ -121,27 +153,33 @@ reqwest = { version = "0.13", features = ["json"], optional = true }
 chrono = { version = "0.4", features = ["serde"], optional = true }
 hex = { version = "0.4", optional = true }
 rayon = { version = "1", optional = true }
-criterion = { version = "0.5", optional = true }
+criterion = { version = "0.8", optional = true }
 rand = { version = "0.8", optional = true }
 
 # GPU Acceleration (1000X)
-wgpu = { version = "0.19", optional = true }
+wgpu = { version = "30.0", optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
-pollster = { version = "0.3", optional = true }
+pollster = { version = "1.0", optional = true }
 
 # 1000X Innovation Hardening
-syn = { version = "2", features = ["full", "visit", "extra-traits", "parsing"], optional = true }
+syn = { version = "3", features = ["full", "visit", "extra-traits", "parsing"], optional = true }
 quote = { version = "1", optional = true }
 proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 tempfile = { version = "3", optional = true }
-wasm-encoder = "0.252.0"
+# wasm-encoder was a MANDATORY dependency — compiled and linked into every build
+# and carried in the published dependency graph — while its only consumer,
+# src/1000x_receipt_to_wasm_qol.rs, is declared by no `mod` and therefore never
+# compiled. A provenance tool should not ship a supply-chain edge for code that
+# does not exist. Re-add it as an optional dependency behind a feature if that
+# file is ever wired up (ROADMAP P2-8).
+# wasm-encoder = "0.252.0"
 
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
 trybuild = "1"
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 quickcheck = "1"
 quickcheck_macros = "1"
 tokio = { version = "1", features = ["full"] }
@@ -201,7 +239,8 @@ gpu = ["wgpu", "bytemuck", "pollster"]
 
 # 1000X Innovation Hardening
 # Automatic code remediation based on policy violations.
-remediation = ["syn", "quote", "proc-macro2", "tempfile"]
+# `tracing` is required: src/1000x_auto_remediate_dx.rs:37 imports it.
+remediation = ["syn", "quote", "proc-macro2", "tempfile", "tracing"]
 # Post-Quantum Cryptography support.
 pqc = []
 

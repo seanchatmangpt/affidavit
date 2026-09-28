@@ -14,6 +14,18 @@ Start here for project overview and setup:
 - **[CONTRIBUTING.md](../CONTRIBUTING.md)** — Contribution guidelines
 - **[STATUS.md](../STATUS.md)** — Current project status and releases
 - **[IMPLEMENTATION_SUMMARY.md](../IMPLEMENTATION_SUMMARY.md)** — Western Electric quality monitoring implementation details
+- **[ROADMAP.md](../ROADMAP.md)** — Bug ledger and open workstreams, re-verified each release
+- **[AGENTS.md](../AGENTS.md)** — Execution doctrine, invariants, and the verification ladder
+
+---
+
+## 🏛️ Evidence Federation (v26.9.6)
+
+The certification profiles above `core/v1`, and the `affi` commands that reach them:
+
+- **[FEDERATION.md](FEDERATION.md)** — `affi standing` / `affi ecosystem` / `affi errc`: the operator guide, exit-code contract, and a worked example
+- **[ERRC.md](ERRC.md)** — the normative `affidavit/errc/v1` transformation profile
+- **[ERRC_CLAIM_ASSURANCE.md](ERRC_CLAIM_ASSURANCE.md)** — the one-witness-per-claim assurance refinement
 
 ---
 
