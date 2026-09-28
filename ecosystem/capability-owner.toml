@@ -1,0 +1,22 @@
+schema = "chatman.federated-capability-owner.v1"
+version = "26.9.1"
+repository = "seanchatmangpt/affidavit"
+owner_id = "repository:affidavit"
+control_plane_repository = "seanchatmangpt/chatman-ecosystem"
+control_plane_subject = "git:7430dfc9b3ca138e703430d25de7c6f48a8d6ade"
+base_sha = "5db76507386ca3898df8117fcd93306a4ea23785"
+release_component = "affidavit"
+release_role = "provenance"
+release_dependencies = []
+allowed_authorities = ["persist_control_plane"]
+simulation_only = false
+do_mode = "none"
+ambient_do = false
+automatic_irreversible_do = false
+
+[[capability]]
+id = "capability:attest-affidavit-standing"
+relationship = "owner"
+standing = "CANDIDATE"
+broker_required = false
+receipt_required = true
