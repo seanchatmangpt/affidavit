@@ -89,6 +89,7 @@
 mod macros;
 
 pub mod admission;
+pub mod architecture;
 pub mod bench;
 pub mod brce;
 pub mod catalog;
@@ -171,6 +172,11 @@ pub fn run() -> clap_noun_verb::Result<()> {
     clap_noun_verb::run()
 }
 
+pub use architecture::{
+    ArchitectureQualificationReceipt, ArchitectureRefusal, ArchitectureStanding,
+    ArchitectureStandingLedger, EvidenceSource, QualificationEvidence, Supersession,
+    ARCHITECTURE_QUERY_SCHEMA, ARCHITECTURE_RECEIPT_SCHEMA,
+};
 pub use ecosystem::{
     certify_ecosystem, EcosystemMember, EcosystemObservation, EcosystemReceipt, EcosystemRefusal,
     EcosystemRole, RoleCoverage, RoleRequirement, ECOSYSTEM_AUTHORITY_CEILING,
