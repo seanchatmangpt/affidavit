@@ -42,6 +42,7 @@ Documentation for ecosystem integrations:
 - [Index](integrations/LSP_MAX_INTEGRATION_INDEX.md)
 
 ### Process Mining (WASM4PM)
+- [WebAssembly module (affidavit-wasm)](WASM.md) — verify/assemble/mine over a JSON ABI, v26.9.28
 - [Integration Plan](integrations/WASM4PM_INTEGRATION_PLAN.md)
 - [Integration Summary](integrations/WASM4PM_INTEGRATION_SUMMARY.md)
 - [Quick Reference](integrations/WASM4PM_QUICK_REFERENCE.md)

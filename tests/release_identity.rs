@@ -251,3 +251,43 @@ fn shell_completions_offer_only_dispatchable_verbs() {
         );
     }
 }
+
+#[test]
+fn the_wasm_module_carries_the_same_release_identity_as_the_binary() {
+    // affidavit-wasm derives its own genesis seed from its own package version,
+    // so if its version drifts from `affi`'s the module would reject (or worse,
+    // mint) receipts no other build can verify. This is bug B4 for the module.
+    let manifest = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/affidavit-wasm/Cargo.toml"
+    ))
+    .expect("affidavit-wasm/Cargo.toml is readable");
+    let declared = format!("version = \"{PKG_VERSION}\"");
+    assert!(
+        manifest.lines().any(|l| l.trim() == declared),
+        "affidavit-wasm/Cargo.toml must declare `{declared}` to match the affi binary; \
+         the module's genesis seed is bound to its own version"
+    );
+}
+
+#[test]
+fn the_wasm_golden_receipt_is_a_real_receipt_of_this_release() {
+    // affidavit-wasm's parity tests treat tests/fixtures/golden_receipt.json as
+    // "what `affi` produces". That claim is only worth anything while the
+    // fixture really is a chain of *this* release, so hold it to the root
+    // crate's own chain recomputation. A version bump that forgets to
+    // regenerate the fixture fails here, not silently in the wasm lane.
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/affidavit-wasm/tests/fixtures/golden_receipt.json"
+    );
+    let bytes = fs::read(path).expect("golden fixture is readable");
+    let receipt = affidavit::chain::deserialize_receipt(&bytes)
+        .expect("golden fixture deserializes (re-verifies its chain hash) under this release");
+    let verdict = affidavit::verifier::verify(&receipt);
+    assert!(
+        verdict.accepted,
+        "golden fixture must ACCEPT under affi {PKG_VERSION}: {}",
+        verdict.reason
+    );
+}

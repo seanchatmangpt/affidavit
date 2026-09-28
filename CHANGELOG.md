@@ -2,6 +2,74 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.9.28] — 2026-09-28
+
+**Theme: verify anywhere — the provenance layer as a WebAssembly module.**
+
+Until now the only way to certify a receipt outside Rust was to shell out to
+`affi`, or to trust a hand-written TypeScript port (`web/lib/verify-client.ts`)
+that had already drifted from the binary once (its genesis seed sat three
+releases behind). v26.9.28 ships the verifier itself as a sandboxed `.wasm`, so a
+host — Elixir/Wasmex, Node, Python, an edge runtime — gets the verdict `affi
+verify` gives, from the same algorithm, without a process boundary. The design
+follows the graphlaw module: a tiny `unsafe` FFI shell over a safe, natively
+testable JSON ABI, tested in a real wasm runtime.
+
+### Added
+- **`affidavit-wasm/`** — a standalone crate (like `affidavit-core/`, not a root
+  workspace member) that builds `affidavit.wasm` for `wasm32-wasip1` (~230 KB).
+  Exports `af_alloc`, `af_free`, `af_call`, `af_abi_version` and `memory`; a
+  request is UTF-8 JSON in linear memory, a response is UTF-8 JSON. Imports are
+  `wasi_snapshot_preview1` only — no JavaScript glue.
+- **Six ops** over that ABI: `capabilities`, `commit` (BLAKE3 of a payload),
+  `assemble` (events → sealed `core/v1` receipt), `verify` (the seven-stage
+  certify pipeline, per-stage outcomes), `mine` (directly-follows graph,
+  α-footprint, variants, activity frequencies) and `conform` (token-replay
+  fitness of a trace against a model discovered from receipts). Mining and
+  conformance are `affidavit-core` used as a library, not re-implemented.
+- **Parity with `affi`, proven rather than claimed.** Canonical JSON, the rolling
+  BLAKE3 chain and all seven stages are a byte-for-byte port of the root crate.
+  `affidavit-wasm/tests/fixtures/` holds a receipt produced by the real `affi`
+  binary; the wasm tests assert that the module ACCEPTs it, that it REJECTs the
+  tampered copy with the *exact* reason string `affi` prints (same stored and
+  recomputed hashes), and that wasm `assemble` reproduces `affi`'s receipt
+  byte-for-byte. A further test runs the same requests natively and in wasm and
+  requires identical response bytes.
+- **Host-boundary hygiene tests**: no imports beyond WASI; every buffer is
+  reclaimed (2000 calls, linear memory must not grow — verified to fail if
+  `af_free` leaks); structured errors (`bad_json`, `unknown_op`, `missing_field`,
+  `bad_field`, `too_large`) cross the boundary as JSON; a 2000-event receipt
+  verifies inside the sandbox.
+- **`.github/workflows/affidavit-wasm.yml`** — fmt, clippy on native *and*
+  `wasm32-wasip1` (which compiles the FFI shell), unit tests, module build, the
+  real-runtime tests against that exact build, rustdoc `-D warnings`, sha256 and
+  artifact upload. On a published release a separate least-privilege job attaches
+  `affidavit.wasm` and its checksum.
+- **Release-identity gates** (`tests/release_identity.rs`): the wasm crate must
+  declare the same version as `affi` (its genesis seed is derived from its own
+  version), and the golden fixture must ACCEPT under this release's own verifier,
+  so a version bump that forgets to regenerate it fails in the root lane.
+- **`docs/WASM.md`** — the ABI, ops, error codes, a host walkthrough, and the
+  trust-model boundaries.
+- `just wasm-build`, `just wasm-test`.
+
+### Changed
+- Version 26.9.24 → **26.9.28**. The genesis seed is now
+  `affidavit-v26.9.28-genesis`, so receipts assembled by 26.9.24 binaries do not
+  verify under 26.9.28 (by design; see the README). The browser verifier and
+  visualizer carry the new seed, and `release-tag-v26.9.24.yml` is now
+  `release-tag-v26.9.28.yml`.
+
+### Not in this release
+- No `wasm32-unknown-unknown` build: like graphlaw, the module targets WASI hosts.
+- The root `affidavit` crate itself is not compiled to wasm; the module is the
+  small verifier/mining surface, deliberately. Retiring the hand-written
+  TypeScript verifier in favor of this module in `web/` is the natural follow-up
+  and is not done here.
+- `affidavit-core`'s `Fnv256` hasher remains a non-cryptographic reference; the
+  wasm module uses BLAKE3 (`blake3` crate, `pure` feature) because it must
+  agree with `affi`.
+
 ## [26.9.24] — 2026-09-24
 
 **Theme: consolidation of the v26.9.x branch fan-out.**

@@ -80,3 +80,11 @@ core-test:
 # The stdlib-only Python genetic Cargo-feature optimizer.
 confevo-test:
     cd tools/confevo && python3 -m unittest
+
+# Build the WebAssembly module (wasm32-wasip1) -> affidavit-wasm/target/.../affidavit_wasm.wasm
+wasm-build:
+    cd affidavit-wasm && cargo build --lib --target wasm32-wasip1 --profile wasm
+
+# Native unit tests + the compiled module driven in a real wasm runtime.
+wasm-test:
+    cd affidavit-wasm && cargo test
