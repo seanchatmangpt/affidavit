@@ -52,6 +52,10 @@ required-features = ["lsp"]
 name = "discover_shapeb"
 required-features = ["discovery"]
 
+[[example]]
+name = "conformance_report"
+required-features = ["discovery"]
+
 [[bench]]
 name = "receipt_operations"
 harness = false
