@@ -1,0 +1,47 @@
+{
+  "tool": "tools/aloop_falsifiers.py",
+  "events_per_receipt": 10,
+  "repeat": 3,
+  "profile_validation": true,
+  "python": "3.14.3",
+  "machine": "arm64",
+  "system": "Darwin",
+  "rows": [
+    {
+      "events": 1000,
+      "receipts": 100,
+      "check_s": 0.2806,
+      "dag_s": 0.019,
+      "check_us_per_event": 280.56,
+      "dag_us_per_event": 19.04,
+      "check_cpu_s": 0.1402,
+      "dag_cpu_s": 0.019,
+      "check_cpu_us_per_event": 140.21,
+      "dag_cpu_us_per_event": 19.04
+    },
+    {
+      "events": 10000,
+      "receipts": 1000,
+      "check_s": 2.1438,
+      "dag_s": 0.3425,
+      "check_us_per_event": 214.38,
+      "dag_us_per_event": 34.25,
+      "check_cpu_s": 1.3411,
+      "dag_cpu_s": 0.2366,
+      "check_cpu_us_per_event": 134.11,
+      "dag_cpu_us_per_event": 23.66
+    },
+    {
+      "events": 50000,
+      "receipts": 5000,
+      "check_s": 8.889,
+      "dag_s": 4.2401,
+      "check_us_per_event": 177.78,
+      "dag_us_per_event": 84.8,
+      "check_cpu_s": 6.6785,
+      "dag_cpu_s": 1.6941,
+      "check_cpu_us_per_event": 133.57,
+      "dag_cpu_us_per_event": 33.88
+    }
+  ]
+}

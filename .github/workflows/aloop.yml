@@ -1,0 +1,56 @@
+# aloop.yml — ALOOP ExecutionReceipt profile + ZeroUnreceiptedActuation falsifiers.
+#
+# Self-contained (Python + jsonschema only; no sibling PATH crates). Runs the Chicago
+# pytest suite (golden-projection drift guard, profile conformance, adversarial corpus,
+# CPU-time benchmark regression bound) and the tool's own self-test.
+# The vendored-schema sync guard skips the ~/.zcode twin checks on a runner that does
+# not have them and still checks profile-inline == vendored.
+name: aloop
+
+on:
+  push:
+    paths:
+      - "tools/aloop_falsifiers.py"
+      - "tools/check_dfcm_schema_sync.py"
+      - "tools/tests/**"
+      - "tools/bench/**"
+      - "schemas/**"
+      - "fixtures/aloop/**"
+      - ".github/workflows/aloop.yml"
+  pull_request:
+    paths:
+      - "tools/aloop_falsifiers.py"
+      - "tools/check_dfcm_schema_sync.py"
+      - "tools/tests/**"
+      - "tools/bench/**"
+      - "schemas/**"
+      - "fixtures/aloop/**"
+      - ".github/workflows/aloop.yml"
+
+concurrency:
+  group: aloop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  falsifiers:
+    name: aloop falsifiers (pytest + self-test + bench bound)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test deps
+        run: python -m pip install --disable-pip-version-check "pytest>=8" "jsonschema>=4.18"
+      - name: Schema sync guard
+        run: python tools/check_dfcm_schema_sync.py
+      - name: Falsifier self-test
+        run: python tools/aloop_falsifiers.py self-test
+      - name: Golden case check
+        run: python tools/aloop_falsifiers.py check fixtures/aloop/golden_case
+      - name: Pytest (Chicago, no doubles)
+        run: python -m pytest tools/tests -q

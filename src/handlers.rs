@@ -388,9 +388,12 @@ pub fn verify(
 ) -> Result<()> {
     let (code, verdict) = adapt(crate::cli::verify(&receipt))?;
     use crate::diag::exit_codes;
+    // Transport contract (ARDPRD §6, witnessed by tests/cli_dispatch.rs): the
+    // library denies clippy::print_stdout at root, so substantive verdict
+    // output — human and JSON alike — routes to stderr, keeping stdout clean.
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&verdict).map_err(anyhow::Error::from))?;
-        outln!("{s}");
+        eprintln!("{s}");
         if code != 0 {
             // B6: REJECT must surface as exit_codes::REJECT (2), not as a generic
             // Err(NounVerbError) which the framework would map to exit 1.  The
@@ -754,9 +757,11 @@ pub fn sign(
 /// `affi receipt show` — print a human-readable dump of a receipt chain.
 pub fn show(receipt: String, format: Option<String>) -> Result<()> {
     let parsed = adapt(crate::cli::show(&receipt))?;
+    // Transport contract (ARDPRD §6): substantive receipt output routes to
+    // stderr; stdout stays clean (lib root denies clippy::print_stdout).
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&parsed).map_err(anyhow::Error::from))?;
-        outln!("{s}");
+        eprintln!("{s}");
         return Ok(());
     }
     eprintln!("receipt format: {}", parsed.format_version);
