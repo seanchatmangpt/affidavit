@@ -27,8 +27,8 @@ fn main() {
 
     println!("Chain hash evolution:");
     println!(
-        "{:<4} {:<14} {}",
-        "step", "event_type", "chain_hash (first 24 chars)"
+        "{:<4} {:<14} chain_hash (first 24 chars)",
+        "step", "event_type"
     );
     println!("{}", "-".repeat(60));
 
