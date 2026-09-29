@@ -107,6 +107,8 @@ linkme = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 blake3 = "1"
+# FIPS 204 ML-DSA verification/signing primitive; private-key custody stays behind provider adapters.
+ml-dsa = { version = "0.1.1", optional = true, features = ["zeroize"] }
 anyhow = "1"
 thiserror = "2"
 walkdir = "2"
@@ -251,8 +253,8 @@ gpu = ["wgpu", "bytemuck", "pollster"]
 # Automatic code remediation based on policy violations.
 # `tracing` is required: src/1000x_auto_remediate_dx.rs:37 imports it.
 remediation = ["syn", "quote", "proc-macro2", "tempfile", "tracing"]
-# Post-Quantum Cryptography support.
-pqc = []
+# Post-Quantum Cryptography support: real FIPS 204 ML-DSA-65 via RustCrypto.
+pqc = ["dep:ml-dsa"]
 
 # Quality monitoring with Western Electric rules
 quality-monitor = ["syn", "quote", "shell", "tokio"]
