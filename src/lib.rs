@@ -94,6 +94,7 @@ pub mod bench;
 pub mod brce;
 pub mod catalog;
 pub mod chain;
+#[cfg(feature = "trust-plane-legacy")] // parallel-session WIP, superseded-in-scope by the pack-rendered plane; see docs/jira/v26.9.28/CRYPTO-TRUST-PLANE.md
 pub mod crypto_trust;
 pub mod cli;
 
@@ -234,6 +235,7 @@ pub use errc_claim_assurance::{
     ERRC_CLAIM_ASSURANCE_SOURCE_ARTIFACT,
 };
 pub use error::AffidavitError;
+#[cfg(feature = "trust-plane-legacy")]
 pub use crypto_trust::{
     sign_with_provider, verify_and_record, CryptoRefusal, KeyCustody, KeyRecord, KeyRegistry,
     KeyState, NonceLedger, SignatureAlgorithm, SignatureEnvelope, SigningMaterial, SigningProvider,
