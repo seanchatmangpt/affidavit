@@ -76,6 +76,12 @@ Run the end-to-end smoke test to see `affidavit` in action:
 ./examples/golden_run.sh
 ```
 
+### Verify Anywhere: the WebAssembly module
+`affidavit-wasm/` ships the verifier as a sandboxed `.wasm` (~230 KB, WASI-only
+imports) so a host can `verify`, `assemble`, `mine` and `conform` receipts
+without shelling out to `affi` — and get the same verdict, proven against
+receipts the real binary produced. See [`docs/WASM.md`](docs/WASM.md).
+
 ---
 
 ## 📖 Core Concepts

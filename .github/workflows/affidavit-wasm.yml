@@ -1,0 +1,127 @@
+# affidavit-wasm.yml — the WebAssembly module lane.
+#
+# affidavit-wasm/ is a standalone crate (not a root workspace member) that ships
+# affidavit's verifier as a .wasm with a JSON-over-linear-memory ABI. The lane
+# builds the real module, then drives it in a real wasm runtime (wasmi) against
+# fixtures produced by the real `affi` binary. Every step blocks.
+#
+# Toolchain: the repo-root rust-toolchain.toml pins an exact nightly and
+# affidavit-wasm/ inherits it, so the wasm target is added to *that* toolchain
+# (working-directory below), not to a floating one.
+name: affidavit-wasm
+
+on:
+  push:
+    paths:
+      - "affidavit-wasm/**"
+      - "affidavit-core/**"
+      - "rust-toolchain.toml"
+      - ".github/workflows/affidavit-wasm.yml"
+  pull_request:
+    paths:
+      - "affidavit-wasm/**"
+      - "affidavit-core/**"
+      - "rust-toolchain.toml"
+      - ".github/workflows/affidavit-wasm.yml"
+  release:
+    types: [published]
+
+concurrency:
+  group: affidavit-wasm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: affidavit-wasm
+
+jobs:
+  wasm:
+    name: affidavit-wasm (build + real-runtime tests + clippy + fmt)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the pinned toolchain (rustfmt, clippy) + wasm32-wasip1
+        run: |
+          set -euo pipefail
+          # `rustup show` materializes the toolchain named by rust-toolchain.toml.
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add wasm32-wasip1
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: affidavit-wasm
+
+      - name: cargo fmt --check
+        run: cargo fmt -- --check
+
+      - name: cargo clippy (native, all targets)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo clippy (wasm32-wasip1 — compiles the unsafe FFI shell)
+        run: cargo clippy --lib --target wasm32-wasip1 -- -D warnings
+
+      - name: Native unit tests (safe ABI)
+        run: cargo test --lib
+
+      - name: Build the WASI module
+        run: cargo build --lib --target wasm32-wasip1 --profile wasm
+
+      - name: Drive the compiled module in a real wasm runtime
+        env:
+          AFFIDAVIT_WASM: ${{ github.workspace }}/affidavit-wasm/target/wasm32-wasip1/wasm/affidavit_wasm.wasm
+        run: cargo test --test wasm_abi
+
+      - name: Docs
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --no-deps
+
+      - name: Checksum
+        run: |
+          cd target/wasm32-wasip1/wasm
+          cp affidavit_wasm.wasm affidavit.wasm
+          sha256sum affidavit.wasm | tee affidavit.wasm.sha256
+
+      - name: Upload WASI module
+        uses: actions/upload-artifact@v4
+        with:
+          name: affidavit-wasm
+          path: |
+            affidavit-wasm/target/wasm32-wasip1/wasm/affidavit.wasm
+            affidavit-wasm/target/wasm32-wasip1/wasm/affidavit.wasm.sha256
+
+  attach:
+    # Least privilege: only this job can write to the release, and it only runs
+    # for a published release after every check above has passed.
+    name: attach module to release
+    needs: wasm
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Download the verified module
+        uses: actions/download-artifact@v4
+        with:
+          name: affidavit-wasm
+          path: dist
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The artifact keeps the workspace-relative layout; locate the files.
+          wasm="$(find dist -name affidavit.wasm | head -n1)"
+          sum="$(find dist -name affidavit.wasm.sha256 | head -n1)"
+          test -n "$wasm" && test -n "$sum"
+          gh release upload "${{ github.event.release.tag_name }}" "$wasm" "$sum" \
+            --clobber --repo "$GITHUB_REPOSITORY"
