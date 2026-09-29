@@ -106,9 +106,11 @@ clap-noun-verb-macros = "26.6"
 linkme = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# RFC 8785 JCS for cross-runtime signed material. Exact pin: signed bytes are protocol identity.
+serde_jcs = "=0.2.0"
 blake3 = "1"
 # FIPS 204 ML-DSA verification/signing primitive; private-key custody stays behind provider adapters.
-ml-dsa = { version = "0.1.1", optional = true, features = ["zeroize"] }
+ml-dsa = { version = "=0.1.1", optional = true, features = ["zeroize"] }
 anyhow = "1"
 thiserror = "2"
 walkdir = "2"
