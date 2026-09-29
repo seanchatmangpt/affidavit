@@ -199,7 +199,8 @@ pub use error::AffidavitError;
 pub use crypto_trust::{
     sign_with_provider, verify_and_record, CryptoRefusal, KeyCustody, KeyRecord, KeyRegistry,
     KeyState, NonceLedger, SignatureAlgorithm, SignatureEnvelope, SigningMaterial, SigningProvider,
-    VerificationContext, VerifiedSignature, SIGNATURE_PROFILE, SIGNING_DOMAIN,
+    VerificationContext, VerifiedSignature, JCS_SAFE_INTEGER_MAX, SIGNATURE_PROFILE,
+    SIGNING_DOMAIN,
 };
 pub use federation::{CourtOutcome, STANDING_CAPABILITY, STANDING_CAPABILITY_DIGEST};
 pub use standing::{
