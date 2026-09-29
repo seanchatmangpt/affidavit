@@ -220,8 +220,8 @@ impl SigningMaterial {
     /// Canonical, domain-separated bytes that a provider must sign.
     pub fn signing_bytes(&self) -> Result<Vec<u8>, CryptoRefusal> {
         validate_material(self)?;
-        let canonical = serde_jcs::to_vec(self)
-            .map_err(|e| CryptoRefusal::Canonicalization(e.to_string()))?;
+        let canonical =
+            serde_jcs::to_vec(self).map_err(|e| CryptoRefusal::Canonicalization(e.to_string()))?;
         let mut out = Vec::with_capacity(SIGNING_DOMAIN.len() + canonical.len());
         out.extend_from_slice(SIGNING_DOMAIN);
         out.extend_from_slice(&canonical);
@@ -788,8 +788,7 @@ mod tests {
                 subject_digest: &material.subject_digest,
                 minimum_policy_epoch: 9,
             };
-            let verified =
-                verify_and_record(&registry, &mut nonces, &envelope, &context).unwrap();
+            let verified = verify_and_record(&registry, &mut nonces, &envelope, &context).unwrap();
             assert_eq!(verified.kid, signer.kid);
             assert_eq!(verified.algorithm, SignatureAlgorithm::MlDsa65);
             assert!(nonces.contains(&verified.kid, &verified.nonce));
@@ -811,8 +810,7 @@ mod tests {
             bit_flip.signature[0] ^= 0x01;
             assert!(matches!(
                 verify_and_record(&registry, &mut nonces, &bit_flip, &context),
-                Err(CryptoRefusal::SignatureInvalid)
-                    | Err(CryptoRefusal::InvalidSignatureEncoding)
+                Err(CryptoRefusal::SignatureInvalid) | Err(CryptoRefusal::InvalidSignatureEncoding)
             ));
 
             let wrong_subject = Blake3Hash::from_bytes(b"other-effect");
