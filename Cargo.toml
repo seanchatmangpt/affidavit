@@ -264,6 +264,8 @@ gpu = ["wgpu", "bytemuck", "pollster"]
 # envelopes, signing providers, verification -> cryptographic standing.
 # Manufactured from ggen-marketplace affidavit-trust-plane-pack via `ggen sync run`.
 crypto-trust = ["dep:signature", "dep:p256", "dep:ml-dsa", "dep:slh-dsa", "dep:rand_core"]
+# Backward-compatible explicit PQC surface used by the exact-head crypto court.
+pqc = ["crypto-trust"]
 # Real Secure Enclave signing (macOS only): non-exportable P-256 keys via
 # Security.framework; affidavit owns KeyRef/custody semantics, never key bytes.
 secure-enclave = ["crypto-trust", "dep:security-framework"]
@@ -300,6 +302,7 @@ all = [
     "benchmarking",
     "profiling",
     "gpu",
+    "crypto-trust",
     "remediation",
     "quality-monitor",
     "webhook"
