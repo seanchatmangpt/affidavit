@@ -48,7 +48,7 @@ SigningMaterial binds:
 - expiry
 - audience
 
-Changing any of those coordinates changes the signed bytes. Consumers must independently supply the exact expected subject digest and audience when verifying.
+Changing any of those coordinates changes the signed bytes. The JCS serializer is the dedicated serde_jcs RFC 8785 implementation rather than Affidavit's generic sorted-key JSON helper. Signed integer coordinates are refused above 2^53-1 so Swift/Elixir/JavaScript verifiers cannot silently round them. Consumers must independently supply the exact expected subject digest and audience when verifying.
 
 ## Key lifecycle
 
