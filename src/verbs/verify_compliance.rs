@@ -1,16 +1,30 @@
 // Copyright (c) 2024 Sean Chatman
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
-// Thin verb wrapper auto-generated. The pack is authoritative for the CLI
-// *interface* only; the body delegates to a stable consumer-implemented handler.
+// Thin verb wrapper rendered from O* by ggen. The pack is authoritative for the
+// CLI *interface* only; the body delegates to a stable consumer-implemented
+// handler. There is NO logic slot here — business logic lives behind the seam in
+// `crate::handlers::*`, which is hand-written (a missing impl is a compile error).
+//
+// Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
+// return_type, handler_name, args.
 
-//! `receipt verify-compliance` verb (auto-generated).
+//! `receipt verify-compliance` verb (rendered).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-
 /// Verify receipt against compliance rules (SOC 2, GDPR, HIPAA, PCI-DSS)
+#[rustfmt::skip]
 #[verb("verify-compliance", "receipt")]
-pub fn verify_compliance(receipt: String, framework: String, format: Option<String>) -> Result<()> {
-    crate::handlers::verify_compliance(receipt, framework, format)
+pub fn verify_compliance(
+    #[arg(index = 1)]
+    receipt: String,
+    framework: String,
+    format: Option<String>,
+) -> Result<()> {
+    crate::handlers::verify_compliance(
+        receipt,
+        framework,
+        format,
+    )
 }

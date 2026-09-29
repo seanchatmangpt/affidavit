@@ -1,0 +1,81 @@
+name: crypto-trust
+
+on:
+  push:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "src/lib.rs"
+      - "src/crypto_trust.rs"
+      - "src/1000x_post_quantum_sealing.rs"
+      - "docs/CRYPTO_TRUST.md"
+      - ".github/workflows/crypto-trust.yml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "src/lib.rs"
+      - "src/crypto_trust.rs"
+      - "src/1000x_post_quantum_sealing.rs"
+      - "docs/CRYPTO_TRUST.md"
+      - ".github/workflows/crypto-trust.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crypto-trust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  RUST_TOOLCHAIN: nightly-2026-08-12
+
+jobs:
+  pqc:
+    name: crypto trust (ML-DSA-65)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Assert exact candidate
+        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+
+      - name: Install pinned nightly with rustfmt and clippy
+        uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+
+      - name: Resolve and compile PQC trust plane
+        run: cargo check --lib --features pqc
+
+      - name: Preserve resolver-produced Cargo.lock
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: crypto-trust-resolved-lock-${{ env.CANDIDATE_SHA }}
+          path: Cargo.lock
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Unit and negative courts
+        run: cargo test --lib --features pqc crypto_trust
+
+      - name: Full library tests with PQC enabled
+        run: cargo test --lib --features pqc
+
+      - name: Clippy
+        run: cargo clippy --lib --features pqc -- -D warnings
+
+      - name: Doctests
+        run: cargo test --doc --features pqc

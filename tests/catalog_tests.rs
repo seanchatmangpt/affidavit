@@ -128,8 +128,8 @@ mod unit_tests {
             .into_iter()
             .filter(|f| {
                 let name_match =
-                    name.map_or(true, |n| f.name.to_lowercase().contains(&n.to_lowercase()));
-                let events_match = events.map_or(true, |e| f.event_count == e);
+                    name.is_none_or(|n| f.name.to_lowercase().contains(&n.to_lowercase()));
+                let events_match = events.is_none_or(|e| f.event_count == e);
                 name_match && events_match
             })
             .collect()

@@ -1,0 +1,675 @@
+//! Known-answer-test (KAT) corpus for the affidavit cryptographic trust plane.
+//! Rendered by ggen sync from affidavit-trust-plane-pack (the pack is authoritative; never edit this file).
+//!
+//! This module is the SINGLE SOURCE OF TRUTH for cross-runtime KAT vectors:
+//! every vector is produced by REAL signatures under deterministic seeds, so
+//! any runtime — this crate, the WASM target, a foreign-language verifier —
+//! can regenerate `generate_corpus()`, export JCS, and byte-compare against
+//! the golden literals embedded in this file. No mocks, no placeholders:
+//! bytes are bytes.
+//!
+//! Determinism chain (every link graph-bound):
+//! - domain tag: `KAT_DOMAIN_TAG` (ctp:policy-v1 ctp:domainTag);
+//! - key seeds: `digest(KAT_DOMAIN_TAG, ["ctp.kat.seed", role, index_be])`;
+//! - ML-DSA-65 explicit randomizer:
+//!   `digest(KAT_DOMAIN_TAG, ["ctp.kat.rnd.mldsa65", index_be])`;
+//! - SLH-DSA seed triplet: three 16-byte slices of digests indexed
+//!   `(index, counter)` for counter 0..3 (sk_seed || sk_prf || pk_seed);
+//! - messages: `digest(KAT_DOMAIN_TAG, ["ctp.kat.message", index_be])`;
+//! - signing laws: ES256 RFC 6979 deterministic ECDSA, ML-DSA-65 explicit-rnd
+//!   `Sign_internal`, SLH-DSA deterministic by construction, hybrid = both
+//!   halves over the same message (ES256 DER || ML-DSA-65 encoded).
+//!
+//! House law: refusals are typed values ([`KatError`]), never panics; every
+//! variant witnessed by tests; the embedded golden literals pin the whole
+//! chain, so a graph-side change to any rendered fact breaks the render loudly
+//! instead of drifting silently.
+
+// Consumed query columns (kat.rq): domain_tag, envelope_version, algs.
+
+use serde::{Deserialize, Serialize};
+
+use crate::crypto_trust_canonical::{digest, jcs};
+use crate::crypto_trust_es256::{verify_es256, Es256SigningKey, PUBLIC_KEY_LENGTH};
+use crate::crypto_trust_pqc::{
+    hybrid_sign, ml_dsa65_from_seed, ml_dsa65_sign, ml_dsa65_verify, slh_dsa128s_from_seed,
+    slh_dsa128s_sign, slh_dsa128s_verify, HybridSecret, ML_DSA_65_PUBLIC_KEY_LEN,
+    ML_DSA_65_SEED_LEN, SLH_DSA_128S_SEED_LEN,
+};
+
+/// KAT corpus schema version. Bumped ONLY on a wire-incompatible change to
+/// [`KatVector`]; the golden literals and every downstream runtime pin it.
+pub const KAT_SCHEMA_VERSION: &str = "CTP-KAT-v1";
+
+/// Trust-plane domain tag (`ctp:policy-v1` `ctp:domainTag`) — the digest
+/// domain for every seed, randomizer, and message this corpus derives.
+pub const KAT_DOMAIN_TAG: &str = "affidavit.crypto-trust-plane.v1";
+
+/// Signed-envelope version (`ctp:policy-v1` `ctp:envelopeVersion`): the
+/// envelope generation the vectors were produced under. Cross-module equality
+/// with `crypto_trust_envelope::ENVELOPE_VERSION` is witnessed by test.
+pub const KAT_ENVELOPE_VERSION: &str = "CTP-ENVELOPE-v1";
+
+/// Algorithm registry rendered from the graph (kat.rq): `name|rustVariant`
+/// per `@@` group, ordered by `ctp:algorithmName`. The corpus carries exactly
+/// one vector per registry entry, in this order.
+pub const KAT_ALGORITHM_REGISTRY: &str = "ES256|Es256@@ES256+ML-DSA-65|HybridEs256MlDsa65@@ML-DSA-65|MlDsa65@@SLH-DSA-SHA2-128s|SlhDsa128s";
+
+/// One known-answer vector: a full real signature over a deterministic
+/// message under a deterministic key, hex-encoded. Wire form is JCS JSON
+/// ([`export_json`]); every field is a lowercase-hex byte string except the
+/// identifiers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KatVector {
+    /// Stable identifier, `kat-{index:03}-{algorithm}` in registry order.
+    pub vector_id: String,
+    /// Graph algorithm name (`ctp:algorithmName`), e.g. `"ML-DSA-65"`.
+    pub algorithm: String,
+    /// Deterministic key seed. One of: 32 bytes (ES256 scalar seed, ML-DSA-65
+    /// seed), 48 bytes (SLH-DSA seed triplet), or 64 bytes for the hybrid
+    /// (`ES256 seed || ML-DSA-65 seed`).
+    pub seed_hex: String,
+    /// Encoded public key: SEC1 uncompressed for the ES256 half(s), raw
+    /// encoded for the PQ half(s); hybrid = `ES256 || ML-DSA-65`.
+    pub public_key_hex: String,
+    /// The exact signed message bytes.
+    pub message_hex: String,
+    /// The exact signature bytes: DER for ES256, raw encoded for PQ; hybrid =
+    /// `ES256 DER || ML-DSA-65 encoded` (self-delimiting via the DER length).
+    pub signature_hex: String,
+}
+
+/// Counts reported by a fully verified corpus. In the `Ok` case of
+/// [`verify_corpus`] the strict law holds `passed == total`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KatReport {
+    /// Vectors verified.
+    pub total: usize,
+    /// Vectors whose signature verified.
+    pub passed: usize,
+}
+
+/// Typed refusals of the KAT corpus. Values, never panics.
+#[derive(Debug, thiserror::Error)]
+pub enum KatError {
+    /// The vector names an algorithm outside `KAT_ALGORITHM_REGISTRY`.
+    #[error("unknown KAT algorithm: {0}")]
+    AlgorithmUnknown(String),
+    /// A well-formed vector's signature did not verify (strict corpus law:
+    /// `verify_corpus` refuses on the first failing vector).
+    #[error("KAT vector {vector_id} failed verification")]
+    VerificationFailed {
+        /// The failing vector's identifier.
+        vector_id: String,
+    },
+    /// A vector's byte strings are not decodable or have lengths the named
+    /// algorithm cannot admit.
+    #[error("malformed KAT vector {vector_id}")]
+    MalformedVector {
+        /// The malformed vector's identifier.
+        vector_id: String,
+    },
+    /// JSON (de)serialization refused, or a provider refusal on a signing
+    /// path that cannot fire for the literal-pinned deterministic seeds
+    /// (carried so `build_vector` is total over the providers' typed errors).
+    #[error("kat serialization: {0}")]
+    Serialization(String),
+}
+
+/// The rendered registry as `(algorithm name, rust variant)` pairs, in graph
+/// order. The registry is machine-rendered by kat.rq as `name|variant` per
+/// `@@` group, so `split_once('|')` cannot fail on an admitted render; the
+/// degenerate fallback (the whole group as the name) surfaces in the coverage
+/// test instead of being pruned silently.
+fn registry_entries() -> impl Iterator<Item = (&'static str, &'static str)> {
+    KAT_ALGORITHM_REGISTRY
+        .split("@@")
+        .map(|group| group.split_once('|').unwrap_or((group, "")))
+}
+
+/// Lowercase-hex encoding (the corpus wire form; the optional `hex` crate is
+/// feature-gated elsewhere in this crate, so the plane carries its own).
+fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push(HEX[(b >> 4) as usize] as char);
+        s.push(HEX[(b & 0x0f) as usize] as char);
+    }
+    s
+}
+
+/// Strict lowercase-hex decode; `None` on odd length or a non-hex digit.
+fn hex_decode(hex: &str) -> Option<Vec<u8>> {
+    if hex.len() & 1 != 0 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(hex.len() / 2);
+    for pair in hex.as_bytes().chunks_exact(2) {
+        let hi = (pair[0] as char).to_digit(16)?;
+        let lo = (pair[1] as char).to_digit(16)?;
+        out.push(((hi << 4) | lo) as u8);
+    }
+    Some(out)
+}
+
+/// Deterministic key seed for `index` and algorithm `role`, domain-separated
+/// through the trust-plane digest under the rendered domain tag.
+fn kat_seed32(index: usize, role: &str) -> [u8; 32] {
+    digest(
+        KAT_DOMAIN_TAG,
+        &[
+            b"ctp.kat.seed" as &[u8],
+            role.as_bytes(),
+            &(index as u64).to_be_bytes(),
+        ],
+    )
+}
+
+/// Deterministic explicit ML-DSA-65 signing randomizer for `index`.
+fn kat_mldsa_rnd(index: usize) -> [u8; 32] {
+    digest(
+        KAT_DOMAIN_TAG,
+        &[
+            b"ctp.kat.rnd.mldsa65" as &[u8],
+            &(index as u64).to_be_bytes(),
+        ],
+    )
+}
+
+/// Deterministic SLH-DSA seed triplet for `index`: three 16-byte slices of
+/// counter-indexed digests, laid out `sk_seed || sk_prf || pk_seed`.
+fn kat_slh_seeds(index: usize) -> [u8; SLH_DSA_128S_SEED_LEN] {
+    let mut seeds = [0u8; SLH_DSA_128S_SEED_LEN];
+    for (counter, chunk) in seeds.chunks_exact_mut(16).enumerate() {
+        let d = digest(
+            KAT_DOMAIN_TAG,
+            &[
+                b"ctp.kat.seed.slh" as &[u8],
+                &(index as u64).to_be_bytes(),
+                &(counter as u64).to_be_bytes(),
+            ],
+        );
+        chunk.copy_from_slice(&d[..16]);
+    }
+    seeds
+}
+
+/// Deterministic signed message for `index`.
+fn kat_message(index: usize) -> Vec<u8> {
+    digest(
+        KAT_DOMAIN_TAG,
+        &[b"ctp.kat.message" as &[u8], &(index as u64).to_be_bytes()],
+    )
+    .to_vec()
+}
+
+/// Length of the self-delimiting ES256 DER prefix of a hybrid signature:
+/// `0x30 <short-form len> ...` exactly as this plane's signer emits. `None`
+/// for anything else (long-form lengths are refused, not guessed).
+fn hybrid_es256_der_len(signature: &[u8]) -> Option<usize> {
+    let len_byte = *signature.get(1)?;
+    if signature.first() != Some(&0x30)
+        || len_byte >= 0x80
+        || signature.len() < 2 + usize::from(len_byte)
+    {
+        return None;
+    }
+    Some(2 + usize::from(len_byte))
+}
+
+/// Builds the single vector for `algorithm` at registry position `index`.
+/// Deterministic: the same graph registry always yields the same bytes.
+pub fn build_vector(index: usize, algorithm: &str) -> Result<KatVector, KatError> {
+    let vector_id = format!("kat-{index:03}-{algorithm}");
+    let message = kat_message(index);
+    let message_hex = hex_encode(&message);
+    let vector = match algorithm {
+        "ES256" => {
+            let seed = kat_seed32(index, "es256");
+            let key = Es256SigningKey::from_seed(&seed).map_err(|e| {
+                KatError::Serialization(format!("{vector_id}: es256 seed refused: {e}"))
+            })?;
+            let signature = key.sign(&message);
+            KatVector {
+                vector_id: vector_id.clone(),
+                algorithm: algorithm.to_string(),
+                seed_hex: hex_encode(&seed),
+                public_key_hex: hex_encode(&key.public_key_sec1()),
+                message_hex,
+                signature_hex: hex_encode(&signature),
+            }
+        }
+        "ML-DSA-65" => {
+            let seed = kat_seed32(index, "mldsa65");
+            let rnd = kat_mldsa_rnd(index);
+            let keypair = ml_dsa65_from_seed(&seed);
+            let signature = ml_dsa65_sign(&seed, &message, &rnd).map_err(|e| {
+                KatError::Serialization(format!("{vector_id}: ml-dsa sign refused: {e}"))
+            })?;
+            KatVector {
+                vector_id: vector_id.clone(),
+                algorithm: algorithm.to_string(),
+                seed_hex: hex_encode(&seed),
+                public_key_hex: hex_encode(&keypair.public),
+                message_hex,
+                signature_hex: hex_encode(&signature),
+            }
+        }
+        "SLH-DSA-SHA2-128s" => {
+            let seeds = kat_slh_seeds(index);
+            let keypair = slh_dsa128s_from_seed(&seeds);
+            let signature = slh_dsa128s_sign(&seeds, &message).map_err(|e| {
+                KatError::Serialization(format!("{vector_id}: slh-dsa sign refused: {e}"))
+            })?;
+            KatVector {
+                vector_id: vector_id.clone(),
+                algorithm: algorithm.to_string(),
+                seed_hex: hex_encode(&seeds),
+                public_key_hex: hex_encode(&keypair.public),
+                message_hex,
+                signature_hex: hex_encode(&signature),
+            }
+        }
+        "ES256+ML-DSA-65" => {
+            let es_seed = kat_seed32(index, "hybrid-es256");
+            let ml_seed = kat_seed32(index, "hybrid-mldsa65");
+            let secret = HybridSecret {
+                es256: Es256SigningKey::from_seed(&es_seed).map_err(|e| {
+                    KatError::Serialization(format!("{vector_id}: hybrid es256 seed refused: {e}"))
+                })?,
+                mldsa65_seed: ml_seed,
+            };
+            let signature = hybrid_sign(&secret, &message).map_err(|e| {
+                KatError::Serialization(format!("{vector_id}: hybrid sign refused: {e}"))
+            })?;
+            let mut seed_bytes = es_seed.to_vec();
+            seed_bytes.extend_from_slice(&ml_seed);
+            let mut public = secret.es256.public_key_sec1();
+            public.extend_from_slice(&ml_dsa65_from_seed(&ml_seed).public);
+            let mut signature_bytes = signature.es256_der.clone();
+            signature_bytes.extend_from_slice(&signature.mldsa65);
+            KatVector {
+                vector_id: vector_id.clone(),
+                algorithm: algorithm.to_string(),
+                seed_hex: hex_encode(&seed_bytes),
+                public_key_hex: hex_encode(&public),
+                message_hex,
+                signature_hex: hex_encode(&signature_bytes),
+            }
+        }
+        other => return Err(KatError::AlgorithmUnknown(other.to_string())),
+    };
+    Ok(vector)
+}
+
+/// Generates the full corpus: exactly one real vector per rendered registry
+/// entry, in graph order. Fully deterministic — the same graph always yields
+/// byte-identical corpora on any runtime (witnessed against the embedded
+/// golden literals).
+pub fn generate_corpus() -> Vec<KatVector> {
+    let mut vectors = Vec::new();
+    for (index, (algorithm, _variant)) in registry_entries().enumerate() {
+        // `Err` is structurally unreachable on any admitted render:
+        // `build_vector` covers exactly the algorithms the same graph renders
+        // into `KAT_ALGORITHM_REGISTRY`, and the coverage test refuses any
+        // drift at the cargo-test gate that admits every render. The skipped
+        // branch keeps the scan total without panicking; it can never be
+        // observed on a lawful render.
+        if let Ok(vector) = build_vector(index, algorithm) {
+            vectors.push(vector);
+        }
+    }
+    vectors
+}
+
+/// Verifies one vector: `Ok(true)` when the signature verifies, `Ok(false)`
+/// when it is well-formed but does not. Refusals, typed:
+/// [`KatError::AlgorithmUnknown`] for an algorithm outside the rendered
+/// registry; [`KatError::MalformedVector`] for hex that does not decode or
+/// byte lengths the named algorithm cannot admit.
+pub fn verify_vector(vector: &KatVector) -> Result<bool, KatError> {
+    let malformed = || KatError::MalformedVector {
+        vector_id: vector.vector_id.clone(),
+    };
+    let seed = hex_decode(&vector.seed_hex).ok_or_else(malformed)?;
+    let public = hex_decode(&vector.public_key_hex).ok_or_else(malformed)?;
+    let message = hex_decode(&vector.message_hex).ok_or_else(malformed)?;
+    let signature = hex_decode(&vector.signature_hex).ok_or_else(malformed)?;
+    match vector.algorithm.as_str() {
+        "ES256" => {
+            if seed.len() != 32 || public.len() != PUBLIC_KEY_LENGTH {
+                return Err(malformed());
+            }
+            verify_es256(&public, &message, &signature).map_err(|_| malformed())
+        }
+        "ML-DSA-65" => {
+            if seed.len() != ML_DSA_65_SEED_LEN {
+                return Err(malformed());
+            }
+            ml_dsa65_verify(&public, &message, &signature).map_err(|_| malformed())
+        }
+        "SLH-DSA-SHA2-128s" => {
+            if seed.len() != SLH_DSA_128S_SEED_LEN {
+                return Err(malformed());
+            }
+            slh_dsa128s_verify(&public, &message, &signature).map_err(|_| malformed())
+        }
+        "ES256+ML-DSA-65" => {
+            if seed.len() != 32 + ML_DSA_65_SEED_LEN
+                || public.len() != PUBLIC_KEY_LENGTH + ML_DSA_65_PUBLIC_KEY_LEN
+            {
+                return Err(malformed());
+            }
+            let es_len = hybrid_es256_der_len(&signature).ok_or_else(malformed)?;
+            let (es_sig, ml_sig) = signature.split_at(es_len);
+            let (es_pk, ml_pk) = public.split_at(PUBLIC_KEY_LENGTH);
+            let es_ok = verify_es256(es_pk, &message, es_sig).map_err(|_| malformed())?;
+            let ml_ok = ml_dsa65_verify(ml_pk, &message, ml_sig).map_err(|_| malformed())?;
+            Ok(es_ok && ml_ok)
+        }
+        other => Err(KatError::AlgorithmUnknown(other.to_string())),
+    }
+}
+
+/// Strictly verifies a corpus: EVERY vector must verify, else the first
+/// failure is refused with [`KatError::VerificationFailed`] (and malformed or
+/// unknown vectors are refused through [`verify_vector`]'s typed errors). In
+/// the `Ok` case the report carries the counts with the strict invariant
+/// `passed == total`; per-vector granularity is [`verify_vector`].
+pub fn verify_corpus(vectors: &[KatVector]) -> Result<KatReport, KatError> {
+    let mut passed = 0usize;
+    for vector in vectors {
+        if verify_vector(vector)? {
+            passed += 1;
+        } else {
+            return Err(KatError::VerificationFailed {
+                vector_id: vector.vector_id.clone(),
+            });
+        }
+    }
+    Ok(KatReport {
+        total: vectors.len(),
+        passed,
+    })
+}
+
+/// Canonical JSON (JCS, RFC 8785) export of the corpus — the cross-runtime
+/// wire form. Total for this field set: every field is a JSON string, and JCS
+/// of a string-only array cannot refuse (the fallbacks are structurally
+/// unreachable; the fallible direction is [`import_json`]).
+pub fn export_json(corpus: &[KatVector]) -> String {
+    let value = serde_json::to_value(corpus).unwrap_or(serde_json::Value::Null);
+    jcs(&value).unwrap_or_default()
+}
+
+/// Imports a corpus from [`export_json`] JCS bytes. Refused with
+/// [`KatError::Serialization`] when the bytes are not JSON or not the corpus
+/// shape; content-level integrity (lengths, signatures) is [`verify_corpus`]'s
+/// law, not the parser's.
+pub fn import_json(s: &str) -> Result<Vec<KatVector>, KatError> {
+    let value: serde_json::Value =
+        serde_json::from_str(s).map_err(|e| KatError::Serialization(e.to_string()))?;
+    serde_json::from_value(value).map_err(|e| KatError::Serialization(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::crypto_trust_canonical::DOMAIN_TAG as PLANE_DOMAIN_TAG;
+    use crate::crypto_trust_envelope::ENVELOPE_VERSION as PLANE_ENVELOPE_VERSION;
+    use crate::crypto_trust_keys::AlgorithmId;
+
+    // ── Golden cross-runtime literals ───────────────────────────────────────
+    //
+    // Fully materialized vectors, computed ONCE by running the deterministic
+    // chain above and embedded as byte-exact JCS. This IS the cross-runtime
+    // KAT: another runtime regenerates `export_json(generate_corpus())` and
+    // byte-compares against these literals. Each literal names its generating
+    // seed so the bytes are reproducible from the comment alone.
+
+    /// Golden ES256 vector. Seed: `digest(KAT_DOMAIN_TAG, ["ctp.kat.seed", "es256", 0u64_be])`.
+    const GOLDEN_ES256: &str = r#"{"algorithm":"ES256","message_hex":"d5335ccebfc9395bed6596ac31b79a3ab76bf0fc513cead0ca1d9791041556c2","public_key_hex":"0460c66a8d9941d6ecec623c96ae1ca3af1ac997a60b939870da9a90e8c75b663496daf08bd8fb6ccee01de9b24f357e04f3ac9c982ee75641c307b4c1828b68c6","seed_hex":"54e9f3ed64edc3e6e6fe5339e6cd54940c4c5d89a5005ed0f7e8d19c1fdf1e2e","signature_hex":"3046022100d077f831a7c488c7d9977eb736698b05bc6bfd13ab69be35090195b39640ab2d022100c00f26d74f3dbf1f82bd1d1e6eaaa109b8e2955054b9a1e93451ad80f628ed0f","vector_id":"kat-000-ES256"}"#;
+
+    /// Golden hybrid (ES256+ML-DSA-65) vector. Seeds:
+    /// `digest(KAT_DOMAIN_TAG, ["ctp.kat.seed", "hybrid-es256", 0u64_be])` ||
+    /// `digest(KAT_DOMAIN_TAG, ["ctp.kat.seed", "hybrid-mldsa65", 0u64_be])`.
+    const GOLDEN_HYBRID: &str = r#"{"algorithm":"ES256+ML-DSA-65","message_hex":"cdc286896ea7a27a5e24027e9e17b5c783166eae540522493c368c8a06aeb81c","public_key_hex":"0409b34cbbfd52343435df41883c73de0479448391e3e17ca5bc7e6f43498e67038b945a063be35efda0e18ec191c0f4ebb697f4a3242f3b4b07085fda524f69afd69964856fae82a14a0168810fc6c848a1aaee132b8c01c38b0bee89581327225f3f3a59f3986bef00d400be871bc5236513500137a8d2aaaa6686910aae7966f4a48dfa8011eaab5afd42dc604b15555a73f8c8753a316c861267626b32a7e109e2846a92c196a006e224e839d1493c188693b8c1bddf092b33c251d7e2b9c986eb2f34c1b18455cf2562c9114d56ee854a6d6147c251e4737374ef074d8d22e98e0299c14d5fd52c400fa8469579d84d77c1fc3641704065222bea04a59a14b837a9ea7045f15f1fa721a1d9d243bfced418da78335bc40f76f508d45225f75be4385ed1256930d009a8d3d7a1f5473540c35980f0e4b1ee3138010a5b1443ed219d5e839b3fc20eb7a017c2a8d1060fcdb560fd41c76a34d28f95249b10c603ea95ea0bf2feb5128b139a4c40652853a31e16b57110ef793dfd35593f04d2d1e3b8bf540bef74f58bf9c66ee568534807630a68eced163fddfbdf58e2589325429759986ebbb3cb89ee143d0a1a783f498a51f5cbef4690692ca9cbef9878dd9e1691c087c29857bcf6fe3cbaf043fee16cc15285067d63a13740106236e26a20d9c06c582736b047969e5ca03d6cb270b1e2f74219e9d92e71b902a61f7ec127c3a2edb3bc9f15d3e6b245167770d5780f639fa88d7041388e713736026d6a84e29280e616bc27f29d1169c4e2c66bf30fb21247f9fa84cc4d85e33c40f93d814d12ba4386d055c2a6357eb2ed7ff0aeccc97a8933a7e8596ef9ead874436fa1cf43de5daa567428b71980727c863267c2da38ed090a42f11155f41ee93ba608d23b6572e35cdbad40d4834495721a0c0005b782bf96bc2aea6573c8d01213bc367ff6444a6f90a64c7c6803b20789922f09de4a21b91324cd348f91a36138700f3974f4b1954d2f57c70892dd8ef46d396b7152ccb0b4518bab32c9cc7ff2dba0775fabddb8264c1d57e141da7bc83b126e625eef39c364137cf6c87590fb60c352b5eef995afd17664e5dcbd9c3f6d2b51371748ff945292dcbc81bd53902907a35909065560d851f88986e680de17a7bd60f609e5a2437e556f72b1bc2f1dc99ccf242f424c78c75922e2449b23448574496ca3fc30f6a5813011ce3e506bfac4e4bd820e7b600987c112fc32dc2f4ce7aaee94716ebae8f937cf208b472df2f3ddded1c157d3c3148c0a475ad6d415b22d601b63db923ce7b26b8346800f46f09ce3d9d02b64111bb9ce125a96fc5721a0d8254ed04e91c24f1172e264fd2345c7bdfa609d99a52b3733a3679cf75872a34bd3453e963886b53cfdafa9e6f4849f7d47429a2895fe445b7603a04d84853dcc2c80df0a916807980ccad6a02619bea4180aceb186527f387c7109822041db16e6018d861020c1619e8461feda9f95c3650a6edc4c2583fe738b264585f07d6bd43eddcb428a252857e5b8b9d18f8cb19cfeb7edfa9e6eb7023e80f5172ae970627cc4de2b21fd4990a3abcf80d4f53940d86dd7aff1ba7c61f573167dfce4c606244a38c4c5e750bba8c8941c7bbb9c33e6cf86dac7d004815e9815fed8b9f203e3d849af4c5316dca74eda95933898b38b6a075793d0876bc82e1badfffe24c4d47cdfba62f0c8b7b49b34cf04777b32aa7be0e0fd08b17df97d26213102072afc128a30b024c2d28c6ee619b57b72418c0bb89f1a60522369b2a3fac6169ba4830348566a7f4cbfc55d526091153b834306d7ad66a1bf377615488db4368c78752c30cd9b3279ab32918616c0b8d812172d182ae8d741a4a78c55d05830e16d07a0868b1a018c7181cc9aa1a59860175121e28192d1d8e28d5a7fd97bb2273f6ccbda1f5b32dc02daf7194b2e869915e7bfbbda34bd291ef3499d4e0e15fee666bb79822488ca32adc232ba25fd7e27be2e7bcda02bd7466c3b62f3d1da9362ca019e387284765b4f680bb568df691eedb07afb589d67fdea164c9f2fc758a51f06c0839cff8b274a06527030f452f459e4c1c27f1c66f5a48cb47365dec65f083fa7c20de7085fbca4626178016dec280f718a8ba2290b16e3377c999587ca95f05cd9ea865cb403f1cd91659be9cdc098f4304e4f7993d980e257520f33061692974a5caf07e1cde51951fe4d1f9783165616268cb7346d6b90fc1ff62cc6860d2529678a2c6a93aaeff5ce60e4abb54520c5fe5fd7aea972df1f6e359a8c6659bd3d8975ca6ac3b681b39789334a208dc30eade7baad7deeadf21a1baccfa9796bd746307ccd0ca34b04caf59fe401307007bb3ba4e382408ce4dec67edbc4b602115b8c3ff1a147bdd474023b68bb75f6492eda6fcb672353f47c23dcd9ccc34d27c3b4ebb16303d497bbf5a6b4dbe37ff5c5f67a7215e53bd43d2859a04cb89205cc95bddfbc9fdfd60d875ec1d9d5f29cbec6e1f9da947a450b112d9fd229a27895f5a5df93de7b185025d78efaf0be469ae8087fbbb83526c31cbde9834a702f275192823de46e50f1d54e593e3957b75639ca8511ef953cd82137e6baa2de6acf02801aead81c10a137a2ea68f8c68981b946992482f6f7253b6646bd07b55b0293505547404ab6f852456eec12d11e3af557c10c2175f78569dff0c2614b9fadbdb857f5ef80011d1f1aaef96561745b39e3ef3efa5c1fbe36a42fda9da37cf1ae5fb912890df82e03e980ea4eb7b923f6618a1972bacbc57a1d7b9ec9d6f8ad3f606729ee134f3e6bcaafc29962e8923e63b4e8226ae9be3afb3f9dd8acdf9d923580f1","seed_hex":"958daa88902c67e1c005d1ddb44f83ce6bee2ba2bbb7571f6f9121ceb9dbb5faa4bb952c97da33cda2569c6fc8a35b5f0d70846b7ee9f9a5ca6cd1364e725efd","signature_hex":"304502200312a936fbd995a487c9ef47450bd5dab8a94b732119f38a630e9ebeac896067022100a65c5471491f5b7190105ea91aefa76a25fba22af0cda59a322bb03b984a8ebed1ce7c0623a14494496b54c43ba62b1a0264e6278c3f19493ebac4596568223751885fd2875b587ba916f66a0b2cff2c5eec3557688cbb3d5272ca120ad1ce78447e00cb4e6407e55a6e54546703a8fe9aed26bbb4e63d6b31eaf76b88570e3de9a20a82d5392f25b72ad7c016668ea7ea6417a442bccaa0772640b1e12c3d7218eedcb401c50edc31e68f34953d3f1a69d909321f8287e8d2ddd063ef13f41e7cbfc3f192077af39f34a608ed506e026975237bff0703343a055bfded27093a196d4a4bde3c9bc3876ac1946ad00c6b6d4ce757b911a423e39e03e0a4060a64094eea02e2ec3cae46c1f849ffde06a9f7994851d6a4318ea93944853227c66b8d9ad083e143825dcbd96e038e45d409441eddc88fc292ddd40cad5d52f82e2835d8307e9d184615d9a259750422ea84399bcef542b0174566272ff3ea2dc88aef445ad3f492da5a59092e86d720904aed09df4c5be40b624032b0cc050af93bf594cdb57a1557581fc12931868be81b236872a5c319d8c2803fe0fb8d11f84b7e39126b0f610f9317c4a1a7d2df079e21036493c8c52ac72e080d81a2f82c67feabaff78f551e9ae353d95b5e48f3d9aeb2b42fb07d7745f99d7cd58c6657cbfc9955f05d9926fece114e581ab8057e9efbfc2ec25cab2f496e8a72ea44bac3b6976c0e5eaeaa15a02fd1c9dbc1e21a2b3ff1e211d907ecd3d1805903f83421cba6b1e101b48be333700dcbab5068ab15d9d3837aaab073a43139348a7e5f93a777f05771f243fd2b51cd32e833c76346ec08d5de302e9e14a1ab210afcf7019002428b7cedd9cb6d1584c9d535bc6fcc24aef8334ccaccb7c0c96dfcc6776d8b0bdd4c664ad0eff7d6bc499e38afba84ce87604df46e2c28ea1af3ca21bedf751f3d928c4453932a7dbf9689f67ade9c10f0c436c3cb0eef6ca84990497b3fa9012f4c7f1199b707c08dbf74a0f5c9d66031e5f18647d021bbdb51bdcaba5411175c0025915bff2e6d351e2e3381f2b0057e7407b68cd602ea8d537ad9e5a4f0a734b82676b0f1c527c314dd6501e251dda985353d5acaded881de037db617688572d1fa1010f9a94c6a4fef9f18cf66409812f151692e4531c24f42cc4a565e78837750a5be991e8e55e216cd4c08c076f3ebbaf8ddd4bbdff5dbc92bb8ef607fb93c119e90e545409c065da87b1e495b78ff39214a7a237fe770e8e6332e37851e8723044556c3a6c18f5fa9d6b18825cecd472e9879370b1b3f308de8985337a5fce39dd17f0201800bc293006e1dcd3ec37c655183313e108780c71823d3d1ecbde64b4946112f05e72bf230ab512a91d4e32822739b9c5ea630b8f1a46867b353c17553816a61ad248a178dd0d76ec00b2bf9b739ea764fe643f31e0eaaa2dc057f1150b7058451135bce03f2778d033bc5400c353126b28edfab7b1eed5d153be54dc16caf6260440631d48d9b03800f0b4884da275e2cd1992e8bc998e0ee20362d9020cb6c709bbfbb7da1783d0ab16a5b05c7d88478d99b2521acf5991c7aa45cb33da295874eb6f02331a1e7f9cb280d04dd565b2fcfc622f3ae63800d5ad66dcd62bf03aaae2793edab0faa98cc28499222b9fbe6230b52849fea26b2d6fe2ee39b032d153751c97b79729269e83536c84824d7b54476ab26c9d1dbddb3bebd657cdaffd5e214e6f3d750fc2bd19f67aeff31c259ac7f5d4a17dfbc46bc8e95abfa36762334013139c993f3fc0a80ba32ba932bc6809fdd84785cbb6e2ac726f932364b368f723d116c4f7cb2f123b6a3e2d9e644455d49ead9e289c53cf0b17055f8b7350b035fff98804865a630cf48109e9e33c5dabce39fc0ef1354483b549447304e3b2f7794feade917a95329585ae1924d07d7c1642da2451faa41ce02664c97b1ed24c5eae6bce6e172f14e135149d243d4d00384587a19b9883d04bc6c58822478ea9d96abf9778e940c038a53ce4dbc5dee4ade9f033ff96abf1bc9899fdc7df14dd6fd26d4c2d900fa8ff894adb828418c26a3b4b01833a3c89fb308341b59bc89659ad7c856b5649da865892fb001abdb018220a69042d2efc7416fb68bb53892decd042fdc7ae328db4bc84cdde048bd90cbd028eb4845044daac746b31cfe0bbe729eaa5be30d3efdf34611aaf3f9b23a98e342e010300a29005baa490ee0ef3f6d30a0a47c70d88598abcd742c575ca5546d4e540ef69cdc82ae1f1bee9538d4b7735f0f0d9fe34f1d17f9f4d6f89a75c0a680cecd9de2340bc02b8737f655454e3945c026ac4a3f341c11ff499bbb83bdc74af77e2b4353f2014f9ca13136744f73e48c42c94d8d39e994dfb47e47710a12a33803e5bcd7e7d2bdb285865a9605cd02c197a055e8404736d019f62139f1d5235b6980cee049a60a25f2f9b0e87ca10f91e2c69b2ac40c8ac6de1906f20de6f27389db20b7d8c26a8113f111c3da780d61a045bebf8cf5ad8cf2702aba1dd8624b0fbe8e2327ff467e350eea08f7be48ab77f704b05c43dc42719b6e78fcc5f0ef6076aaee35bdbf9fdef7696625b506eb2a3235af7daafec0ad6520905ab188a3064815a86eac8d69d8881bb774579344cef5227167ba0bb94f126c4743b3a860bad61d2f0a01f01604b3909c4ca6c9c180106d14cc36f3f317c41932c12efb280bf07da4ae8dab60a237a5319713024aa48c1df33942d15b5b7152a679a6155a65e965be0e12636a45909fda4093f9ba1162d47e50e4d0d7cb50c59970c2fac40d2b8bc9c6ee4abb82d3f9af32e8338aba6394737a27ce011455e8f1f4689e73a60fc2beabe465c3361ff91298ce8fd1a618ef04eac1b7107acd2e95f1c7585f81af96811d7e81ccde4c3301e62954c76218a7e6121dc32128653ad005509952060e367384a962ec14b00b701d0f99cb98fc4fd088992843908042c451939cd4b2566049ce787a7fb5a6671dfa4e87b75f0e2e4af444654ceea8adba5f92cfbc773ec06bd3a6b4919ea71f95a5f0b0cbc368ef1e6b59fe9dd93367f9fc36ed36c4897a1773831aff89faecefdb88caf0800f8a7a204cb216a7a027dab52920d42c0cf86f872d0faf8d44e90cbe663a282321a1d43d2340374b4acb162abd6a544800192566d09cdb8a88acc1e6bd4e0bd73bcd8e2c92647f5bd32401627c207b654a5ff9edc2f6b887e8fa9c1824fd7242721c78013c1799e5bfb669d18d825933a8e88b72abeb36bf9eed5aa5d180020af6fcc9d7603173ec0be75b65b702bf5027c83a6b1e6bbcb9f32bcdd85f43905636e08714f32be21cd7327639475287618321307e44ca74455a7b69ab089f3e29256f82d7678af1e40d31722295cc1a8972bbb3bf23041a4c83d3a40cdb75796face75357db36364eef184f88f1d039663c901fefbb958474d9f85f9c4abbb2234e66b9373cf9caba075e4b6a236887aaad5964c9219b3bff98d8cf094384332b4f16ce46f12708d5b065b4243f8e15ba1e2c529f346d6ad5bc0d2e999803efcac7b1648a2170b83538b501c7612801486e3c43f635ee23a556acc594195238ee722541db20eb6fed80a7e7e3ab2fe68e5dad79486c9ce1b07bf3dc55d2eb69604ba77e972af53e9d72a3e83d01749d81bb04fdde39b188821d4f19dcd1f629ca0f3b8c48a9080bb11195aad2203dd04822bcea9df51d79a64ace180a6e11624b29e016f966c881fac3574dd85bb7628cdc3549df9974e44519fb7262d4ab235496894d6920017175da0775e87e04679106b56e93f0cd9e95b497fa4a2d21d2bbfbabaedbeaefe1efc9bc267f51c7cb0c1ff635c1104ec90c04f1f4158753019da28f15dc0d485a4d6a613c4ae5d2d5e11f7325d89dcafc14792bc88bb4505662add140f135ba4e390ccba5423e0fa99b4b53d9a5455ff02e79f50ea550847247ce1ef93e2677eddbfe82bd476e6067996c16539648d031ee71b1dc08a993622b3ad2aba5a38eb5a131c9ef599e4f796d1a0857d44fa63619ea0bd3a6a97988023f358249ba812bd1be3c5992b2cbabed488a9b1895c6663b5794faafa794e518b2eb592de662e40b7fa5b7409fa2364c75add290927b1dae63e87187585fafb3e8ce922b6c432f8335c56ff68438fb38613f5caa6041cb1aa36acdf0708828043d0a1a986115906b90497cea1fa0ba1236ef80d0632fbd75a2a797758d2c991e32a9eafebc2c1537e2d44eae597f8d46f5538dcb7139b6d4d7f377d93b15bb282615d87ddff6909d50b5389112b9f1c36e29fc31434945438e48b1d567d5359996c4bceb4a06d2dd4133b606dd0665964c739de0f8faef79528fe2015d0ffdee4b3f405149adaa47057d8412aa0d9724fc14b459720b993d8a7d72d220a56819bcfd8e58defa2f6c2e06820f0bd1f003dfe094c9f5e29ec5a81a019cc8688f3f9005a40f5d636f60bf765d281550fd0f2c34fa1c8d31a51d08779bb63f9d8d4363602b51adf9e50ada651c078a1d8c76edb5d3d255d1abaa985ef2738a37a73dbc0c66a52411746fd9c2b916ea8c1d51e0f1382b094d101b9ff2d5daa1413ad2de105d26c712dce212a36562357bd72c89b713cf3ddec5e1efe7400bf12054adc7e2e4fa0e2f74cd2a59666a6eabb9c41e808bc1f215213e6d9cc2c5c83c56000000000000000000000000000000000000000000070b13182022","vector_id":"kat-001-ES256+ML-DSA-65"}"#;
+
+    /// Golden ML-DSA-65 vector. Seed:
+    /// `digest(KAT_DOMAIN_TAG, ["ctp.kat.seed", "mldsa65", 0u64_be])`;
+    /// explicit randomizer: `digest(KAT_DOMAIN_TAG, ["ctp.kat.rnd.mldsa65", 0u64_be])`.
+    const GOLDEN_MLDSA65: &str = r#"{"algorithm":"ML-DSA-65","message_hex":"b65a59800a9f48a49a61f739662a0c9a2ce3fa01c70de6e7429d72d79293cec0","public_key_hex":"237986d62fef766349c6a567289362b6c9cbaf7d5526eef0db0c30af0812a557fd2e9d9132617d956df312fef0e73314fd26e251bd4e44f73ccb06746eea35d663a9efad0fd8ef8ebb797ec98f8e6a0645a18056f720b8b67469012ebfe5f210cd924431ff89da1c34cdbed883cd104923a213ae82dd8812ebb2a17061042c852a560d6206e3092a2fbe757045ef46d1ab829dc81ac186a9ab67108c66f9afd7e2be3df59aa0f9b4e7fc2763650d3bbe933dfe4a6addc89dc1b5c3dcae7a537e422ca039422711da89130f42c2f17fcf958ec03956430772aaa8ef168ac22b2fa4fa9495f22400ba977606e042d5f8f42f41ee7cc08d8a7943cee8fd538660e3b908bf62550ef00d2aaa93fe3de5a3daf55b435f68caf2271649f0e741cbae4195eb05cfee8884e91a12e8040f1953fba552462000e3fa3a4b8c503832ed74df29989a8a4916955c74133b71b6b4d9105721dd71686da37f58dae087080a94bf5b1212d2f49f82bbc8e9850419fb8e9fd34dd2c466a62cb9476a3d1615b12626f2163c450f57a3bdcf86ba3bd5b77a915c682d3b6bdf0571518f83dc5efc54ad4ab3a70a426fdfc8e6175f596531f7dc749bde8aaaf43bc68aa20d3a7d6b89140f69df9fc0d8422d1c7a39acb308091daf9bc53e3aa2e63cbea51e68566bcbe336676288a771c7f651b6cb39a52b226bab6ad235543ff142f6148624ce6836d4adc8332c0ecf96017a05bbd656b45026423926c103d2c271bfdcdad0a05b10c9805920e90b3d31dbe6819b45d1462f643da0c2443dc26af56a618fbaa5da36a70a8272fdbd6f889d53d13b93cf5d41537807c802d091493e005707745f99129ee510e599c882c8cab2b5be5c37a88448c114ad97db2d371dc00599f6d2aec691560a17ef681fb31819962716c8c89e3c2265542f123899dda8d5303156066f20e4fe3268fbef02523bb4f167a6d2406275a9c56cd77f2d2ee0f857d3a41e4695f610b0131b6e1a6e23599b6b1e7ad0908cc2f6e0683b8861a17d4ba83c15f3a8c2cddfef3f696c8bb187e2549fd9a43e8e081aed38d594f5ddb179e9096b9a0e7818d9664bc19e8680ef3f35303a92fa619c6dd29971c8997f17679afdf322ed86b017239ad24e87ce2adffd14a06c154f72fcdd5db161699bc637a858415b173261d4b7110e08b4933569b99eadc255c4ab115d51019bd3a1989f3759769164a919860f8637432a14d7985e3d91b545b41851b35426dba07ea61743444093449972f2d2dfc39917802126b571e46e62712a26d92dcfd2c8a71c5d5459f8ea5f190b12fbc3c20cf54ab1c4765fe37879837c7449092d4fa13c131e7fb2fac0de9da7dc800fd1feb4ae65147bcf6914a2365e0d2861b4b553bf63d5df6ad09094de42bb97c0a6c2767d97127b05c5ae56a660e5e7fd81f13a98720ce778b64d08e3db8fcc0fdac82df6763edd1eb405292e216439800da7e368cc5801ca2752e444a232e48f6f212e37944b6591a6d495dfc0ee5066fe94969cbff3dcbd7784700cec8a3c3eb02841294b1f700bb8c05284276c507ca6c9d2b030b647a4e2db9565aa527496133b6e461e55e23f705b3fd9550aa89fb323aa65fb72fe6e9b45d500a25970a2194953a5937e4e619368d19b2cb22d20b1556dc1d69cf4073dd34ba8f8b5c0e7f08cef21755fa7d7640624ba870e8ca35136f46efd56c091a6d4bb72c251872bef5bdf6736b68e051417045b07f2ac097c7c301503a3145a280b26097f50cf9b7400bb715831affa886d64c108a4d332c960ac21b5942b1fe1e0ba21f7cc5440c1814bba4b2cdf171e345e4cf577dfccf8936139afdd582f7d0cccd907624110169da42d2ae53bfbd345057e13107739c8889fe78265a4ca2cc52d4d9dfb7316bc3fd1a600c38927675dd185aaf13eee8c75d6632030594a52f0c03fa7bf983d67469e70b38a7714c6b1e16eba0e841312f2a40099a03c18f22bd790d09f7d3a5ee9a9b18facbd154965da025738f24e5dd02bd688b949d1be94a11c781a44f07586944239ce99c46e069ee9290487722c633175f5c8610d31b9cc84574aaf73b653cc4dc278f8d92a9408ea5a50b0b763f080093a163c3476d026c9c0060a52cc7b031ce7cd92b6ae1cdd865a42f772c4d1a220ca1fa52e4fdc55d25c31a466b506dfa4d1e1cb13d4c3fb1d311f3522c8d683f8dec6ab21eb660f623771a71f7b1e2e43aa6b6bf2b104a370c193231f468a7817f8e3a9ff823be073c099b40908aa7244db7b08920a8424c1183798677dfb13298e1cd4f1252d0eeb7002570adf05e3f953aaa12a00ff03f2b4d5d51594d3ff2c9f9d62640bcfff37e46bfc024edca7f565f4fb868c807dbe9ef7fc1e70de7983862713841911d3320e9ca9fec37f361268ae1f5112ed4c8502e96c5fa480d70bb438ec7ddd148d8ebb4b1698a386eead50fa5f5d09d38d3f0c2417cc0a67f38ee840d90430bc0777bdc26af600e57b2e602cd10875a0bba3a9cba5557025ab1e900722b47fe4d7f0a93433479acc59a2dd21318309758ef05097aa4844f375f2a2a5c577eb148af35689e2148def79b3623ebe10d89a28f8c93d6ccae0d7571d47d9ed662456526312a9398850c567712dec79524393b14e6d031596fa022bc79f2b61a3ccd2c82d52673b954a451da29a3e66f5f3fc3eeba6765cbd52637a89282f5a558584697f48363e8bc1f0ebcb66bcf0a54872be9f3b336d696c09c4d1ddb9b942d89546","seed_hex":"8e718d2fb4154760eef78ac9cb0f6497097110e48a9c85ec147cf013bd162935","signature_hex":"fe7d363f950aacac2c97bc688a3718ab198a0994592656033a6eacaeb6a13a853241cfdfd58fddc7f1f1a4f95bd3efe3db7b8bff5c06d8aa24074178225b6b97ee332238e9d59f5ab403a3b7a890c39c617e3dac2d6d8a569fe200f3f88403fbdb830aea55f8e8794cb34cb948e419ec1c9ef3080c5e56123bcd154598863ecbced8547b169339ff1df839b0ee1115be170026e93205b77e566aa8ebb62fe0dda217019c23908f7a3026ed649a6c61a5035761bad2f2db199792983526ed3621ae0abe9634cbaad165992caf56a3a25d9f784859f0ba528bf9f493d2f8863eeab1346cb365d2aca5d17c7fb77b8edf81fc7aadae71859381c7d36fad429defc001352e4d8c168a6bf221120f9d7c14f00b6d4be551ce502bad77dea68e7287562d0d9a2d08b831a5455e2ed0651f8bbec1093c3dabe5ac9025cf2da9ed851763315bdb356e90a632335caf3a3dd9d04b9c2ebb8cffd054cbd11886376a122f5f7515882d22521b840407a94edcf3143f420900cf513a84ae35e07d61f93a71a48cf4b270360e1ca49f9605f6f775654dde22e69c36992bc67ea889d75e99a219a1a1a7c28f47fc63c3513e25fdc284aee549e7e08c2f6a5640e143cf854b2672094366b66ff3446ffd8a2c06681564064ca730de194a927dae580f15de5e627968b1a82abc03e28a04bd3941c67c4522e7df2d7a5421753860cc44d454845f7cceee13ac07df7abe263ae35062fab08d1d9f7feaa317fc2b6f16eed567a18cedf85043f603f187758db31914e83b520ac0b582de335e816f5336b8e46c8ccc92f7f913c8b0ad009baa81560c672ffbfafcfc12aacd820fe43e6036a1f82a6dd3e6afc16ef39c84ddbe2be03a6f5a9510cca42661c3831c8e5b3d370baff3a9def5ffee760c16ebfedd5fe5671a77a61b03c99fd9eede5898144f7b3a8c858019cb0c6da974b82d453145f511cfb0ed2ddd4b3898e3e07439e1c67660f763d518153f335038b1bf1eb84413e4be31e55ed0a47d5a563681ee2bb28414a9c138633d704b787de5c147d51710e05ddd130b6202d8ab5619d62203cfa95ab4f055b84397cf073410dc0a9b4c9e2be545efbf1b778b74d60f73f4d8790470c5544cad3e63d818131b46e8537140af6d694c5f77ac317f42e837f799c68e7cc72c075598ed3999133acbcc3f71f76d1979b5816a12f5d0bedd091b2a76f1c58978a3e4a7c814891fb3fea591c2d648079d14472dbba1c55d33bea9e622325103087a3a3ce38f25c0ca36bd04796a340140beafd3c233b6bb19dacf72abb8b7f14faa698d9c843ee3545b97af5aeb8c4a3d8765877b427b919f91912e7c54ffb899541349e17415dbbf99d20734664b7b8cb41edaf567a7e9c7e9510c3add44ca2cbd51dfaca0c54c5a48df925d7e4102696ae0490b8925e48f8c4fc605cc2d065121390c1c4dfddb7380046f131e70e827e458bd3fd901612f1d5f9f81f8b4d61c76f997cf3040cc2bf7e39ffb39273c2ca75ce6fb9e7fa606d4de418879d40366843c3a5fb5d82511bd57fdb298dbf6b645e35d45072169466930603d70bdb4d2bd0c7155e45bfe228829f768cc379048863c93ff549b3ca4ca5d75da3aa035382a5a118b5abe849df48ddd0e3fd5a4e8020b5ef85b871ad282abd11d2a2f5983eb28a1201da41f8325305a22fdc3af701ddd11be6039b071fc4ef9aa4f7143c732fd67773c3123c971450d828db3eff81eb106e0627a1843d31ccc45d907688152af0ed767a21ccf9f3a8db4f29364dd5a65ab8b9ef3a8d7ded3d2f10a9a79b9bba5a2ce5e8e1f62cd8323976316b88d8239cb5ccc84e813c79a9cbdaf8d69329a66d321efb9975aa040fe68d3765c7abbd8971a10d79392904c788f18e4b4276b1c31a3e58332324a53c04b8f984281b3690df170e119269445237c497cef0e4b0a14623b3f553c44bea0262e490e2d43f1ef9540b14da6eec7df031c9bfbfc9251f7ac11a523902d085e2bfcf9504ea6017b9608bd48efca90b15267024865f279b5c7c7c4a3423df39e64c1a9367badc9254bdc159838f5be5e08f3891118476dd1fab68c39ba6af374206d627422d9a584557c2348684a06cfdeaca92e364e44b4f393b50444146bf5b0355e2fbdb856e5b7cba67ceba618a145edea4ad5dae72db106a6a3fad3dc7323c00926ac2015bc0187240434ded96b2e4405fcbd4f9e9bb912f4c98adba41dfe556add30fa3e405e7cfc305224b5611958115e1894a85a6ee907cd3d9e49010c743332cdb8bfac6e9ae2486f5f15572a2b85224d486572be43040c4d6b106883a4aae10380b3667752fc97f2202b5dda8777087ccc56cbac3de2462896793f13aeeed24d8e8db8150ed262ea4bc35c3aed0a5a07a90924925d364112483d87128c7fcddabe91962dbddfb1c2e190f147ee51ff0512bc95aa6b84adf271b176b1b921858b40a46fe3bea567c7cb4430601fe6bc862da2e18f10881f7b80cb3e28a287bd0b23285ca77d95fbdbdcd321f8a5efcd69a3471b06f20023d0642db4f603d1edaaa9f81d847af09b78c92ec683ad750955d31734b062d47822e84bf8a935d38506da750d6442920f9c3a79d8e1d9c0a0147ce1ceac7b54ff86936034287902d364d90cdf45e527d7fc42309817e61059a7752b439e03148e1054ab4d3ee8b2969b348e65cd4d4322b4e5daa19f5ea5489df5fada94c895b8af1825bd63a282c3361e04bf374a73558926942bbee6a08443997dda20d576b3ee4ff80d206eac99767bc17efaa575464d8224016b4363aab6638e8d1da1d657fbf1ddfa231e67078948951ec9ac5861b4c8702d2ae277429df262d23f74e1c9d9190216830846c06948452cfef743e10b90ef46ba037cd6d574427b78ef928aabeb6f699c0eff1eec640be69f31b6057a151ad1bcd128a9265080059afe5b9c0d7f7189899edbc463321ad21cfb7d8af1d9dd5a16ee50a274dd50c5710eb6423e18c02309f4a627c4cb747e67450dd2289714cc921befdc62cc5b2b59015e5d41b041e6ed55fa8c82efe04da7a977897533a93809ce352a3539b1d1f006ed63313bdf84bdb7416d03f98721d9d6dd165eb7870e16793fe5fcbd9f89aafb7017059bb2cc7dbd97f95bd3573296db37d78f2fe21f35554af81c753be761970762ab14ee83b72d4d6974c0ee2bc407eef05d02f7e8fe4bca536b3ca007b8501aa156f806375772d684365306895acad519af9d68bb573b4991c344dbdf45c3b91f8a2c042d7fb3216f202b44f1eddf5c4180afe9532d4a7a1c967a221ead22b409df167e6772a856069bf60a3fd9eb5115fcab30d7f7df9d56a975abab838f6714a1015c96df62a1d2670668aeb4a8ce86f69fad7883f43eabadc1bf9139406634a590c2be03b0a8b0568aeb64c848238564c9d8c32955e4220ba7946b879f2f95eecc9b36688ff1c8a66be98fa091389751420591472a625861441b18c42f9bbda0eaba57918b6216e7fe4f477dc07760aeb8dd47da40912db604fc321ea86086626eb11f3de3e958def35a0d9497a20ac305f983d0ad5d35887de01d207523611899296f38b5fbef59b6367fd4f47201693f73659625965be88f3afeab6b3b35cf7400bbff244647bae999147cbb3a1ee5368f318dfccd85fa893a246d135c28a3be5f85d1b654995aea2b4192cf11583ab0a3d9b85474c2b84e0eecfa6f13bad57291849999d0dcde4091293bf3d6837d31705a67b7b6a6187bd0bee676b7bc71c752a687c84202428ac90eb2017c9dbbeff5594d841a2916527ec8e74510f4524f60d249d7588d39a7d9e0b401f5ee808b47fe60f8a9e6c072eaae109c42ddadbff444cc8ce69a6657d30ae93a814c272f5bac10f8cfb6c9c57ccc07251d65c86002d9d06e09283e75da46ad957e81f3e6d044b5f1eeb02fcf59e6d1ca4322ef1e7454c52ebd7e85e4c4134680b6dbb9b0506eb99dae6b9feee83c395cbed1478a9a017177477e280684fd4d687785214a1db6a086cfc135d1faf28ec725aa13dbfa8959a51d2120292da909790885fafc870903aa47fffa0fd9526af26ee5936e9826fb84f19e69cbf416f70635ea742199bb02193e2ac20b273c42e883cf2860174802da7f68600e46f5fcb63d25d64193658320b9978befdd570503f263490fd5548536a8bced8f7f50653ef8a8c09f1939b8fe58b0c32ac09b3d2686bc37637885cd356c0b61809db35df306bbdefc0ce835c32645f5e3c09aceed43b162889cd8429b37bff0a8ba4c40fc7e80918592a92a798f728b3dc880cca189e79c18c9e0651557060d04c3facbfb50dd0a9f803cb72841121268e283a70e278ecb9d0eec0e7a69540767e4a07a877b0f6f3473b5b12e16eee5be0d36e5d6644c8f1e8c0ee4a61e5b8cc004b4ca1b16919a99264532ca50baa801d3e1ca93edac7bf55451f6ef826987225d427d259f179a228c0664698f87fd8d2ea31820cce169983c82cf173f7f2fd36815b19ec80d1ef0b3e355cdbdbd950377e8f5e9cd41953cf91da03e123358c839cec65eee583ac246a814baeca1013d928b410106f10229b21b8eb5084f31ff332a3d3e576d7895becacb1214232530565c8fa8b1c91e6b88a7c278868c98dce63e4348556c84b1f7fd2027304d6e7881cfde00000000000a151a202932","vector_id":"kat-002-ML-DSA-65"}"#;
+
+    /// Golden SLH-DSA-SHA2-128s vector. Seeds: three 16-byte slices of
+    /// `digest(KAT_DOMAIN_TAG, ["ctp.kat.seed.slh", 0u64_be, counter_be])`
+    /// for counter 0..3, laid out `sk_seed || sk_prf || pk_seed`.
+    const GOLDEN_SLH128S: &str = r#"{"algorithm":"SLH-DSA-SHA2-128s","message_hex":"b15f2f6b5c55fbe1710af78740bdabad6312e8f5f679128bd39c25062a626d59","public_key_hex":"6542a1e14f54cc84e2e6395dd579fe3ebd85006fb86144421c1cc4992abcb5bf","seed_hex":"6d977f3f4a4eff64b7c8b689d1b5248bcb4bacd9943b95bd1f3514e89f535a556542a1e14f54cc84e2e6395dd579fe3e","signature_hex":"756ffe7d0eb8855127bdda0d3cbf76dcf875eaa687b90391bb4ce4a939f1bf5f145f33e6f95aa7ee47e3e50d1b86bdb1881af263861664083e9a6dd4726333e7d15e78e4838d37fc716260636eb3a5731cd4f4afcb4a4ffc7e8976bda5c74fbb1e26edbdb1d49b6c4579d876b4dae9404721565187b3dbe8510a0b385556c7549ed42b8bd62e3da1d1b9f9a8d7b679fc8cc344126f33c0246dca7b0e900353d1f296aff638194d899af827e9496f7fea3d5cd4191c4537e26f1581754c6c600cde3b482e3d286c0796891ed5619f1fc09c2f3302f554bcc3da59bcbcd2aab11acc5f49379d858fdf87f7934dd2599da041f3aeb02d06afa71a18673b62e4f11a13b0b4558fb490626269f27c1e56ae8e5701ae1eac602f7a25450f7cd597d09df94cd0844708111c4f46ba9bf285e333d3447eb5ff7e2b45ee2cd32c3e9318a520b16b54e0de6ca61cb83b81e4f5c58ce548cdaa81f559f758d1f021afc5aa57f91672c309fddc4e72cc73d12e1aa1dfa96ada58f22cc0e0d642f96ab5b24b9758a3108fc069d91f0557334fe9bd289346c243151e562f5f42f366989f1f91c770eae36f08a383421618ce7f8ef1bac98562ec09856346b851c2b1f283735ef9f1f65e08996dc1b1032d7b9f22a34fcd0451cd3cac228a052be7f1070bcbc800f18eb5c1451bc280b18a0d26bde3e51367e1e9e94e09db6c2ffc8f81464d0b9e3720470b684eca4937b2146c312935d2fe04ab1bb3b1b96e33ac9723bda756a43db20173abed6310198b359cbbc7e321992aab6a31a4975f2a5461ea90757f44d9fdd19025f4d7d42ad8722f00c19a1db541b938db60a9ed843b4f3ed26dabb5b4a7c7a5e6cfd2cbd23154a89920fe81df9869d6d938e9876a9d9831b5c91f706f6b8ab0d20b94cc8f1c658d0b5284775a8a73ac52a82b715a7df59d5d35b9241fb8bc0925d2416f79b0e868810f01083628aa342c45fab943bd7662f2000d12b6dcd3eeab8252bb260881cd390b2cd368493ddb33ef6abffbf815aa6fef5da0d0709d1273863527b6246fbd97bf8d060f7c588d27d07130f6397a95de855bbb26d9772c9032dbae98f889d662c2ba19b12e8a85201f9f3b278a2fa5394c28154c8824793a978967b49847beca299b4fc6db4447387bdf0b6c05beb3b3501c1658a30b8df95d4106e28851adb59e0d0d55c42f743b8d4d0a381737ed79cc875929330d9c668c0bb64e77020a66bc4b4dc67c812897de43fc1734944dabe7429c0a9d638cba9fdcb8a7a8dcf8ef1b9c503925db978a176a2ae3a04d00076c113a4f6baee2261933912b9f06c860c43a5646b11ba46333957e2dc2a73cf6883ade1af984501c6a4814dc06b8b0b25c12f2769417f7fc245b7b512c0bb2acdd027e56078abcf640439bfc3a20eb2bd6b237ef853e080df22ab26e6941644c9714f81ec98a5790e14fb63becf30dcd6f2b5fc817385a14fce79419514d00c25696c6e4a8270e76261b6a23438f13c1605d4f8599fc006c3c86c6baf50ecec8c92d869313047b7403fc23d83b79b33332e79f11ee97fe2da3467c3d798728613f6fc446be130d81fd673b2bcea6d33384df3207ef02493b7736fa4c847fd48a7ecc24facd62358c0aab65d9cd2711d77a7ae1ba11f5a42a066b11df0056fd4913c285660313d8bb504ac4b1923184cc5af366a9db0a0699cbab3c6c3c3dc098deac8870be43f8dfffbf77b8f670b4e93c9b86a2db00721b8bdc399274d1a8e2ca6253044797ea23439985f2db0857fa84f24cd51a80df48c000816a75f4d6c2aacee1165803772f0ff11f4e923d2dcdda680000f35f495ea4a85d7fa27522743cec782429915fe94fee14a25ecb226c4f42c3a32406c922c4e48e3cb3d79e250609ebd279ec7a6102fc0b8446b83344197494eab71a35552176b0517863da470fed01b001ece27d58caed8cd8b4ff87a7001c3851b7a205c859c655f5da4d0d1c899fb08bbe939ed1fd5356ccb49650909945cec23567b622e1ac95425b1c417df45a8d61199e02e1fd130aab927f3948c85815477ed30ff9fb864a08c9f55b28cfd9c551407f18e766d5588238a8294d6c2be282a0b50db79a0b5ee2a8d0fa02c76f978f35c905b68b5bf89a71deef8d0bb74482f50a587278bd314689feb3ef3a1f95b411576b016fcd0ee5b796f3750aad36cebe5d2865aba07412259b105aa42a85dec1ebcd129d9485e2856afc57086738be38126cea807858a898cd9072155266212c11d50fa3f480b42418ada5615f895b185320a59c1cc2d86109f1b23007907071ee077dd24cc459ee4df9bdb714856bfbaa5bdbd98f78b5d544df3b9fd53f6622787f0a70ac5961b3cd223bb41016c3ca2bd5757bf32f563138f4d05a6e8e64f6da0908c3ea2dee0ef1de945c6820122dc75e6566fd047da6ed197526a533a93cf49588c6fe252344c7bfbfcc812e17a59b962f8441bab89fd45b644e7bae246a9af6d05b2fbaf84ccd322125a02c46d7070914b49bc6a6602ceb7e6faea7e3a2e8cfa935368dc8c99266019db7f226366e71a2b0a500a6c3639826e87493a265ba4d09051b400719cd4063f85a860ffd296b351eb3ac05d93a16fab2cfe07d9eef008076ebe44ca3ae2aa3698fb2ae12bdffe9e878dcbd714956a099bab07bc96d6b4a5852e07ba13268cc24146b478e52c8e60dc092cbd5d514248d36023ff0e3ca275fb3b198a8710fbefbd040229e2315e536224c28e82691ec7a29a4031f82b8e9395a56703eb4d36f1861a41160a5055c78d51834329db7ff160f1643b9a115227641824525de520c27c87bfd2fbbe5c42c61f2f7786195ce02be2fb0d7b5d34e8120ace038d98eaae0b837239f88515f101508d49fca0cab324abefe9e4cef78214d2e0385de45a5a935aa2e58e2ca3dcdad278a23b343231ecc40bc7a3eb1d836808b94093b5213b474a4b74bbb46decbeb662e530a760332a5ffce943dc50d83845ffaffdbdbabdb3862610f8a065131586cedaabb96d7ca1571074f78fcdae06525a8a55e639e1358b8e26d13e3cacec7b29bebbb23d8e2209d9825e827b08334a4e070f055168e1f606a866308134a9c3ba9f3d869c4d9a9bf3eaa602180154b3be08eb348f64160aa4f674411574c1670103859e1e04f396f94aca7b5c0ef744cd9c994864a3aeddb9f526fb577d0fef3516e0b14b66a69bedfe889b0e8a6a68ae80aa1030237421f7053eeacc90da8650ff66e84f284f7145b817661ced3eff3e28f1638336dd4ab3281cbefd34de9ceac68643bd639cfda10d6a26e77cb551601f40454ad608ff5a5a6505344d3ebc702e886acd0bdd2dc7b684e73a053cf817d4e71dd2e074cbec000bc94f09289857a904b13dbbfa46f9432db2a24fd3fa5b3f87813eb305f12db98000511c9926c9829bf4cab2bf4d0b4beb3fb6b847b0bd107067d7e3eaf27d12919186f75a90c211eee1c9b011072ec06a60b68b0bcf9144e938db368609b606aea9055b98af832ad75e2b4cb6c81168d71e64b85b441628807c9db45eaed53ce6d798b086ef6ad84a230f4e8aaafd887a94dd3166a0b0cb3853bf107729168841e369fb6bd9d3a8216f95ad7f8d8ee11171c348f3f77c43b530a96346b1b89e0ab5953bfb13c4b70b835907e558a909e27b832bd888af9c0939405c0e69db6ef78a44ed538aad30e807b1bd3c627990e6cc35d404254dededfc0ae88ea0ddc95ea514619b522a1b91162d54fe5ac99ffff2e04b1fbe234df0ccf175dfb56db825cd436b34533184abb254fc4e138f7aefecc311a7afa256674dd7d00cd9da77b26075b71279267bfd2a14fdc3a192599e01b2eb7454ba99be0f8ef51cee72ed74b8c99b446659d7350d647491a8494ea5d07725d4256af55af82602e2c9aac91e0985ea150c231085f83f66772e623cd9c91164bde501cb7ae5598a4125ac91eb73afbafad20186076687c7817d9f260964bc33702fd4b6efdaea3e0bbfe7ec5e4d112496cadee9e766e15508c21b58965c71d0a037a6980e3022f7a4afb413eef7463328cb156ea420e298797fec965496f6473b2c7754570a1dca0d6ff34f51e20efbdaec013e8920e486e7e33da41b46522c4158998fc8d9d6ee0dc1bd6d9396cfe74e1bfcbba002c9bed6b94d18e58743acce6fb1f9af585f676d032f462856f34dc0f14cd53d4f018e5cce29144d5934254240ff0e87877ae2109422aa504369d4d7a65a08eaf730277587e70d0c57fcad6b35edf27496cfe462c703bc8fcc743c818a6a6835d2556d7f1dd0d33910afbb7e94227802dcff8c2a5dc4f2208ba76b5fa987095496d0e3fbdba4598243a5a421c6a97afbc610334faaf1e468c72cb6c26308561ee344aea04ea6dcd57578f904f9364d4c78204d9e9c646b9cb9a41d643dc72115fef98525751481918c9a233656afdb01d64025ca79f61bc577ee26ddd22187554a8d7fc4d14252e339115a9c8f2134f66d984cb7d88dc109d8851413eeec114f6d892fa7ff4d9944ccd656565ad6c22d76582ebb8e12da3ba0f558e0f2c74013f1e87d51c54b80a46192c2008e78df84b49cf1c7a1d67d36d2b521340bbf4e3ace2dbbabb4af7682c0fbf8e888f292ff291effe94d722aa062e6a1cbe534479d5e8a3ccb9a9d3f46cd41688b5b13345c716128329c726f96ef15b1f8d1b40d356dcb1c6426daa06cd8458fb3bf8c729dbc2ed736db1c56cd6b078692df8b21e088f6e0ad03c1a18744e9014fd44e004e049a3cb5ade60dba0ee3138303e3b72d27384a3ace30343956970800df863eef174eb740762377e4671837af4aacf5746a6d536f08234285ac2f735996c1a8cbd51460d1af9d6659cccf992a261adb9798fd934fc932655030b10eaebb31702a8b468ae2b46242a1f801248a6b7aba231ae2662dae7dce8e7fe91d74bc910d6925c32b27b9a813e4e9ae7ad7e3631de3a04e87cf053e7ffc4ef2a1589a1c883a39bdb46b8afbb8c8a25b5271eaa3cfbf0f6db426d6f2cfd93a05b0d2b910ef5c40f5aab09ca8e510add1b688930ef3581ddf509b7e379ffd97af1ebd659c069681cb5e49ef8f21099d2fd1d43d94354da1c0de46776f2b81d483eadcbd0b9aab3e0a0c90fc9a579a5f2432fc020ca5b07fa0b20069445e6f8d204dea1445a3c4dbe83b730c5ed98b0cd413583d4eeeed20399a4de40dd1ed8222bbf7993112a5fa91f7bfc8b3c40e9f0108e156e4c36ec3577eefda7965d3f5a140e5cd0a1d2488fd3c3b5774f9cb1ad5945c432db86639bbf0b04d04ca5a37153c0f3c5612edb216922ba7a66b1a73c4da9288828f7d21da438bcec7354892a61031baee8695973e5253b75561c0eed3c576e0e011e1d22b414f317b0a73067c9f2533a2097f0af88948ddb430719fc72a387a7836def61d6cb36fe0afdec4cb7fb73f64bae08853fce2611f892b755f63f8e712c5855a2b4e1219c6514f5dadc6ca0c7f450e73fa10907c718e24242d8c07c1d403b41cce900bb8167c6cbf7bfc41f2ea51a4471820b30daa1374c52aa8d6d8152e3fc9ae4141d779c73c7a41ebfba4621243dc54b0516e35a6660e4c2fb1bbe1948fa58b38c30132d6814d95c631f82ee7cbabac83c07d67c66171e410f5683505b5ea2528c36b2a3ac0cab34bb166fba85276b1ecb844405862d57a0bec9f9b467dafd0c872c63b1a2974fd257ceecd82b2f3fe095c4c1c0dc9f01038bcf6f72e015da1e97534c8395a2aec6f9316ebe2ff38f4c4c9967c9863406104a5108250b162d802fbe0839bf5fab48ebb6d846d6693e08a07dd6cdbe83b4d6831291c0e585eac47cf050f70abbfb28d3e7c5b7c31b4d1f1a1220eac359fd06eefa5fb946fefa3f784dd8206897276bcbf8dad989ba70f07dd3eab41051949680c3d15a252728a19a262219ba127d7bfe947d1614b27c8b24e1dfdda5402d439083ea5c997ad4b28f0aa47645e57d1400b928b96dd3a66832bf2fb5fa4ec0009a1c401a97ab9c155ad6a3d38319c8d411ea858f74319ac775d1f233e737be33e15feb5c61dd04c0cc4e557db39e4cd5e8349fb1530e8cc2f4470d0ce38a3c1810df91275ed4788567d2b917089ec83a2142af940ffe45782fd39558a0e19f043efcff538569b36d4c10334f74ccd4403a3f3f1854e4453fdf33b8f8c979671609811a8710f479bb06311c5901b27bfacc0b8df7dc0c15e7fd32cedcdc80fdce7b48c94761ae7117e903a571b97ca79fcf75b190a6a762b0c487da1b3cccf8c812d50fd1bdcbd4d8d3ab887b1d8cd4d2bfb6af3a6484152acb0c39cd037aa2b822ffb21558f457910ca4ccf797f8d0d33f8dc0be593e12d798f8868ea6dd24b57dde3d4589ee15281d15be184c26ab0dfe7cd5b9700354c5992f6235cea60b657f5986449582ef2288159ede7a956dd7357f7121999332bf57bd65ff27fff5331458066ba04a02f8d9ba7d98ca28a05d5f4eaadc3319dae48d222cda3e10432e96a9e2d484905f889ca6a0bd4d6812350054971620b33e9f146b332dae1f9a3bdd3734b3773acfa54cf0b1e07c9b008d02ce768775f987e02449d1274b42a92b0976577bf35c9ac6d802711be8af8ec6c73bfc37a42652a596b530dd316f30c00bf1455d9236eddd9311995860307e8a1eba24ffb5b8e7934c5d55f34a3641b63470f8efafc1f73fe8760c0d56ebfb4e1998ded481f9b872ff14bd3b8b5fab4463118e871245b7aef57df5d895882f1fff442fb1af7ef9b83e55d7f95777cca32548cb70b97c246f0643af32afa8c8c333bee1d5f1669061b57457bcda6cba4a2fb5bb174ec4c387b9ef78804ec9ef61b9b28fd462814c1a532a42bbae5959cfa710c5b36eb4c8d9d2132d2302be63e53e8d5d90bf5f9098260f69a07c168b5640bc83eadadd20117c280927f9bc967f528fd23119297d9338658a0f8be7fe80bfaed573882ab7178623590c957e777bfdf6728dfb4fc050247edb7c08032fccc5322f1cda1e05cfa85fc70803399f138fa04c0b6d3c4abf206a41f37c124188936143f4586b7d8e0c1a64501214ad83d5712997fdd9a28c6f2bc5684c19c654d435ba312be257e07f8427307d1df85ae8c4431d476dc92711837a8178c378d60b78789375607194b203628f63ce9be8c25561820f69e04ef7720e40ffca83dee25a6bf648d12b0b2288bb395a1be7bb07210836b07b1e38c99faefec668b3953089f11eb5504d3a3c90fa2aca2ed198b62190977e859f989fcc8eb1df96ae17e4af46682fddaa0968ed844c0a3a9a681c7ea337345ee89816d0d334c819379c93cc54a80f1f83cc9d72c3b8c82962512e041abe1e57bf1f0efe3d186ca6211deba3e4d17f3b47692b0900f31962cb87a07fce08182e7a1f068625d0f96f5accb66b6f82837bfa234b7bcbe9919d6cdadb6b005a56c33b8d7a9e3b577cc8d2d76553866ea0e1666dfeb96e7f31a6f56ab234ed6fd5297d1d436c66ce379bc0a7bcfae83d9d06c8d5aeeb53369f9c47d110c8dc5cb57084291683ff64951050dc55dbd5f8796fe4c5da00bf266df7f05db85f570dc178c9766c13e02047781b84401c223e6acff0757803ef6869ff85862bf5bfa68e86d05f349976479e57faebcdbb0820068bf65361eae837f31cd3beb04f8408754a601b4fbfbf0f7814d1c6b2873c36332dee00295ba91e764d46ec3c4fb80f47c2fb5cda051c91cdd98562926ee96bf3eedc4428a939fbe3b252253d8e28c190e7c78b81f0db5a6b194434e743c2df07406bce8b0c8ec0226672b31990bcf6a9fbac7da99822ce31cf7f3f89f5e953d3bdb3429e4445ff51ab13ec2066b01fc89f1b7b7fc87916dce3b1696e224616cad1011da26433d81849421b6055bbcc3957993c788d94dbc32c3b1401fb25a7713e4987002d8276ab65d4f4ea6549355aeb78480073bf29e64379ba897daf71effbcd93f22087d5cd29c142033a3084c695a85bbdab927cd336ab2c16d3c3bf71e4457ee3cb45b08cff760c8359a93144a45a1b34d7d7b847bdd51cb1b08f40ed06ea0120cc5f6cc788b84f8d18b4bafa5a3a6348f98a8d44e1ac8b1d3f361ae18b84a0faf5e35dee395b89e8e30d5c0ea383e52755fa3fc8b9f061718f9cc5b914d028a5998cc96969ab538c0d49c1cef13ce92d2e80fcb496f1de99c30b616e5848467aa28eb78b954bb957a28bd23bf3989efd5d8b609656dbf90afebf1468cb5ec4e210725ff29f6ec4b5fffd17c0d5da7ed324a99ea868d75abc4735c6a820bd75be1c2f51ffc6250a140da6bf51987a99ab241b83fb1d7d709d85e0fd68a75b9bb60b50a6a0af474a99031681890b96dfef1bd3d92b454c4d6bbd5441f9707098868b01ae74a8455eabdd61cd23b9e213b319deff74f1daac574fa36c4afa0fbd53cb6576f6195a03a51804954dac407475efeb6ba2a32593c1322def83c2a472a4cc000a7f044afaf9be1a7779ca1aecf29108ac8023190138bd584ae14bbd93f8045fda8e3967ed3249a87220bdce4c245d18f3a426344509c2353bc0c78c55713243e07293bfbdc2890272c3c76f925fe295e108b37e94b5df622d5698fb2572cf0930def467111c9af8fe9c522099bfb08d3242386944b2a3e74d47f3f75bcec6dd3b97ead95f70f30452a787b74f5b9736afd6838f42a240307bca97ebaa04a8b20b4e44f851ec84594aa5d410e5fae9addbe8751575c97d6c9f5d1dde999f09c5f6193e4b3702ed965d6d2ba7c593a6d4c5c8a7bfb9c7dd764045e47b2c649f6242dc014a5bd65db5f36459bfc1ba4cbdf9720a6d9eb09e2104ea257a29e6899c2ed9e0f668a406c932d4e9f6fc656f14ecd1a4547fabaf838a22db3a7768d70caba355eb91c78ffbb9c61be5a8ccbef6e83e956bff26540f9d4e7067a7316e9cb4b9242a0884ec9f255422b32590f8e9cd997a9d10728a515982b3dc87ce69c702ddcc0320f69464a6789fce3e059ab808f78e880c08e814dfe44fa3e8f32cabd7b8b7d813be66b89dd7d18cffd1e79ce2a4ed14f681c6f425b8dfdda4d33e63f6ba59f26052d710c509352fa667d04a4fa8c56f9f7f55a49580ab48782e0dbca2f6d817cba8db1a1b2015dd2ad4ea13d34cfaa058c7d34770afa874fc8d9f81ad2f19c3efbb6359ab460705eaa17ef9f4efcdcfaab125274883fec4de53750794313546e1dddd79b428980536f2f2f1ad7d409b44d243534bc4e91d79efdeac31d828bf32830bfd85965dc8721f6be83fd5dc866ee1e2a0409c4ed3306d22d8603ed3d1f3402a03d1ac019495a290ffb0099ef125c1d01ec2538fc6cf28cc0da7e0ecdcf5fa16a7f6ef2dd2fa80a88c9b1e30fec067c7533dc6d1f9690d63aac0abad4c63ada817a6ba18bbe417416118c461a5a256f39bb86066274d1e18600163b453f301de04f8ad987f5bf159efbe3f3024ab24f8f87e90c4692ad43e3269c7a8e53213d0e0fcef2f7c4b9001452e46d62f201be990ca6852149e6fa229f13bd1cd823df9a0a7058e3ec1b74874d21ce458a0bb4a782969a2f42a2c6e7c761f43557e850ea133c6c2d571865e801126a6bf05a6ad3fc67c60a8e8b8e0c3de613f63c649545c930e83a10c2171428465ac317026302aa5b39640752e3aed0574c12404b592943c5860aaad6e4750c00d45af35fb6004191a94161b17c057d2173dfb8bacc05b57a059089dd0ee1182c025fe3f4e6151d01ba46630186737a55236987416e5e6d4bb769aef2481df6504c141e0346bb164701b4a1955e42833130b0debbb454629f9fe9d3e96d87097be839cf6633fac9d45f7946535bbb5bb4ef2d91f92f6f963b464988e46a7e1589588f593e7f1a92444d4ee12b9aa5cab9c6daa42720171e2ae9db6ac5eb6ebcde3700395fac22621dbffa70db56b82cc2486fa89333e8ddb8309ac20f82e2b3c8a5a7e05be98fb8a154961ca11084ee40b19c4d8ec9c173e8dd6f6b1e7445ac22c0fd6fd6684cd19aa05e98f38e799865686f8ef098b9ead2a91dee5a914557442f095ec5af6a1624c488002a55d8f1f3cf911ffe98e0a9bef601e08b4a3dba0fae1f086a61850bbccdb07ae5228326b1edadeff5598549aac3639e49d71c03561d38bccadf0b2eff00f26f0219ef69c7e97952bc73e16bc6a03c2c0117259a2ce0560db61aadd16e934fc1a9204631098c2a65c14526c702442387945f0e001a6b607340e6c4d1cc30349e774b45a36562d16ca27e20cb214d4d57499c8590769ad969dec5e4bd8b4be789b860c498852d928297e64fb4725d87bd3b3cfe88845f69ca894a452d67b4627c206a731d5a4a0b1b9f75843699e929604fb88e9b07df18c9f6106f42a8342117229599db257e1eb75b7b004c65f3fa337247093345052fbb15f2596ae0300c2ed0eed631ffcc4366f2c1ae9885fd09c0f6f55b8595e616ba06d90e788fefb3030ad978b5560228d1267364dbdfbbe62b205c13515f187f64635d7e3bd5efe98c88236c640a4b62064cd81a11b45a389676eb3fe7db7d7eb627c793a5612e5785dcb6709088bb0dfea9756c73630774b2a410049f637ba39ecef7950f2749e9d2c36d161e90d2d3fe5dd6faf1269a73013af6dca1e9c835800295feb7b3667793175b2204ff4247671fc4a66a4e68fb5d2d6e419024cd70809ef24952041a0e502caa4841bc43e42a1ed13766e0ad39d8056c5fc3c9642dfb0bfb6853c43febcdff97a676e1bcaf2690f86a6490221b677c1dcd504798a74ff6854f89dd961f582b54ed74eefe6e168195a3c807bd499983cdf58a249a5d5abc103f9de589dc9aa4405903ed7ad053c26f63da47a686f24ae46b6d9eeb656fd32c8ed9b8b5aaa77ac4c064daa960ad82eb5151cdb0ef92eb7b0415236f0901ba36960b17af10937559dfd0885466447cd0f5c8a75a8cfe438a1d7c04da533654d9079d6292923639f2b9b1d2b530b9e7d2f12e069f76f649df1881390c36bcf89dac11bc2e899a2e8780d7e76fb775917c41c7911fe4717361f548877771ce25b209afddf0ea90aa9a043b60a10dfcd4e14a410b7d9842af4ead9dca79f01b8f380ce2baec812e01726c51785449508c1677e9f9bf6e5d4f6fd","vector_id":"kat-003-SLH-DSA-SHA2-128s"}"#;
+
+    /// The golden corpus JSON in registry order (kat.rq ORDER BY algorithmName).
+    fn golden_literal_json() -> String {
+        format!(
+            "[{},{},{},{}]",
+            GOLDEN_ES256, GOLDEN_HYBRID, GOLDEN_MLDSA65, GOLDEN_SLH128S
+        )
+    }
+
+    #[test]
+    fn graph_facts_are_rendered() {
+        assert_eq!(KAT_SCHEMA_VERSION, "CTP-KAT-v1");
+        assert_eq!(KAT_DOMAIN_TAG, PLANE_DOMAIN_TAG);
+        assert_eq!(KAT_ENVELOPE_VERSION, PLANE_ENVELOPE_VERSION);
+        for (name, variant) in registry_entries() {
+            assert!(!name.is_empty(), "registry name must be non-empty");
+            assert!(!variant.is_empty(), "registry variant must be non-empty");
+        }
+    }
+
+    #[test]
+    fn registry_variants_match_algorithm_ids() {
+        for (name, variant) in registry_entries() {
+            let id = match variant {
+                "Es256" => AlgorithmId::Es256,
+                "HybridEs256MlDsa65" => AlgorithmId::HybridEs256MlDsa65,
+                "MlDsa65" => AlgorithmId::MlDsa65,
+                "SlhDsa128s" => AlgorithmId::SlhDsa128s,
+                other => panic!("registry carries unregistered rust variant {other}"),
+            };
+            assert_eq!(id.as_str(), name, "registry name/variant must agree");
+        }
+    }
+
+    #[test]
+    fn generated_corpus_covers_every_registered_algorithm() {
+        let corpus = generate_corpus();
+        let registry: Vec<_> = registry_entries().collect();
+        assert_eq!(
+            corpus.len(),
+            registry.len(),
+            "corpus must carry exactly one vector per registry entry"
+        );
+        let mut ids: Vec<_> = corpus.iter().map(|v| v.vector_id.clone()).collect();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), corpus.len(), "vector ids must be unique");
+        for (vector, (name, _)) in corpus.iter().zip(registry.iter()) {
+            assert_eq!(
+                &vector.algorithm, name,
+                "corpus order must follow the registry"
+            );
+        }
+    }
+
+    #[test]
+    fn golden_corpus_is_deterministic() {
+        let a = export_json(&generate_corpus());
+        let b = export_json(&generate_corpus());
+        assert!(!a.is_empty(), "corpus must not be empty");
+        assert_eq!(a, b, "corpus generation must be byte-deterministic");
+    }
+
+    #[test]
+    fn golden_corpus_verifies() {
+        let report = verify_corpus(&generate_corpus()).expect("generated corpus must verify");
+        assert_eq!(report.total, registry_entries().count());
+        assert_eq!(report.passed, report.total, "strict law: passed == total");
+        assert!(report.total > 0);
+    }
+
+    #[test]
+    fn golden_corpus_export_import_roundtrip() {
+        let corpus = generate_corpus();
+        let json = export_json(&corpus);
+        let back = import_json(&json).expect("export must import");
+        assert_eq!(back, corpus, "import must restore the corpus exactly");
+        assert_eq!(export_json(&back), json, "re-export must be byte-identical");
+    }
+
+    /// The cross-runtime law: regeneration reproduces the embedded bytes on
+    /// any runtime, so a foreign verifier can pin these exact vectors.
+    #[test]
+    fn golden_corpus_matches_embedded_literals() {
+        assert_eq!(
+            export_json(&generate_corpus()),
+            golden_literal_json(),
+            "regenerated corpus must byte-match the embedded golden literals"
+        );
+    }
+
+    /// The embedded literals import and verify on their own: a foreign runtime
+    /// can ship exactly these bytes and admit them through this verifier.
+    #[test]
+    fn embedded_golden_literals_import_and_verify() {
+        let vectors = import_json(&golden_literal_json()).expect("literals must import");
+        let report = verify_corpus(&vectors).expect("literals must verify");
+        assert_eq!(report.total, vectors.len());
+        assert_eq!(report.passed, report.total);
+    }
+
+    #[test]
+    fn tampered_signature_is_typed_verification_failure() {
+        let mut corpus = generate_corpus();
+        let id = corpus[0].vector_id.clone();
+        // Flip the final hex digit of the ES256 signature: DER stays
+        // well-formed, the scalar changes, so the vector is well-formed but
+        // false — the granular path.
+        let last = corpus[0].signature_hex.len() - 1;
+        let flipped = if corpus[0].signature_hex.ends_with('0') {
+            "1"
+        } else {
+            "0"
+        };
+        corpus[0].signature_hex.replace_range(last.., flipped);
+        assert!(
+            matches!(verify_vector(&corpus[0]), Ok(false)),
+            "tampered-but-well-formed vector must be Ok(false)"
+        );
+        // The strict corpus law refuses on the first failing vector.
+        match verify_corpus(&corpus) {
+            Err(KatError::VerificationFailed { vector_id }) => assert_eq!(vector_id, id),
+            other => panic!("expected VerificationFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unknown_algorithm_is_typed_refusal() {
+        let mut corpus = generate_corpus();
+        corpus[0].algorithm = "ED25519".to_string();
+        match verify_vector(&corpus[0]) {
+            Err(KatError::AlgorithmUnknown(name)) => assert_eq!(name, "ED25519"),
+            other => panic!("expected AlgorithmUnknown, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn malformed_vectors_are_typed_refusals() {
+        let corpus = generate_corpus();
+        // Odd-length hex does not decode.
+        let mut odd = corpus[0].clone();
+        odd.message_hex.push('0');
+        assert!(matches!(
+            verify_vector(&odd),
+            Err(KatError::MalformedVector { .. })
+        ));
+        // A public key one byte short of the algorithm's encoded form.
+        let mut short_pk = corpus[2].clone();
+        short_pk.public_key_hex.pop();
+        short_pk.public_key_hex.pop();
+        assert!(matches!(
+            verify_vector(&short_pk),
+            Err(KatError::MalformedVector { .. })
+        ));
+        // A hybrid signature truncated past the self-delimiting DER prefix.
+        let mut cut = corpus[1].clone();
+        cut.signature_hex = cut.signature_hex[..cut.signature_hex.len() - 2].to_string();
+        assert!(matches!(
+            verify_vector(&cut),
+            Err(KatError::MalformedVector { .. })
+        ));
+    }
+
+    #[test]
+    fn serialization_errors_are_typed() {
+        match import_json("not json") {
+            Err(KatError::Serialization(_)) => {}
+            other => panic!("expected Serialization, got {other:?}"),
+        }
+        match import_json(r#"[{"vector_id":1}]"#) {
+            Err(KatError::Serialization(_)) => {}
+            other => panic!("expected Serialization for wrong shape, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn error_variants_render_typed_messages() {
+        assert_eq!(
+            KatError::AlgorithmUnknown("ED25519".to_string()).to_string(),
+            "unknown KAT algorithm: ED25519"
+        );
+        assert_eq!(
+            KatError::VerificationFailed {
+                vector_id: "kat-000-ES256".to_string()
+            }
+            .to_string(),
+            "KAT vector kat-000-ES256 failed verification"
+        );
+        assert_eq!(
+            KatError::MalformedVector {
+                vector_id: "kat-000-ES256".to_string()
+            }
+            .to_string(),
+            "malformed KAT vector kat-000-ES256"
+        );
+        assert_eq!(
+            KatError::Serialization("boom".to_string()).to_string(),
+            "kat serialization: boom"
+        );
+    }
+
+    #[test]
+    fn seed_derivation_is_domain_separated_and_indexed() {
+        assert_ne!(kat_seed32(0, "es256"), kat_seed32(0, "mldsa65"));
+        assert_ne!(kat_seed32(0, "es256"), kat_seed32(1, "es256"));
+        assert_ne!(kat_mldsa_rnd(0), kat_mldsa_rnd(1));
+        assert_ne!(kat_message(0), kat_message(1));
+        assert_ne!(kat_slh_seeds(0), kat_slh_seeds(1));
+        // Domain separation: the same pre-image under another domain diverges.
+        assert_ne!(
+            kat_seed32(0, "es256"),
+            crate::crypto_trust_canonical::digest(
+                "another.domain",
+                &[b"ctp.kat.seed" as &[u8], b"es256", &0u64.to_be_bytes()]
+            )
+        );
+    }
+
+    #[test]
+    fn hex_helpers_roundtrip() {
+        let bytes = vec![0x00, 0x0f, 0xf0, 0xff, 0x42];
+        let encoded = hex_encode(&bytes);
+        assert_eq!(encoded, "000ff0ff42");
+        assert_eq!(hex_decode(&encoded).as_deref(), Some(bytes.as_slice()));
+        assert!(hex_decode("0").is_none(), "odd length refused");
+        assert!(hex_decode("zz").is_none(), "non-hex refused");
+    }
+}

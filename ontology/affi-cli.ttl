@@ -128,7 +128,6 @@ affi:ReceiptNoun a cnv:Noun ;
     rdfs:comment "Receipt noun (maximalist): emit, assemble, verify, query, analyze, audit, and govern 300+ repos"@en .
 
 # --- Shared Arguments ---
-...
 # --- Verb: test -------------------------------------------------------------
 affi:TestVerb a cnv:Verb ;
     cnv:hasVerbName "test" ;
@@ -150,9 +149,15 @@ affi:EmitVerb a cnv:Verb ;
     cnv:verbAbout "Append one operation-event to the working receipt" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:TypeArg , affi:ObjectArg , affi:PayloadArg , affi:FormatArg .
+    cnv:hasArgument affi:TypeArg ;
+    cnv:hasArgument affi:ObjectArg ;
+    cnv:hasArgument affi:PayloadArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:TypeArg affi:ObjectArg affi:PayloadArg affi:FormatArg ) .
 
 affi:TypeArg a cnv:Argument ;
+    cnv:fieldName "event_type" ;
+    cnv:argAlias "type" ;
     cnv:hasArgumentName "type" ;
     cnv:argumentAbout "The operation-event type" ;
     cnv:valueType "String" ;
@@ -161,7 +166,7 @@ affi:TypeArg a cnv:Argument ;
 affi:ObjectArg a cnv:Argument ;
     cnv:hasArgumentName "object" ;
     cnv:argumentAbout "A related object as `id:type` (repeatable)" ;
-    cnv:valueType "Vec<String>" ;
+    cnv:valueType "String" ;
     cnv:required "true" .
 
 affi:PayloadArg a cnv:Argument ;
@@ -177,7 +182,9 @@ affi:AssembleVerb a cnv:Verb ;
     cnv:verbAbout "Finalize the working receipt into an immutable receipt file" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:OutArg affi:FormatArg ) .
 
 affi:OutArg a cnv:Argument ;
     cnv:hasArgumentName "out" ;
@@ -187,12 +194,17 @@ affi:OutArg a cnv:Argument ;
 
 # --- Verb: verify -----------------------------------------------------------
 affi:VerifyVerb a cnv:Verb ;
+cnv:fieldName "verify" ;
     cnv:hasVerbName "verify" ;
     cnv:hasAlias "v" ;
     cnv:verbAbout "Run the certify pipeline over a receipt and print the verdict" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:VerifyReceiptArg , affi:FormatArg , affi:ProfileArg , affi:StrictArg .
+    cnv:hasArgument affi:VerifyReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArgument affi:ProfileArg ;
+    cnv:hasArgument affi:StrictArg ;
+    cnv:hasArguments ( affi:VerifyReceiptArg affi:FormatArg affi:ProfileArg affi:StrictArg ) .
 
 affi:VerifyReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -222,7 +234,9 @@ affi:ShowVerb a cnv:Verb ;
     cnv:verbAbout "Print a human-readable dump of a receipt chain" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ShowReceiptArg , affi:FormatArg .
+    cnv:hasArgument affi:ShowReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ShowReceiptArg affi:FormatArg ) .
 
 affi:ShowReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -238,7 +252,9 @@ affi:InspectVerb a cnv:Verb ;
     cnv:verbAbout "Detailed structural analysis of a receipt (event/object distribution)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:InspectReceiptArg , affi:FormatArg .
+    cnv:hasArgument affi:InspectReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:InspectReceiptArg affi:FormatArg ) .
 
 affi:InspectReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -254,7 +270,10 @@ affi:DiffVerb a cnv:Verb ;
     cnv:verbAbout "Compare two receipts and print their differences" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptAArg , affi:ReceiptBArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptAArg ;
+    cnv:hasArgument affi:ReceiptBArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptAArg affi:ReceiptBArg affi:FormatArg ) .
 
 affi:ReceiptAArg a cnv:Argument ;
     cnv:hasArgumentName "receipt-a" ;
@@ -276,7 +295,9 @@ affi:StatsVerb a cnv:Verb ;
     cnv:verbAbout "One-shot aggregate stats for a receipt (counts + DFG size + conformance)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:StatsReceiptArg , affi:FormatArg .
+    cnv:hasArgument affi:StatsReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:StatsReceiptArg affi:FormatArg ) .
 
 affi:StatsReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -291,7 +312,9 @@ affi:GraphVerb a cnv:Verb ;
     cnv:verbAbout "Discover the directly-follows graph from a receipt (wasm4pm)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:GraphReceiptArg , affi:FormatArg .
+    cnv:hasArgument affi:GraphReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:GraphReceiptArg affi:FormatArg ) .
 
 affi:GraphReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -306,7 +329,8 @@ affi:ReplayVerb a cnv:Verb ;
     cnv:verbAbout "Replay a receipt's event sequence step by step in lawful seq order" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReplayReceiptArg .
+    cnv:hasArgument affi:ReplayReceiptArg ;
+    cnv:hasArguments ( affi:ReplayReceiptArg ) .
 
 affi:ReplayReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -321,7 +345,8 @@ affi:ModelVerb a cnv:Verb ;
     cnv:verbAbout "Discover a process model from a receipt's events (wasm4pm)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ModelReceiptArg .
+    cnv:hasArgument affi:ModelReceiptArg ;
+    cnv:hasArguments ( affi:ModelReceiptArg ) .
 
 affi:ModelReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -336,7 +361,8 @@ affi:ConformanceVerb a cnv:Verb ;
     cnv:verbAbout "Compute fitness, activity coverage, and simplicity metrics" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ConformanceReceiptArg .
+    cnv:hasArgument affi:ConformanceReceiptArg ;
+    cnv:hasArguments ( affi:ConformanceReceiptArg ) .
 
 affi:ConformanceReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -351,7 +377,8 @@ affi:DiagnoseVerb a cnv:Verb ;
     cnv:verbAbout "Render verify outcomes as LSP-shaped diagnostics (lsp-max)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:DiagnoseReceiptArg .
+    cnv:hasArgument affi:DiagnoseReceiptArg ;
+    cnv:hasArguments ( affi:DiagnoseReceiptArg ) .
 
 affi:DiagnoseReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -366,7 +393,9 @@ affi:VisualizeVerb a cnv:Verb ;
     cnv:verbAbout "Visualize receipt as graph (DOT or JSON)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:VisualizeFormatArg , affi:VisualizeReceiptArg .
+    cnv:hasArgument affi:VisualizeFormatArg ;
+    cnv:hasArgument affi:VisualizeReceiptArg ;
+    cnv:hasArguments ( affi:VisualizeFormatArg affi:VisualizeReceiptArg ) .
 
 affi:VisualizeFormatArg a cnv:Argument ;
     cnv:hasArgumentName "format" ;
@@ -387,7 +416,9 @@ affi:CatalogVerb a cnv:Verb ;
     cnv:verbAbout "List and search available receipt fixtures" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:FilterNameArg , affi:FilterEventsArg .
+    cnv:hasArgument affi:FilterNameArg ;
+    cnv:hasArgument affi:FilterEventsArg ;
+    cnv:hasArguments ( affi:FilterNameArg affi:FilterEventsArg ) .
 
 affi:FilterNameArg a cnv:Argument ;
     cnv:hasArgumentName "filter-name" ;
@@ -411,7 +442,9 @@ affi:EmitBatchVerb a cnv:Verb ;
     cnv:verbAbout "Emit multiple events from JSON array in a single command" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:BatchFileArg , affi:FormatArg .
+    cnv:hasArgument affi:BatchFileArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:BatchFileArg affi:FormatArg ) .
 
 affi:BatchFileArg a cnv:Argument ;
     cnv:hasArgumentName "batch-file" ;
@@ -425,7 +458,10 @@ affi:EmitFromGitHubVerb a cnv:Verb ;
     cnv:verbAbout "Consume GitHub webhooks and emit events (push, PR, release, workflow)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:RepoArg , affi:EventTypeGHArg , affi:FormatArg .
+    cnv:hasArgument affi:RepoArg ;
+    cnv:hasArgument affi:EventTypeGHArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:RepoArg affi:EventTypeGHArg affi:FormatArg ) .
 
 affi:RepoArg a cnv:Argument ;
     cnv:hasArgumentName "repo" ;
@@ -435,7 +471,7 @@ affi:RepoArg a cnv:Argument ;
 
 affi:EventTypeGHArg a cnv:Argument ;
     cnv:hasArgumentName "event-type" ;
-    cnv:argumentAbout "GitHub event type (push|pull_request|release|workflow_run)" ;
+    cnv:argumentAbout "GitHub event type (pushorpull_requestorreleaseorworkflow_run)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
@@ -445,11 +481,14 @@ affi:EmitFromGitLabVerb a cnv:Verb ;
     cnv:verbAbout "Consume GitLab webhooks and emit events" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:RepoArg , affi:EventTypeGLArg , affi:FormatArg .
+    cnv:hasArgument affi:RepoArg ;
+    cnv:hasArgument affi:EventTypeGLArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:RepoArg affi:EventTypeGLArg affi:FormatArg ) .
 
 affi:EventTypeGLArg a cnv:Argument ;
     cnv:hasArgumentName "event-type" ;
-    cnv:argumentAbout "GitLab event type (push|merge_request|release|pipeline)" ;
+    cnv:argumentAbout "GitLab event type (pushormerge_requestorreleaseorpipeline)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
@@ -459,17 +498,20 @@ affi:EmitFromCICDVerb a cnv:Verb ;
     cnv:verbAbout "Consume CI/CD platform events (GitHub Actions, CircleCI, GitLab CI, Jenkins)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:CICDProviderArg , affi:JobStatusArg , affi:FormatArg .
+    cnv:hasArgument affi:CICDProviderArg ;
+    cnv:hasArgument affi:JobStatusArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:CICDProviderArg affi:JobStatusArg affi:FormatArg ) .
 
 affi:CICDProviderArg a cnv:Argument ;
     cnv:hasArgumentName "provider" ;
-    cnv:argumentAbout "CI/CD platform (github-actions|circleci|gitlab-ci|jenkins)" ;
+    cnv:argumentAbout "CI/CD platform (github-actionsorcircleciorgitlab-ciorjenkins)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
 affi:JobStatusArg a cnv:Argument ;
     cnv:hasArgumentName "job-status" ;
-    cnv:argumentAbout "Job outcome (success|failure|skipped)" ;
+    cnv:argumentAbout "Job outcome (successorfailureorskipped)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
@@ -479,17 +521,20 @@ affi:EmitFromMonitoringVerb a cnv:Verb ;
     cnv:verbAbout "Consume monitoring/observability events (Datadog, New Relic, Prometheus)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:MonitoringProviderArg , affi:AlertTypeArg , affi:FormatArg .
+    cnv:hasArgument affi:MonitoringProviderArg ;
+    cnv:hasArgument affi:AlertTypeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:MonitoringProviderArg affi:AlertTypeArg affi:FormatArg ) .
 
 affi:MonitoringProviderArg a cnv:Argument ;
     cnv:hasArgumentName "provider" ;
-    cnv:argumentAbout "Monitoring platform (datadog|newrelic|prometheus)" ;
+    cnv:argumentAbout "Monitoring platform (datadogornewrelicorprometheus)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
 affi:AlertTypeArg a cnv:Argument ;
     cnv:hasArgumentName "alert-type" ;
-    cnv:argumentAbout "Alert type (metric_alert|anomaly|slo_violation)" ;
+    cnv:argumentAbout "Alert type (metric_alertoranomalyorslo_violation)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
@@ -499,17 +544,20 @@ affi:EmitFromCloudVerb a cnv:Verb ;
     cnv:verbAbout "Consume cloud platform events (AWS CloudTrail, GCP Audit Logs, Azure Activity)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:CloudProviderArg , affi:ResourceTypeArg , affi:FormatArg .
+    cnv:hasArgument affi:CloudProviderArg ;
+    cnv:hasArgument affi:ResourceTypeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:CloudProviderArg affi:ResourceTypeArg affi:FormatArg ) .
 
 affi:CloudProviderArg a cnv:Argument ;
     cnv:hasArgumentName "provider" ;
-    cnv:argumentAbout "Cloud provider (aws|gcp|azure)" ;
+    cnv:argumentAbout "Cloud provider (awsorgcporazure)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
 affi:ResourceTypeArg a cnv:Argument ;
     cnv:hasArgumentName "resource-type" ;
-    cnv:argumentAbout "Resource type (compute|storage|database|network)" ;
+    cnv:argumentAbout "Resource type (computeorstorageordatabaseornetwork)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
@@ -519,17 +567,20 @@ affi:EmitFromSecurityVerb a cnv:Verb ;
     cnv:verbAbout "Consume security events (Snyk, SonarQube, Trivy, GitHub Advanced Security)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SecurityProviderArg , affi:VulnerabilityTypeArg , affi:FormatArg .
+    cnv:hasArgument affi:SecurityProviderArg ;
+    cnv:hasArgument affi:VulnerabilityTypeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SecurityProviderArg affi:VulnerabilityTypeArg affi:FormatArg ) .
 
 affi:SecurityProviderArg a cnv:Argument ;
     cnv:hasArgumentName "provider" ;
-    cnv:argumentAbout "Security scanner (snyk|sonarqube|trivy|ghas)" ;
+    cnv:argumentAbout "Security scanner (snykorsonarqubeortrivyorghas)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
 affi:VulnerabilityTypeArg a cnv:Argument ;
     cnv:hasArgumentName "vuln-type" ;
-    cnv:argumentAbout "Vulnerability type (sast|dast|sca|secret)" ;
+    cnv:argumentAbout "Vulnerability type (sastordastorscaorsecret)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
@@ -543,11 +594,14 @@ affi:AssembleWithSignatureVerb a cnv:Verb ;
     cnv:verbAbout "Assemble receipt and sign with Ed25519 or Sigstore keyless" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SigningMethodArg , affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:SigningMethodArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SigningMethodArg affi:OutArg affi:FormatArg ) .
 
 affi:SigningMethodArg a cnv:Argument ;
     cnv:hasArgumentName "signing-method" ;
-    cnv:argumentAbout "Signing method (ed25519|sigstore|hardware)" ;
+    cnv:argumentAbout "Signing method (ed25519orsigstoreorhardware)" ;
     cnv:valueType "String" ;
     cnv:required "false" ;
     cnv:defaultValue "sigstore" .
@@ -558,11 +612,14 @@ affi:AssembleAndNotarizeVerb a cnv:Verb ;
     cnv:verbAbout "Assemble receipt and obtain timestamp notarization from external authority" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:NotaryProviderArg , affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:NotaryProviderArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:NotaryProviderArg affi:OutArg affi:FormatArg ) .
 
 affi:NotaryProviderArg a cnv:Argument ;
     cnv:hasArgumentName "notary-provider" ;
-    cnv:argumentAbout "Notarization service (rfc3161|chronosphere|custom)" ;
+    cnv:argumentAbout "Notarization service (rfc3161orchronosphereorcustom)" ;
     cnv:valueType "String" ;
     cnv:required "false" ;
     cnv:defaultValue "rfc3161" .
@@ -577,7 +634,9 @@ affi:VerifyFamilyVerb a cnv:Verb ;
     cnv:verbAbout "Verify multiple receipts from same repo/org are consistent" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsDirectoryArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsDirectoryArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsDirectoryArg affi:FormatArg ) .
 
 affi:ReceiptsDirectoryArg a cnv:Argument ;
     cnv:hasArgumentName "receipts-dir" ;
@@ -591,7 +650,10 @@ affi:VerifySLAVerb a cnv:Verb ;
     cnv:verbAbout "Verify receipt meets SLA/SLO targets (e.g., 4h MTTR, 2-person approval)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:VerifyReceiptArg , affi:SLAFileArg , affi:FormatArg .
+    cnv:hasArgument affi:VerifyReceiptArg ;
+    cnv:hasArgument affi:SLAFileArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:VerifyReceiptArg affi:SLAFileArg affi:FormatArg ) .
 
 affi:SLAFileArg a cnv:Argument ;
     cnv:hasArgumentName "sla-file" ;
@@ -605,11 +667,14 @@ affi:VerifyComplianceVerb a cnv:Verb ;
     cnv:verbAbout "Verify receipt against compliance rules (SOC 2, GDPR, HIPAA, PCI-DSS)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:VerifyReceiptArg , affi:ComplianceFrameworkArg , affi:FormatArg .
+    cnv:hasArgument affi:VerifyReceiptArg ;
+    cnv:hasArgument affi:ComplianceFrameworkArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:VerifyReceiptArg affi:ComplianceFrameworkArg affi:FormatArg ) .
 
 affi:ComplianceFrameworkArg a cnv:Argument ;
     cnv:hasArgumentName "framework" ;
-    cnv:argumentAbout "Compliance framework (soc2|gdpr|hipaa|pci-dss)" ;
+    cnv:argumentAbout "Compliance framework (soc2orgdprorhipaaorpci-dss)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
@@ -619,11 +684,15 @@ affi:AttestVerb a cnv:Verb ;
     cnv:verbAbout "Create a signed attestation for a receipt (SLSA provenance)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:VerifyReceiptArg , affi:AttestationTypeArg , affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:VerifyReceiptArg ;
+    cnv:hasArgument affi:AttestationTypeArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:VerifyReceiptArg affi:AttestationTypeArg affi:OutArg affi:FormatArg ) .
 
 affi:AttestationTypeArg a cnv:Argument ;
     cnv:hasArgumentName "attestation-type" ;
-    cnv:argumentAbout "Attestation type (slsa-v1|in-toto|custom)" ;
+    cnv:argumentAbout "Attestation type (slsa-v1orin-totoorcustom)" ;
     cnv:valueType "String" ;
     cnv:required "false" ;
     cnv:defaultValue "slsa-v1" .
@@ -634,7 +703,10 @@ affi:NotarizeVerb a cnv:Verb ;
     cnv:verbAbout "Notarize a receipt with external authority (timestamp + signature)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:VerifyReceiptArg , affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:VerifyReceiptArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:VerifyReceiptArg affi:OutArg affi:FormatArg ) .
 
 # --- Verb: sign -----------------------------------------------------------
 affi:SignVerb a cnv:Verb ;
@@ -642,7 +714,11 @@ affi:SignVerb a cnv:Verb ;
     cnv:verbAbout "Sign a receipt or attestation with your key" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:VerifyReceiptArg , affi:KeyPathArg , affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:VerifyReceiptArg ;
+    cnv:hasArgument affi:KeyPathArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:VerifyReceiptArg affi:KeyPathArg affi:OutArg affi:FormatArg ) .
 
 affi:KeyPathArg a cnv:Argument ;
     cnv:hasArgumentName "key-path" ;
@@ -660,9 +736,13 @@ affi:QueryVerb a cnv:Verb ;
     cnv:verbAbout "Query receipts by time range, event type, repo, or SPARQL expression" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:QueryStringArg , affi:ReceiptsPathArg , affi:FormatArg .
+    cnv:hasArgument affi:QueryStringArg ;
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:QueryStringArg affi:ReceiptsPathArg affi:FormatArg ) .
 
 affi:QueryStringArg a cnv:Argument ;
+    cnv:fieldName "q" ;
     cnv:hasArgumentName "query" ;
     cnv:argumentAbout "Query expression (SPARQL or simple DSL)" ;
     cnv:valueType "String" ;
@@ -680,7 +760,11 @@ affi:TimelineVerb a cnv:Verb ;
     cnv:verbAbout "Render event timeline across receipts with causality swimlanes" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:StartTimeArg , affi:EndTimeArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:StartTimeArg ;
+    cnv:hasArgument affi:EndTimeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:StartTimeArg affi:EndTimeArg affi:FormatArg ) .
 
 affi:StartTimeArg a cnv:Argument ;
     cnv:hasArgumentName "start-time" ;
@@ -700,7 +784,10 @@ affi:CausalityChainVerb a cnv:Verb ;
     cnv:verbAbout "Trace causal event chain (X caused Y caused Z)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:StartEventArg , affi:ReceiptsPathArg , affi:FormatArg .
+    cnv:hasArgument affi:StartEventArg ;
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:StartEventArg affi:ReceiptsPathArg affi:FormatArg ) .
 
 affi:StartEventArg a cnv:Argument ;
     cnv:hasArgumentName "start-event" ;
@@ -710,11 +797,15 @@ affi:StartEventArg a cnv:Argument ;
 
 # --- Verb: search ---------------------------------------------------------
 affi:SearchVerb a cnv:Verb ;
+cnv:fieldName "search" ;
     cnv:hasVerbName "search" ;
     cnv:verbAbout "Full-text search over receipt payloads (grep-like)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SearchPatternArg , affi:ReceiptsPathArg , affi:FormatArg .
+    cnv:hasArgument affi:SearchPatternArg ;
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SearchPatternArg affi:ReceiptsPathArg affi:FormatArg ) .
 
 affi:SearchPatternArg a cnv:Argument ;
     cnv:hasArgumentName "pattern" ;
@@ -728,7 +819,10 @@ affi:FindBlastRadiusVerb a cnv:Verb ;
     cnv:verbAbout "Find all downstream repos/services affected by a change" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ChangeEventArg , affi:ReceiptsPathArg , affi:FormatArg .
+    cnv:hasArgument affi:ChangeEventArg ;
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ChangeEventArg affi:ReceiptsPathArg affi:FormatArg ) .
 
 affi:ChangeEventArg a cnv:Argument ;
     cnv:hasArgumentName "change-event" ;
@@ -746,7 +840,10 @@ affi:DORAMetricsVerb a cnv:Verb ;
     cnv:verbAbout "Compute DORA 4 Key Metrics (deployment frequency, lead time, MTTR, change failure rate)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:TimeRangeArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:TimeRangeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:TimeRangeArg affi:FormatArg ) .
 
 affi:TimeRangeArg a cnv:Argument ;
     cnv:hasArgumentName "time-range" ;
@@ -761,7 +858,10 @@ affi:TeamVelocityVerb a cnv:Verb ;
     cnv:verbAbout "Compute team productivity metrics (PR review time, code review latency, rework)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:TimeRangeArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:TimeRangeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:TimeRangeArg affi:FormatArg ) .
 
 # --- Verb: tech-debt -------------------------------------------------------
 affi:TechDebtVerb a cnv:Verb ;
@@ -769,7 +869,10 @@ affi:TechDebtVerb a cnv:Verb ;
     cnv:verbAbout "Analyze technical debt (code churn, refactoring events, complexity trends)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:TimeRangeArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:TimeRangeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:TimeRangeArg affi:FormatArg ) .
 
 # --- Verb: security-debt --------------------------------------------------
 affi:SecurityDebtVerb a cnv:Verb ;
@@ -777,7 +880,10 @@ affi:SecurityDebtVerb a cnv:Verb ;
     cnv:verbAbout "Analyze security debt (unpatched vulns, CVE age, remediation lag)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:TimeRangeArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:TimeRangeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:TimeRangeArg affi:FormatArg ) .
 
 # --- Verb: coverage-analysis -----------------------------------------------
 affi:CoverageAnalysisVerb a cnv:Verb ;
@@ -785,7 +891,10 @@ affi:CoverageAnalysisVerb a cnv:Verb ;
     cnv:verbAbout "Analyze test coverage trends across portfolio" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:TimeRangeArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:TimeRangeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:TimeRangeArg affi:FormatArg ) .
 
 # --- Verb: anomaly-detect -------------------------------------------------
 affi:AnomalyDetectVerb a cnv:Verb ;
@@ -793,11 +902,14 @@ affi:AnomalyDetectVerb a cnv:Verb ;
     cnv:verbAbout "Detect anomalies (unusual deploy timing, error rate spikes, latency changes)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:SensitivityArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:SensitivityArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:SensitivityArg affi:FormatArg ) .
 
 affi:SensitivityArg a cnv:Argument ;
     cnv:hasArgumentName "sensitivity" ;
-    cnv:argumentAbout "Anomaly detection sensitivity (1σ|2σ|3σ)" ;
+    cnv:argumentAbout "Anomaly detection sensitivity (1σor2σor3σ)" ;
     cnv:valueType "String" ;
     cnv:required "false" ;
     cnv:defaultValue "2σ" .
@@ -808,17 +920,21 @@ affi:PredictVerb a cnv:Verb ;
     cnv:verbAbout "Predict outcomes (CI pass rate, deploy success, MTTR) using historical data" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:PredictionTypeArg , affi:ModelArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:PredictionTypeArg ;
+    cnv:hasArgument affi:ModelArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:PredictionTypeArg affi:ModelArg affi:FormatArg ) .
 
 affi:PredictionTypeArg a cnv:Argument ;
     cnv:hasArgumentName "prediction-type" ;
-    cnv:argumentAbout "What to predict (ci-pass|deploy-success|mttr)" ;
+    cnv:argumentAbout "What to predict (ci-passordeploy-successormttr)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
 affi:ModelArg a cnv:Argument ;
     cnv:hasArgumentName "model" ;
-    cnv:argumentAbout "ML model to use (random-forest|logistic-regression)" ;
+    cnv:argumentAbout "ML model to use (random-forestorlogistic-regression)" ;
     cnv:valueType "String" ;
     cnv:required "false" ;
     cnv:defaultValue "random-forest" .
@@ -829,11 +945,15 @@ affi:TrendAnalysisVerb a cnv:Verb ;
     cnv:verbAbout "Analyze trends (deployment velocity, test coverage, incident rate)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:TrendMetricArg , affi:TimeRangeArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:TrendMetricArg ;
+    cnv:hasArgument affi:TimeRangeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:TrendMetricArg affi:TimeRangeArg affi:FormatArg ) .
 
 affi:TrendMetricArg a cnv:Argument ;
     cnv:hasArgumentName "metric" ;
-    cnv:argumentAbout "Metric to analyze (velocity|coverage|incidents)" ;
+    cnv:argumentAbout "Metric to analyze (velocityorcoverageorincidents)" ;
     cnv:valueType "String" ;
     cnv:required "true" .
 
@@ -847,11 +967,15 @@ affi:SOC2AuditVerb a cnv:Verb ;
     cnv:verbAbout "Generate SOC 2 audit trail and compliance proof from receipts" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:SOC2TypeArg , affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:SOC2TypeArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:SOC2TypeArg affi:OutArg affi:FormatArg ) .
 
 affi:SOC2TypeArg a cnv:Argument ;
     cnv:hasArgumentName "soc2-type" ;
-    cnv:argumentAbout "SOC 2 type (I|II)" ;
+    cnv:argumentAbout "SOC 2 type (IorII)" ;
     cnv:valueType "String" ;
     cnv:required "false" ;
     cnv:defaultValue "II" .
@@ -862,7 +986,10 @@ affi:GDPRProofVerb a cnv:Verb ;
     cnv:verbAbout "Generate GDPR compliance proof (data access logs, deletion confirmation)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:OutArg affi:FormatArg ) .
 
 # --- Verb: hipaa -----------------------------------------------------------
 affi:HIPAAVerb a cnv:Verb ;
@@ -870,7 +997,10 @@ affi:HIPAAVerb a cnv:Verb ;
     cnv:verbAbout "Generate HIPAA compliance proof (access control, encryption, audit trails)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:OutArg affi:FormatArg ) .
 
 # --- Verb: pci-dss --------------------------------------------------------
 affi:PCIDSSVerb a cnv:Verb ;
@@ -878,7 +1008,10 @@ affi:PCIDSSVerb a cnv:Verb ;
     cnv:verbAbout "Generate PCI-DSS compliance proof (secure deployment, incident response)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:OutArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:OutArg affi:FormatArg ) .
 
 # --- Verb: license-compliance -----------------------------------------------
 affi:LicenseComplianceVerb a cnv:Verb ;
@@ -886,7 +1019,10 @@ affi:LicenseComplianceVerb a cnv:Verb ;
     cnv:verbAbout "Check license compliance (GPL, SSPL, commercial licenses)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:LicensePolicyArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:LicensePolicyArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:LicensePolicyArg affi:FormatArg ) .
 
 affi:LicensePolicyArg a cnv:Argument ;
     cnv:hasArgumentName "license-policy" ;
@@ -900,7 +1036,10 @@ affi:PolicyEnforceVerb a cnv:Verb ;
     cnv:verbAbout "Enforce organizational policies (2-person approval, segregation of duties)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:PolicyFileArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:PolicyFileArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:PolicyFileArg affi:FormatArg ) .
 
 affi:PolicyFileArg a cnv:Argument ;
     cnv:hasArgumentName "policy-file" ;
@@ -918,7 +1057,10 @@ affi:PortfolioHealthVerb a cnv:Verb ;
     cnv:verbAbout "Assess health of entire 300+ repo portfolio (tech debt, security, coverage)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:TimeRangeArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:TimeRangeArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:TimeRangeArg affi:FormatArg ) .
 
 # --- Verb: dependency-matrix -----------------------------------------------
 affi:DependencyMatrixVerb a cnv:Verb ;
@@ -926,11 +1068,14 @@ affi:DependencyMatrixVerb a cnv:Verb ;
     cnv:verbAbout "Build dependency matrix across all repos (who uses what library versions)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:OutputMatrixArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:OutputMatrixArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:OutputMatrixArg affi:FormatArg ) .
 
 affi:OutputMatrixArg a cnv:Argument ;
     cnv:hasArgumentName "output-matrix" ;
-    cnv:argumentAbout "Output format (csv|json|graphml)" ;
+    cnv:argumentAbout "Output format (csvorjsonorgraphml)" ;
     cnv:valueType "String" ;
     cnv:required "false" ;
     cnv:defaultValue "csv" .
@@ -941,7 +1086,9 @@ affi:BusFactorVerb a cnv:Verb ;
     cnv:verbAbout "Calculate bus factor (if person X leaves, how many repos are at risk)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:FormatArg ) .
 
 # --- Verb: orphaned-code ---------------------------------------------------
 affi:OrphanedCodeVerb a cnv:Verb ;
@@ -949,7 +1096,10 @@ affi:OrphanedCodeVerb a cnv:Verb ;
     cnv:verbAbout "Find repos with no commits in N days (orphaned/unmaintained)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ReceiptsPathArg , affi:DaysThresholdArg , affi:FormatArg .
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:DaysThresholdArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ReceiptsPathArg affi:DaysThresholdArg affi:FormatArg ) .
 
 affi:DaysThresholdArg a cnv:Argument ;
     cnv:hasArgumentName "days" ;
@@ -968,7 +1118,10 @@ affi:ExplainIncidentVerb a cnv:Verb ;
     cnv:verbAbout "Explain root cause of incident (trace from error to code change to PR)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:IncidentDescArg , affi:ReceiptsPathArg , affi:FormatArg .
+    cnv:hasArgument affi:IncidentDescArg ;
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:IncidentDescArg affi:ReceiptsPathArg affi:FormatArg ) .
 
 affi:IncidentDescArg a cnv:Argument ;
     cnv:hasArgumentName "incident-desc" ;
@@ -982,7 +1135,10 @@ affi:RootCauseVerb a cnv:Verb ;
     cnv:verbAbout "RCA: find root cause by walking event chain backwards" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:EffectEventArg , affi:ReceiptsPathArg , affi:FormatArg .
+    cnv:hasArgument affi:EffectEventArg ;
+    cnv:hasArgument affi:ReceiptsPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:EffectEventArg affi:ReceiptsPathArg affi:FormatArg ) .
 
 affi:EffectEventArg a cnv:Argument ;
     cnv:hasArgumentName "effect-event" ;
@@ -1012,7 +1168,8 @@ affi:ReceiptThroughputVerb a cnv:Verb ;
     cnv:verbAbout "Measure end-to-end latency of the emit -> assemble -> verify pipeline" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:BenchIterationsArg .
+    cnv:hasArgument affi:BenchIterationsArg ;
+    cnv:hasArguments ( affi:BenchIterationsArg ) .
 
 # --- Verb: variance ---------------------------------------------------------
 affi:VarianceVerb a cnv:Verb ;
@@ -1020,7 +1177,9 @@ affi:VarianceVerb a cnv:Verb ;
     cnv:verbAbout "Measure control-flow surprise (anomaly score) and its computation cost" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:BenchReceiptArg , affi:BenchIterationsArg .
+    cnv:hasArgument affi:BenchReceiptArg ;
+    cnv:hasArgument affi:BenchIterationsArg ;
+    cnv:hasArguments ( affi:BenchReceiptArg affi:BenchIterationsArg ) .
 
 # --- Verb: profile ----------------------------------------------------------
 affi:ProfileVerb a cnv:Verb ;
@@ -1028,7 +1187,9 @@ affi:ProfileVerb a cnv:Verb ;
     cnv:verbAbout "Run a sustained workload for flamegraph profiling" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:BenchReceiptArg , affi:BenchDurationArg .
+    cnv:hasArgument affi:BenchReceiptArg ;
+    cnv:hasArgument affi:BenchDurationArg ;
+    cnv:hasArguments ( affi:BenchReceiptArg affi:BenchDurationArg ) .
 
 # --- Shared Arguments for Bench Noun ---
 
@@ -1078,11 +1239,14 @@ affi:AuditVerb a cnv:Verb ;
 
 # --- Verb: emit-from-sbom ---------------------------------------------------
 affi:EmitFromSbomVerb a cnv:Verb ;
+    cnv:fieldName "sbom_emit" ;
     cnv:hasVerbName "emit-from-sbom" ;
     cnv:verbAbout "Ingest an SPDX/CycloneDX SBOM and emit OCEL component/dependency events" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SbomPathArg , affi:FormatArg .
+    cnv:hasArgument affi:SbomPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SbomPathArg affi:FormatArg ) .
 
 affi:SbomPathArg a cnv:Argument ;
     cnv:hasArgumentName "sbom-path" ;
@@ -1096,7 +1260,9 @@ affi:SbomNtiaVerb a cnv:Verb ;
     cnv:verbAbout "Certify an SBOM against the NTIA minimum elements (EO 14028)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SbomPathArg , affi:FormatArg .
+    cnv:hasArgument affi:SbomPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SbomPathArg affi:FormatArg ) .
 
 # --- Verb: sbom-compliance --------------------------------------------------
 affi:SbomComplianceVerb a cnv:Verb ;
@@ -1104,11 +1270,14 @@ affi:SbomComplianceVerb a cnv:Verb ;
     cnv:verbAbout "Assess an SBOM against NTIA/EO14028/SLSA/in-toto/CISA/C-SCRM frameworks" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SbomPathArg , affi:FrameworkArg , affi:FormatArg .
+    cnv:hasArgument affi:SbomPathArg ;
+    cnv:hasArgument affi:FrameworkArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SbomPathArg affi:FrameworkArg affi:FormatArg ) .
 
 affi:FrameworkArg a cnv:Argument ;
     cnv:hasArgumentName "framework" ;
-    cnv:argumentAbout "Compliance framework or 'all' (ntia|eo14028|slsa|in-toto|cisa|cscrm|iso27001|soc2|vex|all)" ;
+    cnv:argumentAbout "Compliance framework or 'all' (ntiaoreo14028orslsaorin-totoorcisaorcscrmoriso27001orsoc2orvexorall)" ;
     cnv:valueType "String" ;
     cnv:required "false" .
 
@@ -1118,7 +1287,10 @@ affi:SbomScanVerb a cnv:Verb ;
     cnv:verbAbout "Correlate vulnerabilities/VEX against SBOM components and propagate risk" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SbomPathArg , affi:AdvisoriesPathArg , affi:FormatArg .
+    cnv:hasArgument affi:SbomPathArg ;
+    cnv:hasArgument affi:AdvisoriesPathArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SbomPathArg affi:AdvisoriesPathArg affi:FormatArg ) .
 
 affi:AdvisoriesPathArg a cnv:Argument ;
     cnv:hasArgumentName "advisories-path" ;
@@ -1132,7 +1304,10 @@ affi:SbomBlastRadiusVerb a cnv:Verb ;
     cnv:verbAbout "Compute the supply-chain blast radius of a component (transitive dependents)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SbomPathArg , affi:ComponentArg , affi:FormatArg .
+    cnv:hasArgument affi:SbomPathArg ;
+    cnv:hasArgument affi:ComponentArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SbomPathArg affi:ComponentArg affi:FormatArg ) .
 
 affi:ComponentArg a cnv:Argument ;
     cnv:hasArgumentName "component" ;
@@ -1146,7 +1321,10 @@ affi:SbomAttestVerb a cnv:Verb ;
     cnv:verbAbout "Emit a SLSA-flavored provenance attestation linking SBOM address to receipt" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SbomPathArg , affi:AttestReceiptArg , affi:FormatArg .
+    cnv:hasArgument affi:SbomPathArg ;
+    cnv:hasArgument affi:AttestReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SbomPathArg affi:AttestReceiptArg affi:FormatArg ) .
 
 affi:AttestReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -1166,7 +1344,9 @@ affi:WhyVerb a cnv:Verb ;
     cnv:verbAbout "Explain in plain language why a receipt was rejected, with stage-by-stage remediation" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:WhyReceiptArg , affi:FormatArg .
+    cnv:hasArgument affi:WhyReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:WhyReceiptArg affi:FormatArg ) .
 
 affi:WhyReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -1176,11 +1356,16 @@ affi:WhyReceiptArg a cnv:Argument ;
 
 # --- Verb: fix --------------------------------------------------------------
 affi:FixVerb a cnv:Verb ;
+    cnv:fieldName "fix_receipt" ;
     cnv:hasVerbName "fix" ;
     cnv:verbAbout "Apply a safe structural repair to a receipt: quarantine a tampered file or finalize a stale working receipt" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:FixReceiptArg , affi:FixActionArg , affi:FixDryRunArg , affi:FormatArg .
+    cnv:hasArgument affi:FixReceiptArg ;
+    cnv:hasArgument affi:FixActionArg ;
+    cnv:hasArgument affi:FixDryRunArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:FixReceiptArg affi:FixActionArg affi:FixDryRunArg affi:FormatArg ) .
 
 affi:FixReceiptArg a cnv:Argument ;
     cnv:hasArgumentName "receipt" ;
@@ -1198,7 +1383,7 @@ affi:FixDryRunArg a cnv:Argument ;
     cnv:hasArgumentName "dry-run" ;
     cnv:argumentAbout "Preview the repair without writing any file" ;
     cnv:valueType "bool" ;
-    cnv:required "false" ;
+    cnv:required "true" ;
     cnv:defaultValue "false" .
 
 # --- Verb: install-git-hook -------------------------------------------------
@@ -1207,7 +1392,8 @@ affi:InstallGitHookVerb a cnv:Verb ;
     cnv:verbAbout "Install a post-commit Git hook that monitors code quality violations" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:HookThresholdArg .
+    cnv:hasArgument affi:HookThresholdArg ;
+    cnv:hasArguments ( affi:HookThresholdArg ) .
 
 affi:HookThresholdArg a cnv:Argument ;
     cnv:hasArgumentName "threshold" ;
@@ -1221,7 +1407,14 @@ affi:MonitorVerb a cnv:Verb ;
     cnv:verbAbout "Monitor code quality in real-time using Western Electric control-chart rules" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:MonitorWatchArg , affi:MonitorMetricsArg , affi:MonitorRulesArg , affi:MonitorBaselineCommitsArg , affi:MonitorIntervalArg , affi:MonitorOutputArg , affi:FormatArg .
+    cnv:hasArgument affi:MonitorWatchArg ;
+    cnv:hasArgument affi:MonitorMetricsArg ;
+    cnv:hasArgument affi:MonitorRulesArg ;
+    cnv:hasArgument affi:MonitorBaselineCommitsArg ;
+    cnv:hasArgument affi:MonitorIntervalArg ;
+    cnv:hasArgument affi:MonitorOutputArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:MonitorWatchArg affi:MonitorMetricsArg affi:MonitorRulesArg affi:MonitorBaselineCommitsArg affi:MonitorIntervalArg affi:MonitorOutputArg affi:FormatArg ) .
 
 affi:MonitorWatchArg a cnv:Argument ;
     cnv:hasArgumentName "watch" ;
@@ -1286,7 +1479,9 @@ affi:DoctorVerb a cnv:Verb ;
     cnv:verbAbout "Run environment and receipt-store health checks; optionally apply safe automatic fixes" ;
     cnv:belongsToNoun affi:AffiNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:DoctorReceiptsArg , affi:DoctorFixArg .
+    cnv:hasArgument affi:DoctorReceiptsArg ;
+    cnv:hasArgument affi:DoctorFixArg ;
+    cnv:hasArguments ( affi:DoctorReceiptsArg affi:DoctorFixArg ) .
 
 affi:DoctorReceiptsArg a cnv:Argument ;
     cnv:hasArgumentName "receipts" ;
@@ -1298,16 +1493,19 @@ affi:DoctorFixArg a cnv:Argument ;
     cnv:hasArgumentName "fix" ;
     cnv:argumentAbout "Apply the safe automatic repairs the check identifies" ;
     cnv:valueType "bool" ;
-    cnv:required "false" ;
+    cnv:required "true" ;
     cnv:defaultValue "false" .
 
 # --- Verb: guide search -----------------------------------------------------
 affi:GuideSearchVerb a cnv:Verb ;
+cnv:fieldName "guide_search" ;
     cnv:hasVerbName "search" ;
     cnv:verbAbout "Search the verb registry by keyword to discover relevant commands" ;
     cnv:belongsToNoun affi:GuideNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:GuideKeywordArg , affi:FormatArg .
+    cnv:hasArgument affi:GuideKeywordArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:GuideKeywordArg affi:FormatArg ) .
 
 affi:GuideKeywordArg a cnv:Argument ;
     cnv:hasArgumentName "keyword" ;
@@ -1373,11 +1571,17 @@ affi:SealedReceiptArg a cnv:Argument ;
 
 # --- Verb: standing certify -------------------------------------------------
 affi:StandingCertifyVerb a cnv:Verb ;
+cnv:fieldName "standing_certify" ;
     cnv:hasVerbName "certify" ;
     cnv:verbAbout "Seal a standing claim over an admitted receipt (affidavit/standing/v2)" ;
     cnv:belongsToNoun affi:StandingNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:FederationSourceReceiptArg , affi:FederationObservationArg , affi:StandingScopeArg , affi:FederationOutArg , affi:FormatArg .
+    cnv:hasArgument affi:FederationSourceReceiptArg ;
+    cnv:hasArgument affi:FederationObservationArg ;
+    cnv:hasArgument affi:StandingScopeArg ;
+    cnv:hasArgument affi:FederationOutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:FederationSourceReceiptArg affi:FederationObservationArg affi:StandingScopeArg affi:FederationOutArg affi:FormatArg ) .
 
 affi:StandingScopeArg a cnv:Argument ;
     cnv:hasArgumentName "scope" ;
@@ -1387,51 +1591,75 @@ affi:StandingScopeArg a cnv:Argument ;
 
 # --- Verb: standing verify --------------------------------------------------
 affi:StandingVerifyVerb a cnv:Verb ;
+cnv:fieldName "standing_verify" ;
     cnv:hasVerbName "verify" ;
     cnv:verbAbout "Re-run the standing law over a sealed standing receipt" ;
     cnv:belongsToNoun affi:StandingNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SealedReceiptArg , affi:FormatArg .
+    cnv:hasArgument affi:SealedReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SealedReceiptArg affi:FormatArg ) .
 
 # --- Verb: ecosystem certify ------------------------------------------------
 affi:EcosystemCertifyVerb a cnv:Verb ;
+cnv:fieldName "ecosystem_certify" ;
     cnv:hasVerbName "certify" ;
     cnv:verbAbout "Federate sealed member standing receipts into one quorum-scored receipt" ;
     cnv:belongsToNoun affi:EcosystemNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:FederationSourceReceiptArg , affi:FederationObservationArg , affi:FederationOutArg , affi:FormatArg .
+    cnv:hasArgument affi:FederationSourceReceiptArg ;
+    cnv:hasArgument affi:FederationObservationArg ;
+    cnv:hasArgument affi:FederationOutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:FederationSourceReceiptArg affi:FederationObservationArg affi:FederationOutArg affi:FormatArg ) .
 
 # --- Verb: ecosystem verify -------------------------------------------------
 affi:EcosystemVerifyVerb a cnv:Verb ;
+cnv:fieldName "ecosystem_verify" ;
     cnv:hasVerbName "verify" ;
     cnv:verbAbout "Re-run the federation law over a sealed ecosystem receipt" ;
     cnv:belongsToNoun affi:EcosystemNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SealedReceiptArg , affi:FormatArg .
+    cnv:hasArgument affi:SealedReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SealedReceiptArg affi:FormatArg ) .
 
 # --- Verb: errc certify -----------------------------------------------------
 affi:ErrcCertifyVerb a cnv:Verb ;
+cnv:fieldName "errc_certify" ;
     cnv:hasVerbName "certify" ;
     cnv:verbAbout "Seal a declared ERRC transformation (affidavit/errc/v1)" ;
     cnv:belongsToNoun affi:ErrcNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:FederationSourceReceiptArg , affi:FederationObservationArg , affi:FederationOutArg , affi:FormatArg .
+    cnv:hasArgument affi:FederationSourceReceiptArg ;
+    cnv:hasArgument affi:FederationObservationArg ;
+    cnv:hasArgument affi:FederationOutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:FederationSourceReceiptArg affi:FederationObservationArg affi:FederationOutArg affi:FormatArg ) .
 
 # --- Verb: errc verify ------------------------------------------------------
 affi:ErrcVerifyVerb a cnv:Verb ;
+cnv:fieldName "errc_verify" ;
     cnv:hasVerbName "verify" ;
     cnv:verbAbout "Re-run the ERRC directional and preservation laws over a sealed receipt" ;
     cnv:belongsToNoun affi:ErrcNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SealedReceiptArg , affi:FormatArg .
+    cnv:hasArgument affi:SealedReceiptArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SealedReceiptArg affi:FormatArg ) .
 
 # --- Verb: errc assure ------------------------------------------------------
 affi:ErrcAssureVerb a cnv:Verb ;
+    cnv:fieldName "errc_assure" ;
     cnv:hasVerbName "assure" ;
     cnv:verbAbout "Seal a one-witness-per-claim assurance ledger over a sealed ERRC receipt" ;
     cnv:belongsToNoun affi:ErrcNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:ErrcParentArg , affi:ErrcWitnessesArg , affi:FederationOutArg , affi:FormatArg .
+    cnv:hasArgument affi:ErrcParentArg ;
+    cnv:hasArgument affi:ErrcWitnessesArg ;
+    cnv:hasArgument affi:FederationOutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:ErrcParentArg affi:ErrcWitnessesArg affi:FederationOutArg affi:FormatArg ) .
 
 affi:ErrcParentArg a cnv:Argument ;
     cnv:hasArgumentName "parent" ;
@@ -1447,14 +1675,137 @@ affi:ErrcWitnessesArg a cnv:Argument ;
 
 # --- Verb: errc verify-assurance --------------------------------------------
 affi:ErrcVerifyAssuranceVerb a cnv:Verb ;
+    cnv:fieldName "errc_verify_assurance" ;
     cnv:hasVerbName "verify-assurance" ;
     cnv:verbAbout "Re-run the claim-assurance law, optionally binding to the exact parent ERRC receipt" ;
     cnv:belongsToNoun affi:ErrcNoun ;
     cnv:returnType "()" ;
-    cnv:hasArguments affi:SealedReceiptArg , affi:OptionalErrcParentArg , affi:FormatArg .
+    cnv:hasArgument affi:SealedReceiptArg ;
+    cnv:hasArgument affi:OptionalErrcParentArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:SealedReceiptArg affi:OptionalErrcParentArg affi:FormatArg ) .
 
 affi:OptionalErrcParentArg a cnv:Argument ;
     cnv:hasArgumentName "parent" ;
     cnv:argumentAbout "Optional sealed parent ERRC receipt to bind the assurance ledger to" ;
     cnv:valueType "String" ;
     cnv:required "false" .
+
+# ============================================================================
+# CRYPTOGRAPHIC TRUST PLANE NOUNS — `affi keys <verb>`, `affi envelope <verb>`.
+#
+# v26.9.28 trust-plane wave, lane W3-L6. These verbs drive the rendered
+# crypto_trust_* modules (affidavit-trust-plane-pack): `keys` mints real ES256
+# signing keys into a durable public-key store; `envelope` seals admitted
+# receipts under a key and adjudicates the sealed document back to a
+# cryptographic standing. The handlers behind the seam
+# (crate::handlers::{keys_generate,keys_list,envelope_sign,envelope_verify})
+# carry the crypto-trust feature gate; the wrapper files this block renders
+# (src/verbs/{keys_generate,keys_list,envelope_sign,envelope_verify}.rs) are
+# the usual thin projections.
+#
+# cnv:fieldName on every verb pins handler_name to the snake noun_verb form
+# (the federation precedent): the `sign`/`verify` verb tokens already exist
+# under the receipt noun, so snake(verb_name) alone would collide with
+# crate::handlers::{sign,verify} and give every trust-plane handler a
+# non-namespaced name. Dispatch keys stay the bare verb tokens.
+# ============================================================================
+
+affi:KeysNoun a cnv:Noun ;
+    cnv:hasNounName "keys" ;
+    cnv:nounAbout "Generate and list trust-plane signing keys (the public-key registry)" ;
+    cnv:hasVerbs affi:KeysGenerateVerb , affi:KeysListVerb ;
+    rdfs:comment "The keys noun: affi keys <generate|list>"@en .
+
+affi:EnvelopeNoun a cnv:Noun ;
+    cnv:hasNounName "envelope" ;
+    cnv:nounAbout "Seal and verify signature envelopes over provenance receipts (PQ-SEAL-v1)" ;
+    cnv:hasVerbs affi:EnvelopeSignVerb , affi:EnvelopeVerifyVerb ;
+    rdfs:comment "The envelope noun: affi envelope <sign|verify>"@en .
+
+# --- Verb: keys generate -----------------------------------------------------
+affi:KeysGenerateVerb a cnv:Verb ;
+    cnv:fieldName "keys_generate" ;
+    cnv:hasVerbName "generate" ;
+    cnv:verbAbout "Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)" ;
+    cnv:belongsToNoun affi:KeysNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:KeysAlgorithmArg ;
+    cnv:hasArgument affi:KeysCustodianArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArguments ( affi:KeysAlgorithmArg affi:KeysCustodianArg affi:OutArg ) .
+
+affi:KeysAlgorithmArg a cnv:Argument ;
+    cnv:hasArgumentName "algorithm" ;
+    cnv:argumentAbout "Signature algorithm: ES256 (the only family with a software signing provider; PQC families are registry-admitted but have no software signer)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+affi:KeysCustodianArg a cnv:Argument ;
+    cnv:hasArgumentName "custodian" ;
+    cnv:argumentAbout "Custodian subject the key is registered under (identity only — custody never confers authority)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 2 .
+
+# --- Verb: keys list ---------------------------------------------------------
+affi:KeysListVerb a cnv:Verb ;
+    cnv:fieldName "keys_list" ;
+    cnv:hasVerbName "list" ;
+    cnv:verbAbout "List registered key records: kid, algorithm, fingerprint, custodian" ;
+    cnv:belongsToNoun affi:KeysNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:KeysStoreArg ;
+    cnv:hasArguments ( affi:KeysStoreArg ) .
+
+affi:KeysStoreArg a cnv:Argument ;
+    cnv:hasArgumentName "store" ;
+    cnv:argumentAbout "Path to the key-store JSON (default: .affi/keys.json)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+# --- Verb: envelope sign -----------------------------------------------------
+affi:EnvelopeSignVerb a cnv:Verb ;
+    cnv:fieldName "envelope_sign" ;
+    cnv:hasVerbName "sign" ;
+    cnv:verbAbout "Seal a receipt under an ES256 key: build the CTP envelope, sign its canonical pre-image, write the PQ-SEAL-v1 document" ;
+    cnv:belongsToNoun affi:EnvelopeNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:EnvelopeReceiptArg ;
+    cnv:hasArgument affi:EnvelopeKeyFileArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArguments ( affi:EnvelopeReceiptArg affi:EnvelopeKeyFileArg affi:OutArg ) .
+
+affi:EnvelopeReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to the sealed core/v1 receipt the envelope attests" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+affi:EnvelopeKeyFileArg a cnv:Argument ;
+    cnv:hasArgumentName "key-file" ;
+    cnv:argumentAbout "File holding the raw 32-byte hex signing secret (test/dev custody with real bytes; production custody is a non-exportable HSM or Secure Enclave provider)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 2 .
+
+# --- Verb: envelope verify ---------------------------------------------------
+affi:EnvelopeVerifyVerb a cnv:Verb ;
+    cnv:fieldName "envelope_verify" ;
+    cnv:hasVerbName "verify" ;
+    cnv:verbAbout "Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT JSON (exit 0=VALID, 2=decided otherwise)" ;
+    cnv:belongsToNoun affi:EnvelopeNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:EnvelopeSealedFileArg ;
+    cnv:hasArgument affi:KeysStoreArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:EnvelopeSealedFileArg affi:KeysStoreArg affi:FormatArg ) .
+
+affi:EnvelopeSealedFileArg a cnv:Argument ;
+    cnv:hasArgumentName "sealed-file" ;
+    cnv:argumentAbout "Path to the PQ-SEAL-v1 sealed receipt JSON to adjudicate" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .

@@ -2,7 +2,7 @@
 name = "affidavit"
 version = "26.9.28"
 edition = "2021"
-rust-version = "1.78"
+rust-version = "1.85"
 description = "Provenance Layer — receipt assembly and certification (verify a witness against a format standard; never decide honesty)."
 license = "MIT OR Apache-2.0"
 authors = ["Sean Chatman <xpointsh@gmail.com>"]
@@ -155,6 +155,19 @@ rayon = { version = "1", optional = true }
 criterion = { version = "0.8", optional = true }
 rand = { version = "0.8", optional = true }
 
+# --- Cryptographic trust plane (affidavit-trust-plane-pack projections) ---
+# Real implementations only: ES256 (RFC 6979 deterministic), ML-DSA-65 (FIPS 204),
+# SLH-DSA-SHA2-128s (FIPS 205), hybrid composition at the encoded-bytes level.
+signature = { version = "2.2", optional = true }
+p256 = { version = "0.13.2", optional = true }
+ml-dsa = { version = "0.1.1", optional = true }
+slh-dsa = { version = "=0.2.0-rc.5", optional = true }
+rand_core = { version = "0.6", features = ["getrandom"], optional = true }
+
+# Secure Enclave signing adapter (macOS; Security.framework, non-exportable P-256).
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = { version = "3.7", optional = true }
+
 # GPU Acceleration (1000X)
 wgpu = { version = "30.0", optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
@@ -247,12 +260,23 @@ profiling = ["benchmarking"]
 # GPU Acceleration for high-throughput verification (1000X).
 gpu = ["wgpu", "bytemuck", "pollster"]
 
+# Cryptographic trust plane: keys, custody, canonicalization, signature
+# envelopes, signing providers, verification -> cryptographic standing.
+# Manufactured from ggen-marketplace affidavit-trust-plane-pack via `ggen sync run`.
+crypto-trust = ["dep:signature", "dep:p256", "dep:ml-dsa", "dep:slh-dsa", "dep:rand_core"]
+# Backward-compatible explicit PQC surface used by the exact-head crypto court.
+pqc = ["crypto-trust"]
+# Real Secure Enclave signing (macOS only): non-exportable P-256 keys via
+# Security.framework; affidavit owns KeyRef/custody semantics, never key bytes.
+secure-enclave = ["crypto-trust", "dep:security-framework"]
+# Parallel-session single-file trust plane (unreachable WIP) — gated verbatim, pending consolidation.
+trust-plane-legacy = []
+
 # 1000X Innovation Hardening
 # Automatic code remediation based on policy violations.
 # `tracing` is required: src/1000x_auto_remediate_dx.rs:37 imports it.
 remediation = ["syn", "quote", "proc-macro2", "tempfile", "tracing"]
 # Post-Quantum Cryptography support.
-pqc = []
 
 # Quality monitoring with Western Electric rules
 quality-monitor = ["syn", "quote", "shell", "tokio"]
@@ -278,8 +302,8 @@ all = [
     "benchmarking",
     "profiling",
     "gpu",
+    "crypto-trust",
     "remediation",
-    "pqc",
     "quality-monitor",
     "webhook"
 ]
@@ -306,3 +330,8 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[[bench]]
+name = "crypto_trust_bench"
+harness = false
+required-features = ["crypto-trust"]

@@ -1,20 +1,29 @@
 // Copyright (c) 2024 Sean Chatman
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
-// Thin verb wrapper auto-generated. The pack is authoritative for the CLI
-// *interface* only; the body delegates to a stable consumer-implemented handler.
+// Thin verb wrapper rendered from O* by ggen. The pack is authoritative for the
+// CLI *interface* only; the body delegates to a stable consumer-implemented
+// handler. There is NO logic slot here — business logic lives behind the seam in
+// `crate::handlers::*`, which is hand-written (a missing impl is a compile error).
+//
+// Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
+// return_type, handler_name, args.
 
-//! `receipt dora-metrics` verb (auto-generated).
+//! `receipt dora-metrics` verb (rendered).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-
 /// Compute DORA 4 Key Metrics (deployment frequency, lead time, MTTR, change failure rate)
+#[rustfmt::skip]
 #[verb("dora-metrics", "receipt")]
 pub fn dora_metrics(
     receipts_path: String,
     time_range: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
-    crate::handlers::dora_metrics(receipts_path, time_range, format)
+    crate::handlers::dora_metrics(
+        receipts_path,
+        time_range,
+        format,
+    )
 }

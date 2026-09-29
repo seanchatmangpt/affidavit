@@ -1,5 +1,10 @@
-// Module declarations for all verbs (auto-generated).
-// Each verb is a thin wrapper that delegates to crate::handlers::*.
+// Copyright (c) 2024 Sean Chatman
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//
+// Aggregate module list for the rendered verb wrappers (rendered from O* by ggen).
+// Consumed query column (verbs-mod.rq): modules.
+
+//! Rendered verb modules.
 
 pub mod anomaly_detect;
 pub mod assemble;
@@ -26,21 +31,24 @@ pub mod emit_from_cloud;
 pub mod emit_from_github;
 pub mod emit_from_gitlab;
 pub mod emit_from_monitoring;
-pub mod emit_from_sbom;
 pub mod emit_from_security;
+pub mod envelope_sign;
+pub mod envelope_verify;
 pub mod errc_assure;
 pub mod errc_certify;
 pub mod errc_verify;
 pub mod errc_verify_assurance;
 pub mod explain_incident;
 pub mod find_blast_radius;
-pub mod fix;
+pub mod fix_receipt;
 pub mod gdpr_proof;
 pub mod graph;
 pub mod guide_search;
 pub mod hipaa;
 pub mod inspect;
 pub mod install_git_hook;
+pub mod keys_generate;
+pub mod keys_list;
 pub mod license_compliance;
 pub mod model;
 pub mod monitor;
@@ -58,6 +66,7 @@ pub mod root_cause;
 pub mod sbom_attest;
 pub mod sbom_blast_radius;
 pub mod sbom_compliance;
+pub mod sbom_emit;
 pub mod sbom_ntia;
 pub mod sbom_scan;
 pub mod search;
