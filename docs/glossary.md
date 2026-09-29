@@ -171,6 +171,101 @@ The U.S. National Telecommunications and Information Administration's baseline f
 
 Affidavit's `sbom-compliance` verb validates against these elements.
 
+### SignatureEnvelope
+
+The signed-bytes contract of the cryptographic trust plane (feature
+`crypto-trust`): exactly twelve fields in canonical order 1..12 — version,
+algorithm, key id, profile, policy epoch, revocation epoch, generation, nonce,
+not_before, expires_at, subject_digest, audience — all *inside* the signed
+bytes, never in an unsigned header. Version-pinned `CTP-ENVELOPE-v1`; the type
+lives in `src/crypto_trust_envelope.rs`. See
+[the cryptographic trust plane](CRYPTO_TRUST_PLANE.md).
+
+### CryptographicStanding
+
+The closed eight-value vocabulary a verification engine returns for an
+envelope: `VALID`, `INVALID`, `EXPIRED`, `REVOKED`, `REPLAY_REJECTED`,
+`UNKNOWN_KEY`, `PROFILE_REFUSED`, `MALFORMED` (graph order 0..7). Evidence
+about bytes and keys only — never an authorization decision. A failed
+signature check is a decided negative (`INVALID`, returned `Ok`); states that
+prevent adjudication are typed `VerifyRefusal` values instead.
+
+### KeyId / fingerprint
+
+A key's registry identity and its cryptographic root. The **fingerprint** is a
+domain-separated BLAKE3 digest over the algorithm name and the canonical
+public-key bytes (`KeyFingerprint`, 32 bytes); the **KeyId** is `afk1_` plus
+the first 16 hex characters of that fingerprint (21 characters total). Same
+bytes under a different algorithm or domain diverge; both live in
+`src/crypto_trust_keys.rs`.
+
+### KeyRegistry
+
+The public-key store the verifier adjudicates against: identity-addressed
+(`KeyId`), fingerprint-unique, refusing duplicate ids and duplicate
+fingerprints as typed values. `InMemoryKeyRegistry` is the rendered
+implementation of the `KeyRegistry` trait; a key the registry does not hold
+yields `UNKNOWN_KEY`, never a guess.
+
+### JCS (JSON Canonicalization Scheme)
+
+RFC 8785 canonical JSON — the only byte form signatures are computed over in
+the trust plane. Object keys sort by UTF-16 code units, escaping is minimal,
+numbers render as ECMAScript doubles; integer literals beyond 2^53 are refused
+(typed), not coerced. Implemented (honest subset documented in-file) in
+`src/crypto_trust_canonical.rs`, digested with BLAKE3 under the domain tag
+`affidavit.crypto-trust-plane.v1`.
+
+### TrustPolicy
+
+The verifier's policy as data: the assurance-profile floor (`CLASSICAL` /
+`HYBRID` / `PQC`), the admitted algorithm set, the revocation-staleness bound
+(300 s), and the verifier's clock. Policy is data and the caller owns time —
+the engine never reads wall-clock and never widens its own admission set. Type
+in `src/crypto_trust_verify.rs`.
+
+### VerificationEngine
+
+The trust plane's adjudicator: key registry + revocation list + nonce journal
++ `TrustPolicy`. It applies one ordered law — signed bytes reconstruct,
+window, policy, registry, revocation, replay, signature — and returns a
+`CryptographicVerdict` or a typed `VerifyRefusal`. Certification only: it
+never actuates and never decides authorization (certify-don't-decide).
+
+### CryptoStandingReceipt
+
+The receipt-facing projection of a `VALID` verdict: subject, envelope
+commitment (BLAKE3 over the signed bytes), key id, algorithm, standing,
+observation instant, and a canonical `receipt_hash`. Its private `_seal` field
+makes struct-literal forging a compile error (the same law as `Receipt`), and
+deserialization recomputes the hash, so a tampered receipt cannot load. Minted
+only by `VerificationEngine::certify`.
+
+### NonceJournal
+
+Replay evidence for the envelope's `(kid, nonce)` tuple: a 300-second
+half-open acceptance window in which a repeated tuple is refused
+(`REPLAY_REJECTED`); at or beyond the boundary the entry restamps and the
+record is admitted. Eviction is explicit (`prune`) and counted, never silent.
+Type in `src/crypto_trust_envelope.rs`.
+
+### Transparency log
+
+A public, append-only, cryptographically auditable record of key events
+(registrations, revocations) that lets third parties detect equivocation — a
+key playing different identities to different audiences. Named in roadmap W8
+as a future capability; the trust plane does **not** operate one yet —
+revocation today is verifier-local state (`RevocationList`).
+
+### Rotation record
+
+The epoch history of one key: numbered `KeyEpoch` slices (activation instant,
+optional retirement instant) validated against a `RotationPolicy` (default: at
+most 2 unretired epochs in flight, 90-day maximum epoch age). Openings are
+capped, activations are monotonic, retirement is first-write-wins; every
+violation is a typed `LifecycleRefusal`. Lives in
+`src/crypto_trust_lifecycle.rs`.
+
 ---
 
 See also: the [architecture overview](architecture.md) and the

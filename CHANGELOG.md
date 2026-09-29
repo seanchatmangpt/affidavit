@@ -2,6 +2,55 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## v26.9.28 — Cryptographic trust plane
+
+**Theme: affidavit owns the ecosystem's cryptographic trust plane — real keys,
+real post-quantum signatures, verification to a closed standing vocabulary,
+sealed to receipts.** Affidavit certifies; SA2A (downstream) decides what that
+certification may authorize. See
+[`docs/CRYPTO_TRUST_PLANE.md`](docs/CRYPTO_TRUST_PLANE.md).
+
+### Added
+- **`affidavit-trust-plane-pack`** → nine rendered modules under the
+  `crypto-trust` feature (`src/crypto_trust_{canonical,keys,envelope,es256,pqc,
+  verify,lifecycle,seal}.rs`) plus the macOS Secure Enclave adapter under
+  `secure-enclave` (`src/crypto_trust_enclave.rs`), and the end-to-end court
+  `tests/crypto_trust_e2e.rs`. The ontology is the source; the modules are
+  projections and carry a never-hand-edit header.
+- **Real post-quantum cryptography, replacing the blake3-mock seal**
+  (`1000x_post_quantum_sealing.rs` is retired): ML-DSA-65 (FIPS 204), SLH-
+  DSA-SHA2-128s (FIPS 205), and a hybrid ES256+ML-DSA-65 composition where
+  both halves sign the same bytes and verification requires both. The
+  `PQ-SEAL-v1` wire name is conserved; the crypto behind it is now real.
+- **The envelope law (RFC-SA2A-007-errata interlock)**: a 12-field signature
+  envelope (`CTP-ENVELOPE-v1`) with algorithm, key id, nonce, and expiry
+  inside the signed bytes; JCS (RFC 8785) canonicalization + domain-separated
+  BLAKE3; `(kid, nonce)` replay defense over a 300-second window; and a
+  revocation-epoch clock with a 300-second staleness grace.
+- **Verification to standing**: `VerificationEngine` + `TrustPolicy` (policy
+  is data; the caller owns time) returning a closed eight-value
+  `CryptographicStanding` (VALID … MALFORMED) or typed `VerifyRefusal`; a
+  failed signature is a decided negative (`INVALID`, `Ok`), never a refusal —
+  and only VALID mints a `CryptoStandingReceipt`, whose `_seal` field makes
+  forgery a compile error.
+- **Key lifecycle**: fingerprints (`afk1_` key ids), custody identities,
+  a duplicate-refusing registry, rotation policy (2 epochs in flight, 90-day
+  age cap), and revocation as typed values.
+- **Packs gates v2** for the plane (field closure, envelope version pinning)
+  in the companion pack's gate set.
+
+### Honest limits
+- The two test courts are **BUILD_BROKEN** at this tag: `crypto_trust_seal.rs`'s
+  test module is missing one trait import (`E0599`), and
+  `tests/crypto_trust_e2e.rs` uses `crate::` imports in an external test
+  (10 × `E0432`, mechanical `affidavit::` fix). The library itself compiles
+  clean under both features; doctests pass (37/0).
+- Secure Enclave signing is **PARTIAL_ALIVE**: the live known-answer tests are
+  `#[ignore]`-gated. Witnessed: unsigned/ad-hoc CLI binaries cannot persist
+  enclave keys (OSStatus -25308 / -34018 `errSecMissingEntitlement`);
+  unblocking requires an entitlement-signed host binary.
+- HSM/TPM signing is **UNSUPPORTED** (typed refusal, never faked).
+
 ## [26.9.28] — 2026-09-28
 
 **Theme: verify anywhere — the provenance layer as a WebAssembly module.**

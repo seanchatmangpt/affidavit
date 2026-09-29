@@ -16,7 +16,7 @@ default:
 # --- the verification ladder (AGENTS.md §6) ---------------------------------
 
 # Run the full ladder, cheapest high-information court first. This is the gate.
-validate: errc-court fmt-check build test doctest clippy
+validate: errc-court fmt-check build test doctest clippy completions
     @echo "validate: every court passed"
 
 # Exact-head ERRC fast court unit tests (cheapest court, no Rust build).
@@ -88,3 +88,11 @@ wasm-build:
 # Native unit tests + the compiled module driven in a real wasm runtime.
 wasm-test:
     cd affidavit-wasm && cargo test
+
+# --- shell completions --------------------------------------------------------
+
+# Regenerate completions/affi.{bash,zsh,fish} from src/registry.rs.
+# Deterministic: same registry -> byte-identical files. tests/completions_drift
+# fails when a verb is added without running this.
+completions:
+    python3 scripts/generate_completions.py

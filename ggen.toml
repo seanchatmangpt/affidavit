@@ -22,6 +22,7 @@ path = "../clap-noun-verb"
 
 [ontology]
 source = "ontology/affi-cli.ttl"
+imports = ["../ggen-marketplace/packs/affidavit-trust-plane-pack/ontology.ttl"]
 
 [ontology.prefixes]
 cnv  = "http://clap-noun-verb.io/ontology#"
@@ -45,6 +46,7 @@ CONSTRUCT {
 } WHERE {
   ?noun a cnv:Noun ; cnv:hasVerbs ?verb .
 }
+ORDER BY ?noun ?verb
 """
 
 # --- mu3 generation ----------------------------------------------------------
@@ -57,7 +59,7 @@ output_dir = "."
 name = "verb-wrappers"
 query    = { pack = "clap-noun-verb", output = "queries", file = "verb-signatures.rq" }
 template = { pack = "clap-noun-verb", output = "templates", file = "verb.rs.tera" }
-output_file = "src/verbs/{{ verb_name }}.rs"
+output_file = "src/verbs/{{ handler_name }}.rs"
 mode = "Overwrite"
 skip_empty = true
 
@@ -129,6 +131,159 @@ severity = "Error"
 ask = """
 ASK { FILTER NOT EXISTS {
   ?a <http://clap-noun-verb.io/ontology#hasArgumentName> ?n .
-  FILTER NOT EXISTS { ?v <http://clap-noun-verb.io/ontology#hasArguments> ?a }
+  FILTER NOT EXISTS { ?v <http://clap-noun-verb.io/ontology#hasArgument> ?a }
 } }
 """
+
+# --- cryptographic trust plane (affidavit-trust-plane-pack projections) ---
+[[packs]]
+name = "affidavit-trust-plane-pack"
+registry = "local"
+path = "../ggen-marketplace/packs/affidavit-trust-plane-pack"
+
+[[generation.rules]]
+name = "ctp-canonical"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "canonical.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_canonical.rs.tmpl" }
+output_file = "src/crypto_trust_canonical.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-keys"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "keys.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_keys.rs.tmpl" }
+output_file = "src/crypto_trust_keys.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-lifecycle"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "lifecycle.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_lifecycle.rs.tmpl" }
+output_file = "src/crypto_trust_lifecycle.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-envelope"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "envelope.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_envelope.rs.tmpl" }
+output_file = "src/crypto_trust_envelope.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-es256"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "es256.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_es256.rs.tmpl" }
+output_file = "src/crypto_trust_es256.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-enclave"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "enclave.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_enclave.rs.tmpl" }
+output_file = "src/crypto_trust_enclave.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-pqc"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "pqc.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_pqc.rs.tmpl" }
+output_file = "src/crypto_trust_pqc.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-verify"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "verify.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_verify.rs.tmpl" }
+output_file = "src/crypto_trust_verify.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-seal"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "seal.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_seal.rs.tmpl" }
+output_file = "src/crypto_trust_seal.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-e2e"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "e2e.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_e2e.rs.tmpl" }
+output_file = "tests/crypto_trust_e2e.rs"
+mode = "Overwrite"
+[[generation.rules]]
+name = "ctp-store"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "store.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_store.rs.tmpl" }
+output_file = "src/crypto_trust_store.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-sa2a"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "sa2a.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_sa2a.rs.tmpl" }
+output_file = "src/crypto_trust_sa2a.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-journal"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "journal.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_journal.rs.tmpl" }
+output_file = "src/crypto_trust_journal.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-transparency"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "transparency.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_transparency.rs.tmpl" }
+output_file = "src/crypto_trust_transparency.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-rotation"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "rotation.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_rotation.rs.tmpl" }
+output_file = "src/crypto_trust_rotation.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-kat"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "kat.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_kat.rs.tmpl" }
+output_file = "src/crypto_trust_kat.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-bench"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "bench.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_bench.rs.tmpl" }
+output_file = "benches/crypto_trust_bench.rs"
+mode = "Overwrite"
+[[generation.rules]]
+name = "ctp-doctor"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "doctor.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_doctor.rs.tmpl" }
+output_file = "src/crypto_trust_doctor.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-quorum"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "quorum.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_quorum.rs.tmpl" }
+output_file = "src/crypto_trust_quorum.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-revocation"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "revocation.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_revocation.rs.tmpl" }
+output_file = "src/crypto_trust_revocation.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-log-ops"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "log.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_log.rs.tmpl" }
+output_file = "src/crypto_trust_log.rs"
+mode = "Overwrite"
+
+
