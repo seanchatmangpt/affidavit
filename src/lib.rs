@@ -94,9 +94,10 @@ pub mod bench;
 pub mod brce;
 pub mod catalog;
 pub mod chain;
-#[cfg(feature = "trust-plane-legacy")] // parallel-session WIP, superseded-in-scope by the pack-rendered plane; see docs/jira/v26.9.28/CRYPTO-TRUST-PLANE.md
-pub mod crypto_trust;
 pub mod cli;
+#[cfg(feature = "trust-plane-legacy")]
+// parallel-session WIP, superseded-in-scope by the pack-rendered plane; see docs/jira/v26.9.28/CRYPTO-TRUST-PLANE.md
+pub mod crypto_trust;
 
 #[cfg(feature = "discovery")]
 pub mod discovery;
@@ -219,6 +220,13 @@ pub use architecture::{
     ArchitectureStandingLedger, EvidenceSource, QualificationEvidence, Supersession,
     ARCHITECTURE_QUERY_SCHEMA, ARCHITECTURE_RECEIPT_SCHEMA,
 };
+#[cfg(feature = "trust-plane-legacy")]
+pub use crypto_trust::{
+    sign_with_provider, verify_and_record, CryptoRefusal, KeyCustody, KeyRecord, KeyRegistry,
+    KeyState, NonceLedger, SignatureAlgorithm, SignatureEnvelope, SigningMaterial, SigningProvider,
+    VerificationContext, VerifiedSignature, JCS_SAFE_INTEGER_MAX, SIGNATURE_PROFILE,
+    SIGNING_DOMAIN,
+};
 pub use ecosystem::{
     certify_ecosystem, EcosystemMember, EcosystemObservation, EcosystemReceipt, EcosystemRefusal,
     EcosystemRole, RoleCoverage, RoleRequirement, ECOSYSTEM_AUTHORITY_CEILING,
@@ -235,13 +243,6 @@ pub use errc_claim_assurance::{
     ERRC_CLAIM_ASSURANCE_SOURCE_ARTIFACT,
 };
 pub use error::AffidavitError;
-#[cfg(feature = "trust-plane-legacy")]
-pub use crypto_trust::{
-    sign_with_provider, verify_and_record, CryptoRefusal, KeyCustody, KeyRecord, KeyRegistry,
-    KeyState, NonceLedger, SignatureAlgorithm, SignatureEnvelope, SigningMaterial, SigningProvider,
-    VerificationContext, VerifiedSignature, JCS_SAFE_INTEGER_MAX, SIGNATURE_PROFILE,
-    SIGNING_DOMAIN,
-};
 pub use federation::{CourtOutcome, STANDING_CAPABILITY, STANDING_CAPABILITY_DIGEST};
 pub use standing::{
     certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,
