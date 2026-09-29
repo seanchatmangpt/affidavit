@@ -220,8 +220,8 @@ impl SigningMaterial {
     /// Canonical, domain-separated bytes that a provider must sign.
     pub fn signing_bytes(&self) -> Result<Vec<u8>, CryptoRefusal> {
         validate_material(self)?;
-        let canonical =
-            canonical_bytes(self).map_err(|e| CryptoRefusal::Canonicalization(e.to_string()))?;
+        let canonical = serde_jcs::to_vec(self)
+            .map_err(|e| CryptoRefusal::Canonicalization(e.to_string()))?;
         let mut out = Vec::with_capacity(SIGNING_DOMAIN.len() + canonical.len());
         out.extend_from_slice(SIGNING_DOMAIN);
         out.extend_from_slice(&canonical);
@@ -359,6 +359,9 @@ pub enum CryptoRefusal {
     /// Validity interval is empty or inverted.
     #[error("invalid_validity_window")]
     InvalidValidityWindow,
+    /// A signed integer exceeded the RFC 8785 / I-JSON exact integer range.
+    #[error("jcs_integer_out_of_range: {0}")]
+    JcsIntegerOutOfRange(&'static str),
     /// Key is revoked.
     #[error("key_revoked")]
     KeyRevoked,
@@ -540,6 +543,17 @@ fn validate_material(material: &SigningMaterial) -> Result<(), CryptoRefusal> {
     if material.not_before >= material.expires {
         return Err(CryptoRefusal::InvalidValidityWindow);
     }
+    for (name, value) in [
+        ("policy_epoch", material.policy_epoch),
+        ("revocation_epoch", material.revocation_epoch),
+        ("generation", material.generation),
+        ("not_before", material.not_before),
+        ("expires", material.expires),
+    ] {
+        if value > JCS_SAFE_INTEGER_MAX {
+            return Err(CryptoRefusal::JcsIntegerOutOfRange(name));
+        }
+    }
     let digest = material.subject_digest.as_hex().as_bytes();
     if digest.len() != 64
         || !digest
@@ -663,6 +677,16 @@ mod tests {
         let mut changed = base;
         changed.audience.push('x');
         assert_ne!(bytes, changed.signing_bytes().unwrap());
+    }
+
+    #[test]
+    fn signed_integers_outside_jcs_exact_range_are_refused() {
+        let mut changed = material();
+        changed.policy_epoch = JCS_SAFE_INTEGER_MAX + 1;
+        assert_eq!(
+            changed.signing_bytes().unwrap_err(),
+            CryptoRefusal::JcsIntegerOutOfRange("policy_epoch")
+        );
     }
 
     struct RefusingProvider;
