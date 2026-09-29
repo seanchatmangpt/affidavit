@@ -1,4 +1,4 @@
-//! # Verb Registry — Single Source of Truth for All 83 Verbs
+//! # Verb Registry — Single Source of Truth for All 90 Verbs
 //!
 //! This module is the W4 keystone: a compile-time static registry that eliminates
 //! drift between documentation, shell completions, and the actual verb set.
@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 83);
+//! assert_eq!(verb_count(), 92);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -130,7 +130,7 @@ impl VerbEntry {
     }
 }
 
-/// The complete verb registry — 83 entries, one per live verb.
+/// The complete verb registry — 90 entries, one per live verb.
 ///
 /// Ordering mirrors `src/verbs/mod.rs` (alphabetical) for easy cross-referencing.
 pub static REGISTRY: &[VerbEntry] = &[
@@ -755,6 +755,23 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["verify", "envelope", "verdict", "standing", "trust-plane"],
     )
     .with_example("affi envelope verify sealed.json --store .affi/keys.json"),
+    
+    VerbEntry::new(
+        "list",
+        "envelope",
+        VerbGroup::Attestation,
+        "List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)",
+        &["list", "envelope", "keys", "profile", "trust-plane"],
+    )
+    .with_example("affi envelope list --store .affi/keys.json"),
+    VerbEntry::new(
+        "export",
+        "envelope",
+        VerbGroup::Attestation,
+        "Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)",
+        &["export", "envelope", "sa2a", "interop", "trust-plane"],
+    )
+    .with_example("affi envelope export sealed.json --format sa2a"),
     VerbEntry::new(
         "import",
         "keys",
@@ -779,6 +796,38 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["rotate", "keys", "rotation", "successor", "rekey", "trust-plane"],
     )
     .with_example("affi keys rotate afk1_0123456789abcdef --store .affi/keys.json --out rotation.json"),
+    VerbEntry::new(
+        "journal",
+        "evidence",
+        VerbGroup::Attestation,
+        "Record a receipt's cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry",
+        &["journal", "evidence", "standing", "receipt", "trust-plane"],
+    )
+    .with_example("affi evidence journal release-v26.9.28 --out entry.json"),
+    VerbEntry::new(
+        "crl-publish",
+        "evidence",
+        VerbGroup::Attestation,
+        "Publish the signed revocation list (CTP-CRL-v1) for the store's recorded revocations under the registered issuer key",
+        &["crl", "publish", "revocation", "sign", "trust-plane"],
+    )
+    .with_example("affi evidence crl-publish afk1_0123456789abcdef 0 --store .affi/keys.json"),
+    VerbEntry::new(
+        "crl-apply",
+        "evidence",
+        VerbGroup::Attestation,
+        "Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)",
+        &["crl", "apply", "revocation", "admit", "trust-plane"],
+    )
+    .with_example("affi evidence crl-apply .affi/crl.json --store .affi/keys.json"),
+    VerbEntry::new(
+        "heads",
+        "evidence",
+        VerbGroup::Attestation,
+        "Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)",
+        &["heads", "audit", "merkle", "transparency", "trust-plane"],
+    )
+    .with_example("affi evidence heads --journal-file .affi/standing-journal.jsonl"),
 ];
 
 /// Look up a verb by `(verb, noun)` pair.
@@ -868,7 +917,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 86; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify) + 3 keys lifecycle verbs (keys import/revoke/rotate, v26.9.28 wave 1 lane 4)
+        let expected = 92; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify) + 3 keys lifecycle verbs (keys import/revoke/rotate, wave 1 lane 4) + 4 evidence verbs (evidence journal/crl-publish/crl-apply/heads, wave 2 lane 1)
         assert_eq!(
             verb_count(),
             expected,

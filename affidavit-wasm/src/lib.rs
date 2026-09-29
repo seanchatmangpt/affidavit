@@ -28,6 +28,7 @@
 #![warn(missing_docs)]
 
 pub mod abi;
+pub mod crypto;
 pub mod receipt;
 
 #[cfg(target_arch = "wasm32")]

@@ -6,7 +6,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 86, Registry nouns: 8
+# Source: src/registry.rs — Registry verbs: 92, Registry nouns: 9
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install (per-user):
@@ -31,8 +31,9 @@ _affi() {
             _values 'noun' \
                 'affi[1 verbs]' \
                 'ecosystem[2 verbs]' \
-                'envelope[2 verbs]' \
+                'envelope[4 verbs]' \
                 'errc[4 verbs]' \
+                'evidence[4 verbs]' \
                 'guide[1 verbs]' \
                 'keys[5 verbs]' \
                 'receipt[69 verbs]' \
@@ -51,6 +52,8 @@ _affi() {
                     ;;
                 envelope)
                     _values 'verb' \
+                        'export[Export the attestation envelope of a PQ-SEAL-v1 sealed document\: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)]' \
+                        'list[List key-store records an envelope may bind to\: kid, algorithm, profile, fingerprint, custodian (read-only)]' \
                         'sign[Seal a receipt under an ES256 key\: CTP envelope + signature as a PQ-SEAL-v1 document]' \
                         'verify[Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)]'
                     ;;
@@ -60,6 +63,13 @@ _affi() {
                         'certify[Seal a declared ERRC transformation (affidavit/errc/v1)]' \
                         'verify[Re-run the ERRC directional and preservation laws over a sealed receipt]' \
                         'verify-assurance[Re-run the claim-assurance law, optionally binding to the exact parent ERRC receipt]'
+                    ;;
+                evidence)
+                    _values 'verb' \
+                        'crl-apply[Admit a published CRL file into a fresh revocation list\: issuer signature first, then epoch freshness, then merge (atomic on any refusal)]' \
+                        'crl-publish[Publish the signed revocation list (CTP-CRL-v1) for the store'\''s recorded revocations under the registered issuer key]' \
+                        'heads[Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)]' \
+                        'journal[Record a receipt'\''s cryptographic standing as durable journal evidence\: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry]'
                     ;;
                 guide)
                     _values 'verb' \

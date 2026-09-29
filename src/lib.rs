@@ -155,7 +155,13 @@ pub mod mutate;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_canonical;
 #[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_attestation;
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_crl_file;
+#[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_doctor;
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_journal_persist;
 #[cfg(feature = "secure-enclave")]
 pub mod crypto_trust_enclave;
 #[cfg(feature = "crypto-trust")]
@@ -193,7 +199,11 @@ pub mod crypto_trust_store;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_transparency;
 #[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_rotation_store;
+#[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_verify;
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_witness;
 
 pub mod model_mining;
 pub mod registry;

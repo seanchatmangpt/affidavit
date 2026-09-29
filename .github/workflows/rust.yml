@@ -14,6 +14,7 @@ on:
       - "tests/**"
       - "benches/**"
       - "examples/**"
+      - "scripts/**"
       - "build.rs"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -25,6 +26,7 @@ on:
       - "tests/**"
       - "benches/**"
       - "examples/**"
+      - "scripts/**"
       - "build.rs"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -153,6 +155,38 @@ jobs:
 
       - name: cargo clippy --features crypto-trust -- -D warnings
         run: cargo clippy --features crypto-trust --all-targets -- -D warnings
+
+  # Machine-relative drift alarm: re-runs the real criterion suite with the
+  # settings docs/CRYPTO_TRUST_PLANE.md was recorded with and refuses any
+  # median >10x the recorded number (faster is never a failure). Runs after
+  # the test courts; never soft-fails.
+  perf-budget:
+    name: perf-budget (crypto-trust 10x recorded-median drift alarm)
+    runs-on: ubuntu-24.04
+    needs: build-and-test
+    continue-on-error: false
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Assert exact candidate
+        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+
+      - name: Install pinned nightly toolchain
+        uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      - name: cargo build --all-targets --features crypto-trust
+        run: cargo build --all-targets --features crypto-trust
+
+      - name: Performance budget check (10x recorded-median drift alarm)
+        run: scripts/perf_budget_check.sh
 
   # Secure Enclave requires Apple silicon / macOS: security-framework only links
   # here, so this is the job where the feature gate is actually exercised.

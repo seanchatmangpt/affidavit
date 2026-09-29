@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 86, Registry nouns: 8
+# Source: src/registry.rs — Registry verbs: 92, Registry nouns: 9
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 
 # --- helper predicates -------------------------------------------------------
@@ -13,7 +13,7 @@ function __affi_no_noun
     set -l toks (commandline -opc)
     for t in $toks[2..-1]
         switch $t
-            case affi ecosystem envelope errc guide keys receipt standing
+            case affi ecosystem envelope errc evidence guide keys receipt standing
                 return 1
         end
     end
@@ -35,7 +35,7 @@ function __affi_no_verb
     set -l found_noun 0
     for t in $toks[2..-1]
         switch $t
-            case affi ecosystem envelope errc guide keys receipt standing
+            case affi ecosystem envelope errc evidence guide keys receipt standing
             set found_noun 1
             case '*'
             if test $found_noun -eq 1
@@ -50,8 +50,9 @@ end
 
 complete -c affi -f -n '__affi_no_noun' -a affi -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a ecosystem -d '2 verbs'
-complete -c affi -f -n '__affi_no_noun' -a envelope -d '2 verbs'
+complete -c affi -f -n '__affi_no_noun' -a envelope -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a errc -d '4 verbs'
+complete -c affi -f -n '__affi_no_noun' -a evidence -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a guide -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a keys -d '5 verbs'
 complete -c affi -f -n '__affi_no_noun' -a receipt -d '69 verbs'
@@ -68,6 +69,8 @@ complete -c affi -f -n '__affi_using_noun ecosystem; and __affi_no_verb' -a veri
 
 # --- envelope verbs ------------------------------------------------------
 
+complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a export -d 'Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)'
+complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a list -d 'List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)'
 complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a sign -d 'Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document'
 complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a verify -d 'Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)'
 
@@ -77,6 +80,13 @@ complete -c affi -f -n '__affi_using_noun errc; and __affi_no_verb' -a assure -d
 complete -c affi -f -n '__affi_using_noun errc; and __affi_no_verb' -a certify -d 'Seal a declared ERRC transformation (affidavit/errc/v1)'
 complete -c affi -f -n '__affi_using_noun errc; and __affi_no_verb' -a verify -d 'Re-run the ERRC directional and preservation laws over a sealed receipt'
 complete -c affi -f -n '__affi_using_noun errc; and __affi_no_verb' -a verify-assurance -d 'Re-run the claim-assurance law, optionally binding to the exact parent ERRC receipt'
+
+# --- evidence verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a crl-apply -d 'Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)'
+complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a crl-publish -d 'Publish the signed revocation list (CTP-CRL-v1) for the store'\''s recorded revocations under the registered issuer key'
+complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a heads -d 'Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)'
+complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a journal -d 'Record a receipt'\''s cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry'
 
 # --- guide verbs ------------------------------------------------------
 
