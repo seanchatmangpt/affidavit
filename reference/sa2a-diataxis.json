@@ -1,0 +1,18 @@
+{
+  "schema": "sa2a-diataxis-reference/v1",
+  "laws": [
+    {
+      "id": "evidence-not-assertion",
+      "rule": "standing requires verifier-bound evidence"
+    },
+    {
+      "id": "signature-not-authority",
+      "rule": "signature validity never creates authority"
+    },
+    {
+      "id": "receipt-not-success",
+      "rule": "receipt records an event; outcome standing is separate"
+    }
+  ],
+  "receipt_schema": "schemas/sa2a-diataxis-receipt.schema.json"
+}
