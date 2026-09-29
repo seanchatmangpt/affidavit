@@ -110,7 +110,7 @@ jobs:
         working-directory: .
     steps:
       - name: Download the verified module
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: affidavit-wasm
           path: dist
