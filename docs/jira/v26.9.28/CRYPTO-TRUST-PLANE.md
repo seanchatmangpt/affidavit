@@ -22,3 +22,8 @@ inside signed bytes, JCS, revocation epochs, (kid,nonce) replay).
   theater handlers rewired to real crypto; NIST ACVP vectors landed; marketplace
   qualification ok; falsifier: ontology mutation -> rendered diff non-vacuous |
   remaining: enclave live KAT (entitlement), completions regen per verb add
+- 2026-09-29 | ALIVE | 35e74b4 | FINAL: 1278/0 tests(features), 1174/0 (enclave),
+  799/0 default, doctests 37, clippy -D ✓ both worlds, fmt ✓, marketplace
+  validate+check ✓, gate court 11×2 ✓, falsifier ✓ (ontology mutation ⇒ render
+  diff ≠ ∅), fixed-point ✓ | PRs #102/#532/clap#35 draft; ratio 57% manufactured;
+  OPEN: enclave entitlement KAT, parallel WIP consolidation, SLH-DSA rc pin
