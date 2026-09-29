@@ -60,6 +60,24 @@ testable JSON ABI, tested in a real wasm runtime.
   visualizer carry the new seed, and `release-tag-v26.9.24.yml` is now
   `release-tag-v26.9.28.yml`.
 
+### Fixed
+- **`cargo publish --dry-run` failed to resolve**, on 26.9.24 as well as here, so
+  the release workflow's first step could never pass. Publishing ignores the
+  `[patch]` stub and resolved the real `wasm4pm 26.6.10`, whose `wasm-bindgen
+  =0.2.100` pin cannot coexist with `wgpu 30` (`^0.2.127`, the `gpu` feature).
+  The crates.io edge to `wasm4pm` is removed: it is now a path-only
+  dev-dependency on `stubs/wasm4pm` (stripped on publish), and its `[patch]`
+  entry is gone. `wasm4pm` stays as a marker Cargo feature with no dependency
+  behind it, so `cfg(feature = "wasm4pm")` and the `discovery` feature name are
+  unchanged. `discovery`/`conformance`/`predictive` were already non-compiling
+  against the stub and still are (README, ROADMAP P1-7). The dry run now
+  packages 412 files, builds the unpacked package, and stops only at the
+  upload. `stubs/wasm4pm` is now a path dependency, so `cargo fmt --all` formats
+  it (one function reformatted).
+- The wasm release-identity gates skip when `affidavit-wasm/` is absent, since
+  `tests/release_identity.rs` ships in the published package and the sibling
+  crate does not.
+
 ### Not in this release
 - No `wasm32-unknown-unknown` build: like graphlaw, the module targets WASI hosts.
 - The root `affidavit` crate itself is not compiled to wasm; the module is the

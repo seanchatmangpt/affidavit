@@ -58,6 +58,8 @@ pub mod models {
     }
 
     impl DFG {
-        pub fn new() -> Self { DFG::default() }
+        pub fn new() -> Self {
+            DFG::default()
+        }
     }
 }

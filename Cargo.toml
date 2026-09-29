@@ -121,7 +121,6 @@ glob = { version = "0.3", optional = true }
 # Pin the current proven compatibility release: this is the structural
 # admission/authority vocabulary used by affidavit's court and standing layer.
 wasm4pm-compat = { version = "=26.8.7", optional = true }
-wasm4pm = { version = "26.6", optional = true }
 lsp-max = { version = "26.6", optional = true }
 notify = { version = "6", optional = true }
 
@@ -184,7 +183,11 @@ quickcheck = "1"
 quickcheck_macros = "1"
 tokio = { version = "1", features = ["full"] }
 chicago-tdd-tools = { version = "26.6" }
-wasm4pm = { version = "26.6" }
+# Path-only: dev-dependencies without a version are stripped from the published
+# package, so crates.io never sees (or resolves) the real `wasm4pm`, whose
+# `=0.2.100` wasm-bindgen pin cannot coexist with wgpu 30 (`^0.2.127`) and made
+# `cargo publish --dry-run` fail to resolve. Only the local test stub is used.
+wasm4pm = { path = "stubs/wasm4pm" }
 # Historical local stub exposed synthetic `full`; real v26.8.7 exposes the
 # same maximal surface as the three concrete public features below.
 wasm4pm-compat = { version = "=26.8.7", features = ["formats", "strict", "wasm4pm"] }
@@ -201,6 +204,13 @@ core = ["wasm4pm-compat"]
 inspection = ["chicago-tdd-tools", "glob", "colored"]
 
 # Phase 2: Process Discovery (model, conform, predict).
+# `wasm4pm` is now a plain marker feature (no crates.io dependency behind it): the
+# optional dependency was removed so the crate can be published (see
+# [dev-dependencies]), but the feature NAME is kept because `cfg(feature =
+# "wasm4pm")` gates code and tests. `discovery` was already non-compiling against
+# the stub (README, ROADMAP P1-7) and remains so until the real integration is
+# admitted and tested.
+wasm4pm = []
 discovery = ["wasm4pm", "chrono", "hex", "core"]
 # Validates receipts against discovered process models.
 conformance = ["discovery"]
@@ -278,18 +288,17 @@ all = [
 dev = ["all"]
 
 [patch.crates-io]
-# Preserve the two still-necessary local fences. wasm4pm-compat is deliberately
+# Preserve the still-necessary local fence. wasm4pm-compat is deliberately
 # NOT patched: v26.8.7 is the current proven structural compatibility release
 # and affidavit now consumes its real admission/authority surface directly.
 #
-# wasm4pm — the root integration remains feature-gated and its historical
-# nightly/toolchain issue is independent of standing certification. Remove this
-# fence only when that execution edge is admitted and tested in this repo.
+# wasm4pm is no longer patched: it is a path-only dev-dependency on
+# stubs/wasm4pm (see [dev-dependencies]), so there is nothing on crates.io to
+# patch and the published package carries no edge to the real crate.
 #
 # clnrm-core — version "1.3" in Cargo.toml vs "26.5.x" upstream. The real repo
 # pulls in a large transitive surface for an optional mutation feature; keep the
 # bounded stub until that version/feature boundary is intentionally graduated.
-wasm4pm = { path = "stubs/wasm4pm" }
 clnrm-core = { path = "stubs/clnrm-core" }
 
 [profile.release]
