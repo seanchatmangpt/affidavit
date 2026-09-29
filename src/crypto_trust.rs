@@ -12,7 +12,7 @@
 //! remains outside this module: a valid signature proves who signed exact bytes;
 //! it does not decide whether a consequence is permitted.
 
-use crate::types::{canonical_bytes, Blake3Hash};
+use crate::types::Blake3Hash;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
