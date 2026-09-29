@@ -57,7 +57,8 @@ v26.9.6:
 | Feature | State |
 |---------|-------|
 | `default` (`core`) | ✅ builds, tested, and linted in CI |
-| `inspection`, `lsp`, `shell`, `quality-monitor`, `file-watch`, `webhook`, `otel`, `gpu`, `pqc`, `remediation` | ⚠️ build, but no CI job covers them (ROADMAP P1-8) |
+| `inspection`, `lsp`, `shell`, `quality-monitor`, `file-watch`, `webhook`, `otel`, `gpu`, `remediation` | ⚠️ build, but no CI job covers them (ROADMAP P1-8) |
+| `pqc` | ✅ cryptographic trust-plane lane: real ML-DSA-65 verification through RustCrypto, provider-owned private keys, replay/revocation negative courts |
 | `discovery`, `conformance`, `predictive` | ❌ do not compile — they need `wasm4pm` APIs (`ilp_discovery`, `process_tree`, `models::EventLog`) that the local stub at `stubs/wasm4pm` does not expose |
 | `mutation` | ❌ does not compile — needs `clnrm-core` APIs (`determinism::rng`) the local stub does not expose |
 
@@ -152,6 +153,10 @@ See [`docs/FEDERATION.md`](docs/FEDERATION.md) for the full operator guide, the 
 - **Zero-Knowledge Payloads:** We store commitments, not raw data, protecting sensitive information.
 - **Deterministic Hashing:** Canonical JSON serialization ensures hashes are stable across platforms.
 - **Memory Safety:** Written in 100% `safe` Rust (enforced via `#![deny(unsafe_code)]`).
+- **Cryptographic Trust Plane:** `crypto_trust` owns key identity, public verification material, custody metadata, epochs, replay semantics, signatures, and verified cryptographic standing. Private signing capability remains behind provider boundaries such as Secure Enclave/HSM/KMS.
+- **Proof ≠ Permission:** A verified signature is evidence only. Affidavit does not convert cryptographic standing into consequence authority; consumers such as SA2A/BRCE make that separate decision.
+
+See [`docs/CRYPTO_TRUST.md`](docs/CRYPTO_TRUST.md) for the boundary and consumer contract.
 
 ---
 
