@@ -1,0 +1,20 @@
+@prefix sa2a: <https://seanchatmangpt.github.io/sa2a/diataxis#> .
+@prefix aff: <https://seanchatmangpt.github.io/affidavit#> .
+
+aff:DiataxisReceiptBinding a sa2a:ReceiptBinding .
+aff:subjectDigest a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+aff:graphDigest a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+aff:baseSha a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+aff:authorityDigest a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+aff:verifierDigest a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+aff:standing a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+aff:previousReceipt a <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+
+<urn:affidavit:law:evidence-not-assertion> a sa2a:ExplanationLaw ;
+  sa2a:falsifier "Standing is asserted without a verifier-bound receipt." .
+
+<urn:affidavit:law:signature-not-authority> a sa2a:ExplanationLaw ;
+  sa2a:falsifier "Cryptographic validity is treated as actuation authority without a bound authority subject." .
+
+<urn:affidavit:law:receipt-not-success> a sa2a:ExplanationLaw ;
+  sa2a:falsifier "Receipt existence is treated as proof of successful outcome." .
