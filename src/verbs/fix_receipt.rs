@@ -9,23 +9,23 @@
 // Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
 // return_type, handler_name, args.
 
-//! `receipt diff` verb (rendered).
+//! `receipt fix` verb (rendered).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Compare two receipts and print their differences
+/// Apply a safe structural repair to a receipt: quarantine a tampered file or finalize a stale working receipt
 #[rustfmt::skip]
-#[verb("diff", "receipt")]
-pub fn diff(
-    #[arg(index = 1)]
-    receipt_a: String,
-    #[arg(index = 2)]
-    receipt_b: String,
+#[verb("fix", "receipt")]
+pub fn fix_receipt(
+    receipt: String,
+    action: Option<String>,
+    dry_run: bool,
     format: Option<String>,
 ) -> Result<()> {
-    crate::handlers::diff(
-        receipt_a,
-        receipt_b,
+    crate::handlers::fix_receipt(
+        receipt,
+        action,
+        dry_run,
         format,
     )
 }

@@ -9,23 +9,22 @@
 // Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
 // return_type, handler_name, args.
 
-//! `receipt diff` verb (rendered).
+//! `envelope verify` verb (rendered).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Compare two receipts and print their differences
+/// Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT JSON (exit 0=VALID, 2=decided otherwise)
 #[rustfmt::skip]
-#[verb("diff", "receipt")]
-pub fn diff(
+#[verb("verify", "envelope")]
+pub fn envelope_verify(
     #[arg(index = 1)]
-    receipt_a: String,
-    #[arg(index = 2)]
-    receipt_b: String,
+    sealed_file: String,
+    store: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
-    crate::handlers::diff(
-        receipt_a,
-        receipt_b,
+    crate::handlers::envelope_verify(
+        sealed_file,
+        store,
         format,
     )
 }

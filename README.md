@@ -28,7 +28,7 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 *   🏛️ **Evidence Federation:** Certify receipt-bound standing, cross-repo quorums, and formal ERRC transformations — see [`docs/FEDERATION.md`](docs/FEDERATION.md).
 *   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts *(behind the `discovery` feature; see Feature status below)*.
 *   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers *(behind the `mutation` feature; see Feature status below)*.
-*   🤖 **Intelligent CLI:** 79 canonical verbs, ontology-driven help, and powerful ad-hoc querying.
+*   🤖 **Intelligent CLI:** 83 canonical verbs, ontology-driven help, and powerful ad-hoc querying.
 
 ---
 
@@ -83,6 +83,81 @@ imports) so a host can `verify`, `assemble`, `mine` and `conform` receipts
 without shelling out to `affi` — and get the same verdict, proven against
 receipts the real binary produced. See [`docs/WASM.md`](docs/WASM.md).
 
+### The Cryptographic Trust Plane (new in v26.9.28)
+
+Affidavit owns the ecosystem's cryptographic trust plane: key identity and
+custody, JCS canonicalization, classical and post-quantum signatures, replay
+and revocation law, and verification to a closed standing vocabulary. The
+boundary is `certify-don't-decide`: a `CryptographicStanding` is evidence
+about bytes and keys; whether that evidence authorizes an act is a decision
+for the (downstream) authorization layer, never the trust plane. Post-quantum
+is real cryptography — ML-DSA-65 (FIPS 204), SLH-DSA-SHA2-128s (FIPS 205), and
+a hybrid ES256+ML-DSA-65 — replacing the retired blake3-mock seal. Limited by
+design: Secure Enclave signing needs an entitlement-signed host (typed
+`PARTIAL_ALIVE`); HSM is typed `UNSUPPORTED`. See [`docs/CRYPTO_TRUST_PLANE.md`](docs/CRYPTO_TRUST_PLANE.md) for the as-built
+capability map, and [`SECURITY.md`](SECURITY.md) for the crypto posture.
+
+Enable it with the `crypto-trust` feature (the enclave adapter adds
+`secure-enclave`). Sign an envelope and verify it to a standing:
+
+```rust
+use affidavit::crypto_trust_envelope::{NonceJournal, SignatureEnvelope, ENVELOPE_VERSION};
+use affidavit::crypto_trust_es256::Es256SigningKey;
+use affidavit::crypto_trust_keys::{
+    fingerprint_public_key, AlgorithmId, CryptoProfile, CustodianIdentity, InMemoryKeyRegistry,
+    KeyId, KeyOrigin, KeyRecord, KeyRegistry, PublicKeyMaterial,
+};
+use affidavit::crypto_trust_lifecycle::RevocationList;
+use affidavit::crypto_trust_verify::{CryptographicStanding, TrustPolicy, VerificationEngine};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 1. A signing key (RFC 6979 deterministic ES256 over P-256) and its registry record.
+    let signing = Es256SigningKey::generate()?;
+    let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
+    let fingerprint = fingerprint_public_key(AlgorithmId::Es256, &public);
+    let mut registry = InMemoryKeyRegistry::new();
+    registry.register(KeyRecord {
+        id: KeyId::from_fingerprint(&fingerprint),
+        algorithm: AlgorithmId::Es256,
+        fingerprint,
+        custodian: CustodianIdentity { subject: "builder@example.test".into(), device: None, org: None },
+        origin: KeyOrigin::Generated,
+        public_key: public,
+        created_epoch: 1_700_000_000,
+    })?;
+
+    // 2. The envelope: all twelve fields live inside the signed bytes.
+    let env = SignatureEnvelope {
+        version: ENVELOPE_VERSION.to_string(),
+        algorithm: AlgorithmId::Es256,
+        key_id: KeyId::from_fingerprint(&fingerprint),
+        profile: CryptoProfile::Classical,
+        policy_epoch: 1,
+        revocation_epoch: 0,
+        generation: 1,
+        nonce: [0x5A; 16],
+        not_before: 1_700_000_400,
+        expires_at: 1_700_000_600,
+        subject_digest: [0x11; 32],
+        audience: "affidavit.verifier".to_string(),
+    };
+
+    // 3. Sign the domain-separated canonical pre-image; verify to a standing.
+    let signature = signing.sign(&env.signing_input());
+    let engine = VerificationEngine::new(
+        registry,
+        RevocationList::default(),
+        NonceJournal::default(),
+        TrustPolicy::from_graph_defaults().with_now(1_700_000_500),
+    );
+    let verdict = engine.verify_envelope(&env, &signature)?;
+    assert_eq!(verdict.standing, CryptographicStanding::Valid);
+    println!("standing = {}", verdict.standing.as_str());
+    Ok(())
+}
+```
+
+
 ---
 
 ## 📖 Core Concepts
@@ -107,7 +182,7 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-Affidavit v26.9.6 ships **79 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
+Affidavit ships **83 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
 
 **Core Verbs (The Provenance Loop):**
 - `affi emit` — Record a new operation-event.

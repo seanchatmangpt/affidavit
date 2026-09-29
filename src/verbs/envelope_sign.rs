@@ -9,23 +9,23 @@
 // Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
 // return_type, handler_name, args.
 
-//! `receipt diff` verb (rendered).
+//! `envelope sign` verb (rendered).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Compare two receipts and print their differences
+/// Seal a receipt under an ES256 key: build the CTP envelope, sign its canonical pre-image, write the PQ-SEAL-v1 document
 #[rustfmt::skip]
-#[verb("diff", "receipt")]
-pub fn diff(
+#[verb("sign", "envelope")]
+pub fn envelope_sign(
     #[arg(index = 1)]
-    receipt_a: String,
+    receipt: String,
     #[arg(index = 2)]
-    receipt_b: String,
-    format: Option<String>,
+    key_file: String,
+    out: Option<String>,
 ) -> Result<()> {
-    crate::handlers::diff(
-        receipt_a,
-        receipt_b,
-        format,
+    crate::handlers::envelope_sign(
+        receipt,
+        key_file,
+        out,
     )
 }

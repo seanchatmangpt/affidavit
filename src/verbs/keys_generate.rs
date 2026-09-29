@@ -9,23 +9,23 @@
 // Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
 // return_type, handler_name, args.
 
-//! `receipt diff` verb (rendered).
+//! `keys generate` verb (rendered).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Compare two receipts and print their differences
+/// Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)
 #[rustfmt::skip]
-#[verb("diff", "receipt")]
-pub fn diff(
+#[verb("generate", "keys")]
+pub fn keys_generate(
     #[arg(index = 1)]
-    receipt_a: String,
+    algorithm: String,
     #[arg(index = 2)]
-    receipt_b: String,
-    format: Option<String>,
+    custodian: String,
+    out: Option<String>,
 ) -> Result<()> {
-    crate::handlers::diff(
-        receipt_a,
-        receipt_b,
-        format,
+    crate::handlers::keys_generate(
+        algorithm,
+        custodian,
+        out,
     )
 }

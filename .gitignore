@@ -73,3 +73,6 @@ stubs/wasm4pm-compat/target/
 # Python bytecode caches (scripts/, tools/)
 __pycache__/
 *.py[cod]
+
+# ggen OCEL telemetry (runtime logs, nondeterministic)
+.clap-noun-verb/

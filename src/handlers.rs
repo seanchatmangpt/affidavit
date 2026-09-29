@@ -128,13 +128,11 @@ fn print_json_or<F: FnOnce()>(
 // ============================================================================
 
 /// `affi receipt emit` — append one operation-event to the working receipt.
-pub fn emit(
-    r#type: String,
-    object: Vec<String>,
-    payload: String,
-    format: Option<String>,
-) -> Result<()> {
-    let output = adapt(crate::cli::emit(&r#type, &object, &payload))?;
+pub fn emit(r#type: String, object: String, payload: String, format: Option<String>) -> Result<()> {
+    // comma-separated object list (interface glue lives here, in the hand seam,
+    // because the thin wrapper projection cannot carry adaptation logic).
+    let objects: Vec<String> = object.split(',').map(|s| s.trim().to_string()).collect();
+    let output = adapt(crate::cli::emit(&r#type, &objects, &payload))?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -321,20 +319,52 @@ pub fn assemble(out: Option<String>, format: Option<String>) -> Result<()> {
     Ok(())
 }
 
-/// `affi receipt assemble-with-signature` — assemble and sign the receipt.
+/// `affi receipt assemble-with-signature` — assemble and REALLY sign.
+///
+/// `--signing-method affidavit-crypto-trust` assembles the working receipt and
+/// seals it under an ES256 key: the key comes from `AFFI_NOTARY_KEY` (raw
+/// 32-byte hex) or `AFFI_SIGNING_KEY_PATH` (path to a raw 32-byte hex key
+/// file). No key in the environment is a typed refusal
+/// (`R_missing_authority`): no key, no authority to sign. `sigstore` (the
+/// rendered default, kept for interface compatibility) and every other method
+/// value are refused — `REFUSED_UNSUPPORTED`, never a "signed via" fiction.
+#[cfg(feature = "crypto-trust")]
 pub fn assemble_with_signature(
     signing_method: Option<String>,
     out: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
     let method = signing_method.as_deref().unwrap_or("sigstore");
+    if method != SIGNING_METHOD_TRUST_PLANE {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "REFUSED_UNSUPPORTED: {method} signing is not implemented; use --signing-method {SIGNING_METHOD_TRUST_PLANE} (ES256 key from AFFI_NOTARY_KEY or AFFI_SIGNING_KEY_PATH)"
+        ))));
+    }
+    let (signing, record) = resolve_signing_key_from_env()?;
     let output = adapt(crate::cli::assemble(out.as_deref()))?;
+    // The freshly assembled receipt, through the chain law, before signing.
+    let base = adapt(crate::cli::show(&output.receipt_path))?;
+    let now = system_epoch_secs()?;
+    let sealed = seal_receipt_with_key(&base, &signing, &record, ENVELOPE_SIGN_AUDIENCE, now)?;
+    let standing = inline_standing(&sealed, &record, now)?;
+    let kid = record.id.to_string();
+
+    let sealed_path = format!("{}.sealed.json", output.receipt_path);
+    let bytes =
+        serde_json::to_vec_pretty(&sealed).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    std::fs::write(&sealed_path, bytes).map_err(io_err)?;
+
     if format.as_deref() == Some("json") {
         let out_val = serde_json::json!({
             "receipt_path": output.receipt_path,
             "content_address": output.content_address,
             "signing_method": method,
             "signed": true,
+            "kid": kid,
+            "algorithm": "ES256",
+            "standing": standing.as_str(),
+            "sealed_path": sealed_path,
+            "format": crate::crypto_trust_seal::SEALED_RECEIPT_FORMAT,
         });
         outln!(
             "{}",
@@ -344,24 +374,97 @@ pub fn assemble_with_signature(
     }
     outln!("assembled receipt -> {}", output.receipt_path);
     outln!("content address: {}", output.content_address);
-    outln!("signed via: {method} (key-pinning and attestation appended to metadata)");
+    outln!(
+        "signed via {method}: ES256 kid {kid}, standing {}, sealed -> {sealed_path}",
+        standing.as_str()
+    );
     Ok(())
 }
 
-/// `affi receipt assemble-and-notarize` — assemble and obtain external notarization.
+/// `affi receipt assemble-with-signature` — typed refusal when the trust plane
+/// is not compiled into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn assemble_with_signature(
+    _signing_method: Option<String>,
+    _out: Option<String>,
+    _format: Option<String>,
+) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi receipt assemble-and-notarize` — assemble and attach a REAL local
+/// notarization in one step.
+///
+/// Composes `assemble` with the `notarize` trust-plane path: with
+/// `AFFI_NOTARY_KEY` set the sidecar is a real attestation (`"notarized"` is
+/// true and means a verified ES256 seal); without it the sidecar is an honest
+/// unsigned attestation request (`"notarized"` is false — a request is not a
+/// proof). `rfc3161` (the rendered default) and `affidavit-notary-local` both
+/// select this local path; the note records that no external TSA was
+/// contacted. Any other provider is `REFUSED_UNSUPPORTED`.
+#[cfg(feature = "crypto-trust")]
 pub fn assemble_and_notarize(
     notary_provider: Option<String>,
     out: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
     let provider = notary_provider.as_deref().unwrap_or("rfc3161");
+    if provider != "rfc3161" && provider != NOTARY_AUDIENCE {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "REFUSED_UNSUPPORTED: notary provider \"{provider}\" is not implemented; local trust-plane notarization runs under the default (rfc3161) or \"affidavit-notary-local\""
+        ))));
+    }
     let output = adapt(crate::cli::assemble(out.as_deref()))?;
+    let base = adapt(crate::cli::show(&output.receipt_path))?;
+    let now = system_epoch_secs()?;
+    let subject = crate::crypto_trust_seal::subject_digest_of(&base).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "subject digest: {e}"
+        )))
+    })?;
+
+    let (attested, status, kid, standing) = match load_notary_key_from_env()? {
+        Some((signing, record)) => {
+            let sealed = seal_receipt_with_key(&base, &signing, &record, NOTARY_AUDIENCE, now)?;
+            let standing = inline_standing(&sealed, &record, now)?;
+            let sealed_path = format!("{}.notarization.json", output.receipt_path);
+            let bytes = serde_json::to_vec_pretty(&sealed)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+            std::fs::write(&sealed_path, bytes).map_err(io_err)?;
+            (
+                true,
+                "attested",
+                serde_json::json!(record.id.to_string()),
+                serde_json::json!(standing.as_str()),
+            )
+        }
+        None => (
+            false,
+            "attestation_requested",
+            serde_json::json!(NOTARY_REQUEST_KID),
+            serde_json::Value::Null,
+        ),
+    };
+
     if format.as_deref() == Some("json") {
         let out_val = serde_json::json!({
             "receipt_path": output.receipt_path,
             "content_address": output.content_address,
-            "notary": provider,
-            "notarized": true,
+            "notary": NOTARY_AUDIENCE,
+            "requested_provider": provider,
+            "notarized": attested,
+            "status": status,
+            "kid": kid,
+            "standing": standing,
+            "algorithm": "ES256",
+            "subject_digest": cli_hex_encode(&subject),
+            "note": if attested {
+                "local trust-plane attestation (ES256 seal adjudicated inline); no external RFC 3161 TSA was contacted"
+            } else {
+                "UNSIGNED attestation request (no authenticity claim); set AFFI_NOTARY_KEY to attest; no external RFC 3161 TSA was contacted"
+            },
         });
         outln!(
             "{}",
@@ -371,8 +474,25 @@ pub fn assemble_and_notarize(
     }
     outln!("assembled receipt -> {}", output.receipt_path);
     outln!("content address: {}", output.content_address);
-    outln!("notarized via: {provider} (timestamp token appended)");
+    if attested {
+        outln!("notarized locally via {NOTARY_AUDIENCE}: attested (standing {standing}), no external TSA contacted");
+    } else {
+        outln!("notarization REQUEST recorded via {NOTARY_AUDIENCE}: unsigned (set AFFI_NOTARY_KEY to attest); no external TSA contacted");
+    }
     Ok(())
+}
+
+/// `affi receipt assemble-and-notarize` — typed refusal when the trust plane
+/// is not compiled into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn assemble_and_notarize(
+    _notary_provider: Option<String>,
+    _out: Option<String>,
+    _format: Option<String>,
+) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
 }
 
 // ============================================================================
@@ -699,18 +819,99 @@ pub fn attest(
     Ok(())
 }
 
-/// `affi receipt notarize` — attach RFC 3161 timestamp notarization.
+/// `affi receipt notarize` — local trust-plane notarization (no fake RFC 3161).
+///
+/// The verb signature carries no key argument (the wrapper is rendered), so
+/// the two honest modes are:
+///
+/// * **Default — attestation REQUEST.** The sidecar carries the fully formed
+///   CTP-ENVELOPE-v1 envelope document (subject digest from
+///   `crypto_trust_seal::subject_digest_of`, audience
+///   `affidavit-notary-local`, a fresh nonce journaled in a NonceJournal) with
+///   `"signature": null` and `"status": "attestation_requested"`. This makes
+///   no authenticity claim: a request is not a proof.
+/// * **`AFFI_NOTARY_KEY` set (raw 32-byte hex) — real attestation.** The
+///   notary key signs the envelope, the seal goes through
+///   `crypto_trust_seal::seal_receipt`, an inline engine adjudicates it, and
+///   the sidecar reports `"status": "attested"` with `kid` and the real
+///   `standing`, embedding the sealed document.
+///
+/// No external TSA is contacted in either mode; the note field says exactly
+/// what happened.
+#[cfg(feature = "crypto-trust")]
 pub fn notarize(receipt: String, out: Option<String>, format: Option<String>) -> Result<()> {
-    let parsed = adapt(crate::cli::show(&receipt))?;
+    use crate::crypto_trust_envelope::NonceJournal;
+    use crate::crypto_trust_keys::KeyId;
+
+    // The receipt's own law first: a tampered receipt never becomes a value.
+    let base = adapt(crate::cli::show(&receipt))?;
+    let now = system_epoch_secs()?;
+    // One subject binding for both modes — the rendered seal law, never a
+    // second digest implementation.
+    let subject = crate::crypto_trust_seal::subject_digest_of(&base).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "subject digest: {e}"
+        )))
+    })?;
+
+    let (status, kid_json, standing_json, sealed_json, note) = match load_notary_key_from_env()? {
+        Some((signing, record)) => {
+            let sealed = seal_receipt_with_key(&base, &signing, &record, NOTARY_AUDIENCE, now)?;
+            let standing = inline_standing(&sealed, &record, now)?;
+            let sealed_value =
+                serde_json::to_value(&sealed).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+            (
+                "attested",
+                serde_json::json!(record.id.to_string()),
+                serde_json::json!(standing.as_str()),
+                sealed_value,
+                "local trust-plane attestation: the notary key signed the envelope over this receipt's subject digest and an inline VerificationEngine adjudicated the fresh seal; no external RFC 3161 TSA was contacted".to_string(),
+            )
+        }
+        None => {
+            // Request mode: real envelope structure, unsigned — no
+            // authenticity claim. The nonce is journaled locally as evidence
+            // of issue.
+            let nonce = fresh_nonce();
+            let requested_kid = KeyId(NOTARY_REQUEST_KID.to_string());
+            let envelope =
+                build_signature_envelope(&requested_kid, NOTARY_AUDIENCE, subject, now, nonce);
+            NonceJournal::default()
+                .record(&requested_kid.to_string(), nonce, now, NOTARY_NONCE_WINDOW)
+                .map_err(|e| {
+                    to_noun_verb(AffidavitError::Execution(format!("nonce journal: {e}")))
+                })?;
+            let envelope_value = serde_json::to_value(&envelope)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+            (
+                "attestation_requested",
+                serde_json::json!(requested_kid.to_string()),
+                serde_json::Value::Null,
+                envelope_value,
+                "UNSIGNED attestation request: the envelope names the notary key that WOULD sign it; no signature exists and no authenticity claim is made. Set AFFI_NOTARY_KEY (raw 32-byte hex) to produce a real attestation; no external RFC 3161 TSA was contacted".to_string(),
+            )
+        }
+    };
+
     let notarization = serde_json::json!({
         "notarized_receipt": receipt,
-        "chain_hash": parsed.chain_hash,
-        "event_count": parsed.events.len(),
+        "chain_hash": base.chain_hash,
+        "event_count": base.events.len(),
         "notarization": {
-            "type": "rfc3161",
-            "status": "timestamp_token_attached",
-            "note": "Production: submit chain_hash to a TSA and embed the token."
-        }
+            "type": "affidavit-trust-plane-local",
+            "status": status,
+            "kid": kid_json,
+            "standing": standing_json,
+            "algorithm": "ES256",
+            "subject_digest": cli_hex_encode(&subject),
+            "audience": NOTARY_AUDIENCE,
+            "envelope_format": crate::crypto_trust_envelope::ENVELOPE_VERSION,
+            "note": note,
+        },
+        // attested: the full PQ-SEAL-v1 sealed receipt (verifiable via
+        // `affi envelope verify` after extraction); request mode: the unsigned
+        // envelope document a notary would sign.
+        "sealed": sealed_json,
     });
 
     let out_str = adapt(serde_json::to_string_pretty(&notarization).map_err(anyhow::Error::from))?;
@@ -718,7 +919,7 @@ pub fn notarize(receipt: String, out: Option<String>, format: Option<String>) ->
     if let Some(out_path) = out {
         std::fs::write(&out_path, &out_str).map_err(io_err)?;
         if format.as_deref() != Some("json") {
-            outln!("notarization written to {out_path}");
+            outln!("notarization [{status}] written to {out_path}");
         } else {
             outln!("{out_str}");
         }
@@ -728,39 +929,108 @@ pub fn notarize(receipt: String, out: Option<String>, format: Option<String>) ->
     Ok(())
 }
 
-/// `affi receipt sign` — sign a receipt with a key.
+/// `affi receipt notarize` — typed refusal when the trust plane is not
+/// compiled into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn notarize(_receipt: String, _out: Option<String>, _format: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi receipt sign` — sign a sealed receipt into a PQ-SEAL-v1 sealed document.
+///
+/// Real trust-plane signing (no theater): the receipt is loaded through the
+/// chain-recomputing deserializer (a tampered receipt refuses to load), the
+/// raw 32-byte hex ES256 secret at `key_path` is derived into a signing key
+/// (dev/test custody — production custody is a non-exportable provider, HSM /
+/// Secure Enclave, reached through the trust plane, never a pipeline), a
+/// CTP-ENVELOPE-v1 envelope is built over the receipt's rendered subject
+/// binding (`crypto_trust_seal::subject_digest_of`; valid from now, expiring
+/// now + 86400), signed with RFC 6979 deterministic ECDSA, and sealed through
+/// `crypto_trust_seal::seal_receipt`. The artifact written to `out` (or
+/// stdout) is a real [`crate::crypto_trust_seal::SealedReceipt`] — pass it to
+/// `affi envelope verify`. The report's `standing` is a real inline
+/// VerificationEngine verdict over the fresh seal, never a literal.
+#[cfg(feature = "crypto-trust")]
 pub fn sign(
     receipt: String,
     key_path: String,
     out: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
-    let parsed = adapt(crate::cli::show(&receipt))?;
-    // Structural signing stub — production would use key_path with Ed25519/Sigstore
-    let signed = serde_json::json!({
+    // Custody boundary: "-" would name stdin/absence. Secrets never arrive by
+    // pipeline; dev/test custody is a key FILE, production custody is a
+    // non-exportable provider.
+    if key_path.trim() == "-" {
+        return Err(to_noun_verb(AffidavitError::Validation(
+            "REFUSED_UNSUPPORTED: key_path \"-\" is refused — pass a raw 32-byte hex key file (dev/test custody) or sign through a non-exportable provider (HSM / Secure Enclave); secrets are never read from stdin".to_string(),
+        )));
+    }
+
+    // The receipt's own law first: a tampered receipt never becomes a value.
+    let base = adapt(crate::cli::show(&receipt))?;
+
+    let (signing, record) = load_signing_key_file(&key_path)?;
+    let now = system_epoch_secs()?;
+    let sealed = seal_receipt_with_key(&base, &signing, &record, ENVELOPE_SIGN_AUDIENCE, now)?;
+    let standing = inline_standing(&sealed, &record, now)?;
+    let kid = record.id.to_string();
+
+    let report = serde_json::json!({
         "signed_receipt": receipt,
-        "chain_hash": parsed.chain_hash,
+        "chain_hash": base.chain_hash,
         "key_path": key_path,
-        "signature": {
-            "algorithm": "ed25519",
-            "status": "signed",
-            "note": "Production: sign chain_hash bytes with key at key_path."
-        }
+        "signed": true,
+        "kid": kid,
+        "algorithm": "ES256",
+        "standing": standing.as_str(),
+        "format": crate::crypto_trust_seal::SEALED_RECEIPT_FORMAT,
+        "subject_digest": cli_hex_encode(&sealed.envelope.subject_digest),
     });
 
-    let out_str = adapt(serde_json::to_string_pretty(&signed).map_err(anyhow::Error::from))?;
-
-    if let Some(out_path) = out {
-        std::fs::write(&out_path, &out_str).map_err(io_err)?;
-        if format.as_deref() != Some("json") {
-            outln!("signed receipt written to {out_path}");
-        } else {
-            outln!("{out_str}");
+    match out.as_deref() {
+        Some(path) => {
+            let bytes = serde_json::to_vec_pretty(&sealed)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+            std::fs::write(path, bytes).map_err(io_err)?;
+            if format.as_deref() == Some("json") {
+                let mut with_path = report;
+                with_path["sealed_path"] = serde_json::json!(path);
+                let text =
+                    adapt(serde_json::to_string_pretty(&with_path).map_err(anyhow::Error::from))?;
+                outln!("{text}");
+            } else {
+                outln!(
+                    "signed receipt written to {path} (PQ-SEAL-v1, kid {kid}, standing {})",
+                    standing.as_str()
+                );
+            }
         }
-    } else {
-        outln!("{out_str}");
+        None => {
+            // No --out: the sealed document IS the output artifact on stdout;
+            // the report travels on stderr so the two never interleave.
+            let text = adapt(serde_json::to_string_pretty(&sealed).map_err(anyhow::Error::from))?;
+            outln!("{text}");
+            let report_line = adapt(serde_json::to_string(&report).map_err(anyhow::Error::from))?;
+            eprintln!("{report_line}");
+        }
     }
     Ok(())
+}
+
+/// `affi receipt sign` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn sign(
+    _receipt: String,
+    _key_path: String,
+    _out: Option<String>,
+    _format: Option<String>,
+) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
 }
 
 // ============================================================================
@@ -4801,6 +5071,698 @@ pub fn errc_verify_assurance(
         format,
         None,
     )
+}
+
+// ============================================================================
+// Cryptographic trust plane — CLI verbs over the rendered crypto_trust_*
+// modules (v26.9.28 trust-plane wave, lane W3-L6).
+//
+// Each handler is the hand seam: it adapts CLI strings to the rendered
+// trust-plane laws and owns exactly the glue no generator expresses (file
+// transport, hex secret decoding, store persistence, exit codes). The
+// cryptography itself is never re-implemented here: keys come from
+// `crate::crypto_trust_es256`, the envelope and its canonical pre-image from
+// `crate::crypto_trust_envelope`, the subject binding and its gate from
+// `crate::crypto_trust_seal`, and adjudication from
+// `crate::crypto_trust_verify`. The rendered modules stay the only owners of
+// their laws — no second digest, no second envelope builder, no second
+// verifier.
+//
+// Feature shape: the rendered verb wrappers under `src/verbs/` compile
+// unconditionally, but the trust-plane modules they serve are
+// `#[cfg(feature = "crypto-trust")]`. Every handler below therefore exists in
+// both cfg worlds with the identical signature: the crypto-trust build runs
+// the real logic; the default build returns a typed refusal naming the
+// missing capability (a refusal, never a mock — the plane is either compiled
+// in or refused, never faked).
+// ============================================================================
+
+/// Default key-store path: the rendered store law's own `STORE_FILE`
+/// (`crate::crypto_trust_store`) — one source, no drift.
+#[cfg(feature = "crypto-trust")]
+const KEYS_STORE_PATH: &str = crate::crypto_trust_store::STORE_FILE;
+
+/// Envelope expiry instant stamped by `envelope sign`:
+/// 2100-01-01T00:00:00Z — a JCS-safe integer, the same bound the trust-plane
+/// court fixtures pin.
+#[cfg(feature = "crypto-trust")]
+const ENVELOPE_SIGN_EXPIRES_AT: u64 = 4_102_444_800;
+
+/// Audience bound inside every CLI-minted envelope.
+#[cfg(feature = "crypto-trust")]
+const ENVELOPE_SIGN_AUDIENCE: &str = "affidavit.cli";
+
+/// Current UNIX time in seconds; the caller owns the clock, so each verb
+/// reads it exactly once at its trust boundary.
+#[cfg(feature = "crypto-trust")]
+fn system_epoch_secs() -> Result<u64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("system clock: {e}"))))
+}
+
+/// Lowercase hex encoding for fingerprints and subject digests in handler
+/// output. (The rendered modules keep their hex helpers private; this is the
+/// presentation-seam copy, pinned by the CLI tests.)
+#[cfg(feature = "crypto-trust")]
+fn cli_hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
+/// Decode exactly 32 bytes from a hex text file — the raw-secret custody
+/// format accepted by `envelope sign` (test/dev key source; production
+/// custody is a non-exportable provider that never produces such a file).
+#[cfg(feature = "crypto-trust")]
+fn cli_hex_decode_32(text: &str) -> Result<[u8; 32]> {
+    let trimmed = text.trim();
+    let bytes = trimmed.as_bytes();
+    if bytes.len() != 64 {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "key file must hold exactly 64 hex characters (32 bytes), got {}",
+            bytes.len()
+        ))));
+    }
+    let mut out = [0u8; 32];
+    for (slot, pair) in out.iter_mut().zip(bytes.chunks_exact(2)) {
+        let hi = match (pair[0] as char).to_digit(16) {
+            Some(d) => d,
+            None => {
+                return Err(to_noun_verb(AffidavitError::Parse(format!(
+                    "key file is not hex: invalid character '{}'",
+                    pair[0] as char
+                ))))
+            }
+        };
+        let lo = match (pair[1] as char).to_digit(16) {
+            Some(d) => d,
+            None => {
+                return Err(to_noun_verb(AffidavitError::Parse(format!(
+                    "key file is not hex: invalid character '{}'",
+                    pair[1] as char
+                ))))
+            }
+        };
+        *slot = ((hi << 4) | lo) as u8;
+    }
+    Ok(out)
+}
+
+/// Signing method value that selects real trust-plane signing in
+/// `assemble-with-signature`. Every other value (including the rendered
+/// default `sigstore`) is refused rather than faked.
+#[cfg(feature = "crypto-trust")]
+const SIGNING_METHOD_TRUST_PLANE: &str = "affidavit-crypto-trust";
+
+/// Audience bound inside notarization envelopes (`receipt notarize`,
+/// `receipt assemble-and-notarize`).
+#[cfg(feature = "crypto-trust")]
+const NOTARY_AUDIENCE: &str = "affidavit-notary-local";
+
+/// The key-id slot named by an UNSIGNED notarization request: the notary key
+/// that WOULD sign. A request carries no signature and no authenticity claim.
+#[cfg(feature = "crypto-trust")]
+const NOTARY_REQUEST_KID: &str = "affidavit-notary-local";
+
+/// Replay-evidence window for the request-mode nonce journal (local, in-
+/// process evidence of issue).
+#[cfg(feature = "crypto-trust")]
+const NOTARY_NONCE_WINDOW: u64 = 300;
+
+/// Environment variable holding the notary/signing secret: raw 32-byte hex.
+#[cfg(feature = "crypto-trust")]
+const ENV_NOTARY_KEY: &str = "AFFI_NOTARY_KEY";
+
+/// Environment variable holding a path to a raw 32-byte hex key file, the
+/// file-based custody source for `assemble-with-signature`.
+#[cfg(feature = "crypto-trust")]
+const ENV_SIGNING_KEY_PATH: &str = "AFFI_SIGNING_KEY_PATH";
+
+/// Custodian subject recorded for keys derived from raw key files: a raw key
+/// file carries no identity claim, so the record says exactly that.
+#[cfg(feature = "crypto-trust")]
+const KEY_FILE_CUSTODIAN: &str = "local-key-file-unattributed";
+
+/// A fresh 16-byte nonce from the OS entropy source.
+#[cfg(feature = "crypto-trust")]
+fn fresh_nonce() -> [u8; 16] {
+    use rand_core::{OsRng, RngCore};
+    let mut nonce = [0u8; 16];
+    OsRng.fill_bytes(&mut nonce);
+    nonce
+}
+
+/// Build the CLI's standard CTP-ENVELOPE-v1 envelope: live from `now - 1`,
+/// expiring at `now + 86400`, graph-default epochs/generation, the given fresh
+/// nonce, audience, and subject binding.
+#[cfg(feature = "crypto-trust")]
+fn build_signature_envelope(
+    kid: &crate::crypto_trust_keys::KeyId,
+    audience: &str,
+    subject_digest: [u8; 32],
+    now: u64,
+    nonce: [u8; 16],
+) -> crate::crypto_trust_envelope::SignatureEnvelope {
+    use crate::crypto_trust_keys::{AlgorithmId, CryptoProfile};
+    crate::crypto_trust_envelope::SignatureEnvelope {
+        version: crate::crypto_trust_envelope::ENVELOPE_VERSION.to_string(),
+        algorithm: AlgorithmId::Es256,
+        key_id: kid.clone(),
+        profile: CryptoProfile::Classical,
+        policy_epoch: 1,
+        revocation_epoch: 0,
+        generation: 1,
+        nonce,
+        not_before: now.saturating_sub(1),
+        expires_at: now.saturating_add(86_400),
+        subject_digest,
+        audience: audience.to_string(),
+    }
+}
+
+/// The public key record for a derived signing key: real public material and
+/// fingerprint, custodian [`KEY_FILE_CUSTODIAN`] (a raw key file carries no
+/// identity claim). Used for inline adjudication; never auto-published.
+#[cfg(feature = "crypto-trust")]
+fn public_record_for(
+    signing: &crate::crypto_trust_es256::Es256SigningKey,
+    now: u64,
+) -> Result<crate::crypto_trust_keys::KeyRecord> {
+    use crate::crypto_trust_keys::{
+        fingerprint_public_key, AlgorithmId, CustodianIdentity, KeyId, KeyOrigin, KeyRecord,
+        PublicKeyMaterial,
+    };
+    let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
+    let fingerprint = fingerprint_public_key(AlgorithmId::Es256, &public);
+    Ok(KeyRecord {
+        id: KeyId::from_fingerprint(&fingerprint),
+        algorithm: AlgorithmId::Es256,
+        fingerprint,
+        custodian: CustodianIdentity {
+            subject: KEY_FILE_CUSTODIAN.to_string(),
+            device: None,
+            org: None,
+        },
+        origin: KeyOrigin::Generated,
+        public_key: public,
+        created_epoch: now,
+    })
+}
+
+/// Load a signing key from a raw 32-byte hex key FILE (dev/test custody; the
+/// production custody path is a non-exportable provider). Returns the key and
+/// its public record.
+#[cfg(feature = "crypto-trust")]
+fn load_signing_key_file(
+    path: &str,
+) -> Result<(
+    crate::crypto_trust_es256::Es256SigningKey,
+    crate::crypto_trust_keys::KeyRecord,
+)> {
+    let secret_text = std::fs::read_to_string(path).map_err(io_err)?;
+    load_signing_key_hex(&secret_text)
+}
+
+/// Load a signing key from raw 32-byte hex TEXT (env-var custody).
+#[cfg(feature = "crypto-trust")]
+fn load_signing_key_hex(
+    secret_text: &str,
+) -> Result<(
+    crate::crypto_trust_es256::Es256SigningKey,
+    crate::crypto_trust_keys::KeyRecord,
+)> {
+    let seed = cli_hex_decode_32(secret_text)?;
+    let signing = crate::crypto_trust_es256::Es256SigningKey::from_seed(&seed)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("signing key: {e}"))))?;
+    let now = system_epoch_secs()?;
+    let record = public_record_for(&signing, now)?;
+    Ok((signing, record))
+}
+
+/// The notary key from `AFFI_NOTARY_KEY` (raw 32-byte hex), if set. An unset
+/// (or empty — a variable set to nothing carries no secret) variable is
+/// `None`; a malformed value is a typed refusal.
+#[cfg(feature = "crypto-trust")]
+fn load_notary_key_from_env() -> Result<
+    Option<(
+        crate::crypto_trust_es256::Es256SigningKey,
+        crate::crypto_trust_keys::KeyRecord,
+    )>,
+> {
+    match std::env::var(ENV_NOTARY_KEY) {
+        Ok(hex) if !hex.trim().is_empty() => Ok(Some(load_signing_key_hex(&hex)?)),
+        Ok(_) => Ok(None),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(err) => Err(to_noun_verb(AffidavitError::Execution(format!(
+            "{ENV_NOTARY_KEY}: {err}"
+        )))),
+    }
+}
+
+/// Resolve the `assemble-with-signature` key: `AFFI_NOTARY_KEY` (raw hex
+/// secret) first, then `AFFI_SIGNING_KEY_PATH` (key file). Neither present
+/// (an empty value counts as absent) is the typed no-authority refusal — no
+/// key means no authority to sign.
+#[cfg(feature = "crypto-trust")]
+fn resolve_signing_key_from_env() -> Result<(
+    crate::crypto_trust_es256::Es256SigningKey,
+    crate::crypto_trust_keys::KeyRecord,
+)> {
+    if let Ok(hex) = std::env::var(ENV_NOTARY_KEY) {
+        if !hex.trim().is_empty() {
+            return load_signing_key_hex(&hex);
+        }
+    }
+    if let Ok(path) = std::env::var(ENV_SIGNING_KEY_PATH) {
+        if !path.trim().is_empty() {
+            return load_signing_key_file(&path);
+        }
+    }
+    Err(to_noun_verb(AffidavitError::Validation(format!(
+        "REFUSED_R_missing_authority: no signing key in the environment; set {ENV_NOTARY_KEY} (raw 32-byte hex) or {ENV_SIGNING_KEY_PATH} (path to a raw 32-byte hex key file). No key, no authority to sign"
+    ))))
+}
+
+/// Seal `base` under `signing`: subject binding via the rendered seal law,
+/// fresh nonce, [`build_signature_envelope`], RFC 6979 deterministic ECDSA
+/// over the domain-separated pre-image, then `crypto_trust_seal::seal_receipt`
+/// (the subject-binding gate re-runs on the sealing path).
+#[cfg(feature = "crypto-trust")]
+fn seal_receipt_with_key(
+    base: &crate::types::Receipt,
+    signing: &crate::crypto_trust_es256::Es256SigningKey,
+    record: &crate::crypto_trust_keys::KeyRecord,
+    audience: &str,
+    now: u64,
+) -> Result<crate::crypto_trust_seal::SealedReceipt> {
+    let subject = crate::crypto_trust_seal::subject_digest_of(base).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "subject digest: {e}"
+        )))
+    })?;
+    let envelope = build_signature_envelope(&record.id, audience, subject, now, fresh_nonce());
+    let signing_input = envelope.signing_input_checked().map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!(
+            "envelope pre-image: {e}"
+        )))
+    })?;
+    let signature = signing.sign(&signing_input);
+    crate::crypto_trust_seal::seal_receipt(base, envelope, signature)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("seal refused: {e}"))))
+}
+
+/// Adjudicate a freshly sealed receipt with an inline VerificationEngine over
+/// exactly the signing key's public record: the standing reported by the CLI
+/// is a real verdict, never a literal. A fresh nonce and a live window make
+/// VALID the expected standing; any refusal is surfaced as a typed error.
+#[cfg(feature = "crypto-trust")]
+fn inline_standing(
+    sealed: &crate::crypto_trust_seal::SealedReceipt,
+    record: &crate::crypto_trust_keys::KeyRecord,
+    now: u64,
+) -> Result<crate::crypto_trust_verify::CryptographicStanding> {
+    use crate::crypto_trust_envelope::NonceJournal;
+    use crate::crypto_trust_keys::{InMemoryKeyRegistry, KeyRegistry};
+    use crate::crypto_trust_lifecycle::RevocationList;
+    use crate::crypto_trust_verify::{TrustPolicy, VerificationEngine};
+
+    let mut registry = InMemoryKeyRegistry::new();
+    registry.register(record.clone()).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "inline key registry: {e}"
+        )))
+    })?;
+    let engine = VerificationEngine::new(
+        registry,
+        RevocationList::default(),
+        NonceJournal::default(),
+        TrustPolicy::from_graph_defaults().with_now(now),
+    );
+    let verdict = crate::crypto_trust_seal::verify_sealed(sealed, &engine).map_err(|e| {
+        to_noun_verb(AffidavitError::VerificationFailed(format!(
+            "fresh seal refused adjudication: {e}"
+        )))
+    })?;
+    Ok(verdict.standing)
+}
+
+/// Load the key store through the rendered tamper-evident store law
+/// ([`crate::crypto_trust_store::FileKeyStore`]): JSON parse, CTP-STORE-v1
+/// format identity, and the domain-separated checksum over the records. A
+/// missing file is an empty store; a tampered, foreign-format, or corrupt
+/// file is a typed refusal naming the store law — never silently accepted.
+#[cfg(feature = "crypto-trust")]
+fn load_key_records(store: &str) -> Result<Vec<crate::crypto_trust_keys::KeyRecord>> {
+    let reader = crate::crypto_trust_store::FileKeyStore::open(store).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store}: {e}"
+        )))
+    })?;
+    reader.records().map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store}: {e}"
+        )))
+    })
+}
+
+/// `affi keys generate` — mint a real ES256 signing key and append its public
+/// record to the tamper-evident key store.
+///
+/// The store is [`crate::crypto_trust_store::FileKeyStore`] (CTP-STORE-v1:
+/// checksummed records, atomic writes, typed duplicate/tamper refusals). The
+/// secret lives in process memory only and never touches disk: the store
+/// records the public material, kid, custodian, and fingerprint. Signing
+/// secrets reach `envelope sign` / `receipt sign` out-of-band (a raw 32-byte
+/// hex file held by the custodian — a test/dev custody source with real
+/// bytes); the production custody options are non-exportable providers (HSM /
+/// Secure Enclave, see `crate::crypto_trust_enclave`, feature
+/// `secure-enclave`), where a secret file cannot exist at all.
+#[cfg(feature = "crypto-trust")]
+pub fn keys_generate(algorithm: String, custodian: String, out: Option<String>) -> Result<()> {
+    use crate::crypto_trust_es256::Es256SigningKey;
+    use crate::crypto_trust_keys::{
+        fingerprint_public_key, AlgorithmId, CustodianIdentity, KeyId, KeyOrigin, KeyRecord,
+        PublicKeyMaterial,
+    };
+
+    if !algorithm.eq_ignore_ascii_case("ES256") {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "unsupported algorithm {algorithm}: this CLI mints ES256 keys; the PQC families are registry-admitted but have no software signing provider"
+        ))));
+    }
+    let custodian = custodian.trim().to_string();
+    if custodian.is_empty() {
+        return Err(to_noun_verb(AffidavitError::Validation(
+            "custodian must be a non-empty subject".to_string(),
+        )));
+    }
+    let store = out.as_deref().unwrap_or(KEYS_STORE_PATH);
+
+    let signing = Es256SigningKey::generate()
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("key generation: {e}"))))?;
+    let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
+    let fingerprint = fingerprint_public_key(AlgorithmId::Es256, &public);
+    let record = KeyRecord {
+        id: KeyId::from_fingerprint(&fingerprint),
+        algorithm: AlgorithmId::Es256,
+        fingerprint,
+        custodian: CustodianIdentity {
+            subject: custodian,
+            device: None,
+            org: None,
+        },
+        origin: KeyOrigin::Generated,
+        public_key: public,
+        created_epoch: system_epoch_secs()?,
+    };
+
+    // Store law with teeth: the full FileKeyStore path — load (checksum,
+    // format identity) → duplicate check (id + fingerprint, exact refusals) →
+    // atomic write. A tampered store refuses admission; a duplicate key is
+    // refused by variant; a crash mid-write leaves the previous store intact.
+    let mut key_store = crate::crypto_trust_store::FileKeyStore::open(store).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store}: {e}"
+        )))
+    })?;
+    key_store
+        .register_checked(record.clone())
+        .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("key refused: {e}"))))?;
+
+    let kid = record.id.to_string();
+    let fingerprint_hex = record.fingerprint.as_hex();
+    let printed = serde_json::json!({
+        "kid": kid,
+        "fingerprint": fingerprint_hex,
+        "algorithm": "ES256",
+        "custodian": record.custodian.subject,
+        "store": store,
+    });
+    let printed = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{printed}");
+    eprintln!(
+        "key {kid} generated (fingerprint {fingerprint_hex}); public record appended to {store}"
+    );
+    eprintln!("custody: SOFTWARE (in-process memory); the signing secret never touched disk");
+    Ok(())
+}
+
+/// `affi keys generate` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn keys_generate(_algorithm: String, _custodian: String, _out: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi keys list` — print the registered key records:
+/// kid, algorithm, fingerprint hex, custodian. The store is read through the
+/// full [`crate::crypto_trust_store::FileKeyStore`] law: a tampered or
+/// foreign-format store is a typed refusal, never a silent listing.
+#[cfg(feature = "crypto-trust")]
+pub fn keys_list(store: Option<String>) -> Result<()> {
+    use crate::crypto_trust_keys::KeyRecord;
+
+    let store = store.as_deref().unwrap_or(KEYS_STORE_PATH);
+    let records: Vec<KeyRecord> = load_key_records(store)?;
+    if records.is_empty() {
+        eprintln!("no keys registered in {store}");
+        return Ok(());
+    }
+    for record in &records {
+        outln!(
+            "{}\t{}\t{}\t{}",
+            record.id,
+            record.algorithm.as_str(),
+            record.fingerprint.as_hex(),
+            record.custodian.subject
+        );
+    }
+    Ok(())
+}
+
+/// `affi keys list` — typed refusal when the trust plane is not compiled into
+/// this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn keys_list(_store: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi envelope sign` — seal an admitted receipt under an ES256 key.
+///
+/// Builds the rendered [`crate::crypto_trust_envelope::SignatureEnvelope`]
+/// over the receipt's rendered subject binding
+/// ([`crate::crypto_trust_seal::subject_digest_of`]), signs its canonical
+/// domain-separated pre-image with RFC 6979 deterministic ECDSA, and writes
+/// the PQ-SEAL-v1 document through [`crate::crypto_trust_seal::seal_receipt`]
+/// — the subject-binding gate runs on the sealing path even though the
+/// envelope was constructed for exactly this receipt.
+///
+/// `key_file` holds the raw 32-byte signing secret as hex — a test/dev
+/// custody source with real bytes (no mock material). Production custody is a
+/// non-exportable provider (HSM / Secure Enclave; feature `secure-enclave`)
+/// where the secret never exists as a file. The matching public record must
+/// be registered in the verifier's store (`affi keys generate` writes one for
+/// a freshly minted key) or adjudication will refuse with unknown-key.
+#[cfg(feature = "crypto-trust")]
+pub fn envelope_sign(receipt: String, key_file: String, out: Option<String>) -> Result<()> {
+    use crate::crypto_trust_envelope::{SignatureEnvelope, ENVELOPE_VERSION};
+    use crate::crypto_trust_es256::Es256SigningKey;
+    use crate::crypto_trust_keys::{
+        fingerprint_public_key, AlgorithmId, CryptoProfile, KeyId, PublicKeyMaterial,
+    };
+    use rand_core::{OsRng, RngCore};
+
+    // The base receipt's own law first: the chain-recomputing deserializer
+    // refuses a tampered receipt before any signature exists.
+    let receipt_bytes = std::fs::read(&receipt).map_err(io_err)?;
+    let base = crate::chain::deserialize_receipt(&receipt_bytes).map_err(|e| {
+        to_noun_verb(AffidavitError::Parse(format!(
+            "receipt load failed (a tampered receipt refuses to deserialize): {e}"
+        )))
+    })?;
+
+    // Custody: decode the raw secret (real bytes) and derive the signing key.
+    let secret_text = std::fs::read_to_string(&key_file).map_err(io_err)?;
+    let seed = cli_hex_decode_32(&secret_text)?;
+    let signing = Es256SigningKey::from_seed(&seed)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("signing key: {e}"))))?;
+    let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
+    let kid = KeyId::from_fingerprint(&fingerprint_public_key(AlgorithmId::Es256, &public));
+
+    // Subject binding — reuse the rendered seal law; never a second digest.
+    let subject_digest = crate::crypto_trust_seal::subject_digest_of(&base).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "subject digest: {e}"
+        )))
+    })?;
+
+    let mut nonce = [0u8; 16];
+    OsRng.fill_bytes(&mut nonce);
+    let now = system_epoch_secs()?;
+    let envelope = SignatureEnvelope {
+        version: ENVELOPE_VERSION.to_string(),
+        algorithm: AlgorithmId::Es256,
+        key_id: kid.clone(),
+        profile: CryptoProfile::Classical,
+        policy_epoch: 1,
+        revocation_epoch: 0,
+        generation: 1,
+        nonce,
+        not_before: now.saturating_sub(1),
+        expires_at: ENVELOPE_SIGN_EXPIRES_AT,
+        subject_digest,
+        audience: ENVELOPE_SIGN_AUDIENCE.to_string(),
+    };
+    let signing_input = envelope.signing_input_checked().map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!(
+            "envelope pre-image: {e}"
+        )))
+    })?;
+    let signature = signing.sign(&signing_input);
+
+    // Seal through the rendered gate: the subject binding is re-checked.
+    let sealed = crate::crypto_trust_seal::seal_receipt(&base, envelope, signature)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("seal refused: {e}"))))?;
+
+    match out.as_deref() {
+        Some(path) => {
+            let bytes = serde_json::to_vec_pretty(&sealed)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+            std::fs::write(path, bytes).map_err(io_err)?;
+            eprintln!("sealed {kid} -> {path} (PQ-SEAL-v1)");
+        }
+        None => {
+            let text = serde_json::to_string_pretty(&sealed)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+            outln!("{text}");
+            eprintln!("sealed {kid} (PQ-SEAL-v1); pass --out to write the artifact to a file");
+        }
+    }
+    Ok(())
+}
+
+/// `affi envelope sign` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn envelope_sign(_receipt: String, _key_file: String, _out: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi envelope verify` — adjudicate a PQ-SEAL-v1 sealed receipt against
+/// the registered keys and print the standing VERDICT JSON.
+///
+/// Exit contract (mirrors `receipt verify`): exit 0 = VALID standing, exit 2
+/// = any other DECIDED standing (a tampered signature is a decided INVALID,
+/// not a refusal). Verification refusals — unknown key, expired window,
+/// replay, policy — prevent adjudication and propagate as typed errors. The
+/// verdict JSON is the stdout artifact; human chatter goes to stderr. The
+/// nonce journal is per-invocation (a stateless CLI), so cross-process replay
+/// evidence remains the key-store/lifecycle lane's concern; window, policy,
+/// registry, revocation-flat, and signature laws all run in full.
+#[cfg(feature = "crypto-trust")]
+pub fn envelope_verify(
+    sealed_file: String,
+    store: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    use crate::crypto_trust_envelope::NonceJournal;
+    use crate::crypto_trust_keys::{InMemoryKeyRegistry, KeyRegistry};
+    use crate::crypto_trust_lifecycle::RevocationList;
+    use crate::crypto_trust_seal::SealedReceipt;
+    use crate::crypto_trust_verify::{CryptographicStanding, TrustPolicy, VerificationEngine};
+
+    let sealed_bytes = std::fs::read(&sealed_file).map_err(io_err)?;
+    // Deserialization re-runs the base receipt's chain law: a tampered base
+    // never becomes a SealedReceipt value at all.
+    let sealed: SealedReceipt =
+        serde_json::from_slice(&sealed_bytes).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+
+    let store = store.as_deref().unwrap_or(KEYS_STORE_PATH);
+    if !std::path::Path::new(store).exists() {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store} not found: register the verifier's keys with `affi keys generate` first"
+        ))));
+    }
+    let mut registry = InMemoryKeyRegistry::new();
+    for record in load_key_records(store)? {
+        registry.register(record).map_err(|e| {
+            to_noun_verb(AffidavitError::Validation(format!(
+                "key store {store} is corrupt: {e}"
+            )))
+        })?;
+    }
+    let policy = TrustPolicy::from_graph_defaults().with_now(system_epoch_secs()?);
+    let engine = VerificationEngine::new(
+        registry,
+        RevocationList::default(),
+        NonceJournal::default(),
+        policy,
+    );
+
+    // The rendered adjudication: subject binding first, then the engine's
+    // ordered laws (window, policy, registry, revocation, replay, signature).
+    let verdict = crate::crypto_trust_seal::verify_sealed(&sealed, &engine).map_err(|e| {
+        to_noun_verb(AffidavitError::VerificationFailed(format!(
+            "sealed receipt refused adjudication: {e}"
+        )))
+    })?;
+
+    let kid = verdict
+        .key_id
+        .as_ref()
+        .map(|k| k.to_string())
+        .unwrap_or_default();
+    let report = serde_json::json!({
+        "standing": verdict.standing.as_str(),
+        "key_id": kid,
+        "subject_digest": cli_hex_encode(&verdict.subject_digest),
+        "sealed_file": sealed_file,
+        "format": crate::crypto_trust_seal::SEALED_RECEIPT_FORMAT,
+    });
+    let text = adapt(serde_json::to_string_pretty(&report).map_err(anyhow::Error::from))?;
+    outln!("{text}");
+    if format.as_deref() != Some("json") {
+        eprintln!(
+            "cryptographic standing: {} (key {kid})",
+            verdict.standing.as_str()
+        );
+    }
+    // Stable exit with the verdict: 0 = VALID, 2 = any other decided
+    // standing. Flushing then exiting keeps the stdout artifact clean of the
+    // runtime's trailing null (the federation-court pattern).
+    use std::io::Write as _;
+    std::io::stdout().flush().map_err(io_err)?;
+    let code = if verdict.standing == CryptographicStanding::Valid {
+        0
+    } else {
+        2
+    };
+    std::process::exit(code);
+}
+
+/// `affi envelope verify` — typed refusal when the trust plane is not
+/// compiled into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn envelope_verify(
+    _sealed_file: String,
+    _store: Option<String>,
+    _format: Option<String>,
+) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
 }
 
 #[cfg(test)]

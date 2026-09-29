@@ -1,4 +1,4 @@
-//! # Verb Registry — Single Source of Truth for All 79 Verbs
+//! # Verb Registry — Single Source of Truth for All 83 Verbs
 //!
 //! This module is the W4 keystone: a compile-time static registry that eliminates
 //! drift between documentation, shell completions, and the actual verb set.
@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 79);
+//! assert_eq!(verb_count(), 83);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -130,7 +130,7 @@ impl VerbEntry {
     }
 }
 
-/// The complete verb registry — 79 entries, one per live verb.
+/// The complete verb registry — 83 entries, one per live verb.
 ///
 /// Ordering mirrors `src/verbs/mod.rs` (alphabetical) for easy cross-referencing.
 pub static REGISTRY: &[VerbEntry] = &[
@@ -410,14 +410,14 @@ pub static REGISTRY: &[VerbEntry] = &[
         "sign",
         "receipt",
         VerbGroup::Attestation,
-        "Cryptographically sign a sealed receipt with a private key (PEM or PKCS#11)",
+        "Cryptographically sign a sealed receipt with an ES256 key (raw-hex key file; production custody via HSM/Secure Enclave)",
         &["sign", "signature", "cryptography", "private-key", "pem"],
     ),
     VerbEntry::new(
         "notarize",
         "receipt",
         VerbGroup::Attestation,
-        "Submit a receipt to a transparency log for timestamped notarization (Sigstore/Rekor)",
+        "Attach a local trust-plane notarization to a receipt (unsigned attestation request, or a real ES256 attestation with AFFI_NOTARY_KEY)",
         &["notarize", "notarization", "transparency", "sigstore", "rekor", "timestamp"],
     ),
     VerbEntry::new(
@@ -438,7 +438,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "assemble-and-notarize",
         "receipt",
         VerbGroup::Attestation,
-        "Assemble, seal, and submit to a transparency log in one step",
+        "Assemble and attach a local trust-plane notarization in one step (no external TSA)",
         &["assemble_and_notarize", "notarize", "assemble", "atomic", "rekor"],
     ),
     VerbEntry::new(
@@ -718,6 +718,43 @@ pub static REGISTRY: &[VerbEntry] = &[
     .with_example(
         "affi errc verify-assurance --receipt assurance.json --parent errc.json",
     ),
+
+    // ── Attestation (cryptographic trust plane, v26.9.28) ───────────────────
+    // The rendered crypto_trust_* modules, surfaced as CLI nouns. Handlers
+    // carry the `crypto-trust` feature gate; the verbs refuse with a typed
+    // REFUSED_UNSUPPORTED on binaries built without it.
+    VerbEntry::new(
+        "generate",
+        "keys",
+        VerbGroup::Attestation,
+        "Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)",
+        &["generate", "keys", "keygen", "es256", "trust-plane"],
+    )
+    .with_example("affi keys generate ES256 alice --out .affi/keys.json"),
+    VerbEntry::new(
+        "list",
+        "keys",
+        VerbGroup::Attestation,
+        "List registered key records: kid, algorithm, fingerprint, custodian",
+        &["list", "keys", "registry", "trust-plane"],
+    )
+    .with_example("affi keys list --store .affi/keys.json"),
+    VerbEntry::new(
+        "sign",
+        "envelope",
+        VerbGroup::Attestation,
+        "Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document",
+        &["sign", "envelope", "seal", "es256", "trust-plane"],
+    )
+    .with_example("affi envelope sign receipt.json key.hex --out sealed.json"),
+    VerbEntry::new(
+        "verify",
+        "envelope",
+        VerbGroup::Attestation,
+        "Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)",
+        &["verify", "envelope", "verdict", "standing", "trust-plane"],
+    )
+    .with_example("affi envelope verify sealed.json --store .affi/keys.json"),
 ];
 
 /// Look up a verb by `(verb, noun)` pair.
@@ -807,7 +844,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 79; // 67 original + why + fix + affi doctor + guide search + 8 federation courts
+        let expected = 83; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify)
         assert_eq!(
             verb_count(),
             expected,

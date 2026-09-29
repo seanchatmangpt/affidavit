@@ -9,23 +9,19 @@
 // Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
 // return_type, handler_name, args.
 
-//! `receipt diff` verb (rendered).
+//! `receipt emit-from-sbom` verb (rendered).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Compare two receipts and print their differences
+/// Ingest an SPDX/CycloneDX SBOM and emit OCEL component/dependency events
 #[rustfmt::skip]
-#[verb("diff", "receipt")]
-pub fn diff(
-    #[arg(index = 1)]
-    receipt_a: String,
-    #[arg(index = 2)]
-    receipt_b: String,
+#[verb("emit-from-sbom", "receipt")]
+pub fn sbom_emit(
+    sbom_path: String,
     format: Option<String>,
 ) -> Result<()> {
-    crate::handlers::diff(
-        receipt_a,
-        receipt_b,
+    crate::handlers::sbom_emit(
+        sbom_path,
         format,
     )
 }

@@ -9,23 +9,17 @@
 // Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
 // return_type, handler_name, args.
 
-//! `receipt diff` verb (rendered).
+//! `keys list` verb (rendered).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Compare two receipts and print their differences
+/// List registered key records: kid, algorithm, fingerprint, custodian
 #[rustfmt::skip]
-#[verb("diff", "receipt")]
-pub fn diff(
-    #[arg(index = 1)]
-    receipt_a: String,
-    #[arg(index = 2)]
-    receipt_b: String,
-    format: Option<String>,
+#[verb("list", "keys")]
+pub fn keys_list(
+    store: Option<String>,
 ) -> Result<()> {
-    crate::handlers::diff(
-        receipt_a,
-        receipt_b,
-        format,
+    crate::handlers::keys_list(
+        store,
     )
 }

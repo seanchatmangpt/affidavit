@@ -9,23 +9,24 @@
 // Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
 // return_type, handler_name, args.
 
-//! `receipt diff` verb (rendered).
+//! `errc assure` verb (rendered).
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Compare two receipts and print their differences
-#[rustfmt::skip]
-#[verb("diff", "receipt")]
-pub fn diff(
-    #[arg(index = 1)]
-    receipt_a: String,
-    #[arg(index = 2)]
-    receipt_b: String,
+
+
+/// Seal a one-witness-per-claim assurance ledger over a sealed ERRC receipt
+#[verb("assure", "errc")]
+pub fn assure(
+    parent: String,
+    witnesses: String,
+    out: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
-    crate::handlers::diff(
-        receipt_a,
-        receipt_b,
+    crate::handlers::assure(
+        parent,
+        witnesses,
+        out,
         format,
     )
 }
