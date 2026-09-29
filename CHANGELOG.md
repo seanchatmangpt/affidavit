@@ -16,6 +16,9 @@ follows the graphlaw module: a tiny `unsafe` FFI shell over a safe, natively
 testable JSON ABI, tested in a real wasm runtime.
 
 ### Added
+- **Cryptographic trust plane (`src/crypto_trust.rs`)** — Affidavit now owns key identifiers, public verification material, custody metadata, generations/revocation epochs, domain-separated canonical signing material, replay admission, signature verification, and an unconstructable `VerifiedSignature` standing carrier. Private signing capability remains behind a `SigningProvider` boundary; verified evidence does not confer SA2A/BRCE authority.
+- **Real post-quantum verification under `pqc`** — the feature now pulls RustCrypto `ml-dsa` and verifies FIPS 204 ML-DSA-65 signatures. The old `1000x_post_quantum_sealing.rs` BLAKE3-based Dilithium/Kyber placeholders were removed and replaced by a compatibility facade over the real trust plane. Negative courts cover mutated signatures, wrong subjects, replay, revocation, duplicate key ids, and stale revocation epochs.
+- **`docs/CRYPTO_TRUST.md` + `crypto-trust` CI lane** — documents proof/authority separation and gates the ML-DSA path with formatting, tests, Clippy, and doctests.
 - **`affidavit-wasm/`** — a standalone crate (like `affidavit-core/`, not a root
   workspace member) that builds `affidavit.wasm` for `wasm32-wasip1` (~230 KB).
   Exports `af_alloc`, `af_free`, `af_call`, `af_abi_version` and `memory`; a
