@@ -268,7 +268,6 @@ crypto-trust = ["dep:signature", "dep:p256", "dep:ml-dsa", "dep:slh-dsa", "dep:r
 # Security.framework; affidavit owns KeyRef/custody semantics, never key bytes.
 secure-enclave = ["crypto-trust", "dep:security-framework"]
 # Parallel-session single-file trust plane (unreachable WIP) — gated verbatim, pending consolidation.
-trust-plane-legacy = []
 
 # 1000X Innovation Hardening
 # Automatic code remediation based on policy violations.

@@ -755,6 +755,30 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["verify", "envelope", "verdict", "standing", "trust-plane"],
     )
     .with_example("affi envelope verify sealed.json --store .affi/keys.json"),
+    VerbEntry::new(
+        "import",
+        "keys",
+        VerbGroup::Attestation,
+        "Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)",
+        &["import", "keys", "external", "fingerprint", "trust-plane"],
+    )
+    .with_example("affi keys import ES256 04a5f1... alice --out .affi/keys.json"),
+    VerbEntry::new(
+        "revoke",
+        "keys",
+        VerbGroup::Attestation,
+        "Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store",
+        &["revoke", "keys", "revocation", "compromise", "trust-plane"],
+    )
+    .with_example("affi keys revoke afk1_0123456789abcdef compromised --store .affi/keys.json"),
+    VerbEntry::new(
+        "rotate",
+        "keys",
+        VerbGroup::Attestation,
+        "Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store",
+        &["rotate", "keys", "rotation", "successor", "rekey", "trust-plane"],
+    )
+    .with_example("affi keys rotate afk1_0123456789abcdef --store .affi/keys.json --out rotation.json"),
 ];
 
 /// Look up a verb by `(verb, noun)` pair.
@@ -844,7 +868,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 83; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify)
+        let expected = 86; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify) + 3 keys lifecycle verbs (keys import/revoke/rotate, v26.9.28 wave 1 lane 4)
         assert_eq!(
             verb_count(),
             expected,

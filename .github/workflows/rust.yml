@@ -153,3 +153,38 @@ jobs:
 
       - name: cargo clippy --features crypto-trust -- -D warnings
         run: cargo clippy --features crypto-trust --all-targets -- -D warnings
+
+  # Secure Enclave requires Apple silicon / macOS: security-framework only links
+  # here, so this is the job where the feature gate is actually exercised.
+  # The enclave live KAT is #[ignore]-gated (needs operator biometrics, device
+  # passcode, and an entitlement-signed binary — OSStatus -34018 for unsigned
+  # CLIs); CI therefore runs the NON-ignored suite only via plain `cargo test`
+  # and never attempts interactive keychain access.
+  crypto-trust-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Assert exact candidate
+        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+
+      - name: Install pinned nightly toolchain
+        uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      - name: cargo fmt --all -- --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo test --features secure-enclave --all-targets (non-ignored suite)
+        run: cargo test --features secure-enclave --all-targets
+
+      - name: cargo clippy --features secure-enclave -- -D warnings
+        run: cargo clippy --features secure-enclave --all-targets -- -D warnings

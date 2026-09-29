@@ -94,8 +94,6 @@ pub mod bench;
 pub mod brce;
 pub mod catalog;
 pub mod chain;
-#[cfg(feature = "trust-plane-legacy")] // parallel-session WIP, superseded-in-scope by the pack-rendered plane; see docs/jira/v26.9.28/CRYPTO-TRUST-PLANE.md
-pub mod crypto_trust;
 pub mod cli;
 
 #[cfg(feature = "discovery")]
@@ -175,7 +173,11 @@ pub mod crypto_trust_lifecycle;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_log;
 #[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_nonce_store;
+#[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_pqc;
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_provider;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_quorum;
 #[cfg(feature = "crypto-trust")]
@@ -235,13 +237,6 @@ pub use errc_claim_assurance::{
     ERRC_CLAIM_ASSURANCE_SOURCE_ARTIFACT,
 };
 pub use error::AffidavitError;
-#[cfg(feature = "trust-plane-legacy")]
-pub use crypto_trust::{
-    sign_with_provider, verify_and_record, CryptoRefusal, KeyCustody, KeyRecord, KeyRegistry,
-    KeyState, NonceLedger, SignatureAlgorithm, SignatureEnvelope, SigningMaterial, SigningProvider,
-    VerificationContext, VerifiedSignature, JCS_SAFE_INTEGER_MAX, SIGNATURE_PROFILE,
-    SIGNING_DOMAIN,
-};
 pub use federation::{CourtOutcome, STANDING_CAPABILITY, STANDING_CAPABILITY_DIGEST};
 pub use standing::{
     certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,

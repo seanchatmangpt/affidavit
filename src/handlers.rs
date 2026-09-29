@@ -5945,3 +5945,885 @@ mod ocel_quality_tests {
         assert_eq!(remediate_payload["causal_chain"][1]["files_changed"], 15);
     }
 }
+
+// ============================================================================
+// KEYS CLI CLUSTER — import / revoke / rotate (v26.9.28, wave 1 lane 4)
+// ============================================================================
+
+/// Revocation sidecar wire-format identity. The sidecar is a LOCAL,
+/// tamper-evident audit ledger beside the key store; it mirrors the rendered
+/// store law's file pattern (`format` identity + records + checksum over the
+/// records alone). The rendered CRL ([`crate::crypto_trust_revocation`]) is a
+/// different, SIGNED publication surface and needs an issuer signing key; the
+/// CLI revoke ledger deliberately reuses the store's CHECKSUM law instead —
+/// same domain, same JCS canonicalization, no second digest implementation.
+#[cfg(feature = "crypto-trust")]
+const REVOCATIONS_SIDECAR_FORMAT: &str = "CTP-REVOCATIONS-v1";
+
+/// One revocation entry in the sidecar ledger: the publishable triple
+/// (`kid`, when it died, why) — the same shape the rendered lifecycle
+/// [`crate::crypto_trust_lifecycle::RevocationRecord`] keeps per kid.
+#[cfg(feature = "crypto-trust")]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RevocationSidecarEntry {
+    pub kid: String,
+    pub revoked_at: u64,
+    pub reason: String,
+}
+
+/// The at-rest revocation sidecar file: format identity, entries in append
+/// order, checksum. The checksum binds the entries (never the format field —
+/// the format is checked structurally before the checksum runs), exactly like
+/// [`crate::crypto_trust_store::KeyStoreFile`].
+#[cfg(feature = "crypto-trust")]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct RevocationSidecarFile {
+    format: String,
+    entries: Vec<RevocationSidecarEntry>,
+    checksum: String,
+}
+
+/// The sidecar's checksum: lowercase hex of the domain-separated BLAKE3 digest
+/// over `jcs(entries)` under the STORE law's domain tag — the rendered
+/// [`crate::crypto_trust_store::checksum_for`] approach reused for a different
+/// record type (its own signature is typed to `KeyRecord`).
+#[cfg(feature = "crypto-trust")]
+fn revocations_checksum(entries: &[RevocationSidecarEntry]) -> Result<String> {
+    let value = serde_json::to_value(entries).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    let canonical = crate::crypto_trust_canonical::jcs(&value).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "revocation sidecar canonicalization: {e}"
+        )))
+    })?;
+    Ok(crate::crypto_trust_canonical::digest_hex(
+        crate::crypto_trust_store::DOMAIN_TAG,
+        &[canonical.as_bytes()],
+    ))
+}
+
+/// The revocation sidecar path for a key store: `revocations.json` beside the
+/// store file. The rendered default store (`.affi/keys.json`) yields the
+/// rendered default sidecar (`.affi/revocations.json`); an explicit
+/// `--store` keeps the ledger beside that store so isolated stores never
+/// share revocation state.
+#[cfg(feature = "crypto-trust")]
+fn revocation_sidecar_path(store: &str) -> String {
+    let path = std::path::Path::new(store);
+    let dir = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    dir.join("revocations.json").to_string_lossy().into_owned()
+}
+
+/// Loads the revocation sidecar under the store law's read pattern: an absent
+/// file is an empty ledger; a wrong format identity or a checksum divergence
+/// is a typed refusal — a tampered ledger never yields its entries.
+#[cfg(feature = "crypto-trust")]
+fn load_revocations(sidecar: &str) -> Result<Vec<RevocationSidecarEntry>> {
+    let text = match std::fs::read_to_string(sidecar) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(io_err(e)),
+    };
+    let file: RevocationSidecarFile =
+        serde_json::from_str(&text).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    if file.format != REVOCATIONS_SIDECAR_FORMAT {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "revocation sidecar {sidecar}: wrong format \"{}\": expected {REVOCATIONS_SIDECAR_FORMAT}",
+            file.format
+        ))));
+    }
+    let recomputed = revocations_checksum(&file.entries)?;
+    if file.checksum != recomputed {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "revocation sidecar {sidecar} checksum mismatch: claimed {}, recomputed {}",
+            file.checksum, recomputed
+        ))));
+    }
+    Ok(file.entries)
+}
+
+/// Appends one entry to the sidecar and writes it back atomically: sibling
+/// temporary file (`.<name>.tmp-<pid>`) → `sync_all` → `rename`, mirroring the
+/// rendered store's atomicity law (readers see the old or the new ledger,
+/// never a partial one).
+#[cfg(feature = "crypto-trust")]
+fn append_revocation(
+    sidecar: &str,
+    entry: RevocationSidecarEntry,
+) -> Result<Vec<RevocationSidecarEntry>> {
+    let mut entries = load_revocations(sidecar)?;
+    entries.push(entry);
+    let file = RevocationSidecarFile {
+        format: REVOCATIONS_SIDECAR_FORMAT.to_string(),
+        checksum: revocations_checksum(&entries)?,
+        entries: entries.clone(),
+    };
+    let path = std::path::Path::new(sidecar);
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    std::fs::create_dir_all(parent).map_err(io_err)?;
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "revocations.json".to_string());
+    let tmp = parent.join(format!(".{name}.tmp-{}", std::process::id()));
+    let body =
+        serde_json::to_string_pretty(&file).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    {
+        use std::io::Write as _;
+        let mut f = std::fs::File::create(&tmp).map_err(io_err)?;
+        f.write_all(body.as_bytes()).map_err(io_err)?;
+        f.sync_all().map_err(io_err)?;
+    }
+    std::fs::rename(&tmp, path).map_err(io_err)?;
+    Ok(entries)
+}
+
+/// Decode a non-empty, even-length hex string of arbitrary size into bytes.
+/// Bad characters and odd length are typed [`AffidavitError::Parse`] refusals
+/// naming the offending character/length; an empty input is a Parse refusal
+/// too (a length mismatch against the algorithm's expectation is the
+/// caller's Validation, so it can name the expected size).
+#[cfg(feature = "crypto-trust")]
+fn cli_hex_decode_variable(text: &str) -> Result<Vec<u8>> {
+    let trimmed = text.trim();
+    let bytes = trimmed.as_bytes();
+    if bytes.is_empty() {
+        return Err(to_noun_verb(AffidavitError::Parse(
+            "public key hex is empty".to_string(),
+        )));
+    }
+    if bytes.len() % 2 != 0 {
+        return Err(to_noun_verb(AffidavitError::Parse(format!(
+            "public key hex has odd length: {} characters",
+            bytes.len()
+        ))));
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 2);
+    for (index, pair) in bytes.chunks_exact(2).enumerate() {
+        let nibble = |c: u8| -> Result<u8> {
+            (c as char).to_digit(16).map(|d| d as u8).ok_or_else(|| {
+                to_noun_verb(AffidavitError::Parse(format!(
+                    "public key is not hex: invalid character '{}' at position {}",
+                    c as char,
+                    index * 2
+                )))
+            })
+        };
+        out.push((nibble(pair[0])? << 4) | nibble(pair[1])?);
+    }
+    Ok(out)
+}
+
+/// `affi keys import` — register an EXTERNALLY-held public key into the
+/// tamper-evident key store with origin `Imported { source: "cli" }`.
+///
+/// Wire forms per algorithm family: SEC1 (uncompressed point, the graph's
+/// declared 65-byte length) for ES256; the raw fixed-length encoding for
+/// ML-DSA-65 (1952 bytes); the raw key bytes for SLH-DSA-SHA2-128s (the graph
+/// row declares no fixed length, so any non-empty byte string is admitted and
+/// fingerprinted as declared). The key is fingerprinted through the rendered
+/// [`crate::crypto_trust_keys::fingerprint_public_key`] and admitted through
+/// the full [`crate::crypto_trust_store::FileKeyStore`] law, so duplicates
+/// surface as the exact `Registry::Duplicate` refusal and a tampered store is
+/// refused on load.
+///
+/// Typed refusals: unknown algorithm (`REFUSED_UNSUPPORTED`), flat-hex hybrid
+/// material (`REFUSED_UNSUPPORTED`: the composite wire form is
+/// `es256 || mldsa65`, not a single blob), bad/odd/empty hex (`Parse`), length
+/// mismatch against the graph-declared expectation (`Validation` naming the
+/// algorithm's expected length), duplicate key/fingerprint (the store law's
+/// `Registry::Duplicate` passthrough), empty custodian.
+#[cfg(feature = "crypto-trust")]
+pub fn keys_import(
+    algorithm: String,
+    public_key_hex: String,
+    custodian: String,
+    out: Option<String>,
+) -> Result<()> {
+    use crate::crypto_trust_keys::{
+        fingerprint_public_key, AlgorithmId, CustodianIdentity, KeyId, KeyOrigin, KeyRecord,
+        PublicKeyMaterial,
+    };
+
+    let admitted: Vec<&str> = AlgorithmId::all().iter().map(|a| a.as_str()).collect();
+    let alg = AlgorithmId::all()
+        .iter()
+        .copied()
+        .find(|a| a.as_str().eq_ignore_ascii_case(algorithm.trim()))
+        .ok_or_else(|| {
+            to_noun_verb(AffidavitError::Validation(format!(
+                "REFUSED_UNSUPPORTED: algorithm \"{algorithm}\" is not admitted; the registry admits {}",
+                admitted.join(", ")
+            )))
+        })?;
+    if alg == AlgorithmId::HybridEs256MlDsa65 {
+        return Err(to_noun_verb(AffidavitError::Validation(
+            "REFUSED_UNSUPPORTED: flat-hex import is not defined for ES256+ML-DSA-65 (its composite material is es256 || mldsa65); import the halves through their own families".to_string(),
+        )));
+    }
+
+    let bytes = cli_hex_decode_variable(&public_key_hex)?;
+    match alg.public_key_len() {
+        Some(expected) if bytes.len() != expected => {
+            return Err(to_noun_verb(AffidavitError::Validation(format!(
+                "public key length mismatch for {}: expected {expected} bytes ({} hex characters), got {} bytes",
+                alg.as_str(),
+                expected * 2,
+                bytes.len()
+            ))));
+        }
+        // The graph declares no fixed length for this family (rendered as
+        // "variable"): admit any non-empty raw encoding as declared.
+        None if bytes.is_empty() => {
+            return Err(to_noun_verb(AffidavitError::Validation(format!(
+                "public key length mismatch for {}: the graph declares no fixed length, but an empty key is not a key",
+                alg.as_str()
+            ))));
+        }
+        _ => {}
+    }
+    let public = match alg {
+        AlgorithmId::Es256 => PublicKeyMaterial::Es256Sec1(bytes),
+        AlgorithmId::MlDsa65 => PublicKeyMaterial::MlDsa65(bytes),
+        AlgorithmId::SlhDsa128s => PublicKeyMaterial::SlhDsa128s(bytes),
+        AlgorithmId::HybridEs256MlDsa65 => {
+            return Err(to_noun_verb(AffidavitError::Validation(
+                "REFUSED_UNSUPPORTED: flat-hex import is not defined for ES256+ML-DSA-65"
+                    .to_string(),
+            )));
+        }
+    };
+
+    let custodian = custodian.trim().to_string();
+    if custodian.is_empty() {
+        return Err(to_noun_verb(AffidavitError::Validation(
+            "custodian must be a non-empty subject".to_string(),
+        )));
+    }
+    let fingerprint = fingerprint_public_key(alg, &public);
+    let record = KeyRecord {
+        id: KeyId::from_fingerprint(&fingerprint),
+        algorithm: alg,
+        fingerprint,
+        custodian: CustodianIdentity {
+            subject: custodian,
+            device: None,
+            org: None,
+        },
+        origin: KeyOrigin::Imported {
+            source: "cli".to_string(),
+        },
+        public_key: public,
+        created_epoch: system_epoch_secs()?,
+    };
+
+    // The full store law, identical to `keys generate`: load (checksum, format
+    // identity) → duplicate check (exact Registry refusals) → atomic write.
+    let store = out.as_deref().unwrap_or(KEYS_STORE_PATH);
+    let mut key_store = crate::crypto_trust_store::FileKeyStore::open(store).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store}: {e}"
+        )))
+    })?;
+    key_store
+        .register_checked(record.clone())
+        .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("key refused: {e}"))))?;
+
+    let kid = record.id.to_string();
+    let fingerprint_hex = record.fingerprint.as_hex();
+    let printed = serde_json::json!({
+        "kid": kid,
+        "fingerprint": fingerprint_hex,
+        "algorithm": alg.as_str(),
+        "custodian": record.custodian.subject,
+        "origin": "IMPORTED",
+        "store": store,
+    });
+    let printed = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{printed}");
+    eprintln!(
+        "key {kid} imported (fingerprint {fingerprint_hex}); public record appended to {store}"
+    );
+    Ok(())
+}
+
+/// `affi keys import` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn keys_import(
+    _algorithm: String,
+    _public_key_hex: String,
+    _custodian: String,
+    _out: Option<String>,
+) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi keys revoke` — append a tamper-evident revocation entry to the
+/// revocation sidecar beside the key store.
+///
+/// The key must be registered in the store (unknown kid is a typed refusal);
+/// the store itself is read through the full rendered store law, so a
+/// tampered store refuses before any revocation is written. The sidecar
+/// (`revocations.json` beside the store; `.affi/revocations.json` for the
+/// default store) is a local checksummed audit ledger under the STORE law's
+/// checksum approach — domain-separated BLAKE3 over the JCS canonicalization
+/// of the entries (see [`revocations_checksum`]); a tampered sidecar is a
+/// typed checksum-mismatch refusal and nothing is appended. Entries are
+/// append-ordered; per the lifecycle law, the LATEST entry for a kid governs.
+/// `revoked_at` is the real system epoch.
+#[cfg(feature = "crypto-trust")]
+pub fn keys_revoke(kid: String, reason: String, store: Option<String>) -> Result<()> {
+    let store_path = store.as_deref().unwrap_or(KEYS_STORE_PATH);
+    let records = load_key_records(store_path)?;
+    let kid = kid.trim();
+    if !records.iter().any(|r| r.id.0 == kid) {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "unknown key {kid}: not registered in {store_path}; register it with `affi keys generate` or `affi keys import` first"
+        ))));
+    }
+    let reason = reason.trim().to_string();
+    if reason.is_empty() {
+        return Err(to_noun_verb(AffidavitError::Validation(
+            "reason must be a non-empty audit note".to_string(),
+        )));
+    }
+    let revoked_at = system_epoch_secs()?;
+    let entry = RevocationSidecarEntry {
+        kid: kid.to_string(),
+        revoked_at,
+        reason: reason.clone(),
+    };
+    let sidecar = revocation_sidecar_path(store_path);
+    let total = append_revocation(&sidecar, entry)?.len();
+
+    let printed = serde_json::json!({
+        "revoked": true,
+        "kid": kid,
+        "revoked_at": revoked_at,
+        "reason": reason,
+        "sidecar": sidecar,
+        "entries": total,
+    });
+    let printed = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{printed}");
+    eprintln!("key {kid} revoked ({reason}); revocation appended to {sidecar}");
+    Ok(())
+}
+
+/// `affi keys revoke` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn keys_revoke(_kid: String, _reason: String, _store: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi keys rotate` — rotate a registered ES256 key to a FRESHLY GENERATED
+/// ES256 successor and append the successor's public record to the store.
+///
+/// The rendered ceremony ([`crate::crypto_trust_rotation::rotate_es256_to_hybrid`])
+/// is hybrid-specific: its admission gate walks the graph's PROFILE MIGRATION
+/// table (CLASSICAL→HYBRID, HYBRID→CLASSICAL, HYBRID→PQC), and a same-profile
+/// CLASSICAL→CLASSICAL re-keying is not a graph migration row. This handler
+/// therefore implements the pure-ES256 rotation per that module's documented
+/// LAW, reusing its public types and canonical machinery — no second digest:
+///
+/// 1. Successor identity: `new_key_id` is the trust-plane fingerprint of the
+///    successor's SEC1 public material bound to `AlgorithmId::Es256`
+///    (`KeyId::from_fingerprint`).
+/// 2. Record digest: `digest(ROTATION_DOMAIN_TAG, [ROTATION_DIGEST_LABEL,
+///    jcs(signed_fields)])` — the module's exact documented pre-image over the
+///    five signed fields (`old_key_id`, `new_key_id`, `from_profile`,
+///    `to_profile`, `rotated_at`), canonicalized with the rendered JCS.
+///    `from_profile`/`to_profile` are the rendered profileName form
+///    (`CLASSICAL`); this record names a same-profile takeover, not a profile
+///    migration.
+/// 3. Successor attests takeover: the SUCCESSOR key signs the digest (RFC 6979
+///    deterministic ECDSA, DER), per the module's successor-signature law. The
+///    old key's secret is not required and (the store holding public records
+///    only) is never present; the wire form is the raw DER (documented pure-
+///    ES256 shape of `successor_signature`, verifiable with
+///    [`crate::crypto_trust_es256::verify_es256`] over the recomputed digest).
+/// 4. Persistence: the successor's public record joins the store under the
+///    full FileKeyStore law, inheriting the old record's custodian and origin
+///    `Generated`. The old record is left in place — retirement is the
+///    custodian's explicit `affi keys revoke` act, kept separate on purpose.
+///
+/// Typed refusals: unknown kid, non-ES256 key (`REFUSED_UNSUPPORTED`), store
+/// errors (checksum/format/io passthrough).
+#[cfg(feature = "crypto-trust")]
+pub fn keys_rotate(kid: String, store: Option<String>, out: Option<String>) -> Result<()> {
+    use crate::crypto_trust_canonical::{digest, jcs};
+    use crate::crypto_trust_es256::Es256SigningKey;
+    use crate::crypto_trust_keys::{
+        fingerprint_public_key, AlgorithmId, KeyId, KeyOrigin, KeyRecord, PublicKeyMaterial,
+    };
+    use crate::crypto_trust_rotation::{
+        RotationRecord, ROTATION_DIGEST_LABEL, ROTATION_DOMAIN_TAG,
+    };
+
+    let store_path = store.as_deref().unwrap_or(KEYS_STORE_PATH);
+    let records = load_key_records(store_path)?;
+    let kid = kid.trim();
+    let old = records
+        .iter()
+        .find(|r| r.id.0 == kid)
+        .ok_or_else(|| {
+            to_noun_verb(AffidavitError::Validation(format!(
+                "unknown key {kid}: not registered in {store_path}; register it with `affi keys generate` or `affi keys import` first"
+            )))
+        })?
+        .clone();
+    if old.algorithm != AlgorithmId::Es256 {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "REFUSED_UNSUPPORTED: ES256→ES256 rotation requires an ES256 key; {kid} is {}",
+            old.algorithm.as_str()
+        ))));
+    }
+
+    let successor = Es256SigningKey::generate()
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("key generation: {e}"))))?;
+    let new_public = PublicKeyMaterial::Es256Sec1(successor.public_key_sec1());
+    let new_fingerprint = fingerprint_public_key(AlgorithmId::Es256, &new_public);
+    let new_kid = KeyId::from_fingerprint(&new_fingerprint);
+    let now = system_epoch_secs()?;
+
+    // The rotation module's exact documented pre-image: JCS of the five signed
+    // fields, domain-digested under the rotation label. (The module's
+    // `SignedRotationFields`/`rotation_digest` are private; this reconstruction
+    // is pinned byte-for-byte by tests/crypto_trust_keys_cli.rs and the
+    // in-module test law "successor signs the domain-digested record".)
+    let signed_fields = serde_json::json!({
+        "old_key_id": kid,
+        "new_key_id": new_kid.to_string(),
+        "from_profile": old.algorithm.profile().as_str().to_ascii_uppercase(),
+        "to_profile": AlgorithmId::Es256.profile().as_str().to_ascii_uppercase(),
+        "rotated_at": now,
+    });
+    let canonical = jcs(&signed_fields).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "rotation record canonicalization: {e}"
+        )))
+    })?;
+    let record_digest = digest(
+        ROTATION_DOMAIN_TAG,
+        &[ROTATION_DIGEST_LABEL, canonical.as_bytes()],
+    );
+    let successor_signature = successor.sign(&record_digest);
+    let record = RotationRecord {
+        old_key_id: kid.to_string(),
+        new_key_id: new_kid.to_string(),
+        from_profile: old.algorithm.profile().as_str().to_ascii_uppercase(),
+        to_profile: AlgorithmId::Es256.profile().as_str().to_ascii_uppercase(),
+        rotated_at: now,
+        successor_signature,
+    };
+
+    let new_record = KeyRecord {
+        id: new_kid.clone(),
+        algorithm: AlgorithmId::Es256,
+        fingerprint: new_fingerprint,
+        custodian: old.custodian.clone(),
+        origin: KeyOrigin::Generated,
+        public_key: new_public,
+        created_epoch: now,
+    };
+    let mut key_store = crate::crypto_trust_store::FileKeyStore::open(store_path).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store_path}: {e}"
+        )))
+    })?;
+    key_store
+        .register_checked(new_record)
+        .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("key refused: {e}"))))?;
+
+    let printed = serde_json::json!({
+        "rotated_from": kid,
+        "rotated_to": new_kid.to_string(),
+        "fingerprint": new_fingerprint.as_hex(),
+        "algorithm": AlgorithmId::Es256.as_str(),
+        "from_profile": record.from_profile,
+        "to_profile": record.to_profile,
+        "rotated_at": now,
+        "store": store_path,
+    });
+    let printed = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{printed}");
+    let rotation_text = adapt(serde_json::to_string_pretty(&record).map_err(anyhow::Error::from))?;
+    match out.as_deref() {
+        Some(path) => {
+            std::fs::write(path, rotation_text.as_bytes()).map_err(io_err)?;
+            eprintln!("rotation record {kid} -> {new_kid} written to {path}; successor public record appended to {store_path}");
+        }
+        None => {
+            outln!("{rotation_text}");
+            eprintln!(
+                "rotation record {kid} -> {new_kid}; pass --out to write the artifact to a file"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// `affi keys rotate` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn keys_rotate(_kid: String, _store: Option<String>, _out: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// In-process witnessing for the keys import/revoke/rotate handler bodies
+/// (real ES256 keys, real FileKeyStore, real sidecar IO — no mocks). The CLI
+/// surface (dispatch, exit codes) is witnessed by
+/// `tests/crypto_trust_keys_cli.rs` against the rendered wrappers.
+#[cfg(all(test, feature = "crypto-trust"))]
+mod keys_lane_tests {
+    use super::*;
+    use crate::crypto_trust_canonical::{digest, jcs};
+    use crate::crypto_trust_es256::{verify_es256, Es256SigningKey};
+    use crate::crypto_trust_keys::{
+        fingerprint_public_key, AlgorithmId, KeyId, KeyOrigin, PublicKeyMaterial,
+    };
+    use crate::crypto_trust_rotation::{
+        RotationRecord, ROTATION_DIGEST_LABEL, ROTATION_DOMAIN_TAG,
+    };
+    use crate::crypto_trust_store::FileKeyStore;
+
+    fn temp_store(tag: &str) -> String {
+        let dir = std::env::temp_dir().join(format!(
+            "ctp-keys-lane-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("create scratch dir");
+        dir.join("keys.json").to_string_lossy().into_owned()
+    }
+
+    /// A real externally-held ES256 public key as hex (SEC1), derived from a
+    /// fixed seed so the test knows the expected fingerprint.
+    fn external_pk_hex(tag: u8) -> String {
+        let signing = Es256SigningKey::from_seed(&[tag; 32]).expect("valid fixture scalar");
+        cli_hex_encode(&signing.public_key_sec1())
+    }
+
+    fn es256_kid_of(tag: u8) -> String {
+        let signing = Es256SigningKey::from_seed(&[tag; 32]).expect("valid fixture scalar");
+        let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
+        KeyId::from_fingerprint(&fingerprint_public_key(AlgorithmId::Es256, &public)).to_string()
+    }
+
+    #[test]
+    fn import_registers_externally_held_key_with_imported_origin() {
+        let store = temp_store("import-happy");
+        let pk = external_pk_hex(0x42);
+        keys_import(
+            "ES256".into(),
+            pk,
+            "external-custodian".into(),
+            Some(store.clone()),
+        )
+        .expect("import succeeds");
+        let records = load_key_records(&store).expect("store reads back");
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].id.0, es256_kid_of(0x42));
+        assert_eq!(
+            records[0].origin,
+            KeyOrigin::Imported {
+                source: "cli".to_string()
+            }
+        );
+        let _ = std::fs::remove_file(&store);
+    }
+
+    #[test]
+    fn import_refusals_are_typed() {
+        let store = temp_store("import-refuse");
+        // Unknown algorithm: REFUSED_UNSUPPORTED naming the admitted set.
+        let err = keys_import(
+            "ED25519".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("unknown algorithm refused");
+        assert!(err.to_string().contains("REFUSED_UNSUPPORTED"));
+        assert!(err.to_string().contains("ED25519"));
+        // Hybrid flat-hex: REFUSED_UNSUPPORTED.
+        let err = keys_import(
+            "ES256+ML-DSA-65".into(),
+            "00".repeat(2017),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("hybrid flat-hex refused");
+        assert!(err.to_string().contains("REFUSED_UNSUPPORTED"));
+        // Bad hex character: Parse.
+        let err = keys_import(
+            "ES256".into(),
+            format!("{}zz", &external_pk_hex(0x42)[..126]),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("bad hex refused");
+        assert!(err.to_string().contains("Parse error"));
+        assert!(err.to_string().contains("not hex"));
+        // Odd-length hex: Parse.
+        let err = keys_import(
+            "ES256".into(),
+            "0".repeat(129),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("odd-length hex refused");
+        assert!(err.to_string().contains("odd length"));
+        // Length mismatch names the algorithm and its expected length.
+        let err = keys_import(
+            "ES256".into(),
+            "04".repeat(32),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("short ES256 key refused");
+        let msg = err.to_string();
+        assert!(msg.contains("length mismatch for ES256"), "{msg}");
+        assert!(msg.contains("expected 65 bytes"), "{msg}");
+        assert!(msg.contains("got 32 bytes"), "{msg}");
+        // ML-DSA-65 length mismatch names 1952.
+        let err = keys_import(
+            "ML-DSA-65".into(),
+            "00".repeat(100),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("short ML-DSA-65 key refused");
+        let msg = err.to_string();
+        assert!(msg.contains("expected 1952 bytes"), "{msg}");
+        // Empty custodian: Validation.
+        let err = keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "   ".into(),
+            Some(store.clone()),
+        )
+        .expect_err("empty custodian refused");
+        assert!(err
+            .to_string()
+            .contains("custodian must be a non-empty subject"));
+
+        // Duplicate import: the store law's exact Registry::Duplicate
+        // passthrough ("duplicate key <kid>").
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect("first import lands");
+        let err = keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "bob".into(),
+            Some(store.clone()),
+        )
+        .expect_err("duplicate import refused");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("key refused: key registry: duplicate key"),
+            "{msg}"
+        );
+        assert!(msg.contains(&es256_kid_of(0x42)), "{msg}");
+        let _ = std::fs::remove_file(&store);
+    }
+
+    #[test]
+    fn revoke_appends_checksummed_entries_and_latest_governs() {
+        let store = temp_store("revoke-happy");
+        let kid_a = es256_kid_of(0x42);
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect("import a");
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x43),
+            "bob".into(),
+            Some(store.clone()),
+        )
+        .expect("import b");
+        let kid_b = es256_kid_of(0x43);
+        keys_revoke(kid_a.clone(), "compromised".into(), Some(store.clone()))
+            .expect("first revoke");
+        keys_revoke(kid_b.clone(), "superseded".into(), Some(store.clone()))
+            .expect("second revoke");
+        let sidecar = revocation_sidecar_path(&store);
+        let entries = load_revocations(&sidecar).expect("sidecar reads back");
+        assert_eq!(entries.len(), 2, "append order preserved");
+        assert_eq!(entries[0].kid, kid_a);
+        assert_eq!(entries[0].reason, "compromised");
+        assert!(entries[0].revoked_at > 0, "real epoch, never a literal 0");
+        // The recomputed checksum matches the store law's approach.
+        let file: RevocationSidecarFile =
+            serde_json::from_str(&std::fs::read_to_string(&sidecar).expect("read sidecar"))
+                .expect("parse sidecar");
+        assert_eq!(file.format, REVOCATIONS_SIDECAR_FORMAT);
+        assert_eq!(
+            file.checksum,
+            revocations_checksum(&file.entries).expect("recompute")
+        );
+        let _ = std::fs::remove_file(&store);
+        let _ = std::fs::remove_file(&sidecar);
+    }
+
+    #[test]
+    fn revoke_refuses_unknown_key_and_tampered_sidecar() {
+        let store = temp_store("revoke-refuse");
+        let kid = es256_kid_of(0x42);
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect("import");
+        let sidecar = revocation_sidecar_path(&store);
+
+        let err = keys_revoke(
+            "afk1_0000000000000000".into(),
+            "x".into(),
+            Some(store.clone()),
+        )
+        .expect_err("unknown kid refused");
+        assert!(err
+            .to_string()
+            .contains("unknown key afk1_0000000000000000"));
+
+        keys_revoke(kid.clone(), "first".into(), Some(store.clone())).expect("first revoke");
+        // Tamper with one byte of the ledger: the next revoke must refuse
+        // (the read side runs the checksum law before appending) and change
+        // nothing.
+        let intact = std::fs::read_to_string(&sidecar).expect("read sidecar");
+        let tampered = intact.replacen("\"first\"", "\"firSt\"", 1);
+        assert_ne!(tampered, intact);
+        std::fs::write(&sidecar, tampered).expect("write tampered sidecar");
+        let err = keys_revoke(kid, "second".into(), Some(store.clone()))
+            .expect_err("tampered sidecar must refuse");
+        assert!(err.to_string().contains("checksum mismatch"));
+        let _ = std::fs::remove_file(&store);
+        let _ = std::fs::remove_file(&sidecar);
+    }
+
+    #[test]
+    fn rotate_produces_successor_signed_verifiable_record() {
+        let store = temp_store("rotate-happy");
+        let kid = es256_kid_of(0x42);
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect("import");
+        let rotation_path = std::path::Path::new(&store)
+            .parent()
+            .unwrap()
+            .join("rotation.json");
+        keys_rotate(
+            kid.clone(),
+            Some(store.clone()),
+            Some(rotation_path.to_string_lossy().into_owned()),
+        )
+        .expect("rotate succeeds");
+
+        // Store: old record stays, successor joined with Generated origin and
+        // inherited custodian.
+        let records = load_key_records(&store).expect("store reads back");
+        assert_eq!(records.len(), 2);
+        let successor = records
+            .iter()
+            .find(|r| r.id.0 != kid)
+            .expect("successor present");
+        assert_eq!(successor.origin, KeyOrigin::Generated);
+        assert_eq!(successor.custodian.subject, "alice");
+
+        // The record parses as the rendered RotationRecord type.
+        let record: RotationRecord =
+            serde_json::from_str(&std::fs::read_to_string(&rotation_path).expect("read rotation"))
+                .expect("parse rotation record");
+        assert_eq!(record.old_key_id, kid);
+        assert_eq!(record.new_key_id, successor.id.0);
+        assert_eq!(record.from_profile, "CLASSICAL");
+        assert_eq!(record.to_profile, "CLASSICAL");
+
+        // Recompute the module's documented pre-image and verify the
+        // successor's ES256 signature over it.
+        let signed_fields = serde_json::json!({
+            "old_key_id": record.old_key_id,
+            "new_key_id": record.new_key_id,
+            "from_profile": record.from_profile,
+            "to_profile": record.to_profile,
+            "rotated_at": record.rotated_at,
+        });
+        let canonical = jcs(&signed_fields).expect("jcs");
+        let record_digest = digest(
+            ROTATION_DOMAIN_TAG,
+            &[ROTATION_DIGEST_LABEL, canonical.as_bytes()],
+        );
+        let pk = match &successor.public_key {
+            PublicKeyMaterial::Es256Sec1(bytes) => bytes.clone(),
+            other => panic!("successor is ES256 SEC1, got {other:?}"),
+        };
+        assert!(
+            verify_es256(&pk, &record_digest, &record.successor_signature)
+                .expect("well-formed signature"),
+            "the successor's signature over the documented pre-image must verify"
+        );
+        let _ = std::fs::remove_file(&store);
+        let _ = std::fs::remove_file(&rotation_path);
+    }
+
+    #[test]
+    fn rotate_refuses_unknown_kid_and_non_es256_key() {
+        let store = temp_store("rotate-refuse");
+        let err = keys_rotate("afk1_0000000000000000".into(), Some(store.clone()), None)
+            .expect_err("unknown kid refused");
+        assert!(err
+            .to_string()
+            .contains("unknown key afk1_0000000000000000"));
+
+        // A registered ML-DSA-65 key is not an ES256 rotation subject.
+        let pk_hex = cli_hex_encode(&vec![
+            7u8;
+            AlgorithmId::MlDsa65.public_key_len().unwrap_or(1952)
+        ]);
+        keys_import(
+            "ML-DSA-65".into(),
+            pk_hex,
+            "pqc-custodian".into(),
+            Some(store.clone()),
+        )
+        .expect("import ML-DSA-65");
+        let records = load_key_records(&store).expect("store reads back");
+        let pqc_kid = records.last().expect("record").id.0.clone();
+        let err = keys_rotate(pqc_kid, Some(store.clone()), None)
+            .expect_err("non-ES256 rotation refused");
+        assert!(err.to_string().contains("requires an ES256 key"));
+        let _ = std::fs::remove_file(&store);
+    }
+}

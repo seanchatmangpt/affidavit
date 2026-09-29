@@ -6,7 +6,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 83, Registry nouns: 8
+# Source: src/registry.rs — Registry verbs: 86, Registry nouns: 8
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install (per-user):
@@ -34,7 +34,7 @@ _affi() {
                 'envelope[2 verbs]' \
                 'errc[4 verbs]' \
                 'guide[1 verbs]' \
-                'keys[2 verbs]' \
+                'keys[5 verbs]' \
                 'receipt[69 verbs]' \
                 'standing[2 verbs]'
             ;;
@@ -68,7 +68,10 @@ _affi() {
                 keys)
                     _values 'verb' \
                         'generate[Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)]' \
-                        'list[List registered key records\: kid, algorithm, fingerprint, custodian]'
+                        'import[Import an externally-held public key (hex) into the key store\: fingerprint it and register it under a custodian (origin Imported)]' \
+                        'list[List registered key records\: kid, algorithm, fingerprint, custodian]' \
+                        'revoke[Revoke a registered key\: append a tamper-evident revocation entry to the checksummed sidecar beside the key store]' \
+                        'rotate[Rotate a registered ES256 key to a freshly generated ES256 successor\: the successor signs the rotation record and its public record joins the store]'
                     ;;
                 receipt)
                     _values 'verb' \

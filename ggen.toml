@@ -285,5 +285,33 @@ query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "lo
 template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_log.rs.tmpl" }
 output_file = "src/crypto_trust_log.rs"
 mode = "Overwrite"
+[[generation.rules]]
+name = "ctp-journal-persist"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "journal-persist.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_journal_persist.rs.tmpl" }
+output_file = "src/crypto_trust_journal_persist.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-crl-file"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "crl-file.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_crl_file.rs.tmpl" }
+output_file = "src/crypto_trust_crl_file.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-provider"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "provider.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_provider.rs.tmpl" }
+output_file = "src/crypto_trust_provider.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-nonce-store"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "nonce-store.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_nonce_store.rs.tmpl" }
+output_file = "src/crypto_trust_nonce_store.rs"
+mode = "Overwrite"
+
 
 

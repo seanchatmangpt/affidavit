@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 83, Registry nouns: 8
+# Source: src/registry.rs — Registry verbs: 86, Registry nouns: 8
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 
 # --- helper predicates -------------------------------------------------------
@@ -53,7 +53,7 @@ complete -c affi -f -n '__affi_no_noun' -a ecosystem -d '2 verbs'
 complete -c affi -f -n '__affi_no_noun' -a envelope -d '2 verbs'
 complete -c affi -f -n '__affi_no_noun' -a errc -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a guide -d '1 verbs'
-complete -c affi -f -n '__affi_no_noun' -a keys -d '2 verbs'
+complete -c affi -f -n '__affi_no_noun' -a keys -d '5 verbs'
 complete -c affi -f -n '__affi_no_noun' -a receipt -d '69 verbs'
 complete -c affi -f -n '__affi_no_noun' -a standing -d '2 verbs'
 
@@ -85,7 +85,10 @@ complete -c affi -f -n '__affi_using_noun guide; and __affi_no_verb' -a search -
 # --- keys verbs ------------------------------------------------------
 
 complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a generate -d 'Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)'
+complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a import -d 'Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)'
 complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a list -d 'List registered key records: kid, algorithm, fingerprint, custodian'
+complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a revoke -d 'Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store'
+complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a rotate -d 'Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store'
 
 # --- receipt verbs ------------------------------------------------------
 
