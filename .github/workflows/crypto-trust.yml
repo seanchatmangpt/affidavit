@@ -1,0 +1,64 @@
+name: crypto-trust
+
+on:
+  push:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "src/lib.rs"
+      - "src/crypto_trust.rs"
+      - "src/1000x_post_quantum_sealing.rs"
+      - "docs/CRYPTO_TRUST.md"
+      - ".github/workflows/crypto-trust.yml"
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "src/lib.rs"
+      - "src/crypto_trust.rs"
+      - "src/1000x_post_quantum_sealing.rs"
+      - "docs/CRYPTO_TRUST.md"
+      - ".github/workflows/crypto-trust.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crypto-trust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pqc:
+    name: crypto trust (ML-DSA-65)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Resolve admitted dependency graph
+        run: cargo check --lib --features pqc
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Unit and negative courts
+        run: cargo test --lib --features pqc crypto_trust
+
+      - name: Full library tests with PQC enabled
+        run: cargo test --lib --features pqc
+
+      - name: Clippy
+        run: cargo clippy --lib --features pqc -- -D warnings
+
+      - name: Doctests
+        run: cargo test --doc --features pqc
+
+      - name: Preserve resolver output
+        uses: actions/upload-artifact@v4
+        with:
+          name: crypto-trust-resolved-lock
+          path: Cargo.lock
+          if-no-files-found: error
