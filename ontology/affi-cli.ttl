@@ -1719,9 +1719,9 @@ affi:KeysNoun a cnv:Noun ;
 
 affi:EnvelopeNoun a cnv:Noun ;
     cnv:hasNounName "envelope" ;
-    cnv:nounAbout "Seal and verify signature envelopes over provenance receipts (PQ-SEAL-v1)" ;
-    cnv:hasVerbs affi:EnvelopeSignVerb , affi:EnvelopeVerifyVerb ;
-    rdfs:comment "The envelope noun: affi envelope <sign|verify>"@en .
+    cnv:nounAbout "List, export, seal, and verify signature envelopes over provenance receipts (PQ-SEAL-v1)" ;
+    cnv:hasVerbs affi:EnvelopeSignVerb , affi:EnvelopeVerifyVerb , affi:EnvelopeListVerb , affi:EnvelopeExportVerb ;
+    rdfs:comment "The envelope noun: affi envelope <sign|verify|list|export>"@en .
 
 # --- Verb: keys generate -----------------------------------------------------
 affi:KeysGenerateVerb a cnv:Verb ;

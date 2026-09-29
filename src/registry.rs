@@ -755,7 +755,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["verify", "envelope", "verdict", "standing", "trust-plane"],
     )
     .with_example("affi envelope verify sealed.json --store .affi/keys.json"),
-    
+
     VerbEntry::new(
         "list",
         "envelope",

@@ -153,15 +153,13 @@ pub mod mutate;
 // Rendered by `ggen sync run` from
 // ../ggen-marketplace/packs/affidavit-trust-plane-pack — never hand-edited.
 #[cfg(feature = "crypto-trust")]
-pub mod crypto_trust_canonical;
-#[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_attestation;
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_canonical;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_crl_file;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_doctor;
-#[cfg(feature = "crypto-trust")]
-pub mod crypto_trust_journal_persist;
 #[cfg(feature = "secure-enclave")]
 pub mod crypto_trust_enclave;
 #[cfg(feature = "crypto-trust")]
@@ -170,6 +168,8 @@ pub mod crypto_trust_envelope;
 pub mod crypto_trust_es256;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_journal;
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_journal_persist;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_kat;
 #[cfg(feature = "crypto-trust")]
@@ -191,6 +191,8 @@ pub mod crypto_trust_revocation;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_rotation;
 #[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_rotation_store;
+#[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_sa2a;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_seal;
@@ -198,8 +200,6 @@ pub mod crypto_trust_seal;
 pub mod crypto_trust_store;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_transparency;
-#[cfg(feature = "crypto-trust")]
-pub mod crypto_trust_rotation_store;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_verify;
 #[cfg(feature = "crypto-trust")]

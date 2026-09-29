@@ -5765,187 +5765,6 @@ pub fn envelope_verify(
     )))
 }
 
-#[cfg(test)]
-mod ocel_quality_tests {
-    #[allow(unused_imports)]
-    use super::*;
-
-    #[test]
-    fn test_emit_ocel_quality_measurement_format() {
-        // Verify measurement event can be constructed with proper OCEL structure
-        let payload = serde_json::json!({
-            "event_type": "quality:measure",
-            "metrics": {
-                "stub_ratio": 0.05,
-                "cyclomatic_complexity": 3.2,
-                "clippy_warnings": 2,
-                "churn": 0.15,
-                "test_coverage": 0.92,
-                "doc_coverage": 0.88,
-            },
-            "measured_at_path": ".",
-            "snapshot_type": "baseline",
-        });
-
-        assert_eq!(payload["event_type"], "quality:measure");
-        assert!(payload["metrics"].is_object());
-        assert_eq!(payload["metrics"]["stub_ratio"], 0.05);
-    }
-
-    #[test]
-    fn test_ocel_violation_payload_structure() {
-        // Test violation payload conforms to OCEL format
-        let violation_payload = serde_json::json!({
-            "event_type": "quality:violation",
-            "rule": "Rule1Sigma",
-            "metric": "test_coverage",
-            "value": 0.45,
-            "threshold": 0.88,
-            "severity": "warning",
-            "objects": vec![
-                "file:src/handlers.rs:test-location",
-                "module:quality:measurements",
-            ],
-            "root_cause_hypothesis": "Test coverage dropped; new code untested",
-            "recommendation": "Add test cases for new code",
-        });
-
-        assert_eq!(violation_payload["event_type"], "quality:violation");
-        assert_eq!(violation_payload["rule"], "Rule1Sigma");
-        assert_eq!(violation_payload["metric"], "test_coverage");
-        assert!(violation_payload["objects"].is_array());
-        assert_eq!(violation_payload["objects"].as_array().unwrap().len(), 2);
-    }
-
-    #[test]
-    fn test_causal_chain_event_structure() {
-        // Test remediate event with causal chain
-        let causal_chain = [
-            serde_json::json!({
-                "seq": 0,
-                "event_id": "evt-0",
-                "event_type": "quality:measure",
-                "commitment": "abc123",
-            }),
-            serde_json::json!({
-                "seq": 1,
-                "event_id": "evt-1",
-                "event_type": "quality:violation",
-                "commitment": "def456",
-            }),
-            serde_json::json!({
-                "seq": 2,
-                "event_id": "evt-2",
-                "event_type": "quality:measure",
-                "commitment": "ghi789",
-            }),
-        ];
-
-        assert_eq!(causal_chain.len(), 3);
-        assert_eq!(causal_chain[0]["event_type"], "quality:measure");
-        assert_eq!(causal_chain[1]["event_type"], "quality:violation");
-        assert_eq!(causal_chain[2]["seq"], 2);
-    }
-
-    #[test]
-    fn test_affected_objects_mapping() {
-        // Test that metrics map to correct object references
-        let metric_to_objects: std::collections::HashMap<&str, Vec<&str>> = [
-            (
-                "stub_ratio",
-                vec![
-                    "file:src/handlers.rs:stub-location",
-                    "module:quality:measurements",
-                ],
-            ),
-            (
-                "test_coverage",
-                vec!["file:src/tests:uncovered", "package:affidavit:coverage"],
-            ),
-            (
-                "clippy_warnings",
-                vec!["file:src/lib.rs:warnings", "linter:clippy:active-warnings"],
-            ),
-        ]
-        .iter()
-        .cloned()
-        .collect();
-
-        assert_eq!(metric_to_objects.get("stub_ratio").unwrap().len(), 2);
-        assert!(metric_to_objects
-            .get("test_coverage")
-            .unwrap()
-            .contains(&"package:affidavit:coverage"));
-    }
-
-    #[test]
-    fn test_violation_rules_map_to_severity() {
-        // Verify rule names and severity mapping
-        let rules = vec![
-            ("Rule1Sigma", "warning"),
-            ("Rule9InRow", "error"),
-            ("RuleTrend", "high"),
-            ("RuleAlternating", "high"),
-            ("Rule2of3Beyond2Sigma", "high"),
-            ("Rule4of5Beyond1Sigma", "medium"),
-            ("Rule15InRowWithin1Sigma", "info"),
-        ];
-
-        // Simple validation: rules exist and map to known severities
-        let valid_severities = ["info", "warning", "medium", "high", "error"];
-        for (_, severity) in rules {
-            assert!(
-                valid_severities.contains(&severity),
-                "severity {} is not valid",
-                severity
-            );
-        }
-    }
-
-    #[test]
-    fn test_quality_event_type_convention() {
-        // Verify OCEL event type naming convention
-        let event_types = vec!["quality:measure", "quality:violation", "quality:remediate"];
-
-        for event_type in event_types {
-            assert!(
-                event_type.starts_with("quality:"),
-                "event type {} should start with 'quality:'",
-                event_type
-            );
-            assert!(
-                event_type.contains(':'),
-                "event type {} should contain colon separator",
-                event_type
-            );
-        }
-    }
-
-    #[test]
-    fn test_remediate_payload_includes_causal_chain() {
-        // Test that remediate event payload includes full causal chain
-        let causal_chain = vec![
-            serde_json::json!({"seq": 40, "event_type": "quality:measure", "value": 0.02}),
-            serde_json::json!({"seq": 41, "event_type": "code:commit", "files_changed": 15}),
-            serde_json::json!({"seq": 42, "event_type": "quality:measure", "value": 0.12}),
-        ];
-
-        let remediate_payload = serde_json::json!({
-            "event_type": "quality:remediate",
-            "triggering_event_id": "evt-40",
-            "causal_chain": causal_chain.clone(),
-            "root_cause_hypothesis": "Uncommitted placeholder code",
-        });
-
-        assert_eq!(remediate_payload["event_type"], "quality:remediate");
-        assert_eq!(
-            remediate_payload["causal_chain"].as_array().unwrap().len(),
-            3
-        );
-        assert_eq!(remediate_payload["causal_chain"][1]["files_changed"], 15);
-    }
-}
-
 // ============================================================================
 // KEYS CLI CLUSTER — import / revoke / rotate (v26.9.28, wave 1 lane 4)
 // ============================================================================
@@ -6900,13 +6719,12 @@ fn load_standing_journal(
     path: &std::path::Path,
 ) -> Result<crate::crypto_trust_journal::StandingJournal> {
     match std::fs::read_to_string(path) {
-        Ok(wire) => crate::crypto_trust_journal::StandingJournal::from_jsonl(&wire)
-            .map_err(|e| {
-                to_noun_verb(AffidavitError::Validation(format!(
-                    "standing journal {} does not reproduce: {e}",
-                    path.display()
-                )))
-            }),
+        Ok(wire) => crate::crypto_trust_journal::StandingJournal::from_jsonl(&wire).map_err(|e| {
+            to_noun_verb(AffidavitError::Validation(format!(
+                "standing journal {} does not reproduce: {e}",
+                path.display()
+            )))
+        }),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             Ok(crate::crypto_trust_journal::StandingJournal::new())
         }
@@ -7089,7 +6907,9 @@ fn evidence_journal_core(
         fresh_nonce(),
     );
     let signing_input = envelope.signing_input_checked().map_err(|e| {
-        to_noun_verb(AffidavitError::Execution(format!("envelope pre-image: {e}")))
+        to_noun_verb(AffidavitError::Execution(format!(
+            "envelope pre-image: {e}"
+        )))
     })?;
     let signature = signing.sign(&signing_input);
 
@@ -7098,7 +6918,9 @@ fn evidence_journal_core(
     //    standing is a verdict, never a literal.
     let mut registry = InMemoryKeyRegistry::new();
     registry.register(record.clone()).map_err(|e| {
-        to_noun_verb(AffidavitError::Validation(format!("inline key registry: {e}")))
+        to_noun_verb(AffidavitError::Validation(format!(
+            "inline key registry: {e}"
+        )))
     })?;
     let engine = VerificationEngine::new(
         registry,
@@ -7147,10 +6969,13 @@ fn evidence_journal_core(
     let text = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
     outln!("{text}");
     if let Some(out) = out {
-        let artifact =
-            adapt(serde_json::to_string_pretty(&entry).map_err(anyhow::Error::from))?;
+        let artifact = adapt(serde_json::to_string_pretty(&entry).map_err(anyhow::Error::from))?;
         std::fs::write(out, artifact.as_bytes()).map_err(io_err)?;
-        eprintln!("journal entry seq {} written to {}", entry.seq, out.display());
+        eprintln!(
+            "journal entry seq {} written to {}",
+            entry.seq,
+            out.display()
+        );
     }
     eprintln!(
         "evidence recorded: standing {} at seq {} (head {}); journal {} now holds {} entries",
@@ -7374,9 +7199,7 @@ pub fn evidence_crl_apply(file: String, store: Option<String>) -> Result<()> {
     });
     let text = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
     outln!("{text}");
-    eprintln!(
-        "CRL admitted: {applied} records applied, revocation epoch now {new_epoch}"
-    );
+    eprintln!("CRL admitted: {applied} records applied, revocation epoch now {new_epoch}");
     Ok(())
 }
 
@@ -7427,9 +7250,7 @@ pub fn evidence_heads(journal_file: Option<String>) -> Result<()> {
 /// report (and the signed head when custody resolves) and returns it for the
 /// caller to print.
 #[cfg(feature = "crypto-trust")]
-fn evidence_heads_core(
-    journal_path: &std::path::Path,
-) -> Result<serde_json::Value> {
+fn evidence_heads_core(journal_path: &std::path::Path) -> Result<serde_json::Value> {
     use crate::crypto_trust_log::{verify_head, SignedTreeHead, HEAD_SIGNING_DOMAIN};
     use crate::crypto_trust_transparency::TransparencyLog;
 
@@ -7468,11 +7289,7 @@ fn evidence_heads_core(
         // [kid, tree_size-le, head]).
         let preimage = crate::crypto_trust_canonical::digest(
             HEAD_SIGNING_DOMAIN,
-            &[
-                record.id.0.as_bytes(),
-                &tree_size.to_le_bytes(),
-                &head,
-            ],
+            &[record.id.0.as_bytes(), &tree_size.to_le_bytes(), &head],
         );
         let signed = SignedTreeHead {
             tree_size,
@@ -7546,24 +7363,22 @@ mod evidence_lane_tests {
         use crate::crypto_trust_keys::{
             fingerprint_public_key, AlgorithmId, KeyId, PublicKeyMaterial,
         };
-        let signing =
-            crate::crypto_trust_es256::Es256SigningKey::from_seed(&[tag; 32])
-                .expect("valid fixture scalar");
+        let signing = crate::crypto_trust_es256::Es256SigningKey::from_seed(&[tag; 32])
+            .expect("valid fixture scalar");
         let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
-        KeyId::from_fingerprint(&fingerprint_public_key(AlgorithmId::Es256, &public))
-            .to_string()
+        KeyId::from_fingerprint(&fingerprint_public_key(AlgorithmId::Es256, &public)).to_string()
     }
 
     /// Registers real ES256 public records for `tags` in a fresh store file
     /// named `name` (distinct names keep "a store without the issuer" honest).
     fn store_with(dir: &std::path::Path, name: &str, tags: &[u8]) -> String {
         use crate::crypto_trust_keys::{
-            fingerprint_public_key, AlgorithmId, CustodianIdentity, KeyId, KeyOrigin,
-            KeyRecord, PublicKeyMaterial,
+            fingerprint_public_key, AlgorithmId, CustodianIdentity, KeyId, KeyOrigin, KeyRecord,
+            PublicKeyMaterial,
         };
         let store = dir.join(name).to_string_lossy().into_owned();
-        let mut key_store = crate::crypto_trust_store::FileKeyStore::open(&store)
-            .expect("store opens");
+        let mut key_store =
+            crate::crypto_trust_store::FileKeyStore::open(&store).expect("store opens");
         for tag in tags {
             let signing = crate::crypto_trust_es256::Es256SigningKey::from_seed(&[*tag; 32])
                 .expect("valid fixture scalar");
@@ -7614,7 +7429,10 @@ mod evidence_lane_tests {
             .expect("honest journal reproduces");
         assert_eq!(loaded.len(), 2);
         assert_eq!(loaded.entries()[1].key_id, second.key_id);
-        assert_eq!(loaded.entries()[1].envelope_commitment, second.envelope_commitment);
+        assert_eq!(
+            loaded.entries()[1].envelope_commitment,
+            second.envelope_commitment
+        );
         std::env::remove_var(ENV_SIGNING_KEY_PATH);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -7626,8 +7444,7 @@ mod evidence_lane_tests {
         let custody = custody_file(&dir, 0xE2);
         std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
         let journal_path = dir.join("standing-journal.jsonl");
-        evidence_journal_core("tamper-target", &journal_path, None)
-            .expect("first record lands");
+        evidence_journal_core("tamper-target", &journal_path, None).expect("first record lands");
 
         // Tamper with the durable chain: the next append refuses — the load
         // path re-verifies every byte.
@@ -7637,26 +7454,28 @@ mod evidence_lane_tests {
         std::fs::write(&journal_path, &tampered).expect("write tampered");
         let err = evidence_journal_core("after-tamper", &journal_path, None)
             .expect_err("tampered journal must refuse");
-        assert!(
-            err.to_string().contains("does not reproduce"),
-            "{err}"
-        );
+        assert!(err.to_string().contains("does not reproduce"), "{err}");
 
         // No custody: the typed no-authority refusal (empty counts as absent).
         std::env::remove_var(ENV_SIGNING_KEY_PATH);
         let fresh = dir.join("fresh.jsonl");
-        let err = evidence_journal_core("no-key", &fresh, None)
-            .expect_err("missing custody must refuse");
-        assert!(err.to_string().contains("REFUSED_R_missing_authority"), "{err}");
+        let err =
+            evidence_journal_core("no-key", &fresh, None).expect_err("missing custody must refuse");
+        assert!(
+            err.to_string().contains("REFUSED_R_missing_authority"),
+            "{err}"
+        );
         std::env::set_var(ENV_SIGNING_KEY_PATH, "");
         let err = evidence_journal_core("empty-key", &fresh, None)
             .expect_err("empty custody must refuse");
-        assert!(err.to_string().contains("REFUSED_R_missing_authority"), "{err}");
+        assert!(
+            err.to_string().contains("REFUSED_R_missing_authority"),
+            "{err}"
+        );
 
         // Empty subject: Validation.
         std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
-        let err = evidence_journal_core("   ", &fresh, None)
-            .expect_err("empty subject refused");
+        let err = evidence_journal_core("   ", &fresh, None).expect_err("empty subject refused");
         assert!(err.to_string().contains("non-empty"), "{err}");
         std::env::remove_var(ENV_SIGNING_KEY_PATH);
         let _ = std::fs::remove_dir_all(&dir);
@@ -7685,8 +7504,13 @@ mod evidence_lane_tests {
         .expect("sidecar append");
 
         let crl_path = dir.join("crl.json");
-        evidence_crl_publish(kid.clone(), 1, Some(store.clone()), Some(crl_path.to_string_lossy().into_owned()))
-            .expect("publish succeeds");
+        evidence_crl_publish(
+            kid.clone(),
+            1,
+            Some(store.clone()),
+            Some(crl_path.to_string_lossy().into_owned()),
+        )
+        .expect("publish succeeds");
         let crl: crate::crypto_trust_revocation::SignedRevocationList =
             serde_json::from_str(&std::fs::read_to_string(&crl_path).expect("read crl"))
                 .expect("published file parses");
@@ -7719,14 +7543,14 @@ mod evidence_lane_tests {
 
         // Unknown issuer kid.
         std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
-        let err = evidence_crl_publish(
-            "afk1_0000000000000000".into(),
-            0,
-            Some(store.clone()),
-            None,
-        )
-        .expect_err("unknown kid refused");
-        assert!(err.to_string().contains("unknown key afk1_0000000000000000"), "{err}");
+        let err =
+            evidence_crl_publish("afk1_0000000000000000".into(), 0, Some(store.clone()), None)
+                .expect_err("unknown kid refused");
+        assert!(
+            err.to_string()
+                .contains("unknown key afk1_0000000000000000"),
+            "{err}"
+        );
 
         // Custody mismatch: the file holds a DIFFERENT key than the issuer
         // of record — refused, never re-attributed.
@@ -7741,16 +7565,32 @@ mod evidence_lane_tests {
         // Missing store.
         std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
         let missing = dir.join("missing").join("keys.json");
-        let err = evidence_crl_publish(kid.clone(), 0, Some(missing.to_string_lossy().into_owned()), None)
-            .expect_err("missing store refused");
+        let err = evidence_crl_publish(
+            kid.clone(),
+            0,
+            Some(missing.to_string_lossy().into_owned()),
+            None,
+        )
+        .expect_err("missing store refused");
         assert!(err.to_string().contains("key store"), "{err}");
 
         // No custody at all: the typed no-authority refusal.
         std::env::remove_var(ENV_SIGNING_KEY_PATH);
-        let err = evidence_crl_publish(kid, 0, Some(store.clone()), Some(out_path.to_string_lossy().into_owned()))
-            .expect_err("missing custody refused");
-        assert!(err.to_string().contains("REFUSED_R_missing_authority"), "{err}");
-        assert!(!out_path.exists(), "no artifact may appear behind a refusal");
+        let err = evidence_crl_publish(
+            kid,
+            0,
+            Some(store.clone()),
+            Some(out_path.to_string_lossy().into_owned()),
+        )
+        .expect_err("missing custody refused");
+        assert!(
+            err.to_string().contains("REFUSED_R_missing_authority"),
+            "{err}"
+        );
+        assert!(
+            !out_path.exists(),
+            "no artifact may appear behind a refusal"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -7774,8 +7614,13 @@ mod evidence_lane_tests {
         )
         .expect("sidecar append");
         let crl_path = dir.join("crl.json");
-        evidence_crl_publish(kid, 2, Some(store.clone()), Some(crl_path.to_string_lossy().into_owned()))
-            .expect("publish succeeds");
+        evidence_crl_publish(
+            kid,
+            2,
+            Some(store.clone()),
+            Some(crl_path.to_string_lossy().into_owned()),
+        )
+        .expect("publish succeeds");
 
         // Tamper with the SIGNED content: admission refuses on the issuer
         // signature and nothing is applied.
@@ -7805,8 +7650,11 @@ mod evidence_lane_tests {
 
         // Missing store: typed refusal.
         let missing = dir.join("nope").join("keys.json");
-        let err = evidence_crl_apply(crl_path.to_string_lossy().into_owned(), Some(missing.to_string_lossy().into_owned()))
-            .expect_err("missing store refused");
+        let err = evidence_crl_apply(
+            crl_path.to_string_lossy().into_owned(),
+            Some(missing.to_string_lossy().into_owned()),
+        )
+        .expect_err("missing store refused");
         assert!(err.to_string().contains("key store"), "{err}");
         std::env::remove_var(ENV_SIGNING_KEY_PATH);
         let _ = std::fs::remove_dir_all(&dir);
@@ -8041,4 +7889,185 @@ pub fn envelope_export(_sealed_file: String, _format: Option<String>) -> Result<
     Err(to_noun_verb(AffidavitError::Execution(
         "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
     )))
+}
+
+#[cfg(test)]
+mod ocel_quality_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn test_emit_ocel_quality_measurement_format() {
+        // Verify measurement event can be constructed with proper OCEL structure
+        let payload = serde_json::json!({
+            "event_type": "quality:measure",
+            "metrics": {
+                "stub_ratio": 0.05,
+                "cyclomatic_complexity": 3.2,
+                "clippy_warnings": 2,
+                "churn": 0.15,
+                "test_coverage": 0.92,
+                "doc_coverage": 0.88,
+            },
+            "measured_at_path": ".",
+            "snapshot_type": "baseline",
+        });
+
+        assert_eq!(payload["event_type"], "quality:measure");
+        assert!(payload["metrics"].is_object());
+        assert_eq!(payload["metrics"]["stub_ratio"], 0.05);
+    }
+
+    #[test]
+    fn test_ocel_violation_payload_structure() {
+        // Test violation payload conforms to OCEL format
+        let violation_payload = serde_json::json!({
+            "event_type": "quality:violation",
+            "rule": "Rule1Sigma",
+            "metric": "test_coverage",
+            "value": 0.45,
+            "threshold": 0.88,
+            "severity": "warning",
+            "objects": vec![
+                "file:src/handlers.rs:test-location",
+                "module:quality:measurements",
+            ],
+            "root_cause_hypothesis": "Test coverage dropped; new code untested",
+            "recommendation": "Add test cases for new code",
+        });
+
+        assert_eq!(violation_payload["event_type"], "quality:violation");
+        assert_eq!(violation_payload["rule"], "Rule1Sigma");
+        assert_eq!(violation_payload["metric"], "test_coverage");
+        assert!(violation_payload["objects"].is_array());
+        assert_eq!(violation_payload["objects"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_causal_chain_event_structure() {
+        // Test remediate event with causal chain
+        let causal_chain = [
+            serde_json::json!({
+                "seq": 0,
+                "event_id": "evt-0",
+                "event_type": "quality:measure",
+                "commitment": "abc123",
+            }),
+            serde_json::json!({
+                "seq": 1,
+                "event_id": "evt-1",
+                "event_type": "quality:violation",
+                "commitment": "def456",
+            }),
+            serde_json::json!({
+                "seq": 2,
+                "event_id": "evt-2",
+                "event_type": "quality:measure",
+                "commitment": "ghi789",
+            }),
+        ];
+
+        assert_eq!(causal_chain.len(), 3);
+        assert_eq!(causal_chain[0]["event_type"], "quality:measure");
+        assert_eq!(causal_chain[1]["event_type"], "quality:violation");
+        assert_eq!(causal_chain[2]["seq"], 2);
+    }
+
+    #[test]
+    fn test_affected_objects_mapping() {
+        // Test that metrics map to correct object references
+        let metric_to_objects: std::collections::HashMap<&str, Vec<&str>> = [
+            (
+                "stub_ratio",
+                vec![
+                    "file:src/handlers.rs:stub-location",
+                    "module:quality:measurements",
+                ],
+            ),
+            (
+                "test_coverage",
+                vec!["file:src/tests:uncovered", "package:affidavit:coverage"],
+            ),
+            (
+                "clippy_warnings",
+                vec!["file:src/lib.rs:warnings", "linter:clippy:active-warnings"],
+            ),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(metric_to_objects.get("stub_ratio").unwrap().len(), 2);
+        assert!(metric_to_objects
+            .get("test_coverage")
+            .unwrap()
+            .contains(&"package:affidavit:coverage"));
+    }
+
+    #[test]
+    fn test_violation_rules_map_to_severity() {
+        // Verify rule names and severity mapping
+        let rules = vec![
+            ("Rule1Sigma", "warning"),
+            ("Rule9InRow", "error"),
+            ("RuleTrend", "high"),
+            ("RuleAlternating", "high"),
+            ("Rule2of3Beyond2Sigma", "high"),
+            ("Rule4of5Beyond1Sigma", "medium"),
+            ("Rule15InRowWithin1Sigma", "info"),
+        ];
+
+        // Simple validation: rules exist and map to known severities
+        let valid_severities = ["info", "warning", "medium", "high", "error"];
+        for (_, severity) in rules {
+            assert!(
+                valid_severities.contains(&severity),
+                "severity {} is not valid",
+                severity
+            );
+        }
+    }
+
+    #[test]
+    fn test_quality_event_type_convention() {
+        // Verify OCEL event type naming convention
+        let event_types = vec!["quality:measure", "quality:violation", "quality:remediate"];
+
+        for event_type in event_types {
+            assert!(
+                event_type.starts_with("quality:"),
+                "event type {} should start with 'quality:'",
+                event_type
+            );
+            assert!(
+                event_type.contains(':'),
+                "event type {} should contain colon separator",
+                event_type
+            );
+        }
+    }
+
+    #[test]
+    fn test_remediate_payload_includes_causal_chain() {
+        // Test that remediate event payload includes full causal chain
+        let causal_chain = vec![
+            serde_json::json!({"seq": 40, "event_type": "quality:measure", "value": 0.02}),
+            serde_json::json!({"seq": 41, "event_type": "code:commit", "files_changed": 15}),
+            serde_json::json!({"seq": 42, "event_type": "quality:measure", "value": 0.12}),
+        ];
+
+        let remediate_payload = serde_json::json!({
+            "event_type": "quality:remediate",
+            "triggering_event_id": "evt-40",
+            "causal_chain": causal_chain.clone(),
+            "root_cause_hypothesis": "Uncommitted placeholder code",
+        });
+
+        assert_eq!(remediate_payload["event_type"], "quality:remediate");
+        assert_eq!(
+            remediate_payload["causal_chain"].as_array().unwrap().len(),
+            3
+        );
+        assert_eq!(remediate_payload["causal_chain"][1]["files_changed"], 15);
+    }
 }
