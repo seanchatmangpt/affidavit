@@ -28,7 +28,7 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 *   🏛️ **Evidence Federation:** Certify receipt-bound standing, cross-repo quorums, and formal ERRC transformations — see [`docs/FEDERATION.md`](docs/FEDERATION.md).
 *   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts *(behind the `discovery` feature; see Feature status below)*.
 *   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers *(behind the `mutation` feature; see Feature status below)*.
-*   🤖 **Intelligent CLI:** 83 canonical verbs, ontology-driven help, and powerful ad-hoc querying.
+*   🤖 **Intelligent CLI:** 92 canonical verbs, ontology-driven help, and powerful ad-hoc querying.
 
 ---
 
@@ -182,7 +182,7 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-Affidavit ships **83 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
+Affidavit ships **92 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
 
 **Core Verbs (The Provenance Loop):**
 - `affi emit` — Record a new operation-event.

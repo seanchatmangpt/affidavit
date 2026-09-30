@@ -39,12 +39,139 @@ certification may authorize. See
 - **Packs gates v2** for the plane (field closure, envelope version pinning)
   in the companion pack's gate set.
 
+### Wave 1 — consolidation, keys CLI, durable evidence, cross-runtime JCS
+(branch commits through `a24c9d3`)
+
+- **Consolidation retirement**: `src/crypto_trust.rs` — the 845-line
+  parallel-session WIP, gated behind `trust-plane-legacy` — is deleted,
+  together with its feature gate. The retirement is a capability court, not a
+  deletion: 15 of the WIP's 18 items were covered-by the rendered plane (each
+  with an executed witness), and the 3 genuinely new capabilities were ported
+  as pack units — `crypto_trust_provider` (the `SigningProvider` seam,
+  `sign_with_provider`, `DetachedSignature`, and a real `SoftwareEs256Provider`
+  reference implementation) and `crypto_trust_nonce_store` (the
+  `DiskNonceJournal`). Recorded failed edge: the WIP's Tpm/Kms/External
+  custody labels are ontology vocabulary individuals, not code capabilities,
+  and are not carried verbatim. The full item-by-item table is
+  [`docs/jira/v26.9.28/CONSOLIDATION.md`](docs/jira/v26.9.28/CONSOLIDATION.md).
+- **Key lifecycle on the CLI**: `affi keys import` (an externally-held hex
+  public key, fingerprinted, registered with origin `Imported`), `affi keys
+  revoke` (a tamper-evident revocation entry appended to the checksummed
+  sidecar beside the key store), and `affi keys rotate` (a freshly generated
+  ES256 successor whose rotation record is signed by the successor itself).
+  Court: `tests/crypto_trust_keys_cli.rs`.
+- **Durable evidence**: the `evidence` noun. `affi evidence journal`
+  assembles a real receipt from the canonical assembler, seals it under the
+  custody key, adjudicates the standing with a real engine (a verdict, never a
+  literal), and appends a hash-chained journal entry — `CTP-JOURNAL-v1`:
+  BLAKE3 `entry_hash` over the JCS-canonical fields, each entry `prev`-linked,
+  every entry carrying the `key_id` and rotation context it was recorded
+  under. `affi evidence heads` re-derives the RFC 9162 Merkle tree head from
+  the journal entries alone and signs it when custody resolves.
+  `affi evidence crl-publish` / `affi evidence crl-apply` drive the CRL
+  surface below.
+- **Journal/nonce persistence**: `crypto_trust_journal_persist.rs` — the
+  durable cross-process nonce ledger (append-only JSONL at
+  `.affi/nonce-journal.jsonl`, the envelope window law byte-for-byte,
+  tmp + `sync_all` + rename atomicity, corruption refused with the exact line
+  number) — closes the review gap "replay resistance dies with the process".
+  `crypto_trust_nonce_store.rs` is the graph-derived twin (`.affi/nonces.jsonl`
+  from the store file, explicit counted prune). Both carry twin-law tests
+  against the in-memory `NonceJournal`.
+- **The CRL file**: `crypto_trust_crl_file.rs` — the durable publication file
+  for `CTP-CRL-v1`. The bytes on disk are exactly the JCS canonical form the
+  signature covers (no pretty-print drift between wire and file); publish is
+  staged tmp + sync + rename, so readers never see a partial CRL; read is
+  fail-closed (a missing CRL is *not* an empty CRL — assuming "nothing is
+  revoked" from missing bytes would invert the safety property); apply
+  verifies the issuer signature first, then the epoch freshness grace, then
+  merges atomically on any refusal.
+- **Cross-runtime JCS differential**: `tools/jcs_differential.py` — a second,
+  independent RFC 8785 implementation in pure Python stdlib — generates a
+  ~280-case corpus (`fixtures/crypto_trust_jcs_corpus.json`) across UTF-16
+  key ordering, ECMAScript `Number::toString` boundaries, and §3.2.2.2
+  escaping. `tests/crypto_trust_jcs_differential.rs` proves the rendered `jcs`
+  agrees with it, with a divergence taxonomy: parse-precision cases are
+  reported as non-fatal, a same-double conformance divergence is fatal and
+  classified — and mutation teeth prove the checker itself is load-bearing.
+- **Multi-surface KAT vectors**: `fixtures/crypto_trust_kat_vectors.json` +
+  `tests/crypto_trust_kat_vectors.rs` pin the *higher* surfaces as wire bytes
+  — the 12-field envelope (`signing_input`, `to_bytes`), full seal artifacts
+  (real receipts → envelope → RFC 6979 ES256 → `SealedReceipt` JCS bytes,
+  verified through the real engine), and successor-signed rotation records —
+  all deterministic by law. In-test regeneration must reproduce the committed
+  fixture byte-for-byte, and one flipped byte per surface must refuse.
+  `tools/verify_crypto_trust_kat.py` re-derived every seed pre-image in pure
+  Python at generation time; its honest scope limits are recorded in the
+  fixture.
+- **CI**: a `macos-latest` Secure Enclave lane (fmt, the non-ignored
+  `--features secure-enclave` suite, clippy) on an exact-candidate checkout —
+  the one platform where the enclave feature can actually link.
+- **The SLH-DSA pin, resolved on evidence**: keep `slh-dsa = "=0.2.0-rc.5"`.
+  It is the newest version of the crate; the "stable" 0.1.0 is the
+  incompatible one (it sits on a `signature 2.3.0-pre.4` stack and a different
+  API), while rc.5 shares the signature-3 stack the plane standardizes on.
+  crates.io evidence tables and the recorded upgrade law:
+  [`docs/jira/v26.9.28/SLH-DSA-PIN.md`](docs/jira/v26.9.28/SLH-DSA-PIN.md).
+
+### Wave 2 — the plane reaches every runtime
+(in flight on the working tree at documentation time)
+
+- **`affidavit-core::crypto_verify`** — a zero-dependency, `no_std` port of
+  the envelope law: the twelve-field document model, byte-level JSON decode,
+  the JCS-subset canonical bytes, and the domain-separated signing pre-image.
+  It deliberately contains no EC and no ML-DSA arithmetic: it proves *which
+  bytes are bound*, so a consumer with any verifier — browser WebCrypto, a
+  Node ML-DSA build, an HSM — can check a signature over exactly those bytes.
+  The decode path is borrowed and allocation-free (`EnvelopeRef`); the owned
+  form lives behind `alloc`, and refusals are typed values.
+- **The wasm module gains a seventh ABI op, `verify_signature_input`**
+  (`affidavit-wasm/src/crypto.rs` over the core port): recompute-and-compare
+  of the signing pre-image, with structured refusals (`wrong_version`,
+  `non_canonical_number`, `malformed`, `bad_hex`) and the honesty boundary
+  carried into the response — `verified: true` means the expected bytes match
+  what the envelope binds, *not* that a signature is valid. Tests in
+  `affidavit-wasm/tests/wasm_abi.rs` and `affidavit-wasm/tests/crypto_abi.rs`.
+- **Performance budget lane**: `scripts/perf_budget_check.sh` re-runs the real
+  criterion suite with the settings the measured-performance table was
+  recorded with and refuses any median >10× the recorded number (faster is
+  never a failure), wired as the `perf-budget` CI job on an exact-candidate
+  checkout against the "Measured performance" table in
+  [`docs/CRYPTO_TRUST_PLANE.md`](docs/CRYPTO_TRUST_PLANE.md).
+- **Completions regenerated** for bash, zsh, and fish — 92 verbs, 9 nouns
+  (`evidence` joins `keys` and `envelope`) — held to the registry by
+  `tests/completions_drift.rs` (committed with the wire-fuzz corpus: every
+  registry pair completable, no orphans, header count honest, generated
+  header intact).
+- **Envelope export to SA2A**: `affi envelope export --format sa2a` emits the
+  `SA2A-C2-APPROVAL-v1` approval (JCS-canonical) from a `PQ-SEAL-v1` sealed
+  document — the downstream certification boundary, as bytes.
+
 ### Honest limits
-- The two test courts are **BUILD_BROKEN** at this tag: `crypto_trust_seal.rs`'s
-  test module is missing one trait import (`E0599`), and
-  `tests/crypto_trust_e2e.rs` uses `crate::` imports in an external test
-  (10 × `E0432`, mechanical `affidavit::` fix). The library itself compiles
-  clean under both features; doctests pass (37/0).
+- The working tree does not compile at documentation time:
+  `src/registry.rs:774` carries a `,,` parse error in the in-flight verb-table
+  edit. Before tag, the gates must pass on the tagged tree: `cargo check/test
+  --features crypto-trust`, clippy `-D warnings`, the completions drift court,
+  and the release-identity gates.
+- Two advertised verbs cannot dispatch yet: `envelope list` and `envelope
+  export` have registry rows, committed handlers, and completions entries, but
+  no rendered verb wrapper — `src/verbs/envelope_list.rs` /
+  `envelope_export.rs` land on the next `ggen sync`, as documented in the
+  handler source. This is the receipt-throughput defect class; the parity
+  tests exist to catch exactly this.
+- The README still says "90 canonical verbs" against a 92-entry registry;
+  `tests/release_identity.rs` holds the README to the registry and will fail
+  until the projection is regenerated.
+- Attestation records and the rotation store are **not shipped**: the branch
+  carried two 1-byte placeholder modules (`crypto_trust_attestation.rs`,
+  `crypto_trust_rotation_store.rs`) with no capability behind them. They, their
+  `pub mod` seats, and their `ggen.toml` generation rules were dropped when
+  this work was ported onto main; nothing in this entry should be read as
+  shipping attestation records.
+- Wave 0's two BUILD_BROKEN courts are repaired in source —
+  `tests/crypto_trust_e2e.rs` was re-rendered through the pack (zero
+  `crate::` imports remain) and the seal test module's imports are complete —
+  but the compile witness is pending the tag gates above.
 - Secure Enclave signing is **PARTIAL_ALIVE**: the live known-answer tests are
   `#[ignore]`-gated. Witnessed: unsigned/ad-hoc CLI binaries cannot persist
   enclave keys (OSStatus -25308 / -34018 `errSecMissingEntitlement`);

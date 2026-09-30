@@ -269,8 +269,48 @@ stops verifying.
 
 ---
 
+## Cryptographic standing (v26.9.28)
+
+The certifiers on this page now have a cryptographic evidence layer beneath
+them. The root crate renders a cryptographic trust plane from the
+`affidavit-trust-plane-pack` ontology (`src/crypto_trust_*.rs`, compiled only
+under the `crypto-trust` feature). Its verification court,
+`crypto_trust_verify::VerificationEngine::certify`, checks a signed envelope —
+key, algorithm, validity window, policy floor, revocation epoch, replay
+`(kid, nonce)` — and mints a `CryptoStandingReceipt` **only** on a
+`CryptographicStanding::Valid` verdict. Every other outcome refuses as a typed
+`VerifyRefusal`; nothing is coerced into a pass.
+
+This layer does not replace the courts above; it sits under them:
+
+- `standing::certify_standing` (`src/standing.rs`) remains the admission-side
+  law. It certifies what was *observed* over an already-admitted `core/v1`
+  receipt, and its ALIVE evidence rules are unchanged by the trust plane.
+- `crypto_trust_verify::certify` certifies *who signed what*, under which key,
+  algorithm, and epoch. A `CryptoStandingReceipt` is evidence about bytes and
+  keys — nothing more.
+
+**The boundary line.** Affidavit produces cryptographic evidence; it is never
+a DO authority. A cryptographic standing answers "these bytes, this key,
+unaltered, inside the window, unrevoked, unreplayed" — never "authorized to
+act". What a standing may authorize is decided downstream (SA2A), on top of
+the receipt, never inside the trust plane.
+
+From the CLI, `affi envelope sign` / `affi envelope verify` and
+`affi receipt sign` reach this layer. A binary built without the `crypto-trust`
+feature carries the same verbs as typed `REFUSED_UNSUPPORTED` refusals — the
+pre-26.9.28 string-stub outputs are gone.
+
+The plane is documented as-built in
+[`CRYPTO_TRUST_PLANE.md`](CRYPTO_TRUST_PLANE.md): the module map, the closed
+eight-value standing vocabulary, the 12-field envelope, and the honest
+standing table for the plane itself.
+
+---
+
 ## See also
 
+- [`docs/CRYPTO_TRUST_PLANE.md`](CRYPTO_TRUST_PLANE.md) — the cryptographic trust plane beneath these courts
 - [`docs/ERRC.md`](ERRC.md) — the normative ERRC v1 profile
 - [`docs/ERRC_CLAIM_ASSURANCE.md`](ERRC_CLAIM_ASSURANCE.md) — the claim-assurance refinement
 - [`AGENTS.md`](../AGENTS.md) §4 — ERRC reconstruction law

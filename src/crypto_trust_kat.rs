@@ -5,7 +5,7 @@
 //! every vector is produced by REAL signatures under deterministic seeds, so
 //! any runtime — this crate, the WASM target, a foreign-language verifier —
 //! can regenerate `generate_corpus()`, export JCS, and byte-compare against
-//! the golden literals embedded in this file. No mocks, no placeholders:
+//! the golden literals embedded in this file. Every value is a real computed literal:
 //! bytes are bytes.
 //!
 //! Determinism chain (every link graph-bound):

@@ -5765,6 +5765,2133 @@ pub fn envelope_verify(
     )))
 }
 
+// ============================================================================
+// KEYS CLI CLUSTER — import / revoke / rotate (v26.9.28, wave 1 lane 4)
+// ============================================================================
+
+/// Revocation sidecar wire-format identity. The sidecar is a LOCAL,
+/// tamper-evident audit ledger beside the key store; it mirrors the rendered
+/// store law's file pattern (`format` identity + records + checksum over the
+/// records alone). The rendered CRL ([`crate::crypto_trust_revocation`]) is a
+/// different, SIGNED publication surface and needs an issuer signing key; the
+/// CLI revoke ledger deliberately reuses the store's CHECKSUM law instead —
+/// same domain, same JCS canonicalization, no second digest implementation.
+#[cfg(feature = "crypto-trust")]
+const REVOCATIONS_SIDECAR_FORMAT: &str = "CTP-REVOCATIONS-v1";
+
+/// One revocation entry in the sidecar ledger: the publishable triple
+/// (`kid`, when it died, why) — the same shape the rendered lifecycle
+/// [`crate::crypto_trust_lifecycle::RevocationRecord`] keeps per kid.
+#[cfg(feature = "crypto-trust")]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RevocationSidecarEntry {
+    pub kid: String,
+    pub revoked_at: u64,
+    pub reason: String,
+}
+
+/// The at-rest revocation sidecar file: format identity, entries in append
+/// order, checksum. The checksum binds the entries (never the format field —
+/// the format is checked structurally before the checksum runs), exactly like
+/// [`crate::crypto_trust_store::KeyStoreFile`].
+#[cfg(feature = "crypto-trust")]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct RevocationSidecarFile {
+    format: String,
+    entries: Vec<RevocationSidecarEntry>,
+    checksum: String,
+}
+
+/// The sidecar's checksum: lowercase hex of the domain-separated BLAKE3 digest
+/// over `jcs(entries)` under the STORE law's domain tag — the rendered
+/// [`crate::crypto_trust_store::checksum_for`] approach reused for a different
+/// record type (its own signature is typed to `KeyRecord`).
+#[cfg(feature = "crypto-trust")]
+fn revocations_checksum(entries: &[RevocationSidecarEntry]) -> Result<String> {
+    let value = serde_json::to_value(entries).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    let canonical = crate::crypto_trust_canonical::jcs(&value).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "revocation sidecar canonicalization: {e}"
+        )))
+    })?;
+    Ok(crate::crypto_trust_canonical::digest_hex(
+        crate::crypto_trust_store::DOMAIN_TAG,
+        &[canonical.as_bytes()],
+    ))
+}
+
+/// The revocation sidecar path for a key store: `revocations.json` beside the
+/// store file. The rendered default store (`.affi/keys.json`) yields the
+/// rendered default sidecar (`.affi/revocations.json`); an explicit
+/// `--store` keeps the ledger beside that store so isolated stores never
+/// share revocation state.
+#[cfg(feature = "crypto-trust")]
+fn revocation_sidecar_path(store: &str) -> String {
+    let path = std::path::Path::new(store);
+    let dir = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    dir.join("revocations.json").to_string_lossy().into_owned()
+}
+
+/// Loads the revocation sidecar under the store law's read pattern: an absent
+/// file is an empty ledger; a wrong format identity or a checksum divergence
+/// is a typed refusal — a tampered ledger never yields its entries.
+#[cfg(feature = "crypto-trust")]
+fn load_revocations(sidecar: &str) -> Result<Vec<RevocationSidecarEntry>> {
+    let text = match std::fs::read_to_string(sidecar) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(io_err(e)),
+    };
+    let file: RevocationSidecarFile =
+        serde_json::from_str(&text).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    if file.format != REVOCATIONS_SIDECAR_FORMAT {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "revocation sidecar {sidecar}: wrong format \"{}\": expected {REVOCATIONS_SIDECAR_FORMAT}",
+            file.format
+        ))));
+    }
+    let recomputed = revocations_checksum(&file.entries)?;
+    if file.checksum != recomputed {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "revocation sidecar {sidecar} checksum mismatch: claimed {}, recomputed {}",
+            file.checksum, recomputed
+        ))));
+    }
+    Ok(file.entries)
+}
+
+/// Appends one entry to the sidecar and writes it back atomically: sibling
+/// temporary file (`.<name>.tmp-<pid>`) → `sync_all` → `rename`, mirroring the
+/// rendered store's atomicity law (readers see the old or the new ledger,
+/// never a partial one).
+#[cfg(feature = "crypto-trust")]
+fn append_revocation(
+    sidecar: &str,
+    entry: RevocationSidecarEntry,
+) -> Result<Vec<RevocationSidecarEntry>> {
+    let mut entries = load_revocations(sidecar)?;
+    entries.push(entry);
+    let file = RevocationSidecarFile {
+        format: REVOCATIONS_SIDECAR_FORMAT.to_string(),
+        checksum: revocations_checksum(&entries)?,
+        entries: entries.clone(),
+    };
+    let path = std::path::Path::new(sidecar);
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    std::fs::create_dir_all(parent).map_err(io_err)?;
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "revocations.json".to_string());
+    let tmp = parent.join(format!(".{name}.tmp-{}", std::process::id()));
+    let body =
+        serde_json::to_string_pretty(&file).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    {
+        use std::io::Write as _;
+        let mut f = std::fs::File::create(&tmp).map_err(io_err)?;
+        f.write_all(body.as_bytes()).map_err(io_err)?;
+        f.sync_all().map_err(io_err)?;
+    }
+    std::fs::rename(&tmp, path).map_err(io_err)?;
+    Ok(entries)
+}
+
+/// Decode a non-empty, even-length hex string of arbitrary size into bytes.
+/// Bad characters and odd length are typed [`AffidavitError::Parse`] refusals
+/// naming the offending character/length; an empty input is a Parse refusal
+/// too (a length mismatch against the algorithm's expectation is the
+/// caller's Validation, so it can name the expected size).
+#[cfg(feature = "crypto-trust")]
+fn cli_hex_decode_variable(text: &str) -> Result<Vec<u8>> {
+    let trimmed = text.trim();
+    let bytes = trimmed.as_bytes();
+    if bytes.is_empty() {
+        return Err(to_noun_verb(AffidavitError::Parse(
+            "public key hex is empty".to_string(),
+        )));
+    }
+    if bytes.len() % 2 != 0 {
+        return Err(to_noun_verb(AffidavitError::Parse(format!(
+            "public key hex has odd length: {} characters",
+            bytes.len()
+        ))));
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 2);
+    for (index, pair) in bytes.chunks_exact(2).enumerate() {
+        let nibble = |c: u8| -> Result<u8> {
+            (c as char).to_digit(16).map(|d| d as u8).ok_or_else(|| {
+                to_noun_verb(AffidavitError::Parse(format!(
+                    "public key is not hex: invalid character '{}' at position {}",
+                    c as char,
+                    index * 2
+                )))
+            })
+        };
+        out.push((nibble(pair[0])? << 4) | nibble(pair[1])?);
+    }
+    Ok(out)
+}
+
+/// `affi keys import` — register an EXTERNALLY-held public key into the
+/// tamper-evident key store with origin `Imported { source: "cli" }`.
+///
+/// Wire forms per algorithm family: SEC1 (uncompressed point, the graph's
+/// declared 65-byte length) for ES256; the raw fixed-length encoding for
+/// ML-DSA-65 (1952 bytes); the raw key bytes for SLH-DSA-SHA2-128s (the graph
+/// row declares no fixed length, so any non-empty byte string is admitted and
+/// fingerprinted as declared). The key is fingerprinted through the rendered
+/// [`crate::crypto_trust_keys::fingerprint_public_key`] and admitted through
+/// the full [`crate::crypto_trust_store::FileKeyStore`] law, so duplicates
+/// surface as the exact `Registry::Duplicate` refusal and a tampered store is
+/// refused on load.
+///
+/// Typed refusals: unknown algorithm (`REFUSED_UNSUPPORTED`), flat-hex hybrid
+/// material (`REFUSED_UNSUPPORTED`: the composite wire form is
+/// `es256 || mldsa65`, not a single blob), bad/odd/empty hex (`Parse`), length
+/// mismatch against the graph-declared expectation (`Validation` naming the
+/// algorithm's expected length), duplicate key/fingerprint (the store law's
+/// `Registry::Duplicate` passthrough), empty custodian.
+#[cfg(feature = "crypto-trust")]
+pub fn keys_import(
+    algorithm: String,
+    public_key_hex: String,
+    custodian: String,
+    out: Option<String>,
+) -> Result<()> {
+    use crate::crypto_trust_keys::{
+        fingerprint_public_key, AlgorithmId, CustodianIdentity, KeyId, KeyOrigin, KeyRecord,
+        PublicKeyMaterial,
+    };
+
+    let admitted: Vec<&str> = AlgorithmId::all().iter().map(|a| a.as_str()).collect();
+    let alg = AlgorithmId::all()
+        .iter()
+        .copied()
+        .find(|a| a.as_str().eq_ignore_ascii_case(algorithm.trim()))
+        .ok_or_else(|| {
+            to_noun_verb(AffidavitError::Validation(format!(
+                "REFUSED_UNSUPPORTED: algorithm \"{algorithm}\" is not admitted; the registry admits {}",
+                admitted.join(", ")
+            )))
+        })?;
+    if alg == AlgorithmId::HybridEs256MlDsa65 {
+        return Err(to_noun_verb(AffidavitError::Validation(
+            "REFUSED_UNSUPPORTED: flat-hex import is not defined for ES256+ML-DSA-65 (its composite material is es256 || mldsa65); import the halves through their own families".to_string(),
+        )));
+    }
+
+    let bytes = cli_hex_decode_variable(&public_key_hex)?;
+    match alg.public_key_len() {
+        Some(expected) if bytes.len() != expected => {
+            return Err(to_noun_verb(AffidavitError::Validation(format!(
+                "public key length mismatch for {}: expected {expected} bytes ({} hex characters), got {} bytes",
+                alg.as_str(),
+                expected * 2,
+                bytes.len()
+            ))));
+        }
+        // The graph declares no fixed length for this family (rendered as
+        // "variable"): admit any non-empty raw encoding as declared.
+        None if bytes.is_empty() => {
+            return Err(to_noun_verb(AffidavitError::Validation(format!(
+                "public key length mismatch for {}: the graph declares no fixed length, but an empty key is not a key",
+                alg.as_str()
+            ))));
+        }
+        _ => {}
+    }
+    let public = match alg {
+        AlgorithmId::Es256 => PublicKeyMaterial::Es256Sec1(bytes),
+        AlgorithmId::MlDsa65 => PublicKeyMaterial::MlDsa65(bytes),
+        AlgorithmId::SlhDsa128s => PublicKeyMaterial::SlhDsa128s(bytes),
+        AlgorithmId::HybridEs256MlDsa65 => {
+            return Err(to_noun_verb(AffidavitError::Validation(
+                "REFUSED_UNSUPPORTED: flat-hex import is not defined for ES256+ML-DSA-65"
+                    .to_string(),
+            )));
+        }
+    };
+
+    let custodian = custodian.trim().to_string();
+    if custodian.is_empty() {
+        return Err(to_noun_verb(AffidavitError::Validation(
+            "custodian must be a non-empty subject".to_string(),
+        )));
+    }
+    let fingerprint = fingerprint_public_key(alg, &public);
+    let record = KeyRecord {
+        id: KeyId::from_fingerprint(&fingerprint),
+        algorithm: alg,
+        fingerprint,
+        custodian: CustodianIdentity {
+            subject: custodian,
+            device: None,
+            org: None,
+        },
+        origin: KeyOrigin::Imported {
+            source: "cli".to_string(),
+        },
+        public_key: public,
+        created_epoch: system_epoch_secs()?,
+    };
+
+    // The full store law, identical to `keys generate`: load (checksum, format
+    // identity) → duplicate check (exact Registry refusals) → atomic write.
+    let store = out.as_deref().unwrap_or(KEYS_STORE_PATH);
+    let mut key_store = crate::crypto_trust_store::FileKeyStore::open(store).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store}: {e}"
+        )))
+    })?;
+    key_store
+        .register_checked(record.clone())
+        .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("key refused: {e}"))))?;
+
+    let kid = record.id.to_string();
+    let fingerprint_hex = record.fingerprint.as_hex();
+    let printed = serde_json::json!({
+        "kid": kid,
+        "fingerprint": fingerprint_hex,
+        "algorithm": alg.as_str(),
+        "custodian": record.custodian.subject,
+        "origin": "IMPORTED",
+        "store": store,
+    });
+    let printed = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{printed}");
+    eprintln!(
+        "key {kid} imported (fingerprint {fingerprint_hex}); public record appended to {store}"
+    );
+    Ok(())
+}
+
+/// `affi keys import` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn keys_import(
+    _algorithm: String,
+    _public_key_hex: String,
+    _custodian: String,
+    _out: Option<String>,
+) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi keys revoke` — append a tamper-evident revocation entry to the
+/// revocation sidecar beside the key store.
+///
+/// The key must be registered in the store (unknown kid is a typed refusal);
+/// the store itself is read through the full rendered store law, so a
+/// tampered store refuses before any revocation is written. The sidecar
+/// (`revocations.json` beside the store; `.affi/revocations.json` for the
+/// default store) is a local checksummed audit ledger under the STORE law's
+/// checksum approach — domain-separated BLAKE3 over the JCS canonicalization
+/// of the entries (see [`revocations_checksum`]); a tampered sidecar is a
+/// typed checksum-mismatch refusal and nothing is appended. Entries are
+/// append-ordered; per the lifecycle law, the LATEST entry for a kid governs.
+/// `revoked_at` is the real system epoch.
+#[cfg(feature = "crypto-trust")]
+pub fn keys_revoke(kid: String, reason: String, store: Option<String>) -> Result<()> {
+    let store_path = store.as_deref().unwrap_or(KEYS_STORE_PATH);
+    let records = load_key_records(store_path)?;
+    let kid = kid.trim();
+    if !records.iter().any(|r| r.id.0 == kid) {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "unknown key {kid}: not registered in {store_path}; register it with `affi keys generate` or `affi keys import` first"
+        ))));
+    }
+    let reason = reason.trim().to_string();
+    if reason.is_empty() {
+        return Err(to_noun_verb(AffidavitError::Validation(
+            "reason must be a non-empty audit note".to_string(),
+        )));
+    }
+    let revoked_at = system_epoch_secs()?;
+    let entry = RevocationSidecarEntry {
+        kid: kid.to_string(),
+        revoked_at,
+        reason: reason.clone(),
+    };
+    let sidecar = revocation_sidecar_path(store_path);
+    let total = append_revocation(&sidecar, entry)?.len();
+
+    let printed = serde_json::json!({
+        "revoked": true,
+        "kid": kid,
+        "revoked_at": revoked_at,
+        "reason": reason,
+        "sidecar": sidecar,
+        "entries": total,
+    });
+    let printed = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{printed}");
+    eprintln!("key {kid} revoked ({reason}); revocation appended to {sidecar}");
+    Ok(())
+}
+
+/// `affi keys revoke` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn keys_revoke(_kid: String, _reason: String, _store: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi keys rotate` — rotate a registered ES256 key to a FRESHLY GENERATED
+/// ES256 successor and append the successor's public record to the store.
+///
+/// The rendered ceremony ([`crate::crypto_trust_rotation::rotate_es256_to_hybrid`])
+/// is hybrid-specific: its admission gate walks the graph's PROFILE MIGRATION
+/// table (CLASSICAL→HYBRID, HYBRID→CLASSICAL, HYBRID→PQC), and a same-profile
+/// CLASSICAL→CLASSICAL re-keying is not a graph migration row. This handler
+/// therefore implements the pure-ES256 rotation per that module's documented
+/// LAW, reusing its public types and canonical machinery — no second digest:
+///
+/// 1. Successor identity: `new_key_id` is the trust-plane fingerprint of the
+///    successor's SEC1 public material bound to `AlgorithmId::Es256`
+///    (`KeyId::from_fingerprint`).
+/// 2. Record digest: `digest(ROTATION_DOMAIN_TAG, [ROTATION_DIGEST_LABEL,
+///    jcs(signed_fields)])` — the module's exact documented pre-image over the
+///    five signed fields (`old_key_id`, `new_key_id`, `from_profile`,
+///    `to_profile`, `rotated_at`), canonicalized with the rendered JCS.
+///    `from_profile`/`to_profile` are the rendered profileName form
+///    (`CLASSICAL`); this record names a same-profile takeover, not a profile
+///    migration.
+/// 3. Successor attests takeover: the SUCCESSOR key signs the digest (RFC 6979
+///    deterministic ECDSA, DER), per the module's successor-signature law. The
+///    old key's secret is not required and (the store holding public records
+///    only) is never present; the wire form is the raw DER (documented pure-
+///    ES256 shape of `successor_signature`, verifiable with
+///    [`crate::crypto_trust_es256::verify_es256`] over the recomputed digest).
+/// 4. Persistence: the successor's public record joins the store under the
+///    full FileKeyStore law, inheriting the old record's custodian and origin
+///    `Generated`. The old record is left in place — retirement is the
+///    custodian's explicit `affi keys revoke` act, kept separate on purpose.
+///
+/// Typed refusals: unknown kid, non-ES256 key (`REFUSED_UNSUPPORTED`), store
+/// errors (checksum/format/io passthrough).
+#[cfg(feature = "crypto-trust")]
+pub fn keys_rotate(kid: String, store: Option<String>, out: Option<String>) -> Result<()> {
+    use crate::crypto_trust_canonical::{digest, jcs};
+    use crate::crypto_trust_es256::Es256SigningKey;
+    use crate::crypto_trust_keys::{
+        fingerprint_public_key, AlgorithmId, KeyId, KeyOrigin, KeyRecord, PublicKeyMaterial,
+    };
+    use crate::crypto_trust_rotation::{
+        RotationRecord, ROTATION_DIGEST_LABEL, ROTATION_DOMAIN_TAG,
+    };
+
+    let store_path = store.as_deref().unwrap_or(KEYS_STORE_PATH);
+    let records = load_key_records(store_path)?;
+    let kid = kid.trim();
+    let old = records
+        .iter()
+        .find(|r| r.id.0 == kid)
+        .ok_or_else(|| {
+            to_noun_verb(AffidavitError::Validation(format!(
+                "unknown key {kid}: not registered in {store_path}; register it with `affi keys generate` or `affi keys import` first"
+            )))
+        })?
+        .clone();
+    if old.algorithm != AlgorithmId::Es256 {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "REFUSED_UNSUPPORTED: ES256→ES256 rotation requires an ES256 key; {kid} is {}",
+            old.algorithm.as_str()
+        ))));
+    }
+
+    let successor = Es256SigningKey::generate()
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("key generation: {e}"))))?;
+    let new_public = PublicKeyMaterial::Es256Sec1(successor.public_key_sec1());
+    let new_fingerprint = fingerprint_public_key(AlgorithmId::Es256, &new_public);
+    let new_kid = KeyId::from_fingerprint(&new_fingerprint);
+    let now = system_epoch_secs()?;
+
+    // The rotation module's exact documented pre-image: JCS of the five signed
+    // fields, domain-digested under the rotation label. (The module's
+    // `SignedRotationFields`/`rotation_digest` are private; this reconstruction
+    // is pinned byte-for-byte by tests/crypto_trust_keys_cli.rs and the
+    // in-module test law "successor signs the domain-digested record".)
+    let signed_fields = serde_json::json!({
+        "old_key_id": kid,
+        "new_key_id": new_kid.to_string(),
+        "from_profile": old.algorithm.profile().as_str().to_ascii_uppercase(),
+        "to_profile": AlgorithmId::Es256.profile().as_str().to_ascii_uppercase(),
+        "rotated_at": now,
+    });
+    let canonical = jcs(&signed_fields).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "rotation record canonicalization: {e}"
+        )))
+    })?;
+    let record_digest = digest(
+        ROTATION_DOMAIN_TAG,
+        &[ROTATION_DIGEST_LABEL, canonical.as_bytes()],
+    );
+    let successor_signature = successor.sign(&record_digest);
+    let record = RotationRecord {
+        old_key_id: kid.to_string(),
+        new_key_id: new_kid.to_string(),
+        from_profile: old.algorithm.profile().as_str().to_ascii_uppercase(),
+        to_profile: AlgorithmId::Es256.profile().as_str().to_ascii_uppercase(),
+        rotated_at: now,
+        successor_signature,
+    };
+
+    let new_record = KeyRecord {
+        id: new_kid.clone(),
+        algorithm: AlgorithmId::Es256,
+        fingerprint: new_fingerprint,
+        custodian: old.custodian.clone(),
+        origin: KeyOrigin::Generated,
+        public_key: new_public,
+        created_epoch: now,
+    };
+    let mut key_store = crate::crypto_trust_store::FileKeyStore::open(store_path).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store_path}: {e}"
+        )))
+    })?;
+    key_store
+        .register_checked(new_record)
+        .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("key refused: {e}"))))?;
+
+    let printed = serde_json::json!({
+        "rotated_from": kid,
+        "rotated_to": new_kid.to_string(),
+        "fingerprint": new_fingerprint.as_hex(),
+        "algorithm": AlgorithmId::Es256.as_str(),
+        "from_profile": record.from_profile,
+        "to_profile": record.to_profile,
+        "rotated_at": now,
+        "store": store_path,
+    });
+    let printed = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{printed}");
+    let rotation_text = adapt(serde_json::to_string_pretty(&record).map_err(anyhow::Error::from))?;
+    match out.as_deref() {
+        Some(path) => {
+            std::fs::write(path, rotation_text.as_bytes()).map_err(io_err)?;
+            eprintln!("rotation record {kid} -> {new_kid} written to {path}; successor public record appended to {store_path}");
+        }
+        None => {
+            outln!("{rotation_text}");
+            eprintln!(
+                "rotation record {kid} -> {new_kid}; pass --out to write the artifact to a file"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// `affi keys rotate` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn keys_rotate(_kid: String, _store: Option<String>, _out: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// In-process witnessing for the keys import/revoke/rotate handler bodies
+/// (real ES256 keys, real FileKeyStore, real sidecar IO — no mocks). The CLI
+/// surface (dispatch, exit codes) is witnessed by
+/// `tests/crypto_trust_keys_cli.rs` against the rendered wrappers.
+#[cfg(all(test, feature = "crypto-trust"))]
+mod keys_lane_tests {
+    use super::*;
+    use crate::crypto_trust_canonical::{digest, jcs};
+    use crate::crypto_trust_es256::{verify_es256, Es256SigningKey};
+    use crate::crypto_trust_keys::{
+        fingerprint_public_key, AlgorithmId, KeyId, KeyOrigin, PublicKeyMaterial,
+    };
+    use crate::crypto_trust_rotation::{
+        RotationRecord, ROTATION_DIGEST_LABEL, ROTATION_DOMAIN_TAG,
+    };
+
+    fn temp_store(tag: &str) -> String {
+        let dir = std::env::temp_dir().join(format!(
+            "ctp-keys-lane-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("create scratch dir");
+        dir.join("keys.json").to_string_lossy().into_owned()
+    }
+
+    /// A real externally-held ES256 public key as hex (SEC1), derived from a
+    /// fixed seed so the test knows the expected fingerprint.
+    fn external_pk_hex(tag: u8) -> String {
+        let signing = Es256SigningKey::from_seed(&[tag; 32]).expect("valid fixture scalar");
+        cli_hex_encode(&signing.public_key_sec1())
+    }
+
+    fn es256_kid_of(tag: u8) -> String {
+        let signing = Es256SigningKey::from_seed(&[tag; 32]).expect("valid fixture scalar");
+        let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
+        KeyId::from_fingerprint(&fingerprint_public_key(AlgorithmId::Es256, &public)).to_string()
+    }
+
+    #[test]
+    fn import_registers_externally_held_key_with_imported_origin() {
+        let store = temp_store("import-happy");
+        let pk = external_pk_hex(0x42);
+        keys_import(
+            "ES256".into(),
+            pk,
+            "external-custodian".into(),
+            Some(store.clone()),
+        )
+        .expect("import succeeds");
+        let records = load_key_records(&store).expect("store reads back");
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].id.0, es256_kid_of(0x42));
+        assert_eq!(
+            records[0].origin,
+            KeyOrigin::Imported {
+                source: "cli".to_string()
+            }
+        );
+        let _ = std::fs::remove_file(&store);
+    }
+
+    #[test]
+    fn import_refusals_are_typed() {
+        let store = temp_store("import-refuse");
+        // Unknown algorithm: REFUSED_UNSUPPORTED naming the admitted set.
+        let err = keys_import(
+            "ED25519".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("unknown algorithm refused");
+        assert!(err.to_string().contains("REFUSED_UNSUPPORTED"));
+        assert!(err.to_string().contains("ED25519"));
+        // Hybrid flat-hex: REFUSED_UNSUPPORTED.
+        let err = keys_import(
+            "ES256+ML-DSA-65".into(),
+            "00".repeat(2017),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("hybrid flat-hex refused");
+        assert!(err.to_string().contains("REFUSED_UNSUPPORTED"));
+        // Bad hex character: Parse.
+        let err = keys_import(
+            "ES256".into(),
+            format!("{}zz", &external_pk_hex(0x42)[..126]),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("bad hex refused");
+        assert!(err.to_string().contains("Parse error"));
+        assert!(err.to_string().contains("not hex"));
+        // Odd-length hex: Parse.
+        let err = keys_import(
+            "ES256".into(),
+            "0".repeat(129),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("odd-length hex refused");
+        assert!(err.to_string().contains("odd length"));
+        // Length mismatch names the algorithm and its expected length.
+        let err = keys_import(
+            "ES256".into(),
+            "04".repeat(32),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("short ES256 key refused");
+        let msg = err.to_string();
+        assert!(msg.contains("length mismatch for ES256"), "{msg}");
+        assert!(msg.contains("expected 65 bytes"), "{msg}");
+        assert!(msg.contains("got 32 bytes"), "{msg}");
+        // ML-DSA-65 length mismatch names 1952.
+        let err = keys_import(
+            "ML-DSA-65".into(),
+            "00".repeat(100),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("short ML-DSA-65 key refused");
+        let msg = err.to_string();
+        assert!(msg.contains("expected 1952 bytes"), "{msg}");
+        // Empty custodian: Validation.
+        let err = keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "   ".into(),
+            Some(store.clone()),
+        )
+        .expect_err("empty custodian refused");
+        assert!(err
+            .to_string()
+            .contains("custodian must be a non-empty subject"));
+
+        // Duplicate import: the store law's exact Registry::Duplicate
+        // passthrough ("duplicate key <kid>").
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect("first import lands");
+        let err = keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "bob".into(),
+            Some(store.clone()),
+        )
+        .expect_err("duplicate import refused");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("key refused: key registry: duplicate key"),
+            "{msg}"
+        );
+        assert!(msg.contains(&es256_kid_of(0x42)), "{msg}");
+        let _ = std::fs::remove_file(&store);
+    }
+
+    #[test]
+    fn revoke_appends_checksummed_entries_and_latest_governs() {
+        let store = temp_store("revoke-happy");
+        let kid_a = es256_kid_of(0x42);
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect("import a");
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x43),
+            "bob".into(),
+            Some(store.clone()),
+        )
+        .expect("import b");
+        let kid_b = es256_kid_of(0x43);
+        keys_revoke(kid_a.clone(), "compromised".into(), Some(store.clone()))
+            .expect("first revoke");
+        keys_revoke(kid_b.clone(), "superseded".into(), Some(store.clone()))
+            .expect("second revoke");
+        let sidecar = revocation_sidecar_path(&store);
+        let entries = load_revocations(&sidecar).expect("sidecar reads back");
+        assert_eq!(entries.len(), 2, "append order preserved");
+        assert_eq!(entries[0].kid, kid_a);
+        assert_eq!(entries[0].reason, "compromised");
+        assert!(entries[0].revoked_at > 0, "real epoch, never a literal 0");
+        // The recomputed checksum matches the store law's approach.
+        let file: RevocationSidecarFile =
+            serde_json::from_str(&std::fs::read_to_string(&sidecar).expect("read sidecar"))
+                .expect("parse sidecar");
+        assert_eq!(file.format, REVOCATIONS_SIDECAR_FORMAT);
+        assert_eq!(
+            file.checksum,
+            revocations_checksum(&file.entries).expect("recompute")
+        );
+        let _ = std::fs::remove_file(&store);
+        let _ = std::fs::remove_file(&sidecar);
+    }
+
+    #[test]
+    fn revoke_refuses_unknown_key_and_tampered_sidecar() {
+        let store = temp_store("revoke-refuse");
+        let kid = es256_kid_of(0x42);
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect("import");
+        let sidecar = revocation_sidecar_path(&store);
+
+        let err = keys_revoke(
+            "afk1_0000000000000000".into(),
+            "x".into(),
+            Some(store.clone()),
+        )
+        .expect_err("unknown kid refused");
+        assert!(err
+            .to_string()
+            .contains("unknown key afk1_0000000000000000"));
+
+        keys_revoke(kid.clone(), "first".into(), Some(store.clone())).expect("first revoke");
+        // Tamper with one byte of the ledger: the next revoke must refuse
+        // (the read side runs the checksum law before appending) and change
+        // nothing.
+        let intact = std::fs::read_to_string(&sidecar).expect("read sidecar");
+        let tampered = intact.replacen("\"first\"", "\"firSt\"", 1);
+        assert_ne!(tampered, intact);
+        std::fs::write(&sidecar, tampered).expect("write tampered sidecar");
+        let err = keys_revoke(kid, "second".into(), Some(store.clone()))
+            .expect_err("tampered sidecar must refuse");
+        assert!(err.to_string().contains("checksum mismatch"));
+        let _ = std::fs::remove_file(&store);
+        let _ = std::fs::remove_file(&sidecar);
+    }
+
+    #[test]
+    fn rotate_produces_successor_signed_verifiable_record() {
+        let store = temp_store("rotate-happy");
+        let kid = es256_kid_of(0x42);
+        keys_import(
+            "ES256".into(),
+            external_pk_hex(0x42),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect("import");
+        let rotation_path = std::path::Path::new(&store)
+            .parent()
+            .unwrap()
+            .join("rotation.json");
+        keys_rotate(
+            kid.clone(),
+            Some(store.clone()),
+            Some(rotation_path.to_string_lossy().into_owned()),
+        )
+        .expect("rotate succeeds");
+
+        // Store: old record stays, successor joined with Generated origin and
+        // inherited custodian.
+        let records = load_key_records(&store).expect("store reads back");
+        assert_eq!(records.len(), 2);
+        let successor = records
+            .iter()
+            .find(|r| r.id.0 != kid)
+            .expect("successor present");
+        assert_eq!(successor.origin, KeyOrigin::Generated);
+        assert_eq!(successor.custodian.subject, "alice");
+
+        // The record parses as the rendered RotationRecord type.
+        let record: RotationRecord =
+            serde_json::from_str(&std::fs::read_to_string(&rotation_path).expect("read rotation"))
+                .expect("parse rotation record");
+        assert_eq!(record.old_key_id, kid);
+        assert_eq!(record.new_key_id, successor.id.0);
+        assert_eq!(record.from_profile, "CLASSICAL");
+        assert_eq!(record.to_profile, "CLASSICAL");
+
+        // Recompute the module's documented pre-image and verify the
+        // successor's ES256 signature over it.
+        let signed_fields = serde_json::json!({
+            "old_key_id": record.old_key_id,
+            "new_key_id": record.new_key_id,
+            "from_profile": record.from_profile,
+            "to_profile": record.to_profile,
+            "rotated_at": record.rotated_at,
+        });
+        let canonical = jcs(&signed_fields).expect("jcs");
+        let record_digest = digest(
+            ROTATION_DOMAIN_TAG,
+            &[ROTATION_DIGEST_LABEL, canonical.as_bytes()],
+        );
+        let pk = match &successor.public_key {
+            PublicKeyMaterial::Es256Sec1(bytes) => bytes.clone(),
+            other => panic!("successor is ES256 SEC1, got {other:?}"),
+        };
+        assert!(
+            verify_es256(&pk, &record_digest, &record.successor_signature)
+                .expect("well-formed signature"),
+            "the successor's signature over the documented pre-image must verify"
+        );
+        let _ = std::fs::remove_file(&store);
+        let _ = std::fs::remove_file(&rotation_path);
+    }
+
+    #[test]
+    fn rotate_refuses_unknown_kid_and_non_es256_key() {
+        let store = temp_store("rotate-refuse");
+        let err = keys_rotate("afk1_0000000000000000".into(), Some(store.clone()), None)
+            .expect_err("unknown kid refused");
+        assert!(err
+            .to_string()
+            .contains("unknown key afk1_0000000000000000"));
+
+        // A registered ML-DSA-65 key is not an ES256 rotation subject.
+        let pk_hex = cli_hex_encode(&vec![
+            7u8;
+            AlgorithmId::MlDsa65.public_key_len().unwrap_or(1952)
+        ]);
+        keys_import(
+            "ML-DSA-65".into(),
+            pk_hex,
+            "pqc-custodian".into(),
+            Some(store.clone()),
+        )
+        .expect("import ML-DSA-65");
+        let records = load_key_records(&store).expect("store reads back");
+        let pqc_kid = records.last().expect("record").id.0.clone();
+        let err = keys_rotate(pqc_kid, Some(store.clone()), None)
+            .expect_err("non-ES256 rotation refused");
+        assert!(err.to_string().contains("requires an ES256 key"));
+        let _ = std::fs::remove_file(&store);
+    }
+}
+
+// ============================================================================
+// EVIDENCE CLI CLUSTER — journal / crl-publish / crl-apply / heads
+// (v26.9.28, wave 2 lane 1)
+//
+// The evidence surface turns the rendered trust-plane evidence stores into CLI
+// verbs: the hash-chained standing journal
+// ([`crate::crypto_trust_journal`]), the signed CRL publication
+// ([`crate::crypto_trust_revocation`] + [`crate::crypto_trust_crl_file`]),
+// and the RFC 9162 transparency-log audit
+// ([`crate::crypto_trust_log`] + [`crate::crypto_trust_transparency`]).
+// As everywhere on this plane, the rendered modules own their laws and this
+// seam only owns glue: file transport, key custody resolution, and JSON
+// presentation. Signing custody is `AFFI_SIGNING_KEY_PATH` (raw 32-byte hex
+// file, the documented test/dev source); an absent custody source is the
+// typed `REFUSED_R_missing_authority` refusal — no key, no authority to sign.
+// ============================================================================
+
+/// Default standing-journal file for the evidence verbs: the durable
+/// [`crate::crypto_trust_journal::StandingJournal`] wire form (one
+/// [`crate::crypto_trust_journal::JournalEntry`] JSON object per line,
+/// chain-verified on every load through `from_jsonl`).
+#[cfg(feature = "crypto-trust")]
+const EVIDENCE_JOURNAL_FILE: &str = ".affi/standing-journal.jsonl";
+
+/// Default CRL publication file. The rendered
+/// `crypto_trust_crl_file::CRL_FILE` pins the same value (".affi/crl.json");
+/// that module's `lib.rs` wiring is a pending coordinator seam (the file is
+/// rendered but not yet declared), so this seam carries the literal until the
+/// declaration lands and the transport can re-point at `CrlFile`.
+#[cfg(feature = "crypto-trust")]
+const EVIDENCE_CRL_FILE: &str = ".affi/crl.json";
+
+/// Audience bound inside evidence envelopes (`evidence journal`).
+#[cfg(feature = "crypto-trust")]
+const EVIDENCE_AUDIENCE: &str = "affidavit.evidence";
+
+/// Resolve `AFFI_SIGNING_KEY_PATH` when it is set to a non-empty value; an
+/// unset (or empty) variable is `None` — the caller decides whether that is a
+/// refusal or an optional-custody path.
+#[cfg(feature = "crypto-trust")]
+fn env_signing_key_path() -> Option<String> {
+    std::env::var(ENV_SIGNING_KEY_PATH)
+        .ok()
+        .filter(|path| !path.trim().is_empty())
+}
+
+/// The signing key from `AFFI_SIGNING_KEY_PATH`: raw 32-byte hex file
+/// (documented test/dev custody; production custody is a non-exportable
+/// provider where such a file cannot exist). Absent or empty is the typed
+/// no-authority refusal — signing without custody is refused, never improvised.
+#[cfg(feature = "crypto-trust")]
+fn evidence_signing_key() -> Result<(
+    crate::crypto_trust_es256::Es256SigningKey,
+    crate::crypto_trust_keys::KeyRecord,
+)> {
+    let path = env_signing_key_path().ok_or_else(|| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "REFUSED_R_missing_authority: no signing key in the environment; set {ENV_SIGNING_KEY_PATH} to a raw 32-byte hex key file. No key, no authority to sign"
+        )))
+    })?;
+    load_signing_key_file(&path)
+}
+
+/// Load the standing journal at `path`: an absent file is the empty journal
+/// (first evidence starts the chain at genesis); a present file is loaded
+/// through `StandingJournal::from_jsonl`, which re-verifies the ENTIRE hash
+/// chain from genesis — a tampered, truncated, or corrupted journal is a
+/// typed refusal, never silently accepted.
+#[cfg(feature = "crypto-trust")]
+fn load_standing_journal(
+    path: &std::path::Path,
+) -> Result<crate::crypto_trust_journal::StandingJournal> {
+    match std::fs::read_to_string(path) {
+        Ok(wire) => crate::crypto_trust_journal::StandingJournal::from_jsonl(&wire).map_err(|e| {
+            to_noun_verb(AffidavitError::Validation(format!(
+                "standing journal {} does not reproduce: {e}",
+                path.display()
+            )))
+        }),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Ok(crate::crypto_trust_journal::StandingJournal::new())
+        }
+        Err(e) => Err(io_err(e)),
+    }
+}
+
+/// Persist the standing journal atomically: the next file image is written to
+/// a sibling temporary file, synced, and renamed into place — a crash leaves
+/// the previous chain intact and at most an orphaned temporary.
+#[cfg(feature = "crypto-trust")]
+fn write_standing_journal(
+    path: &std::path::Path,
+    journal: &crate::crypto_trust_journal::StandingJournal,
+) -> Result<()> {
+    let body = journal.to_jsonl();
+    let body = if body.is_empty() {
+        String::new()
+    } else {
+        format!("{body}\n")
+    };
+    atomic_write_bytes(path, body.as_bytes())
+}
+
+/// Atomic full-file write shared by the evidence surfaces: sibling temporary
+/// file (`.<name>.tmp-<pid>`) → `sync_all` → `rename` (readers see the old or
+/// the new file, never a partial one; the temporary never survives a
+/// completed write).
+#[cfg(feature = "crypto-trust")]
+fn atomic_write_bytes(path: &std::path::Path, body: &[u8]) -> Result<()> {
+    use std::io::Write as _;
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    std::fs::create_dir_all(parent).map_err(io_err)?;
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "evidence.bin".to_string());
+    let tmp = parent.join(format!(".{name}.tmp-{}", std::process::id()));
+    {
+        let mut f = std::fs::File::create(&tmp).map_err(io_err)?;
+        f.write_all(body).map_err(io_err)?;
+        f.sync_all().map_err(io_err)?;
+    }
+    std::fs::rename(&tmp, path).map_err(io_err)?;
+    Ok(())
+}
+
+/// The CRL file transport (write): the signed publication as JCS canonical
+/// JSON — the exact bytes the signature covers — written atomically. This is
+/// the handler seam's documented glue; the rendered
+/// `crypto_trust_crl_file::CrlFile` is the designated owner once its lib.rs
+/// declaration lands (see [`EVIDENCE_CRL_FILE`]).
+#[cfg(feature = "crypto-trust")]
+fn write_crl_file(
+    crl: &crate::crypto_trust_revocation::SignedRevocationList,
+    path: &std::path::Path,
+) -> Result<()> {
+    let value = serde_json::to_value(crl).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    let canonical = crate::crypto_trust_canonical::jcs(&value).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "crl canonicalization: {e}"
+        )))
+    })?;
+    atomic_write_bytes(path, canonical.as_bytes())
+}
+
+/// The CRL file transport (read), fail-closed: an absent file is a typed
+/// refusal (a missing CRL is NOT an empty CRL — without a verified
+/// publication the verifier knows nothing about revocations), unparsable
+/// bytes are a typed refusal, and a foreign format stamp is refused before
+/// any admission can run. Signature verification stays admission's job
+/// (`crypto_trust_revocation::apply_to`).
+#[cfg(feature = "crypto-trust")]
+fn read_crl_file(
+    path: &std::path::Path,
+) -> Result<crate::crypto_trust_revocation::SignedRevocationList> {
+    let text = std::fs::read_to_string(path).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "crl file {}: read refused (a missing CRL is not an empty CRL): {e}",
+            path.display()
+        )))
+    })?;
+    let crl: crate::crypto_trust_revocation::SignedRevocationList =
+        serde_json::from_str(&text).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    if crl.format != crate::crypto_trust_revocation::CRL_FORMAT {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "crl file {}: wrong format {:?}: expected {}",
+            path.display(),
+            crl.format,
+            crate::crypto_trust_revocation::CRL_FORMAT
+        ))));
+    }
+    Ok(crl)
+}
+
+/// `affi evidence journal` — record one receipt's cryptographic standing as
+/// durable, hash-chained journal evidence.
+///
+/// The full plane runs for real: a genuine [`crate::chain::ChainAssembler`]
+/// receipt is assembled over `subject`, its rendered subject binding
+/// ([`crate::crypto_trust_seal::subject_digest_of`]) is bound into a fresh
+/// CTP-ENVELOPE-v1 envelope signed with the `AFFI_SIGNING_KEY_PATH` custody
+/// key, the envelope is adjudicated by the real
+/// [`crate::crypto_trust_verify::VerificationEngine`] into a
+/// [`crate::crypto_trust_verify::CryptoStandingReceipt`], and the receipt is
+/// appended to the standing journal at
+/// [`EVIDENCE_JOURNAL_FILE`] via
+/// [`crate::crypto_trust_journal::record_receipt`] (the journal entry copies
+/// the receipt's identity fields verbatim and chains over its predecessor's
+/// `entry_hash`). The journal is re-verified from genesis on every load, so a
+/// tampered journal file refuses the next append. Prints the new entry's
+/// journal head + seq.
+#[cfg(feature = "crypto-trust")]
+pub fn evidence_journal(subject: String, out: Option<String>) -> Result<()> {
+    let journal_path = std::path::Path::new(EVIDENCE_JOURNAL_FILE);
+    let out_path = out.as_deref().map(std::path::Path::new);
+    evidence_journal_core(&subject, journal_path, out_path)?;
+    Ok(())
+}
+
+/// The `evidence journal` body over an explicit journal path (the public
+/// handler pins [`EVIDENCE_JOURNAL_FILE`]; tests and callers with isolated
+/// stores pass their own). Returns the appended entry after printing the
+/// report.
+#[cfg(feature = "crypto-trust")]
+fn evidence_journal_core(
+    subject: &str,
+    journal_path: &std::path::Path,
+    out: Option<&std::path::Path>,
+) -> Result<crate::crypto_trust_journal::JournalEntry> {
+    use crate::chain::ChainAssembler;
+    use crate::crypto_trust_envelope::NonceJournal;
+    use crate::crypto_trust_journal::record_receipt;
+    use crate::crypto_trust_keys::{InMemoryKeyRegistry, KeyRegistry};
+    use crate::crypto_trust_lifecycle::RevocationList;
+    use crate::crypto_trust_verify::{TrustPolicy, VerificationEngine};
+    use crate::ocel::{build_event, object_ref, SeqCounter};
+
+    let subject = subject.trim().to_string();
+    if subject.is_empty() {
+        return Err(to_noun_verb(AffidavitError::Validation(
+            "subject must be a non-empty string".to_string(),
+        )));
+    }
+
+    // 1. A REAL receipt from the canonical assembler — never a hand-built
+    //    struct (external construction is unconstructable anyway).
+    let mut assembler = ChainAssembler::new();
+    let mut counter = SeqCounter::new();
+    let event = build_event(
+        "evidence.record",
+        vec![object_ref("evidence-subject", "artifact")],
+        subject.as_bytes(),
+        &mut counter,
+    )
+    .map_err(|e| to_noun_verb(AffidavitError::Ocel(e)))?;
+    assembler
+        .append(event)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("chain append: {e}"))))?;
+    let base = assembler.finalize();
+
+    // 2. Custody first: no key, no authority to sign.
+    let (signing, record) = evidence_signing_key()?;
+    let now = system_epoch_secs()?;
+
+    // 3. The rendered subject binding, a fresh envelope, a real signature.
+    let subject_digest = crate::crypto_trust_seal::subject_digest_of(&base).map_err(|e| {
+        to_noun_verb(AffidavitError::ContentAddressing(format!(
+            "subject digest: {e}"
+        )))
+    })?;
+    let envelope = build_signature_envelope(
+        &record.id,
+        EVIDENCE_AUDIENCE,
+        subject_digest,
+        now,
+        fresh_nonce(),
+    );
+    let signing_input = envelope.signing_input_checked().map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!(
+            "envelope pre-image: {e}"
+        )))
+    })?;
+    let signature = signing.sign(&signing_input);
+
+    // 4. Real adjudication into a sealed standing receipt: an inline engine
+    //    over exactly the custody key's public record, so the journaled
+    //    standing is a verdict, never a literal.
+    let mut registry = InMemoryKeyRegistry::new();
+    registry.register(record.clone()).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!(
+            "inline key registry: {e}"
+        )))
+    })?;
+    let engine = VerificationEngine::new(
+        registry,
+        RevocationList::default(),
+        NonceJournal::default(),
+        TrustPolicy::from_graph_defaults().with_now(now),
+    );
+    let receipt = engine
+        .certify(&envelope, &signature, &subject)
+        .map_err(|e| {
+            to_noun_verb(AffidavitError::VerificationFailed(format!(
+                "envelope refused adjudication: {e}"
+            )))
+        })?;
+
+    // 5. Journal append + durable persistence. The load above already
+    //    re-verified the chain; record_receipt copies the receipt identity
+    //    verbatim under the envelope's rotation context (fields 5 and 6).
+    let mut journal = load_standing_journal(journal_path)?;
+    let entry = record_receipt(
+        &mut journal,
+        &receipt,
+        envelope.policy_epoch,
+        envelope.revocation_epoch,
+    )
+    .map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!(
+            "journal refused the receipt: {e}"
+        )))
+    })?;
+    write_standing_journal(journal_path, &journal)?;
+
+    // 6. Report: journal head + seq (the stdout artifact), the entry JSON to
+    //    `--out` when given.
+    let printed = serde_json::json!({
+        "journal": journal_path.display().to_string(),
+        "seq": entry.seq,
+        "head": entry.entry_hash,
+        "prev": entry.prev,
+        "standing": entry.standing,
+        "kid": entry.key_id,
+        "receipt_hash": entry.receipt_hash,
+        "envelope_commitment": entry.envelope_commitment,
+        "entries": journal.len(),
+    });
+    let text = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{text}");
+    if let Some(out) = out {
+        let artifact = adapt(serde_json::to_string_pretty(&entry).map_err(anyhow::Error::from))?;
+        std::fs::write(out, artifact.as_bytes()).map_err(io_err)?;
+        eprintln!(
+            "journal entry seq {} written to {}",
+            entry.seq,
+            out.display()
+        );
+    }
+    eprintln!(
+        "evidence recorded: standing {} at seq {} (head {}); journal {} now holds {} entries",
+        entry.standing,
+        entry.seq,
+        &entry.entry_hash[..16.min(entry.entry_hash.len())],
+        journal_path.display(),
+        journal.len()
+    );
+    Ok(entry)
+}
+
+/// `affi evidence journal` — typed refusal when the trust plane is not
+/// compiled into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn evidence_journal(_subject: String, _out: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi evidence crl-publish` — publish the signed revocation list
+/// (CTP-CRL-v1) for the store's recorded revocation state.
+///
+/// The issuer key id `kid` must be registered in the key store (typed refusal
+/// otherwise) and the signing secret must come from `AFFI_SIGNING_KEY_PATH`
+/// (absent: `REFUSED_R_missing_authority`). The custody file's key must BE
+/// the registered issuer (fingerprint equality — a file holding a different
+/// key is refused, never silently re-attributed). The store's revocation
+/// sidecar (written by `affi keys revoke`) is mirrored into a
+/// [`crate::crypto_trust_lifecycle::RevocationList`], signed through
+/// [`crate::crypto_trust_revocation::publish`] (JCS preimage, RFC 6979
+/// deterministic ES256), and written as JCS canonical bytes (atomic write;
+/// the file transport is the seam's glue — see [`EVIDENCE_CRL_FILE`]).
+/// The written publication is verified under the issuer key before success is
+/// claimed. Prints the published path + epoch.
+#[cfg(feature = "crypto-trust")]
+pub fn evidence_crl_publish(
+    kid: String,
+    epoch: u64,
+    store: Option<String>,
+    out: Option<String>,
+) -> Result<()> {
+    use crate::crypto_trust_keys::AlgorithmId;
+    use crate::crypto_trust_lifecycle::RevocationList;
+    use crate::crypto_trust_revocation::{publish, verify_publication};
+
+    let store_path = store.as_deref().unwrap_or(KEYS_STORE_PATH);
+    if !std::path::Path::new(store_path).exists() {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store_path} not found: register the issuer's key with `affi keys generate` or `affi keys import` first"
+        ))));
+    }
+    let records = load_key_records(store_path)?;
+    let kid = kid.trim();
+    let issuer = records
+        .iter()
+        .find(|r| r.id.0 == kid)
+        .ok_or_else(|| {
+            to_noun_verb(AffidavitError::Validation(format!(
+                "unknown key {kid}: not registered in {store_path}; the CRL issuer must be a registered key"
+            )))
+        })?
+        .clone();
+    if issuer.algorithm != AlgorithmId::Es256 {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "REFUSED_UNSUPPORTED: CRL publication signs with ES256 (the rendered publish law's only software signer); {kid} is {}",
+            issuer.algorithm.as_str()
+        ))));
+    }
+
+    // Custody: the file's key must be exactly the registered issuer.
+    let (signing, file_record) = evidence_signing_key()?;
+    if file_record.id != issuer.id {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "REFUSED_R_missing_authority: the key in {ENV_SIGNING_KEY_PATH} is kid {}, not the requested issuer {kid}; custody must match the issuer of record",
+            file_record.id.0
+        ))));
+    }
+
+    // The store's real revocation state, mirrored through the lifecycle type.
+    let sidecar = revocation_sidecar_path(store_path);
+    let mut revocations = RevocationList::default();
+    for entry in load_revocations(&sidecar)? {
+        revocations.revoke(&entry.kid, entry.revoked_at, entry.reason.clone());
+    }
+
+    let now = system_epoch_secs()?;
+    let crl = publish(&revocations, &signing, &issuer.id, epoch, now).map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!(
+            "CRL publication refused: {e}"
+        )))
+    })?;
+
+    let out_path = out.as_deref().unwrap_or(EVIDENCE_CRL_FILE);
+    write_crl_file(&crl, std::path::Path::new(out_path))?;
+
+    // Self-verify before claiming success: the bytes on disk must reproduce
+    // under the issuer key (RFC 6979 makes this deterministic).
+    let verified = verify_publication(&crl, &signing.public_key_sec1()).map_err(|e| {
+        to_noun_verb(AffidavitError::VerificationFailed(format!(
+            "published CRL refused verification: {e}"
+        )))
+    })?;
+    if !verified {
+        return Err(to_noun_verb(AffidavitError::VerificationFailed(
+            "published CRL does not self-verify under the issuer key".to_string(),
+        )));
+    }
+
+    let printed = serde_json::json!({
+        "published": out_path,
+        "issuer_kid": crl.issuer_kid,
+        "epoch": crl.epoch,
+        "records": crl.revoked.len(),
+        "format": crate::crypto_trust_revocation::CRL_FORMAT,
+    });
+    let text = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{text}");
+    eprintln!(
+        "CRL epoch {} published by {kid} to {out_path} ({} records)",
+        crl.epoch,
+        crl.revoked.len()
+    );
+    Ok(())
+}
+
+/// `affi evidence crl-publish` — typed refusal when the trust plane is not
+/// compiled into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn evidence_crl_publish(
+    _kid: String,
+    _epoch: u64,
+    _store: Option<String>,
+    _out: Option<String>,
+) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi evidence crl-apply` — admit a published CRL file into a fresh
+/// revocation list.
+///
+/// The file is read fail-closed (a missing file is NOT an empty CRL — see
+/// [`read_crl_file`]) and applied through
+/// [`crate::crypto_trust_revocation::apply_to`]: the issuer's public record is
+/// resolved from the key store by the publication's `issuer_kid` (a registered
+/// ES256 key is required — an unknown issuer is a typed refusal), the issuer
+/// signature is verified FIRST, then the epoch freshness grace, then the merge
+/// into a fresh [`crate::crypto_trust_lifecycle::RevocationList`]. A refusal
+/// is atomic — the target list is untouched. Prints the applied record count
+/// and the list's new revocation epoch.
+#[cfg(feature = "crypto-trust")]
+pub fn evidence_crl_apply(file: String, store: Option<String>) -> Result<()> {
+    use crate::crypto_trust_keys::AlgorithmId;
+    use crate::crypto_trust_lifecycle::{RevocationList, MAX_REVOCATION_STALENESS_SECONDS};
+    use crate::crypto_trust_revocation::apply_to;
+
+    let store_path = store.as_deref().unwrap_or(KEYS_STORE_PATH);
+    if !std::path::Path::new(store_path).exists() {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "key store {store_path} not found: register the issuer's key with `affi keys generate` or `affi keys import` first"
+        ))));
+    }
+    let crl = read_crl_file(std::path::Path::new(&file))?;
+
+    let records = load_key_records(store_path)?;
+    let issuer = records
+        .iter()
+        .find(|r| r.id.0 == crl.issuer_kid)
+        .ok_or_else(|| {
+            to_noun_verb(AffidavitError::Validation(format!(
+                "unknown issuer {}: not registered in {store_path}; a CRL cannot be admitted without its issuer's public record",
+                crl.issuer_kid
+            )))
+        })?
+        .clone();
+    if issuer.algorithm != AlgorithmId::Es256 {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "REFUSED_UNSUPPORTED: CRL admission verifies with ES256 (the rendered publish law's only software signer); {} is {}",
+            issuer.id.0,
+            issuer.algorithm.as_str()
+        ))));
+    }
+    let issuer_pk = match &issuer.public_key {
+        crate::crypto_trust_keys::PublicKeyMaterial::Es256Sec1(bytes) => bytes.clone(),
+        other => {
+            return Err(to_noun_verb(AffidavitError::Validation(format!(
+                "issuer {} does not carry ES256 SEC1 material: {other:?}",
+                issuer.id.0
+            ))))
+        }
+    };
+
+    let mut target = RevocationList::default();
+    let current = target.current_epoch();
+    let now = system_epoch_secs()?;
+    let applied = apply_to(
+        &mut target,
+        &crl,
+        &issuer_pk,
+        current,
+        MAX_REVOCATION_STALENESS_SECONDS,
+        now,
+    )
+    .map_err(|e| {
+        to_noun_verb(AffidavitError::VerificationFailed(format!(
+            "CRL refused admission: {e}"
+        )))
+    })?;
+    let new_epoch = target.current_epoch();
+
+    let printed = serde_json::json!({
+        "file": file,
+        "applied": applied,
+        "new_epoch": new_epoch,
+        "issuer_kid": crl.issuer_kid,
+        "crl_epoch": crl.epoch,
+        "format": crate::crypto_trust_revocation::CRL_FORMAT,
+    });
+    let text = adapt(serde_json::to_string(&printed).map_err(anyhow::Error::from))?;
+    outln!("{text}");
+    eprintln!("CRL admitted: {applied} records applied, revocation epoch now {new_epoch}");
+    Ok(())
+}
+
+/// `affi evidence crl-apply` — typed refusal when the trust plane is not
+/// compiled into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn evidence_crl_apply(_file: String, _store: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi evidence heads` — audit the standing journal and report the
+/// transparency-log tree head.
+///
+/// The journal is loaded through `StandingJournal::from_jsonl` (the full chain
+/// re-verifies from genesis — a tampered journal is a typed refusal), then the
+/// audit re-derives the RFC 9162 leaf set from the journal entries alone (the
+/// rendered log law: leaf i is BLAKE3 over journal entry i's
+/// `envelope_commitment` hex) and reports journal depth, leaf depth, and
+/// consistency. When `AFFI_SIGNING_KEY_PATH` custody is present, the current
+/// tree head is additionally published as a signed
+/// [`crate::crypto_trust_log::SignedTreeHead`] over the rendered head
+/// pre-image and self-verified through
+/// [`crate::crypto_trust_log::verify_head`] before printing; without custody
+/// the unsigned head digest is printed honestly (`"head_signed": false`, no
+/// fake signature). Prints the audit + head.
+#[cfg(feature = "crypto-trust")]
+pub fn evidence_heads(journal_file: Option<String>) -> Result<()> {
+    let path = journal_file
+        .as_deref()
+        .map(std::path::Path::new)
+        .unwrap_or_else(|| std::path::Path::new(EVIDENCE_JOURNAL_FILE));
+    let report = evidence_heads_core(path)?;
+    let text = adapt(serde_json::to_string(&report).map_err(anyhow::Error::from))?;
+    outln!("{text}");
+    eprintln!(
+        "journal {}: {} entries, {} leaves, head {}",
+        path.display(),
+        report["entries"].as_u64().unwrap_or_default(),
+        report["log_leaves"].as_u64().unwrap_or_default(),
+        report["head"].as_str().unwrap_or_default()
+    );
+    Ok(())
+}
+
+/// The `evidence heads` body over an explicit journal path: builds the audit
+/// report (and the signed head when custody resolves) and returns it for the
+/// caller to print.
+#[cfg(feature = "crypto-trust")]
+fn evidence_heads_core(journal_path: &std::path::Path) -> Result<serde_json::Value> {
+    use crate::crypto_trust_log::{verify_head, SignedTreeHead, HEAD_SIGNING_DOMAIN};
+    use crate::crypto_trust_transparency::TransparencyLog;
+
+    let journal = load_standing_journal(journal_path)?;
+
+    // The audit law: re-derive the leaf set from the journal entries ALONE.
+    // The rendered leaf law is leaf i = BLAKE3 over entry i's
+    // envelope_commitment hex (documented on crypto_trust_log, recomputed
+    // independently by its own court); a journal that fails its chain never
+    // reaches this point.
+    let mut log = TransparencyLog::new();
+    for entry in journal.entries() {
+        log.append(blake3::hash(entry.envelope_commitment.as_bytes()).into());
+    }
+    let head = log.head();
+    let tree_size = log.len();
+
+    let mut report = serde_json::json!({
+        "journal": journal_path.display().to_string(),
+        "entries": journal.len(),
+        "log_leaves": tree_size,
+        "consistent": journal.verify_chain().is_ok(),
+        "head": cli_hex_encode(&head),
+        "head_signed": false,
+    });
+
+    // Signed head publication under custody; absent custody prints the
+    // unsigned digest honestly (an audit is computable without authority; a
+    // signature is not).
+    if let Some(key_path) = env_signing_key_path() {
+        let (signing, record) = load_signing_key_file(&key_path)?;
+        let now = system_epoch_secs()?;
+        // `SignedTreeHead::sign` is module-private; this is the module's
+        // documented pre-image (see the keys_rotate precedent, pinned
+        // byte-for-byte by the courts): digest(HEAD_SIGNING_DOMAIN,
+        // [kid, tree_size-le, head]).
+        let preimage = crate::crypto_trust_canonical::digest(
+            HEAD_SIGNING_DOMAIN,
+            &[record.id.0.as_bytes(), &tree_size.to_le_bytes(), &head],
+        );
+        let signed = SignedTreeHead {
+            tree_size,
+            head_hex: cli_hex_encode(&head),
+            timestamp: now,
+            kid: record.id.0.clone(),
+            signature: signing.sign(&preimage),
+        };
+        // The head must verify under its own key before it is printed: a
+        // signature that does not reproduce is a refusal, never output.
+        let verified = verify_head(&signed, &signing.public_key_sec1()).map_err(|e| {
+            to_noun_verb(AffidavitError::VerificationFailed(format!(
+                "signed head refused verification: {e}"
+            )))
+        })?;
+        if !verified {
+            return Err(to_noun_verb(AffidavitError::VerificationFailed(
+                "signed head does not self-verify under the custody key".to_string(),
+            )));
+        }
+        report["head_signed"] = serde_json::Value::from(true);
+        report["head_kid"] = serde_json::Value::from(signed.kid.clone());
+        report["head_timestamp"] = serde_json::Value::from(signed.timestamp);
+    }
+    Ok(report)
+}
+
+/// `affi evidence heads` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn evidence_heads(_journal_file: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// In-process witnessing for the evidence handler bodies (real chains, real
+/// ES256 custody files, real journals and CRL files in isolated scratch dirs —
+/// no mocks). The CLI surface (dispatch, exit codes) is witnessed by
+/// `tests/crypto_trust_evidence_cli.rs` against the rendered wrappers.
+#[cfg(all(test, feature = "crypto-trust"))]
+mod evidence_lane_tests {
+    use super::*;
+
+    /// Serializes every test that touches `AFFI_SIGNING_KEY_PATH`: env state
+    /// is process-global, and parallel test threads must not race on it.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn scratch_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "ctp-evidence-lane-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("create scratch dir");
+        dir
+    }
+
+    /// Writes a real raw-hex custody file: the RAW SECRET (32 bytes as 64
+    /// hex chars) for the key fixed by `tag`.
+    fn custody_file(dir: &std::path::Path, tag: u8) -> std::path::PathBuf {
+        let path = dir.join(format!("key-{tag:02x}.hex"));
+        std::fs::write(&path, cli_hex_encode(&[tag; 32])).expect("write custody file");
+        path
+    }
+
+    fn kid_of(tag: u8) -> String {
+        use crate::crypto_trust_keys::{
+            fingerprint_public_key, AlgorithmId, KeyId, PublicKeyMaterial,
+        };
+        let signing = crate::crypto_trust_es256::Es256SigningKey::from_seed(&[tag; 32])
+            .expect("valid fixture scalar");
+        let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
+        KeyId::from_fingerprint(&fingerprint_public_key(AlgorithmId::Es256, &public)).to_string()
+    }
+
+    /// Registers real ES256 public records for `tags` in a fresh store file
+    /// named `name` (distinct names keep "a store without the issuer" honest).
+    fn store_with(dir: &std::path::Path, name: &str, tags: &[u8]) -> String {
+        use crate::crypto_trust_keys::{
+            fingerprint_public_key, AlgorithmId, CustodianIdentity, KeyId, KeyOrigin, KeyRecord,
+            PublicKeyMaterial,
+        };
+        let store = dir.join(name).to_string_lossy().into_owned();
+        let mut key_store =
+            crate::crypto_trust_store::FileKeyStore::open(&store).expect("store opens");
+        for tag in tags {
+            let signing = crate::crypto_trust_es256::Es256SigningKey::from_seed(&[*tag; 32])
+                .expect("valid fixture scalar");
+            let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
+            let fingerprint = fingerprint_public_key(AlgorithmId::Es256, &public);
+            key_store
+                .register_checked(KeyRecord {
+                    id: KeyId::from_fingerprint(&fingerprint),
+                    algorithm: AlgorithmId::Es256,
+                    fingerprint,
+                    custodian: CustodianIdentity {
+                        subject: format!("custodian-{tag:02x}"),
+                        device: None,
+                        org: None,
+                    },
+                    origin: KeyOrigin::Generated,
+                    public_key: public,
+                    created_epoch: 1_700_000_000,
+                })
+                .expect("register fixture key");
+        }
+        store
+    }
+
+    #[test]
+    fn journal_records_real_receipts_and_chains_across_appends() {
+        let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = scratch_dir("journal");
+        let custody = custody_file(&dir, 0xE1);
+        std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
+        let journal_path = dir.join("standing-journal.jsonl");
+
+        let first = evidence_journal_core("subject-one", &journal_path, None)
+            .expect("first record is lawful");
+        assert_eq!(first.seq, 0);
+        assert_eq!(first.prev, crate::crypto_trust_journal::JOURNAL_GENESIS);
+        assert_eq!(first.standing, "VALID");
+        assert_eq!(first.entry_hash.len(), 64);
+
+        let second = evidence_journal_core("subject-two", &journal_path, None)
+            .expect("second record is lawful");
+        assert_eq!(second.seq, 1);
+        assert_eq!(second.prev, first.entry_hash, "entries chain");
+
+        // The durable file loads through the journal's own re-verifying law.
+        let wire = std::fs::read_to_string(&journal_path).expect("journal reads");
+        let loaded = crate::crypto_trust_journal::StandingJournal::from_jsonl(&wire)
+            .expect("honest journal reproduces");
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded.entries()[1].key_id, second.key_id);
+        assert_eq!(
+            loaded.entries()[1].envelope_commitment,
+            second.envelope_commitment
+        );
+        std::env::remove_var(ENV_SIGNING_KEY_PATH);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn journal_refuses_tampered_journal_and_missing_custody() {
+        let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = scratch_dir("journal-refuse");
+        let custody = custody_file(&dir, 0xE2);
+        std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
+        let journal_path = dir.join("standing-journal.jsonl");
+        evidence_journal_core("tamper-target", &journal_path, None).expect("first record lands");
+
+        // Tamper with the durable chain: the next append refuses — the load
+        // path re-verifies every byte.
+        let intact = std::fs::read_to_string(&journal_path).expect("read");
+        let tampered = intact.replace("VALID", "INVALID");
+        assert_ne!(tampered, intact);
+        std::fs::write(&journal_path, &tampered).expect("write tampered");
+        let err = evidence_journal_core("after-tamper", &journal_path, None)
+            .expect_err("tampered journal must refuse");
+        assert!(err.to_string().contains("does not reproduce"), "{err}");
+
+        // No custody: the typed no-authority refusal (empty counts as absent).
+        std::env::remove_var(ENV_SIGNING_KEY_PATH);
+        let fresh = dir.join("fresh.jsonl");
+        let err =
+            evidence_journal_core("no-key", &fresh, None).expect_err("missing custody must refuse");
+        assert!(
+            err.to_string().contains("REFUSED_R_missing_authority"),
+            "{err}"
+        );
+        std::env::set_var(ENV_SIGNING_KEY_PATH, "");
+        let err = evidence_journal_core("empty-key", &fresh, None)
+            .expect_err("empty custody must refuse");
+        assert!(
+            err.to_string().contains("REFUSED_R_missing_authority"),
+            "{err}"
+        );
+
+        // Empty subject: Validation.
+        std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
+        let err = evidence_journal_core("   ", &fresh, None).expect_err("empty subject refused");
+        assert!(err.to_string().contains("non-empty"), "{err}");
+        std::env::remove_var(ENV_SIGNING_KEY_PATH);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn crl_publish_then_apply_round_trips_the_revocation_state() {
+        let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = scratch_dir("crl-roundtrip");
+        let store = store_with(&dir, "keys.json", &[0xE3, 0xE4]);
+        let custody = custody_file(&dir, 0xE3);
+        std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
+        let kid = kid_of(0xE3);
+        let other = kid_of(0xE4);
+
+        // Revoke the second key through the sidecar the keys lane owns.
+        let sidecar = revocation_sidecar_path(&store);
+        append_revocation(
+            &sidecar,
+            RevocationSidecarEntry {
+                kid: other.clone(),
+                revoked_at: 1_700_010_000,
+                reason: "compromised".to_string(),
+            },
+        )
+        .expect("sidecar append");
+
+        let crl_path = dir.join("crl.json");
+        evidence_crl_publish(
+            kid.clone(),
+            1,
+            Some(store.clone()),
+            Some(crl_path.to_string_lossy().into_owned()),
+        )
+        .expect("publish succeeds");
+        let crl: crate::crypto_trust_revocation::SignedRevocationList =
+            serde_json::from_str(&std::fs::read_to_string(&crl_path).expect("read crl"))
+                .expect("published file parses");
+        assert_eq!(crl.issuer_kid, kid);
+        assert_eq!(crl.epoch, 1);
+        assert_eq!(crl.revoked.len(), 1);
+        assert_eq!(crl.revoked[0].kid, other);
+
+        // Admission: signature first, then freshness, then the merge. The
+        // applied state is asserted through the apply refusals court below
+        // and by the CLI tests once the rendered wrappers land.
+        evidence_crl_apply(crl_path.to_string_lossy().into_owned(), Some(store.clone()))
+            .expect("apply succeeds");
+
+        // Idempotent re-apply: same count, lawful again.
+        evidence_crl_apply(crl_path.to_string_lossy().into_owned(), Some(store.clone()))
+            .expect("re-apply is idempotent");
+        std::env::remove_var(ENV_SIGNING_KEY_PATH);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn crl_publish_refusals_are_typed() {
+        let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = scratch_dir("crl-refuse");
+        let store = store_with(&dir, "keys.json", &[0xE5]);
+        let custody = custody_file(&dir, 0xE5);
+        let kid = kid_of(0xE5);
+        let out_path = dir.join("crl.json");
+
+        // Unknown issuer kid.
+        std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
+        let err =
+            evidence_crl_publish("afk1_0000000000000000".into(), 0, Some(store.clone()), None)
+                .expect_err("unknown kid refused");
+        assert!(
+            err.to_string()
+                .contains("unknown key afk1_0000000000000000"),
+            "{err}"
+        );
+
+        // Custody mismatch: the file holds a DIFFERENT key than the issuer
+        // of record — refused, never re-attributed.
+        let wrong_custody = custody_file(&dir, 0xE6);
+        std::env::set_var(ENV_SIGNING_KEY_PATH, &wrong_custody);
+        let err = evidence_crl_publish(kid.clone(), 0, Some(store.clone()), None)
+            .expect_err("custody mismatch refused");
+        let msg = err.to_string();
+        assert!(msg.contains("REFUSED_R_missing_authority"), "{msg}");
+        assert!(msg.contains("not the requested issuer"), "{msg}");
+
+        // Missing store.
+        std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
+        let missing = dir.join("missing").join("keys.json");
+        let err = evidence_crl_publish(
+            kid.clone(),
+            0,
+            Some(missing.to_string_lossy().into_owned()),
+            None,
+        )
+        .expect_err("missing store refused");
+        assert!(err.to_string().contains("key store"), "{err}");
+
+        // No custody at all: the typed no-authority refusal.
+        std::env::remove_var(ENV_SIGNING_KEY_PATH);
+        let err = evidence_crl_publish(
+            kid,
+            0,
+            Some(store.clone()),
+            Some(out_path.to_string_lossy().into_owned()),
+        )
+        .expect_err("missing custody refused");
+        assert!(
+            err.to_string().contains("REFUSED_R_missing_authority"),
+            "{err}"
+        );
+        assert!(
+            !out_path.exists(),
+            "no artifact may appear behind a refusal"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn crl_apply_refuses_unknown_issuer_and_tampered_file() {
+        let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = scratch_dir("crl-apply-refuse");
+        let store = store_with(&dir, "keys.json", &[0xE7, 0xE8]);
+        let custody = custody_file(&dir, 0xE7);
+        std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
+        let kid = kid_of(0xE7);
+        let other = kid_of(0xE8);
+        let sidecar = revocation_sidecar_path(&store);
+        append_revocation(
+            &sidecar,
+            RevocationSidecarEntry {
+                kid: other.clone(),
+                revoked_at: 1_700_020_000,
+                reason: "superseded".to_string(),
+            },
+        )
+        .expect("sidecar append");
+        let crl_path = dir.join("crl.json");
+        evidence_crl_publish(
+            kid,
+            2,
+            Some(store.clone()),
+            Some(crl_path.to_string_lossy().into_owned()),
+        )
+        .expect("publish succeeds");
+
+        // Tamper with the SIGNED content: admission refuses on the issuer
+        // signature and nothing is applied.
+        let intact = std::fs::read_to_string(&crl_path).expect("read crl");
+        let tampered = intact.replacen("\"epoch\":2", "\"epoch\":9", 1);
+        assert_ne!(tampered, intact, "fixture must flip a signed byte");
+        let tampered_path = dir.join("crl-tampered.json");
+        std::fs::write(&tampered_path, &tampered).expect("write tampered");
+        let err = evidence_crl_apply(
+            tampered_path.to_string_lossy().into_owned(),
+            Some(store.clone()),
+        )
+        .expect_err("tampered CRL must refuse");
+        assert!(err.to_string().contains("does not verify"), "{err}");
+
+        // Missing file: fail-closed (a missing CRL is not an empty CRL).
+        let absent = dir.join("absent.json");
+        let err = evidence_crl_apply(absent.to_string_lossy().into_owned(), Some(store.clone()))
+            .expect_err("absent CRL must refuse");
+        assert!(err.to_string().contains("crl file"), "{err}");
+
+        // A store that does not hold the issuer: admission refused.
+        let other_store = store_with(&dir, "other-keys.json", &[0xE9]);
+        let err = evidence_crl_apply(crl_path.to_string_lossy().into_owned(), Some(other_store))
+            .expect_err("unknown issuer refused");
+        assert!(err.to_string().contains("unknown issuer"), "{err}");
+
+        // Missing store: typed refusal.
+        let missing = dir.join("nope").join("keys.json");
+        let err = evidence_crl_apply(
+            crl_path.to_string_lossy().into_owned(),
+            Some(missing.to_string_lossy().into_owned()),
+        )
+        .expect_err("missing store refused");
+        assert!(err.to_string().contains("key store"), "{err}");
+        std::env::remove_var(ENV_SIGNING_KEY_PATH);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn heads_audits_the_journal_and_publishes_a_verifying_signed_head() {
+        let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = scratch_dir("heads");
+        let custody = custody_file(&dir, 0xEA);
+        std::env::set_var(ENV_SIGNING_KEY_PATH, &custody);
+        let journal_path = dir.join("standing-journal.jsonl");
+        evidence_journal_core("head-check-a", &journal_path, None).expect("record a");
+        evidence_journal_core("head-check-b", &journal_path, None).expect("record b");
+
+        let report = evidence_heads_core(&journal_path).expect("audit is lawful");
+        assert_eq!(report["entries"].as_u64(), Some(2));
+        assert_eq!(report["log_leaves"].as_u64(), Some(2));
+        assert_eq!(report["consistent"].as_bool(), Some(true));
+        assert_eq!(report["head_signed"].as_bool(), Some(true));
+        assert_eq!(report["head"].as_str().map(str::len), Some(64));
+
+        // The head hex is exactly the RFC 9162 head over the re-derived leaf
+        // set: rebuild it independently and compare.
+        let journal = crate::crypto_trust_journal::StandingJournal::from_jsonl(
+            &std::fs::read_to_string(&journal_path).expect("read"),
+        )
+        .expect("journal loads");
+        let mut log = crate::crypto_trust_transparency::TransparencyLog::new();
+        for entry in journal.entries() {
+            log.append(blake3::hash(entry.envelope_commitment.as_bytes()).into());
+        }
+        assert_eq!(
+            report["head"].as_str().expect("head hex"),
+            cli_hex_encode(&log.head()),
+            "the printed head is the re-derived tree head"
+        );
+
+        // Unsigned mode: absent custody prints the digest honestly.
+        std::env::remove_var(ENV_SIGNING_KEY_PATH);
+        let report = evidence_heads_core(&journal_path).expect("unsigned audit");
+        assert_eq!(report["head_signed"].as_bool(), Some(false));
+        assert!(report.get("head_kid").is_none());
+
+        // A tampered journal refuses the audit outright.
+        let intact = std::fs::read_to_string(&journal_path).expect("read");
+        let tampered = intact.replacen("\"seq\":1", "\"seq\":7", 1);
+        assert_ne!(tampered, intact);
+        let tampered_path = dir.join("tampered.jsonl");
+        std::fs::write(&tampered_path, &tampered).expect("write tampered");
+        let err = evidence_heads_core(&tampered_path).expect_err("tampered journal refuses");
+        assert!(err.to_string().contains("does not reproduce"), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+// ============================================================================
+// PATCH PROPOSAL — v26.9.28 trust-plane wave 2, lane 5 (envelope verbs).
+// Target file: /Users/sac/affidavit/src/handlers.rs  (owned by the wave-2
+// handlers lane; this lane does not edit it).
+//
+// INSERTION POINT: append the two cfg-dual pairs below into the trust-plane
+// handler section — AFTER the `envelope_verify`
+// #[cfg(not(feature = "crypto-trust"))] twin (the block whose body is the
+// "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into
+// this binary; rebuild with --features crypto-trust" Err, currently ending at
+// line 5766) and BEFORE `#[cfg(test)] mod ocel_quality_tests` (line 5768).
+// The block is self-contained: no existing line changes, every item referenced
+// (KEYS_STORE_PATH, load_key_records, io_err, to_noun_verb, AffidavitError,
+// outln!) already exists in this file. No unwrap/expect anywhere.
+//
+// The verbs these handlers serve (`affi envelope list`, `affi envelope
+// export`) render from the wave-2 lane-5 ontology block on the next ggen
+// sync (src/verbs/envelope_list.rs, src/verbs/envelope_export.rs + their
+// `pub mod` lines in src/verbs/mod.rs).
+// ============================================================================
+
+/// `affi envelope list` — enumerate the key-store records an envelope may be
+/// sealed under and verified against: kid, algorithm, PROFILE, fingerprint,
+/// custodian. Read-only: the store is read through the full
+/// [`crate::crypto_trust_store::FileKeyStore`] law (JSON parse, CTP-STORE-v1
+/// format identity, domain-separated checksum) and never written; a tampered
+/// or foreign-format store is a typed refusal, never a silent listing.
+///
+/// The profile column is the rendered graph law `profile = f(algorithm)`
+/// ([`crate::crypto_trust_keys::AlgorithmId::profile`]) — the pair that fixes
+/// the envelope wire form — listed beside the algorithm instead of being
+/// re-derived by every reader.
+#[cfg(feature = "crypto-trust")]
+pub fn envelope_list(store: Option<String>) -> Result<()> {
+    use crate::crypto_trust_keys::KeyRecord;
+
+    let store = store.as_deref().unwrap_or(KEYS_STORE_PATH);
+    let records: Vec<KeyRecord> = load_key_records(store)?;
+    if records.is_empty() {
+        eprintln!("no keys registered in {store}");
+        return Ok(());
+    }
+    for record in &records {
+        outln!(
+            "{}\t{}\t{}\t{}\t{}",
+            record.id,
+            record.algorithm.as_str(),
+            // Wire form of the profile (SCREAMING_SNAKE_CASE), not the variant name.
+            record.algorithm.profile().as_str().to_uppercase(),
+            record.fingerprint.as_hex(),
+            record.custodian.subject
+        );
+    }
+    Ok(())
+}
+
+/// `affi envelope list` — typed refusal when the trust plane is not compiled
+/// into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn envelope_list(_store: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+/// `affi envelope export` — emit the attestation envelope carried by a
+/// PQ-SEAL-v1 sealed document in a chosen wire form (stdout artifact; human
+/// chatter on stderr). Admitted formats:
+///
+/// - `json` (default) — the identity form: the sealed document's own
+///   [`crate::crypto_trust_envelope::SignatureEnvelope`], pretty-printed.
+/// - `sa2a` — the RFC-SA2A-007-errata interop form:
+///   [`crate::crypto_trust_sa2a::envelope_to_approval`] then
+///   [`crate::crypto_trust_canonical::jcs`], so the output is the canonical
+///   SA2A-C2-APPROVAL-v1 approval document (the SA2A signed message frames as
+///   `SA2A-C2-APPROVAL-v1 || 0x00 || JCS(document)`).
+///
+/// Any other value is the typed REFUSED_UNSUPPORTED refusal naming the
+/// admitted set — never a best-effort guess.
+///
+/// Export is self-checking: each emitted form is re-imported through its own
+/// admission path before it reaches stdout (`SignatureEnvelope::from_bytes`
+/// for json; `serde` parse + [`crate::crypto_trust_sa2a::approval_to_envelope`]
+/// for sa2a) and the restored envelope must equal the sealed one exactly —
+/// a faithful export is proven, not assumed.
+///
+/// The sealed document is loaded through its full law: deserializing
+/// [`crate::crypto_trust_seal::SealedReceipt`] re-runs the base receipt's
+/// chain law, so a tampered base never becomes a value at all.
+///
+/// The SA2A `principal` is bound at export to the envelope's key id — the
+/// only principal the sealed document itself witnesses. The envelope carries
+/// no principal and [`crate::crypto_trust_sa2a::approval_to_envelope`] does
+/// not map `principal` back, so re-import fidelity is exact for every
+/// principal value.
+#[cfg(feature = "crypto-trust")]
+pub fn envelope_export(sealed_file: String, format: Option<String>) -> Result<()> {
+    use crate::crypto_trust_sa2a::{
+        approval_to_envelope, envelope_to_approval, Sa2aApproval, SA2A_APPROVAL_TAG,
+    };
+
+    let sealed_bytes = std::fs::read(&sealed_file).map_err(io_err)?;
+    // Deserialization re-runs the base receipt's chain law: a tampered base
+    // never becomes a SealedReceipt value at all (the seal module's law).
+    let sealed: crate::crypto_trust_seal::SealedReceipt =
+        serde_json::from_slice(&sealed_bytes).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+
+    match format.as_deref().unwrap_or("json") {
+        "json" => {
+            // Identity form: the affidavit envelope document, pretty-printed.
+            let text = serde_json::to_string_pretty(&sealed.envelope)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+            // Self-check tooth: the emitted document must re-import through
+            // the envelope law to exactly the sealed envelope.
+            let restored = crate::crypto_trust_envelope::SignatureEnvelope::from_bytes(
+                text.as_bytes(),
+            )
+            .map_err(|e| {
+                to_noun_verb(AffidavitError::Execution(format!(
+                    "export self-check refused the emitted document: {e}"
+                )))
+            })?;
+            if restored != sealed.envelope {
+                return Err(to_noun_verb(AffidavitError::Execution(
+                    "export self-check: the emitted document does not re-import to the sealed envelope".to_string(),
+                )));
+            }
+            outln!("{text}");
+            eprintln!(
+                "exported envelope of {sealed_file} (json: {})",
+                crate::crypto_trust_envelope::ENVELOPE_VERSION
+            );
+        }
+        "sa2a" => {
+            let principal = sealed.envelope.key_id.to_string();
+            let approval = envelope_to_approval(&sealed.envelope, &principal).map_err(|e| {
+                to_noun_verb(AffidavitError::Execution(format!("sa2a bridge refused: {e}")))
+            })?;
+            let document = serde_json::to_value(&approval)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+            let canonical = crate::crypto_trust_canonical::jcs(&document).map_err(|e| {
+                to_noun_verb(AffidavitError::Execution(format!(
+                    "sa2a canonicalization: {e}"
+                )))
+            })?;
+            // Self-check tooth: the emitted canonical document must parse back
+            // and bridge inversely to exactly the sealed envelope.
+            let restored_approval: Sa2aApproval =
+                serde_json::from_str(&canonical).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+            let restored = approval_to_envelope(&restored_approval).map_err(|e| {
+                to_noun_verb(AffidavitError::Execution(format!(
+                    "export self-check refused the emitted approval: {e}"
+                )))
+            })?;
+            if restored != sealed.envelope {
+                return Err(to_noun_verb(AffidavitError::Execution(
+                    "export self-check: the emitted approval does not re-import to the sealed envelope".to_string(),
+                )));
+            }
+            outln!("{canonical}");
+            eprintln!(
+                "exported envelope of {sealed_file} (sa2a: {SA2A_APPROVAL_TAG}, principal {principal}); the SA2A signed message is tag || 0x00 || JCS(document)"
+            );
+        }
+        other => {
+            return Err(to_noun_verb(AffidavitError::Validation(format!(
+                "REFUSED_UNSUPPORTED: unknown envelope export format `{other}`; admitted formats are `json` (the CTP-ENVELOPE-v1 envelope document) and `sa2a` ({SA2A_APPROVAL_TAG})"
+            ))))
+        }
+    }
+    Ok(())
+}
+
+/// `affi envelope export` — typed refusal when the trust plane is not
+/// compiled into this binary (default features).
+#[cfg(not(feature = "crypto-trust"))]
+pub fn envelope_export(_sealed_file: String, _format: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
 #[cfg(test)]
 mod ocel_quality_tests {
     #[allow(unused_imports)]
