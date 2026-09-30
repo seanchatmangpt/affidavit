@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate shell completions (bash/zsh/fish) for the `affi` CLI.
+"""Generate shell completions (bash/zsh/fish/PowerShell/Nushell) for the `affi` CLI.
 
 Single source of truth: the static REGISTRY in src/registry.rs. This script
 parses the `VerbEntry::new(...)` rows out of it (same text format the
 registry's own drift tests parse) and emits completions/affi.bash,
-completions/affi.zsh and completions/affi.fish covering EVERY registered
-(noun, verb) pair:
+completions/affi.zsh, completions/affi.fish, completions/affi.ps1 and
+completions/affi.nu covering EVERY registered (noun, verb) pair:
 
   - noun-level completion:   `affi <TAB>` offers every registry noun
   - verb-level per noun:     `affi <noun> <TAB>` offers that noun's verbs
@@ -318,6 +318,114 @@ def emit_fish(nouns: dict[str, list[dict[str, str]]]) -> str:
     return "\n".join(out)
 
 
+def ps_single_quote(text: str) -> str:
+    """Escape for a PowerShell single-quoted string (apostrophe is doubled)."""
+    return text.replace("'", "''")
+
+
+def emit_powershell(nouns: dict[str, list[dict[str, str]]]) -> str:
+    vc, nc = sum(len(v) for v in nouns.values()), len(nouns)
+    out = [
+        header("affi.ps1", "# PowerShell completion — dot-source via `. ./completions/affi.ps1`", vc, nc),
+        "#",
+        "# Install: add `. /path/to/completions/affi.ps1` to your $PROFILE.",
+        "",
+        "# noun -> ordered (verb -> summary) table, from src/registry.rs.",
+        "$script:AffiCompletions = [ordered]@{",
+    ]
+    for noun, rows in nouns.items():
+        out.append(f"    '{ps_single_quote(noun)}' = [ordered]@{{")
+        for row in rows:
+            out.append(f"        '{ps_single_quote(row['verb'])}' = '{ps_single_quote(row['summary'])}'")
+        out.append("    }")
+    out += [
+        "}",
+        "",
+        "Register-ArgumentCompleter -Native -CommandName 'affi' -ScriptBlock {",
+        "    param($wordToComplete, $commandAst, $cursorPosition)",
+        "",
+        "    # Words after `affi`, minus the word currently being completed.",
+        "    $words = @($commandAst.CommandElements | Select-Object -Skip 1 | ForEach-Object { $_.ToString() })",
+        "    if ($wordToComplete -ne '' -and $words.Count -gt 0) {",
+        "        $words = @($words | Select-Object -First ($words.Count - 1))",
+        "    }",
+        "    $positional = @($words | Where-Object { $_ -notlike '-*' })",
+        "",
+        "    $candidates = [ordered]@{}",
+        "    if ($wordToComplete -like '-*') {",
+        "        $candidates['--help'] = 'Show help'",
+        "        $candidates['--version'] = 'Show version'",
+        "    } elseif ($positional.Count -eq 0) {",
+        "        foreach ($n in $script:AffiCompletions.Keys) {",
+        "            $candidates[$n] = \"$($script:AffiCompletions[$n].Count) verbs\"",
+        "        }",
+        "    } elseif ($positional.Count -eq 1 -and $script:AffiCompletions.Contains($positional[0])) {",
+        "        $verbs = $script:AffiCompletions[$positional[0]]",
+        "        foreach ($v in $verbs.Keys) { $candidates[$v] = $verbs[$v] }",
+        "    }",
+        "",
+        "    foreach ($name in $candidates.Keys) {",
+        "        if ($name -like \"$wordToComplete*\") {",
+        "            $kind = if ($name -like '-*') { 'ParameterName' } else { 'ParameterValue' }",
+        "            [System.Management.Automation.CompletionResult]::new($name, $name, $kind, $candidates[$name])",
+        "        }",
+        "    }",
+        "}",
+        "",
+    ]
+    return "\n".join(out)
+
+
+def nu_string(text: str) -> str:
+    """Render a Nushell double-quoted string literal."""
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def emit_nushell(nouns: dict[str, list[dict[str, str]]]) -> str:
+    vc, nc = sum(len(v) for v in nouns.values()), len(nouns)
+    out = [
+        header("affi.nu", "# Nushell completion — load via `source completions/affi.nu`", vc, nc),
+        "#",
+        "# Install: add `source /path/to/completions/affi.nu` to your config.nu.",
+        "",
+        'def "nu-complete affi nouns" [] {',
+        "    [",
+    ]
+    for noun in nouns:
+        out.append(f"        {{value: {nu_string(noun)}, description: {nu_string(f'{len(nouns[noun])} verbs')}}}")
+    out += [
+        "    ]",
+        "}",
+        "",
+        'def "nu-complete affi verbs" [context: string] {',
+        '    let noun = ($context | split row " " | where {|w| $w != ""} | skip 1 | first)',
+        "    match $noun {",
+    ]
+    for noun, rows in nouns.items():
+        out.append(f"        {nu_string(noun)} => [")
+        for row in rows:
+            out.append(
+                f"            {{value: {nu_string(row['verb'])}, description: {nu_string(row['summary'])}}}"
+            )
+        out.append("        ]")
+    out += [
+        "        _ => []",
+        "    }",
+        "}",
+        "",
+        "# Top-level command: `affi <noun> <verb> ...`.",
+        'export extern "affi" [',
+        '    noun?: string@"nu-complete affi nouns"',
+        '    verb?: string@"nu-complete affi verbs"',
+        "    ...rest: string",
+        "    --help(-h)      # Show help",
+        "    --version(-V)   # Show version",
+        "]",
+        "",
+    ]
+    return "\n".join(out)
+
+
 def main() -> None:
     rows = parse_registry()
     nouns = by_noun(rows)
@@ -327,6 +435,8 @@ def main() -> None:
         "affi.bash": emit_bash(nouns),
         "affi.zsh": emit_zsh(nouns),
         "affi.fish": emit_fish(nouns),
+        "affi.ps1": emit_powershell(nouns),
+        "affi.nu": emit_nushell(nouns),
     }
     COMPLETIONS_DIR.mkdir(parents=True, exist_ok=True)
     for filename, content in outputs.items():

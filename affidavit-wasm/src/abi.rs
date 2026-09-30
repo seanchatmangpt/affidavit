@@ -4,6 +4,8 @@
 //! Every failure is a structured `{"ok":false,"error":{"code","message"}}`;
 //! [`call`] never panics on any input.
 
+use crate::crypto;
+use crate::external_evidence;
 use crate::receipt::{self, ObjectRef, OperationEvent, Receipt};
 use affidavit_core::mining::conformance::replay;
 use affidavit_core::mining::{
@@ -27,6 +29,9 @@ const OPS: &[&str] = &[
     "verify",
     "mine",
     "conform",
+    "verify_signature_input",
+    "certify_authzen_evidence",
+    "certify_spiffe_evidence",
 ];
 
 /// A structured, host-readable failure.
@@ -39,7 +44,7 @@ pub struct AbiError {
     pub message: String,
 }
 
-fn err(code: &'static str, message: impl Into<String>) -> AbiError {
+pub(crate) fn err(code: &'static str, message: impl Into<String>) -> AbiError {
     AbiError {
         code,
         message: message.into(),
@@ -85,6 +90,9 @@ fn dispatch(request: &[u8]) -> Res<Map<String, Value>> {
         "verify" => verify(&req)?,
         "mine" => mine(&req)?,
         "conform" => conform(&req)?,
+        "verify_signature_input" => crypto::op_verify_signature_input(&req)?,
+        "certify_authzen_evidence" => external_evidence::op_certify_authzen_evidence(&req)?,
+        "certify_spiffe_evidence" => external_evidence::op_certify_spiffe_evidence(&req)?,
         other => {
             return Err(err(
                 "unknown_op",
@@ -96,7 +104,7 @@ fn dispatch(request: &[u8]) -> Res<Map<String, Value>> {
     Ok(out)
 }
 
-fn obj(v: Value) -> Map<String, Value> {
+pub(crate) fn obj(v: Value) -> Map<String, Value> {
     match v {
         Value::Object(m) => m,
         _ => Map::new(),
@@ -118,7 +126,7 @@ fn capabilities() -> Map<String, Value> {
 
 // ---- field helpers ---------------------------------------------------------
 
-fn field<'a>(req: &'a Value, name: &str) -> Res<&'a Value> {
+pub(crate) fn field<'a>(req: &'a Value, name: &str) -> Res<&'a Value> {
     req.get(name)
         .ok_or_else(|| err("missing_field", format!("missing field `{name}`")))
 }
@@ -127,7 +135,7 @@ fn parse_receipt(v: &Value, what: &str) -> Res<Receipt> {
     serde_json::from_value(v.clone()).map_err(|e| err("bad_field", format!("{what}: {e}")))
 }
 
-fn hex_decode(s: &str) -> Option<Vec<u8>> {
+pub(crate) fn hex_decode(s: &str) -> Option<Vec<u8>> {
     if s.len() % 2 != 0 {
         return None;
     }

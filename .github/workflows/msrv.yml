@@ -1,0 +1,78 @@
+# msrv.yml — minimum-supported-Rust-version court.
+#
+# The toolchain is never hard-coded here: it is read from the crate's own
+# `rust-version`, so the declared MSRV and the court cannot drift apart.
+#
+# Scope (deliberate, and checked against the tree on 2026-09-30):
+#   * affidavit-core/ (zero-dependency, no_std verifier) declares
+#     rust-version 1.78 and genuinely builds and tests on it -> gated here.
+#   * The root `affidavit` crate declares rust-version 1.85 but is NOT gated:
+#     its admitted structural dependency wasm4pm-compat 26.8.7 requires nightly
+#     `#![feature]` gates (hence rust-toolchain.toml pins nightly-2026-08-12),
+#     and the locked ICU crates require rustc 1.86. A stable-1.85 job would
+#     fail for reasons unrelated to the change under test. That court is
+#     rust.yml on the pinned nightly; do not add a floating or
+#     continue-on-error MSRV job for the root crate to hide this.
+name: msrv
+
+on:
+  push:
+    paths:
+      - "affidavit-core/**"
+      - ".github/workflows/msrv.yml"
+  pull_request:
+    paths:
+      - "affidavit-core/**"
+      - ".github/workflows/msrv.yml"
+
+concurrency:
+  group: msrv-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  core-msrv:
+    name: affidavit-core builds and tests on its declared rust-version
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Assert exact candidate
+        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+
+      - name: Read declared rust-version
+        id: msrv
+        run: |
+          v="$(sed -n 's/^rust-version *= *"\([0-9][0-9.]*\)".*/\1/p' affidavit-core/Cargo.toml | head -n1)"
+          test -n "$v" || { echo "affidavit-core/Cargo.toml declares no rust-version" >&2; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "MSRV: $v"
+
+      - name: Install MSRV toolchain
+        uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+
+      # rust-toolchain.toml at the repo root pins nightly for the root crate;
+      # RUSTUP_TOOLCHAIN overrides it so this job really runs the MSRV compiler.
+      - name: cargo build (MSRV)
+        working-directory: affidavit-core
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+        run: |
+          rustc --version
+          cargo build
+
+      - name: cargo test (MSRV)
+        working-directory: affidavit-core
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+        run: cargo test

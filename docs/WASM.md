@@ -119,8 +119,13 @@ copy to `golden_receipt.json`, and `sed 's/"test"/"tampered"/'` a copy to
 - **Version-bound.** A receipt only verifies under the exact release that
   assembled it; a 26.9.24 receipt REJECTs at `chain_integrity` here. That is the
   genesis seed working as designed, not a bug.
-- **No signatures.** This release verifies the chain and format. It does not
-  verify `affi sign`/notarization material; those remain CLI-only.
+- **No signatures in the WASM surface.** Signatures exist in the root crate,
+  feature-gated behind `crypto-trust`: ES256, ML-DSA-65, SLH-DSA-SHA2-128s,
+  and the hybrid ES256+ML-DSA-65, verified by `VerificationEngine`
+  (`affi envelope verify`) — CLI and library only. This wasm build depends on
+  `affidavit-core` alone and contains no signature verification; `verify` here
+  checks the chain and format exactly as before. The wasm ABI offers no
+  signing and no signature verification.
 - **Structural only.** Commitments are checked for well-formedness, never against
   payloads (the verifier "reads only commitments").
 - **Sandboxed, not sealed.** Unlike the Rust `Receipt`, which cannot be forged by

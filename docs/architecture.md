@@ -140,9 +140,40 @@ flowchart TD
 | `src/tracing.rs` | OpenTelemetry span emission wrapping `verify`. |
 | `src/lib.rs` | Module declarations and re-exports. |
 | `web/` | Next.js UI that renders real receipts, verdicts, and benchmarks (see [`../REPRESENTATION_MAP.md`](../REPRESENTATION_MAP.md)). |
+| `src/crypto_trust_canonical.rs` | JCS (RFC 8785) canonical JSON and domain-separated BLAKE3 digests — the byte law every signature is computed over. |
+| `src/crypto_trust_keys.rs` | Algorithm ids, crypto profiles, `KeyId`/`KeyRecord`/fingerprints, custody identity and origin, in-memory key registry. |
+| `src/crypto_trust_lifecycle.rs` | Key epochs, rotation policy (default: 2 epochs in flight, 90-day max age), revocation list doubling as the revocation-epoch clock. |
+| `src/crypto_trust_envelope.rs` | The 12-field signed envelope (`CTP-ENVELOPE-v1`) and the nonce journal backing replay rejection. |
+| `src/crypto_trust_es256.rs` | ES256 signing and verification (P-256, SHA-256, RFC 6979 deterministic). |
+| `src/crypto_trust_pqc.rs` | ML-DSA-65 (FIPS 204), SLH-DSA-SHA2-128s (FIPS 205), and the hybrid ES256+ML-DSA-65 signature. |
+| `src/crypto_trust_verify.rs` | The ordered verification law — bytes → window → policy → registry → revocation → replay → signature; mints a `CryptoStandingReceipt` on `VALID` only. |
+| `src/crypto_trust_seal.rs` | `SealedReceipt` (`PQ-SEAL-v1`): envelope + signature bound to a receipt's content address. |
+| `src/crypto_trust_store.rs` | Durable, tamper-evident public-key store. |
+| `src/crypto_trust_sa2a.rs` | SA2A wire interop (RFC-SA2A-007-errata): a `SignatureEnvelope` + signature is an SA2A approval, and vice versa. |
+| `src/crypto_trust_journal.rs` | Append-only, hash-chained journal of cryptographic standing receipts. |
+| `src/crypto_trust_transparency.rs` | RFC 9162-style append-only Merkle transparency log over envelope commitments (BLAKE3 in place of SHA-256). |
+| `src/crypto_trust_rotation.rs` | Key rotation ceremony and the classical → hybrid → PQC profile migration law. |
+| `src/crypto_trust_quorum.rs` | k-of-n signature quorum over one envelope signing pre-image, shares under distinct registered keys. |
+| `src/crypto_trust_revocation.rs` | Signed revocation publication (`CTP-CRL-v1`). |
+| `src/crypto_trust_log.rs` | Operational surface binding the standing journal and the Merkle log. |
+| `src/crypto_trust_kat.rs` | Known-answer-test vectors produced by real signatures, for cross-runtime verification. |
+| `src/crypto_trust_doctor.rs` | `affi doctor` crypto-health checks registered into the shared `DoctorCheck` registry. |
+| `src/crypto_trust_enclave.rs` | Signing-provider dispatch: SOFTWARE / SECURE_ENCLAVE (macOS Security.framework); HSM is a typed `UNSUPPORTED`, never faked. |
+| `tests/crypto_trust_e2e.rs` | End-to-end court: ontology → keys → envelope → sign → verify → standing → seal → tamper → refuse. |
+| `benches/crypto_trust_bench.rs` | Criterion benches over sign, verify, JCS, and the envelope signing pre-image. |
 
-> Note: this map reflects the current tree after v26.6.22, which expanded
-> the core with quality (Western Electric), SBOM, and OCEL verticals.
+> Note: the `crypto_trust_*` modules are **pack-rendered**. `ggen sync`
+> projects them from the `affidavit-trust-plane-pack` ontology
+> (`../ggen-marketplace/packs/affidavit-trust-plane-pack`, wired in
+> `ggen.toml`); the ontology is the source of truth and the rendered files are
+> never hand-edited. All are compiled only under the `crypto-trust` feature
+> (`crypto_trust_enclave` additionally under `secure-enclave`). The as-built
+> capability map and the honest standing table live in
+> [`CRYPTO_TRUST_PLANE.md`](CRYPTO_TRUST_PLANE.md).
+
+> Note: this map reflects the tree as of v26.6.22, which expanded
+> the core with quality (Western Electric), SBOM, and OCEL verticals, and was
+> extended in v26.9.28 by the cryptographic trust plane above.
 > Additional modules (`src/handlers.rs`, `src/discovery.rs`,
 > `src/lsp.rs`) support broader integration work; see
 > [`../STATUS.md`](../STATUS.md) for the implementation roadmap.

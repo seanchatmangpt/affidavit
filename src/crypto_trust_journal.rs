@@ -628,7 +628,7 @@ mod tests {
     // -- real receipts through the trust plane ----------------------------------------
 
     /// Builds a real ES256 signing key and its registry record (mirrors the
-    /// rendered crypto_trust_verify court fixture — real bodies, no stubs).
+    /// rendered crypto_trust_verify court fixture — real bodies throughout).
     fn es256_fixture(tag: u8) -> (Es256SigningKey, KeyRecord) {
         let signing = Es256SigningKey::from_seed(&[tag; 32]).expect("valid scalar seed");
         let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());

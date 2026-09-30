@@ -95,9 +95,6 @@ pub mod brce;
 pub mod catalog;
 pub mod chain;
 pub mod cli;
-#[cfg(feature = "trust-plane-legacy")]
-// parallel-session WIP, superseded-in-scope by the pack-rendered plane; see docs/jira/v26.9.28/CRYPTO-TRUST-PLANE.md
-pub mod crypto_trust;
 
 #[cfg(feature = "discovery")]
 pub mod discovery;
@@ -107,6 +104,7 @@ pub mod ecosystem;
 pub mod errc;
 pub mod errc_claim_assurance;
 pub mod error;
+pub mod event_builder;
 pub mod execution_manifest;
 pub mod federation;
 pub mod fixture_db;
@@ -158,6 +156,8 @@ pub mod mutate;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_canonical;
 #[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_crl_file;
+#[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_doctor;
 #[cfg(feature = "secure-enclave")]
 pub mod crypto_trust_enclave;
@@ -168,6 +168,8 @@ pub mod crypto_trust_es256;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_journal;
 #[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_journal_persist;
+#[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_kat;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_keys;
@@ -176,7 +178,11 @@ pub mod crypto_trust_lifecycle;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_log;
 #[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_nonce_store;
+#[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_pqc;
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_provider;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_quorum;
 #[cfg(feature = "crypto-trust")]
@@ -193,6 +199,8 @@ pub mod crypto_trust_store;
 pub mod crypto_trust_transparency;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_verify;
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_witness;
 
 pub mod model_mining;
 pub mod registry;
@@ -219,13 +227,6 @@ pub use architecture::{
     ArchitectureQualificationReceipt, ArchitectureRefusal, ArchitectureStanding,
     ArchitectureStandingLedger, EvidenceSource, QualificationEvidence, Supersession,
     ARCHITECTURE_QUERY_SCHEMA, ARCHITECTURE_RECEIPT_SCHEMA,
-};
-#[cfg(feature = "trust-plane-legacy")]
-pub use crypto_trust::{
-    sign_with_provider, verify_and_record, CryptoRefusal, KeyCustody, KeyRecord, KeyRegistry,
-    KeyState, NonceLedger, SignatureAlgorithm, SignatureEnvelope, SigningMaterial, SigningProvider,
-    VerificationContext, VerifiedSignature, JCS_SAFE_INTEGER_MAX, SIGNATURE_PROFILE,
-    SIGNING_DOMAIN,
 };
 pub use ecosystem::{
     certify_ecosystem, EcosystemMember, EcosystemObservation, EcosystemReceipt, EcosystemRefusal,
