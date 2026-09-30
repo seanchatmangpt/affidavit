@@ -220,6 +220,29 @@ fn native_and_wasm_answer_byte_identically() {
             "envelope_json": KAT_CANONICAL,
             "expected_signing_input_hex": KAT_SIGNING_INPUT_HEX,
         }),
+        json!({
+            "op": "certify_authzen_evidence",
+            "request": {
+                "subject": {"type": "user", "id": "alice@example.com"},
+                "resource": {"type": "account", "id": "123"},
+                "action": {"name": "can_read", "properties": {"method": "GET"}},
+                "context": {"time": "1985-10-26T01:22-07:00"}
+            },
+            "decision": true,
+            "policy_decision_point": "https://pdp.example.com",
+            "expected_policy_decision_point": "https://pdp.example.com",
+            "expected_principal": "alice@example.com",
+            "expected_effect_digest": "123"
+        }),
+        json!({
+            "op": "certify_spiffe_evidence",
+            "spiffe_id": "spiffe://prod.acme.com/billing/api",
+            "expected_spiffe_id": "spiffe://prod.acme.com/billing/api",
+            "expected_trust_domain": "prod.acme.com",
+            "svid_type": "x509",
+            "bundle_digest": "sha256:canonical-example-bundle",
+            "verified": true
+        }),
         json!({"op": "nope"}),
     ];
     for req in requests {
@@ -260,6 +283,58 @@ fn verifies_a_kat_envelope_inside_the_sandbox() {
     }));
     assert_eq!(r["ok"], true, "{r}");
     assert_eq!(r["verified"], false, "{r}");
+}
+
+#[test]
+fn certifies_authzen_and_spiffe_evidence_inside_the_sandbox() {
+    let mut h = Host::new();
+
+    let authzen = h.call(json!({
+        "op": "certify_authzen_evidence",
+        "request": {
+            "subject": {"type": "user", "id": "alice@example.com"},
+            "resource": {"type": "account", "id": "123"},
+            "action": {"name": "can_read", "properties": {"method": "GET"}},
+            "context": {"time": "1985-10-26T01:22-07:00"}
+        },
+        "decision": true,
+        "policy_decision_point": "https://pdp.example.com",
+        "expected_policy_decision_point": "https://pdp.example.com",
+        "expected_principal": "alice@example.com",
+        "expected_effect_digest": "123"
+    }));
+    assert_eq!(authzen["ok"], true, "{authzen}");
+    assert_eq!(authzen["certified"], true);
+    assert_eq!(authzen["authority"], "NONE");
+    assert_eq!(authzen["consequence"], "EVIDENCE_ONLY");
+    assert_eq!(authzen["action"], "can_read");
+
+    let spiffe = h.call(json!({
+        "op": "certify_spiffe_evidence",
+        "spiffe_id": "spiffe://prod.acme.com/billing/api",
+        "expected_spiffe_id": "spiffe://prod.acme.com/billing/api",
+        "expected_trust_domain": "prod.acme.com",
+        "svid_type": "x509",
+        "bundle_digest": "sha256:canonical-example-bundle",
+        "verified": true
+    }));
+    assert_eq!(spiffe["ok"], true, "{spiffe}");
+    assert_eq!(spiffe["certified"], true);
+    assert_eq!(spiffe["trust_domain"], "prod.acme.com");
+    assert_eq!(spiffe["path"], "/billing/api");
+    assert_eq!(spiffe["authority"], "NONE");
+
+    let jwt = h.call(json!({
+        "op": "certify_spiffe_evidence",
+        "spiffe_id": "spiffe://prod.acme.com/billing/api",
+        "expected_spiffe_id": "spiffe://prod.acme.com/billing/api",
+        "expected_trust_domain": "prod.acme.com",
+        "svid_type": "jwt",
+        "bundle_digest": "sha256:canonical-example-bundle",
+        "verified": true
+    }));
+    assert_eq!(jwt["ok"], false, "{jwt}");
+    assert_eq!(jwt["error"]["code"], "jwt_not_admitted");
 }
 
 #[test]
