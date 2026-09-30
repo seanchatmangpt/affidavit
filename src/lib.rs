@@ -107,6 +107,7 @@ pub mod ecosystem;
 pub mod errc;
 pub mod errc_claim_assurance;
 pub mod error;
+pub mod event_builder;
 pub mod execution_manifest;
 pub mod federation;
 pub mod fixture_db;
