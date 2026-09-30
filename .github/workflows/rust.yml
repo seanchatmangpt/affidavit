@@ -103,6 +103,7 @@ jobs:
   build-and-test:
     name: build-and-test
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -141,6 +142,7 @@ jobs:
   clippy:
     name: clippy (cargo clippy --all-targets -D warnings)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -177,10 +179,11 @@ jobs:
       - name: Assert exact candidate
         run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
 
-      - name: Install pinned nightly toolchain
+      - name: Install pinned nightly toolchain with clippy
         uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy
 
       - name: Restore cargo registry and build cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
