@@ -1,6 +1,7 @@
 //! Drift court for the shell completions (W4-L2, v26.9.28).
 //!
-//! `completions/affi.bash`, `completions/affi.zsh` and `completions/affi.fish`
+//! `completions/affi.bash`, `completions/affi.zsh`, `completions/affi.fish`,
+//! `completions/affi.ps1` and `completions/affi.nu`
 //! are GENERATED projections of the static `REGISTRY` in `src/registry.rs`
 //! (generator: `scripts/generate_completions.py`, runner: `just completions`).
 //!
@@ -183,6 +184,84 @@ fn fish_completions(text: &str) -> (HashSet<String>, HashMap<String, Vec<String>
     (nouns, map)
 }
 
+/// Parse the PowerShell `$script:AffiCompletions` table: `'noun' = [ordered]@{`
+/// opens a noun block, `'verb' = '...'` lines inside it are that noun's verbs.
+fn powershell_completions(text: &str) -> (HashSet<String>, HashMap<String, Vec<String>>) {
+    let mut nouns = HashSet::new();
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    let mut in_table = false;
+    let mut current_noun: Option<String> = None;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with("$script:AffiCompletions") {
+            in_table = true;
+            continue;
+        }
+        if !in_table {
+            continue;
+        }
+        if let Some(rest) = t.strip_suffix("= [ordered]@{") {
+            let noun = rest.trim().trim_matches('\'').to_string();
+            nouns.insert(noun.clone());
+            map.entry(noun.clone()).or_default();
+            current_noun = Some(noun);
+        } else if t == "}" {
+            if current_noun.take().is_none() {
+                break; // closing brace of the outer table
+            }
+        } else if let (Some(noun), Some(rest)) = (current_noun.as_ref(), t.strip_prefix('\'')) {
+            if let Some((verb, _)) = rest.split_once("' = ") {
+                map.entry(noun.clone()).or_default().push(verb.to_string());
+            }
+        }
+    }
+    (nouns, map)
+}
+
+/// The value of a Nushell `{value: "x", description: ...}` record line.
+fn nu_record_value(line: &str) -> Option<String> {
+    let rest = line.trim().strip_prefix("{value: \"")?;
+    Some(rest[..rest.find('"')?].to_string())
+}
+
+/// Parse the Nushell completer: the noun list def, and the per-noun
+/// `"noun" => [` match arms of the verb completer.
+fn nushell_completions(text: &str) -> (HashSet<String>, HashMap<String, Vec<String>>) {
+    let mut nouns = HashSet::new();
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    let mut section = "";
+    let mut current_noun: Option<String> = None;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with("def \"nu-complete affi nouns\"") {
+            section = "nouns";
+            continue;
+        }
+        if t.starts_with("def \"nu-complete affi verbs\"") {
+            section = "verbs";
+            continue;
+        }
+        if t.starts_with("export extern") {
+            section = "";
+            continue;
+        }
+        if section == "nouns" {
+            if let Some(noun) = nu_record_value(t) {
+                nouns.insert(noun);
+            }
+        } else if section == "verbs" {
+            if let Some(arm) = t.strip_suffix("=> [") {
+                let noun = arm.trim().trim_matches('"').to_string();
+                map.entry(noun.clone()).or_default();
+                current_noun = Some(noun);
+            } else if let (Some(noun), Some(verb)) = (current_noun.as_ref(), nu_record_value(t)) {
+                map.entry(noun.clone()).or_default().push(verb);
+            }
+        }
+    }
+    (nouns, map)
+}
+
 /// The shared admission court: coverage (pairwise), orphans, noun-set
 /// equality both directions, and the flat every-registry-verb-appears check.
 fn assert_projection_matches_registry(
@@ -311,16 +390,44 @@ fn fish_completions_match_registry() {
     assert_projection_matches_registry("affi.fish", &completed, Some(&nouns));
 }
 
+#[test]
+fn powershell_completions_match_registry() {
+    let text = read_completion("affi.ps1");
+    assert_generated_banner(&text, "affi.ps1");
+    assert_header_count(&text, "affi.ps1");
+    let (nouns, completed) = powershell_completions(&text);
+    assert_projection_matches_registry("affi.ps1", &completed, Some(&nouns));
+}
+
+#[test]
+fn nushell_completions_match_registry() {
+    let text = read_completion("affi.nu");
+    assert_generated_banner(&text, "affi.nu");
+    assert_header_count(&text, "affi.nu");
+    let (nouns, completed) = nushell_completions(&text);
+    assert_projection_matches_registry("affi.nu", &completed, Some(&nouns));
+}
+
 /// The mutation lens (C05): the parser must be able to fail. If the drift
 /// parser silently returned empty maps, court 1 would pass vacuously on a
 /// truncated file. Assert the parsers actually saw the full surface.
 #[test]
 fn parsers_are_not_vacuous() {
-    for file in ["affi.bash", "affi.zsh", "affi.fish"] {
+    for file in ["affi.bash", "affi.zsh", "affi.fish", "affi.ps1", "affi.nu"] {
         let text = read_completion(file);
         let parsed = match file {
             "affi.bash" => bash_noun_verbs(&text).values().map(Vec::len).sum::<usize>(),
             "affi.zsh" => zsh_completions(&text)
+                .1
+                .values()
+                .map(Vec::len)
+                .sum::<usize>(),
+            "affi.ps1" => powershell_completions(&text)
+                .1
+                .values()
+                .map(Vec::len)
+                .sum::<usize>(),
+            "affi.nu" => nushell_completions(&text)
                 .1
                 .values()
                 .map(Vec::len)
