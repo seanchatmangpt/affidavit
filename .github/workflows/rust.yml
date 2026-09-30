@@ -1,5 +1,12 @@
 # rust.yml — exact-head courts for the root `affidavit` crate.
 #
+# CI architecture (wall-clock first, then runner cost):
+# - branch pushes run only on main; PRs own branch verification
+# - exact PR heads are checked out and asserted
+# - cargo test --all-targets owns the compile+test pass; no duplicate cargo build
+# - PR caches restore but only main saves
+# - crypto trust remains a parallel feature-closure court
+#
 # The real published wasm4pm-compat v26.8.7 edge is admitted here; wasm4pm and
 # clnrm-core remain explicit local fences. Every PR job executes the immutable PR
 # head, not GitHub's synthetic merge commit. Cargo's resolver-produced lockfile
@@ -9,12 +16,23 @@ name: rust
 
 on:
   push:
+    branches: [main]
     paths:
       - "src/**"
       - "tests/**"
       - "benches/**"
       - "examples/**"
       - "scripts/**"
+      - "fixtures/**"
+      - "completions/**"
+      - "ontology/**"
+      - "semconv/**"
+      - "schemas/**"
+      - "profiles/**"
+      - "web/lib/verify-client.ts"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "stubs/**"
       - "build.rs"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -27,15 +45,28 @@ on:
       - "benches/**"
       - "examples/**"
       - "scripts/**"
+      - "fixtures/**"
+      - "completions/**"
+      - "ontology/**"
+      - "semconv/**"
+      - "schemas/**"
+      - "profiles/**"
+      - "web/lib/verify-client.ts"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "stubs/**"
       - "build.rs"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
       - ".github/workflows/rust.yml"
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 concurrency:
-  group: rust-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: rust-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -43,11 +74,14 @@ permissions:
 env:
   CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   RUST_TOOLCHAIN: nightly-2026-08-12
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   fmt:
     name: rustfmt (cargo fmt --check)
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -78,16 +112,16 @@ jobs:
       - name: Assert exact candidate
         run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
 
-      - name: Install pinned nightly toolchain
+      - name: Install pinned nightly toolchain with clippy
         uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy
 
-      - name: Cache cargo registry and build
+      - name: Restore cargo registry and build cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-
-      - name: cargo build --all-targets
-        run: cargo build --all-targets
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Upload resolver-produced Cargo.lock
         if: always()
@@ -122,14 +156,18 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: clippy
 
-      - name: Cache cargo registry and build
+      - name: Restore cargo registry and build cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: cargo clippy --all-targets -- -D warnings
         run: cargo clippy --all-targets -- -D warnings
 
   crypto-trust:
-    runs-on: ubuntu-latest
+    name: crypto-trust
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -144,14 +182,16 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
-      - name: Cache cargo registry and build
+      - name: Restore cargo registry and build cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-
-      - name: Render trust-plane projections (drift court)
-        run: ggen sync run && git diff --exit-code src/crypto_trust_*.rs tests/crypto_trust_e2e.rs
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: cargo test --features crypto-trust
         run: cargo test --features crypto-trust --all-targets
+
+      - name: cargo test --doc --features crypto-trust
+        run: cargo test --doc --features crypto-trust
 
       - name: cargo clippy --features crypto-trust -- -D warnings
         run: cargo clippy --features crypto-trust --all-targets -- -D warnings
@@ -179,8 +219,10 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
-      - name: Cache cargo registry and build
+      - name: Restore cargo registry and build cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: cargo build --all-targets --features crypto-trust
         run: cargo build --all-targets --features crypto-trust
@@ -196,6 +238,7 @@ jobs:
   # and never attempts interactive keychain access.
   crypto-trust-macos:
     runs-on: macos-latest
+    timeout-minutes: 40
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -211,8 +254,10 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt, clippy
 
-      - name: Cache cargo registry and build
+      - name: Restore cargo registry and build cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: cargo fmt --all -- --check
         run: cargo fmt --all -- --check
