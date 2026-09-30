@@ -1,0 +1,11 @@
+# .cargo/config.toml for affidavit-wasm (imports policy: wasi_snapshot_preview1).
+# Consumed query columns (cargo.rq): crate_name, stack_size_bytes, imports_policy.
+# Rendered by ggen (wasi-json-abi-pack) from the wja: graph.
+# Edit the ontology and re-render; never edit this file by hand.
+
+[target.wasm32-unknown-unknown]
+# JSON parsing and op dispatch recurse; the 1 MiB default stack is too small.
+rustflags = ["-C", "link-arg=-zstack-size=16777216"]
+
+[target.wasm32-wasip1]
+rustflags = ["-C", "link-arg=-zstack-size=16777216"]

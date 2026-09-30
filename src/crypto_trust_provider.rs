@@ -229,7 +229,7 @@ mod tests {
             not_before: 10,
             expires_at: 1_000,
             subject_digest: [3u8; 32],
-            audience: "test-audience".to_string(),
+            audience: "affidavit.cli".to_string(),
         }
     }
 

@@ -234,6 +234,13 @@ mod imp {
     /// hashes SHA-256 internally (`ECDSASignatureMessageX962SHA256`) and the
     /// returned bytes are the X9.62 DER signature. The private key never
     /// leaves the enclave.
+    ///
+    /// Non-low-s caveat: the Secure Enclave does NOT normalize signatures to
+    /// the canonical low-s form (`s ≤ n/2`), so these bytes may be high-s.
+    /// [`enclave_verify`] refuses high-s under the trust plane's
+    /// canonical-signature law (BIP-62 malleability closure) — an
+    /// enclave-produced signature is not exempt from the plane's verifier
+    /// law.
     pub fn enclave_sign(label: &str, msg: &[u8]) -> Result<Vec<u8>, EnclaveError> {
         let key = find_private_key(label)?;
         key.create_signature(Algorithm::ECDSASignatureMessageX962SHA256, msg)
@@ -245,6 +252,13 @@ mod imp {
     /// recorded in the custody handle. Malformed inputs are refused as
     /// [`EnclaveError::SecurityFramework`] carrying the typed verifier
     /// message; a well-formed signature that does not verify is `Ok(false)`.
+    ///
+    /// The delegation inherits the canonical-signature law: a well-formed DER
+    /// signature whose `s` is high (`s > n/2`) is refused — see
+    /// `crypto_trust_es256::verify_es256`. The Secure Enclave does not
+    /// normalize to low-s ([`enclave_sign`] caveat), so a high-s enclave
+    /// signature surfaces here as [`EnclaveError::SecurityFramework`]
+    /// ("malformed signature"), never as a silent pass.
     pub fn enclave_verify(
         public_key_sec1: &[u8],
         msg: &[u8],

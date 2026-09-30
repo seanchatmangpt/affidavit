@@ -13,7 +13,7 @@
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Publish the signed revocation list (CTP-CRL-v1) for the store's recorded revocations under the registered issuer key
+/// Publish the signed revocation list (CTP-CRL-v1) for the store's recorded revocations: the issuer kid must be registered and the signing secret must come from AFFI_SIGNING_KEY_PATH (absent = REFUSED_R_missing_authority)
 #[rustfmt::skip]
 #[verb("crl-publish", "evidence")]
 pub fn evidence_crl_publish(

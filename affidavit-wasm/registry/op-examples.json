@@ -1,0 +1,34 @@
+{
+  "abi_version": 1,
+  "examples": [
+    {
+      "op": "capabilities",
+      "request": {"op":"capabilities"}
+    },
+    {
+      "op": "commit",
+      "request": {"op":"commit","payload":"héllo wörld ✓"}
+    },
+    {
+      "op": "assemble",
+      "request": {"op":"assemble","events":[{"event_type":"build","objects":["repo:git:main"],"payload":"compile step\n"},{"event_type":"test","objects":["suite:test-suite:unit"],"payload":"unit tests\n"},{"event_type":"deploy","objects":["svc:service"],"payload":"ship it\n"}]}
+    },
+    {
+      "op": "verify",
+      "request": {"op":"verify","receipt":{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"}}
+    },
+    {
+      "op": "mine",
+      "request": {"op":"mine","receipts":[{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"},{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"}]}
+    },
+    {
+      "op": "conform",
+      "request": {"op":"conform","model":[{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"}],"trace":{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"}}
+    },
+    {
+      "op": "verify_signature_input",
+      "request": {"op":"verify_signature_input","envelope_json":"{\"algorithm\":\"ES256\",\"audience\":\"affidavit.kat\",\"expires_at\":4102444800,\"generation\":1,\"key_id\":\"afk1_a9c3bd446195e2e2\",\"nonce\":[25,107,217,46,141,94,95,54,120,72,204,59,49,154,244,42],\"not_before\":1700000000,\"policy_epoch\":1,\"profile\":\"CLASSICAL\",\"revocation_epoch\":0,\"subject_digest\":[206,63,11,26,126,80,218,245,190,191,110,203,240,54,52,94,36,141,20,88,5,127,63,121,250,128,109,66,210,110,68,97],\"version\":\"CTP-ENVELOPE-v1\"}","expected_signing_input_hex":"6166666964617669742e63727970746f2d74727573742d706c616e652e7631006166666964617669742e63727970746f2d74727573742d706c616e652e76310000000000000001ac7b22616c676f726974686d223a224553323536222c2261756469656e6365223a226166666964617669742e6b6174222c22657870697265735f6174223a343130323434343830302c2267656e65726174696f6e223a312c226b65795f6964223a2261666b315f61396333626434343631393565326532222c226e6f6e6365223a5b32352c3130372c3231372c34362c3134312c39342c39352c35342c3132302c37322c3230342c35392c34392c3135342c3234342c34325d2c226e6f745f6265666f7265223a313730303030303030302c22706f6c6963795f65706f6368223a312c2270726f66696c65223a22434c4153534943414c222c227265766f636174696f6e5f65706f6368223a302c227375626a6563745f646967657374223a5b3230362c36332c31312c32362c3132362c38302c3231382c3234352c3139302c3139312c3131302c3230332c3234302c35342c35322c39342c33362c3134312c32302c38382c352c3132372c36332c3132312c3235302c3132382c3130392c36362c3231302c3131302c36382c39375d2c2276657273696f6e223a224354502d454e56454c4f50452d7631227d"}
+    }
+  ],
+  "schema": "wasi-json-abi.op-examples/1"
+}

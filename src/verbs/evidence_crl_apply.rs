@@ -13,7 +13,7 @@
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)
+/// Admit a published CRL file into a fresh revocation list: resolve the issuer's public record from the key store, verify the issuer signature FIRST, then the epoch freshness grace, then merge (atomic on any refusal)
 #[rustfmt::skip]
 #[verb("crl-apply", "evidence")]
 pub fn evidence_crl_apply(

@@ -8,8 +8,10 @@
 //! a golden fixture (`tests/fixtures/`).
 //!
 //! All behaviour lives in the safe, natively testable [`abi`] module. The only
-//! `unsafe` in this crate is the `ffi` module: the pointer handling needed to exchange
-//! buffers with the host through linear memory, compiled for `wasm32` only.
+//! `unsafe` in this crate is the generated `ffi` module: the pointer handling needed to
+//! exchange buffers with the host through linear memory. Its `af_*` exports are
+//! `wasm32` only. `ffi` and [`abi_meta`] are rendered by `ggen sync` from
+//! `ontology/affi-wasm.ttl`; never edit them by hand.
 //!
 //! Protocol (integers are wasm `i32`/`i64`):
 //! 1. `af_alloc(len) -> ptr` — host reserves `len` bytes and writes a UTF-8 JSON
@@ -18,7 +20,8 @@
 //!    request buffer. `packed = (out_ptr << 32) | out_len`.
 //! 3. host reads `out_len` bytes at `out_ptr`, then `af_free(out_ptr, out_len)`.
 //!
-//! A response is always JSON: `{"ok":true,...}` or `{"ok":false,"error":{...}}`.
+//! A request over the byte or JSON-depth limit gets a typed `too_large` / `too_deep`
+//! error, never a trap. A response is always JSON: `{"ok":true,...}` or `{"ok":false,"error":{...}}`.
 //! `af_abi_version() -> u32` reports the ABI revision (currently `1`).
 //!
 //! Doctrine, preserved: **certify, don't decide.** Nothing in this module
@@ -28,8 +31,12 @@
 #![warn(missing_docs)]
 
 pub mod abi;
+#[rustfmt::skip] // generated; byte-identical to the ggen render
+pub mod abi_meta;
 pub mod crypto;
 pub mod receipt;
 
-#[cfg(target_arch = "wasm32")]
+// Generated FFI shell (wasi-json-abi-pack). Exports are wasm32-only; the helpers
+// and their tests also build natively.
+#[rustfmt::skip] // generated; byte-identical to the ggen render
 mod ffi;

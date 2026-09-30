@@ -1,3 +1,5 @@
+cargo-features = ["trim-paths"]
+
 [package]
 name = "affidavit-wasm"
 version = "26.9.28"
@@ -28,6 +30,7 @@ serde_json = "1"
 [dev-dependencies]
 wasmi = "1"
 wasmi_wasi = "1"
+sha2 = "0.10"
 
 [profile.wasm]
 inherits = "release"
@@ -35,6 +38,9 @@ opt-level = "s"
 lto = true
 codegen-units = 1
 strip = true
+# Embedded source paths are checkout-independent so the pinned artifact hash
+# (registry/ARTIFACTS.sha256) is reproducible across machines.
+trim-paths = "all"
 panic = "abort"
 
 [profile.dev.package.wasmi]

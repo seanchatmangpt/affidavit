@@ -376,7 +376,7 @@ mod tests {
             not_before: 0,
             expires_at: 4_102_444_800,
             subject_digest: [0x07u8; 32],
-            audience: "affidavit.quorum.test".to_string(),
+            audience: "affidavit.cli".to_string(),
         };
         envelope.signing_input()
     }

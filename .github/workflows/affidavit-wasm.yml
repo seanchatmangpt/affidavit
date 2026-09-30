@@ -15,12 +15,16 @@ on:
     paths:
       - "affidavit-wasm/**"
       - "affidavit-core/**"
+      - "ontology/affi-wasm.ttl"
+      - "ggen.toml"
       - "rust-toolchain.toml"
       - ".github/workflows/affidavit-wasm.yml"
   pull_request:
     paths:
       - "affidavit-wasm/**"
       - "affidavit-core/**"
+      - "ontology/affi-wasm.ttl"
+      - "ggen.toml"
       - "rust-toolchain.toml"
       - ".github/workflows/affidavit-wasm.yml"
   release:
@@ -57,36 +61,60 @@ jobs:
         with:
           workspaces: affidavit-wasm
 
+      - name: Registry drift court (ggen sync must reproduce the committed projections)
+        # ffi.rs, abi_meta.rs, .cargo/config.toml and registry/* are rendered from
+        # ontology/affi-wasm.ttl by the wasi-json-abi-pack. ARTIFACTS.sha256 is a
+        # create-only pin and is never overwritten by sync.
+        working-directory: .
+        run: |
+          set -euo pipefail
+          ggen sync run
+          git diff --exit-code -- affidavit-wasm/registry affidavit-wasm/src/ffi.rs \
+            affidavit-wasm/src/abi_meta.rs affidavit-wasm/.cargo/config.toml
+
       - name: cargo fmt --check
         run: cargo fmt -- --check
 
       - name: cargo clippy (native, all targets)
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: cargo clippy (wasm32-wasip1 — compiles the unsafe FFI shell)
-        run: cargo clippy --lib --target wasm32-wasip1 -- -D warnings
+        run: cargo clippy --locked --lib --target wasm32-wasip1 -- -D warnings
 
       - name: Native unit tests (safe ABI)
-        run: cargo test --lib
+        run: cargo test --locked --lib
 
       - name: Build the WASI module
-        run: cargo build --lib --target wasm32-wasip1 --profile wasm
+        run: cargo build --locked --lib --target wasm32-wasip1 --profile wasm
 
-      - name: Drive the compiled module in a real wasm runtime
+      - name: Double-build identity (same source, separate target dir => identical bytes)
+        run: |
+          set -euo pipefail
+          cargo build --locked --lib --target wasm32-wasip1 --profile wasm \
+            --target-dir "$RUNNER_TEMP/wasm-second"
+          cmp target/wasm32-wasip1/wasm/affidavit_wasm.wasm \
+              "$RUNNER_TEMP/wasm-second/wasm32-wasip1/wasm/affidavit_wasm.wasm"
+
+      - name: Drive the compiled module in a real wasm runtime (differential, registry, pin)
         env:
           AFFIDAVIT_WASM: ${{ github.workspace }}/affidavit-wasm/target/wasm32-wasip1/wasm/affidavit_wasm.wasm
-        run: cargo test --test wasm_abi
+        # wasm_abi (parity with affi), op_differential (native == wasm over every
+        # op example), registry_artifacts (registry == module, sha256 pin).
+        run: cargo test --locked --test wasm_abi --test op_differential --test registry_artifacts
 
       - name: Docs
         env:
           RUSTDOCFLAGS: "-D warnings"
-        run: cargo doc --no-deps
+        run: cargo doc --locked --no-deps
 
-      - name: Checksum
+      - name: Checksum (must equal the pin in registry/ARTIFACTS.sha256)
         run: |
+          set -euo pipefail
           cd target/wasm32-wasip1/wasm
           cp affidavit_wasm.wasm affidavit.wasm
           sha256sum affidavit.wasm | tee affidavit.wasm.sha256
+          pinned="$(awk '$1=="wasm" && length($2)==64 {print $2}' ../../../registry/ARTIFACTS.sha256)"
+          test -z "$pinned" || test "$pinned" = "$(cut -d' ' -f1 affidavit.wasm.sha256)"
 
       - name: Upload WASI module
         uses: actions/upload-artifact@v4
