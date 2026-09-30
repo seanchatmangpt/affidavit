@@ -29,6 +29,7 @@
 
 pub mod abi;
 pub mod crypto;
+mod external_evidence;
 pub mod receipt;
 
 #[cfg(target_arch = "wasm32")]
