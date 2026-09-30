@@ -17,7 +17,10 @@ fn evidence_err(error: EvidenceError) -> AbiError {
     err(error.code(), error.to_string())
 }
 
-fn required_str<'a>(value: &'a Value, name: &str) -> Result<&'a str, AbiError> {
+fn required_map_str<'a>(
+    value: &'a Map<String, Value>,
+    name: &str,
+) -> Result<&'a str, AbiError> {
     value
         .get(name)
         .and_then(Value::as_str)
