@@ -62,6 +62,7 @@
 extern crate alloc;
 
 pub mod chain;
+pub mod crypto_verify;
 pub mod digest;
 pub mod verifier;
 
@@ -69,8 +70,14 @@ pub mod verifier;
 pub mod mining;
 
 pub use chain::{compute_chain_hash, Event, PROFILE};
+pub use crypto_verify::{
+    Algorithm, EnvelopeError, EnvelopeRef, Profile, DOMAIN_TAG, ENVELOPE_FIELDS, ENVELOPE_VERSION,
+};
 pub use digest::{ChainHasher, Digest, Fnv256};
 pub use verifier::{verify, RejectReason, Verdict};
+
+#[cfg(feature = "alloc")]
+pub use crypto_verify::SignatureEnvelope;
 
 #[cfg(feature = "alloc")]
 pub use chain::{ChainBuilder, OwnedEvent, Receipt};

@@ -32,6 +32,18 @@
 //! consumer's default-feature dependency), so this adapter admits keys into
 //! `Location::DefaultFileKeychain` (the login keychain), which is where
 //! Secure Enclave tokens are persisted on macOS.
+//!
+//! Standing (witnessed 2026-09-28, darwin 25.2.0 arm64): PARTIAL_ALIVE.
+//! Keygen inside the Secure Enclave is real — every refused persistence
+//! attempt returned a fresh P-256 public key in the error payload — but the
+//! keychain ADD from a non-Apple-signed binary is refused by the OS: plain
+//! ad-hoc (file and data-protection keychain, with and without the
+//! access-control object) fails with `-34018`
+//! `errSecMissingEntitlement`; ad-hoc + `com.apple.security.application-groups`
+//! fails with `-34018`; ad-hoc + `keychain-access-groups` is killed by the
+//! platform (SIGKILL). The live tests below stay `#[ignore]`-gated honestly,
+//! and the typed refusal carries the machine-readable unblock path in
+//! [`ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE`].
 
 // Consumed query columns (enclave.rq): provider_kind, target_os, exportable, alg_name.
 
@@ -48,6 +60,32 @@ pub const KEY_MATERIAL_EXPORTABLE: bool = false;
 /// Algorithm the enclave signs with (`ctp:supportedAlgorithm`
 /// `ctp:algorithmName`).
 pub const ALGORITHM_NAME: &str = "ES256";
+
+/// Unblock recipe for Secure Enclave keychain persistence, carried verbatim
+/// by the typed refusal: [`generate_enclave_key`] appends this text to any
+/// `-34018` `errSecMissingEntitlement` failure. Witnessed 2026-09-28
+/// (darwin 25.2.0 arm64): keygen succeeds inside the Secure Enclave, but the
+/// OS refuses the keychain add from every ad-hoc-signed binary — plain ad-hoc
+/// over the file keychain and the data-protection keychain (with and without
+/// the access-control object), and ad-hoc +
+/// `com.apple.security.application-groups`, all with `-34018`; ad-hoc +
+/// `keychain-access-groups` is killed by the platform (SIGKILL, exit 137).
+/// The only observed unblock is a real Apple Development signing identity
+/// (`security find-identity -v -p codesigning` reported 0 valid identities on
+/// the witnessing host, so identity provisioning is an operator step).
+pub const ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE: &str = "\
+Unblock for errSecMissingEntitlement (-34018): Secure Enclave keygen succeeds \
+but keychain persistence requires a REAL Apple Development code signature. \
+(1) Write ent.plist: <?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist \
+PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"\
+><plist version=\"1.0\"><dict><key>keychain-access-groups</key><array><string>\
+<TEAMID>.affidavit.trust-plane</string></array></dict></plist> \
+(2) codesign --force --sign \"Apple Development\" --entitlements ent.plist \
+<test-binary> (3) cargo test --features secure-enclave live_ -- --ignored \
+(or AFFI_ENCLAVE_KAT=1). Ad-hoc signatures are refused: plain ad-hoc and \
+ad-hoc + com.apple.security.application-groups give -34018; ad-hoc + \
+keychain-access-groups is SIGKILLed by the platform.\
+";
 
 /// The affidavit's custody handle for one enclave key: identity, label, and
 /// the public point. Never carries private bytes.
@@ -88,7 +126,7 @@ mod imp {
         passwords::AccessControlOptions,
     };
 
-    use super::{EnclaveError, EnclaveKeyRef};
+    use super::{EnclaveError, EnclaveKeyRef, ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE};
     use crate::crypto_trust_keys::{fingerprint_public_key, AlgorithmId, KeyId, PublicKeyMaterial};
 
     /// `errSecItemNotFound` (Security.framework, SecBase.h): the keychain
@@ -96,6 +134,16 @@ mod imp {
     /// on `security-framework`, not `security-framework-sys`, and the
     /// high-level crate does not re-export the status code.
     const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
+
+    /// `errSecMissingEntitlement` (Security.framework, SecBase.h): the host
+    /// binary lacks the entitlement the keychain demands. Witnessed
+    /// 2026-09-28 as the universal ad-hoc-signature refusal for Secure
+    /// Enclave key persistence; the typed refusal carries
+    /// [`ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE`] when this code is seen. `isize`
+    /// because `SecKey::new` fails with `CFError`, whose `code()` is
+    /// `CFIndex` (`isize`) — unlike the `base::Error::code()` (`OSStatus`,
+    /// `i32`) the item-search paths use.
+    const ERR_SEC_MISSING_ENTITLEMENT: isize = -34018;
 
     /// Maps a search failure: a missing key is the typed
     /// [`EnclaveError::KeyNotFound`], everything else stays a framework
@@ -158,8 +206,18 @@ mod imp {
             .set_location(Location::DefaultFileKeychain)
             .set_access_control(access_control);
 
-        let private_key = SecKey::new(&options)
-            .map_err(|error| EnclaveError::SecurityFramework(error.to_string()))?;
+        let private_key = SecKey::new(&options).map_err(|error| {
+            if error.code() == ERR_SEC_MISSING_ENTITLEMENT {
+                // The honest refusal carries its own unblock path: the exact
+                // codesign command and entitlements that un-gate persistence
+                // (see the standing note in the module header).
+                EnclaveError::SecurityFramework(format!(
+                    "{error}; {ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE}"
+                ))
+            } else {
+                EnclaveError::SecurityFramework(error.to_string())
+            }
+        })?;
         let public_key = private_key.public_key().ok_or_else(|| {
             EnclaveError::SecurityFramework(String::from("enclave key has no public half"))
         })?;
@@ -266,6 +324,34 @@ mod graph_tests {
         assert_eq!(KEY_MATERIAL_EXPORTABLE.to_string(), "false");
         assert_eq!(ALGORITHM_NAME, "ES256");
     }
+
+    /// Compile-time proof the unblock recipe renders actionable: the const
+    /// must carry the exact codesign command, the entitlements key, the
+    /// OSStatus it unblocks, and the identity class. Non-enclave: touches no
+    /// keychain, runs on every target.
+    #[test]
+    fn unblock_recipe_renders_actionable_text() {
+        assert!(
+            ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE.contains("codesign --force --sign"),
+            "recipe must carry the exact codesign command"
+        );
+        assert!(
+            ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE.contains("keychain-access-groups"),
+            "recipe must carry the entitlements key"
+        );
+        assert!(
+            ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE.contains("-34018"),
+            "recipe must name the OSStatus it unblocks"
+        );
+        assert!(
+            ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE.contains("Apple Development"),
+            "recipe must name the required identity class"
+        );
+        assert!(
+            ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE.contains("ent.plist"),
+            "recipe must point at the entitlements file"
+        );
+    }
 }
 
 #[cfg(all(test, target_os = "macos"))]
@@ -358,18 +444,23 @@ mod macos_tests {
     /// Real cycle on the real enclave: generate, sign, software-verify,
     /// tamper-teeth, delete — and the deleted key refuses to sign again.
     ///
-    /// IGNORED HONESTLY: on this OS build, persisting a Secure Enclave key
-    /// from an unsigned/ad-hoc CLI binary is refused by the keychain with
-    /// OSStatus -25308 (with the access-control object) / -34018
-    /// `errSecMissingEntitlement` (without) — witnessed 2026-09-28. The test
-    /// is NOT faked; run it from an entitlement-signed host binary (or an
-    /// app host with keychain-access-groups):
+    /// IGNORED HONESTLY: persisting a Secure Enclave key from a
+    /// non-Apple-signed binary is refused by the OS on this host. Witnessed
+    /// 2026-09-28 (ad-hoc probe replicating this exact generator): plain
+    /// ad-hoc, ad-hoc + `com.apple.security.application-groups`, and plain
+    /// ad-hoc over the data-protection keychain all fail with `-34018`
+    /// `errSecMissingEntitlement` (an earlier witness also recorded `-25308`
+    /// with the access-control object); ad-hoc + `keychain-access-groups` is
+    /// SIGKILLed by the platform. Keygen itself is real — a fresh P-256
+    /// public key comes back inside every refusal. The test is NOT faked; the
+    /// unblock is [`ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE`] (real Apple Development
+    /// identity), then:
     ///
     /// ```text
     /// cargo test --features secure-enclave secure_enclave_full_cycle -- --ignored
     /// ```
     #[test]
-    #[ignore = "Secure Enclave keychain persistence needs an entitlement-signed binary (OSStatus -34018 errSecMissingEntitlement from unsigned CLIs)"]
+    #[ignore = "Secure Enclave keychain persistence needs a real Apple Development-signed binary (ad-hoc refused, -34018; see ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE)"]
     fn secure_enclave_full_cycle() {
         let label = unique_label("cycle");
         let guard = KeyGuard::new(&label);
@@ -430,15 +521,16 @@ mod macos_tests {
     /// the signature's DER decodes to two 32-byte big-endian scalars (the
     /// P-256 r/s range) and the software verifier cross-checks it. Requires a
     /// device passcode (keys are passcode-constrained, deliberately not
-    /// biometry, so unattended runs never prompt) AND an entitlement-signed
-    /// host binary — unsigned/ad-hoc CLIs are refused
-    /// (`errSecMissingEntitlement`); never faked. Run manually:
+    /// biometry, so unattended runs never prompt) AND a real Apple
+    /// Development-signed host binary — every ad-hoc signature is refused
+    /// (`errSecMissingEntitlement`; unblock:
+    /// [`ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE`]); never faked. Run manually:
     ///
     /// ```text
     /// cargo test --features secure-enclave live_ -- --ignored
     /// ```
     #[test]
-    #[ignore = "live Secure Enclave cycle; requires macOS keychain, device passcode, and an entitlement-signed binary"]
+    #[ignore = "live Secure Enclave cycle; requires macOS keychain, device passcode, and a real Apple Development-signed binary (see ENCLAVE_KEYCHAIN_UNBLOCK_RECIPE)"]
     fn live_secure_enclave_known_answer_vector() {
         let label = unique_label("live");
         let guard = KeyGuard::new(&label);

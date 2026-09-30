@@ -1713,15 +1713,15 @@ affi:OptionalErrcParentArg a cnv:Argument ;
 
 affi:KeysNoun a cnv:Noun ;
     cnv:hasNounName "keys" ;
-    cnv:nounAbout "Generate and list trust-plane signing keys (the public-key registry)" ;
-    cnv:hasVerbs affi:KeysGenerateVerb , affi:KeysListVerb ;
-    rdfs:comment "The keys noun: affi keys <generate|list>"@en .
+    cnv:nounAbout "Generate, import, list, revoke, and rotate trust-plane signing keys (the public-key registry)" ;
+    cnv:hasVerbs affi:KeysGenerateVerb , affi:KeysListVerb , affi:KeysImportVerb , affi:KeysRevokeVerb , affi:KeysRotateVerb ;
+    rdfs:comment "The keys noun: affi keys <generate|list|import|revoke|rotate>"@en .
 
 affi:EnvelopeNoun a cnv:Noun ;
     cnv:hasNounName "envelope" ;
-    cnv:nounAbout "Seal and verify signature envelopes over provenance receipts (PQ-SEAL-v1)" ;
-    cnv:hasVerbs affi:EnvelopeSignVerb , affi:EnvelopeVerifyVerb ;
-    rdfs:comment "The envelope noun: affi envelope <sign|verify>"@en .
+    cnv:nounAbout "List, export, seal, and verify signature envelopes over provenance receipts (PQ-SEAL-v1)" ;
+    cnv:hasVerbs affi:EnvelopeSignVerb , affi:EnvelopeVerifyVerb , affi:EnvelopeListVerb , affi:EnvelopeExportVerb ;
+    rdfs:comment "The envelope noun: affi envelope <sign|verify|list|export>"@en .
 
 # --- Verb: keys generate -----------------------------------------------------
 affi:KeysGenerateVerb a cnv:Verb ;
@@ -1764,6 +1764,76 @@ affi:KeysStoreArg a cnv:Argument ;
     cnv:argumentAbout "Path to the key-store JSON (default: .affi/keys.json)" ;
     cnv:valueType "String" ;
     cnv:required "false" .
+
+# --- Verb: keys import -------------------------------------------------------
+# v26.9.28 trust-plane wave, wave 1 lane 4. Same rendered-wrapper contract as
+# the generate/list block above: handlers live behind the seam
+# (crate::handlers::{keys_import,keys_revoke,keys_rotate}, crypto-trust gated),
+# and this block renders src/verbs/{keys_import,keys_revoke,keys_rotate}.rs on
+# the next ggen sync (plus their `pub mod` lines in src/verbs/mod.rs).
+affi:KeysImportVerb a cnv:Verb ;
+    cnv:fieldName "keys_import" ;
+    cnv:hasVerbName "import" ;
+    cnv:verbAbout "Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)" ;
+    cnv:belongsToNoun affi:KeysNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:KeysAlgorithmArg ;
+    cnv:hasArgument affi:KeysPublicKeyHexArg ;
+    cnv:hasArgument affi:KeysImportCustodianArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArguments ( affi:KeysAlgorithmArg affi:KeysPublicKeyHexArg affi:KeysImportCustodianArg affi:OutArg ) .
+
+affi:KeysPublicKeyHexArg a cnv:Argument ;
+    cnv:hasArgumentName "public-key-hex" ;
+    cnv:argumentAbout "The externally-held public key as hex (SEC1 uncompressed for ES256, raw fixed-length encoding for ML-DSA-65, raw key bytes for SLH-DSA-SHA2-128s)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 2 .
+
+affi:KeysImportCustodianArg a cnv:Argument ;
+    cnv:hasArgumentName "custodian" ;
+    cnv:argumentAbout "Custodian subject the imported key is registered under (identity only — custody never confers authority)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 3 .
+
+# --- Verb: keys revoke -------------------------------------------------------
+affi:KeysRevokeVerb a cnv:Verb ;
+    cnv:fieldName "keys_revoke" ;
+    cnv:hasVerbName "revoke" ;
+    cnv:verbAbout "Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store" ;
+    cnv:belongsToNoun affi:KeysNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:KeysKidArg ;
+    cnv:hasArgument affi:KeysReasonArg ;
+    cnv:hasArgument affi:KeysStoreArg ;
+    cnv:hasArguments ( affi:KeysKidArg affi:KeysReasonArg affi:KeysStoreArg ) .
+
+affi:KeysKidArg a cnv:Argument ;
+    cnv:hasArgumentName "kid" ;
+    cnv:argumentAbout "Key id of the registered key (afk1_ form, as printed by keys generate/import/list)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+affi:KeysReasonArg a cnv:Argument ;
+    cnv:hasArgumentName "reason" ;
+    cnv:argumentAbout "Audit reason recorded with the revocation (e.g. compromised or superseded)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 2 .
+
+# --- Verb: keys rotate -------------------------------------------------------
+affi:KeysRotateVerb a cnv:Verb ;
+    cnv:fieldName "keys_rotate" ;
+    cnv:hasVerbName "rotate" ;
+    cnv:verbAbout "Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store" ;
+    cnv:belongsToNoun affi:KeysNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:KeysKidArg ;
+    cnv:hasArgument affi:KeysStoreArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArguments ( affi:KeysKidArg affi:KeysStoreArg affi:OutArg ) .
 
 # --- Verb: envelope sign -----------------------------------------------------
 affi:EnvelopeSignVerb a cnv:Verb ;
@@ -1809,3 +1879,195 @@ affi:EnvelopeSealedFileArg a cnv:Argument ;
     cnv:valueType "String" ;
     cnv:required "true" ;
     cnv:positional 1 .
+
+# ============================================================================
+# EVIDENCE NOUN — `affi evidence <journal|crl-publish|crl-apply|heads>`.
+#
+# v26.9.28 trust-plane wave, wave 2 lane 1. These verbs surface the rendered
+# evidence stores as CLI verbs: `journal` records a real sealed receipt's
+# standing into the hash-chained StandingJournal
+# (crypto_trust_journal, .affi/standing-journal.jsonl); `crl-publish` /
+# `crl-apply` drive the signed CTP-CRL-v1 revocation publication
+# (crypto_trust_revocation; file transport at .affi/crl.json); `heads` audits
+# the journal and re-derives the RFC 9162 transparency-log tree head
+# (crypto_trust_log + crypto_trust_transparency). The handlers behind the seam
+# (crate::handlers::{evidence_journal,evidence_crl_publish,evidence_crl_apply,
+# evidence_heads}) carry the crypto-trust feature gate; signing custody is
+# AFFI_SIGNING_KEY_PATH (absent = typed REFUSED_R_missing_authority). This
+# block renders src/verbs/{evidence_journal,evidence_crl_publish,
+# evidence_crl_apply,evidence_heads}.rs on the next ggen sync (plus their
+# `pub mod` lines in src/verbs/mod.rs).
+#
+# cnv:fieldName on every verb pins handler_name to the snake noun_verb form
+# (the keys/envelope precedent): unambiguous, collision-free handler names.
+# Shared argument resources are REUSED where the semantics match (OutArg,
+# KeysStoreArg, KeysKidArg); only evidence-specific arguments are declared.
+# ============================================================================
+
+affi:EvidenceNoun a cnv:Noun ;
+    cnv:hasNounName "evidence" ;
+    cnv:nounAbout "Record and audit cryptographic standing evidence: the hash-chained standing journal, the signed CRL publication, and the transparency-log tree head" ;
+    cnv:hasVerbs affi:EvidenceJournalVerb , affi:EvidenceCrlPublishVerb , affi:EvidenceCrlApplyVerb , affi:EvidenceHeadsVerb ;
+    rdfs:comment "The evidence noun: affi evidence <journal|crl-publish|crl-apply|heads>"@en .
+
+# --- Verb: evidence journal ---------------------------------------------------
+affi:EvidenceJournalVerb a cnv:Verb ;
+    cnv:fieldName "evidence_journal" ;
+    cnv:hasVerbName "journal" ;
+    cnv:verbAbout "Record a receipt's cryptographic standing as durable journal evidence: assemble a real receipt over the subject, seal it under the custody key (AFFI_SIGNING_KEY_PATH), adjudicate the standing, and append the hash-chained journal entry (.affi/standing-journal.jsonl)" ;
+    cnv:belongsToNoun affi:EvidenceNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:EvidenceSubjectArg ;
+    cnv:hasArgument affi:OutArg ;
+    cnv:hasArguments ( affi:EvidenceSubjectArg affi:OutArg ) .
+
+affi:EvidenceSubjectArg a cnv:Argument ;
+    cnv:hasArgumentName "subject" ;
+    cnv:argumentAbout "Non-empty subject string the evidence receipt is assembled over (the event payload and the standing's subject attribution)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: evidence crl-publish -------------------------------------------------
+affi:EvidenceCrlPublishVerb a cnv:Verb ;
+    cnv:fieldName "evidence_crl_publish" ;
+    cnv:hasVerbName "crl-publish" ;
+    cnv:verbAbout "Publish the signed revocation list (CTP-CRL-v1) for the store's recorded revocations: the issuer kid must be registered and the signing secret must come from AFFI_SIGNING_KEY_PATH (absent = REFUSED_R_missing_authority)" ;
+    cnv:belongsToNoun affi:EvidenceNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:KeysKidArg ;
+    cnv:hasArgument affi:EvidenceEpochArg ;
+    cnv:hasArgument affi:KeysStoreArg ;
+    cnv:hasArgument affi:EvidenceCrlOutArg ;
+    cnv:hasArguments ( affi:KeysKidArg affi:EvidenceEpochArg affi:KeysStoreArg affi:EvidenceCrlOutArg ) .
+
+affi:EvidenceEpochArg a cnv:Argument ;
+    cnv:hasArgumentName "epoch" ;
+    cnv:argumentAbout "Revocation epoch stamped on the publication" ;
+    cnv:valueType "u64" ;
+    cnv:required "true" ;
+    cnv:positional 2 .
+
+affi:EvidenceCrlOutArg a cnv:Argument ;
+    cnv:hasArgumentName "out" ;
+    cnv:argumentAbout "Path to write the signed publication (JCS canonical JSON; default: .affi/crl.json)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+# --- Verb: evidence crl-apply ---------------------------------------------------
+affi:EvidenceCrlApplyVerb a cnv:Verb ;
+    cnv:fieldName "evidence_crl_apply" ;
+    cnv:hasVerbName "crl-apply" ;
+    cnv:verbAbout "Admit a published CRL file into a fresh revocation list: resolve the issuer's public record from the key store, verify the issuer signature FIRST, then the epoch freshness grace, then merge (atomic on any refusal)" ;
+    cnv:belongsToNoun affi:EvidenceNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:EvidenceCrlFileArg ;
+    cnv:hasArgument affi:KeysStoreArg ;
+    cnv:hasArguments ( affi:EvidenceCrlFileArg affi:KeysStoreArg ) .
+
+affi:EvidenceCrlFileArg a cnv:Argument ;
+    cnv:hasArgumentName "file" ;
+    cnv:argumentAbout "Path to the CTP-CRL-v1 publication file to admit (fail-closed: a missing file is refused, never treated as an empty CRL)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+# --- Verb: evidence heads -------------------------------------------------------
+affi:EvidenceHeadsVerb a cnv:Verb ;
+    cnv:fieldName "evidence_heads" ;
+    cnv:hasVerbName "heads" ;
+    cnv:verbAbout "Audit the standing journal (full chain re-verified from genesis) and report the RFC 9162 tree head re-derived from the journal entries alone; with AFFI_SIGNING_KEY_PATH custody the head is published signed and self-verified" ;
+    cnv:belongsToNoun affi:EvidenceNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:EvidenceJournalFileArg ;
+    cnv:hasArguments ( affi:EvidenceJournalFileArg ) .
+
+affi:EvidenceJournalFileArg a cnv:Argument ;
+    cnv:hasArgumentName "journal-file" ;
+    cnv:argumentAbout "Path to the standing journal (default: .affi/standing-journal.jsonl)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+# ============================================================================
+# PATCH PROPOSAL — v26.9.28 trust-plane wave 2, lane 5 (envelope verbs).
+# Target file: /Users/sac/affidavit/ontology/affi-cli.ttl (owned by the wave-2
+# handlers lane; this lane does not edit it).
+#
+# TWO edits:
+#   EDIT 1 (REPLACE in place) — the affi:EnvelopeNoun block, currently lines
+#   1720-1724, is replaced by the extended block in EDIT 1 below (the
+#   cnv:hasVerbs list and the rdfs:comment gain list/export; nounAbout gains
+#   "List, export"). Replacing in place keeps the noun single-valued: RDF
+#   merge of a second cnv:hasVerbs triple would leave BOTH lists asserted.
+#   EDIT 2 (APPEND at end of file) — the two verb blocks + the one new
+#   argument individual. All new individual names are unique in the graph
+#   (checked: no affi:EnvelopeListVerb / affi:EnvelopeExportVerb /
+#   affi:EnvelopeExportFormatArg exist). Shared individuals are REUSED, not
+#   duplicated, per the envelope-verify precedent (affi:EnvelopeSealedFileArg,
+#   affi:KeysStoreArg, affi:OutArg are reused by multiple verbs).
+#
+# Sync effects of these blocks (the wave-2 handlers lane runs them; this lane
+# does NOT run ggen sync):
+#   - renders src/verbs/envelope_list.rs and src/verbs/envelope_export.rs
+#   - adds `pub mod envelope_list;` and `pub mod envelope_export;` to
+#     src/verbs/mod.rs
+#   - dispatch registration for (list, envelope) and (export, envelope)
+# ============================================================================
+
+# ── EDIT 1: REPLACE the current affi:EnvelopeNoun block (lines 1720-1724) ──
+# CURRENT (to be replaced):
+# affi:EnvelopeNoun a cnv:Noun ;
+#     cnv:hasNounName "envelope" ;
+#     cnv:nounAbout "Seal and verify signature envelopes over provenance receipts (PQ-SEAL-v1)" ;
+#     cnv:hasVerbs affi:EnvelopeSignVerb , affi:EnvelopeVerifyVerb ;
+#     rdfs:comment "The envelope noun: affi envelope <sign|verify>"@en .
+#
+# NEW:
+affi:EnvelopeNoun a cnv:Noun ;
+    cnv:hasNounName "envelope" ;
+    cnv:nounAbout "List, export, seal, and verify signature envelopes over provenance receipts (PQ-SEAL-v1)" ;
+    cnv:hasVerbs affi:EnvelopeSignVerb , affi:EnvelopeVerifyVerb , affi:EnvelopeListVerb , affi:EnvelopeExportVerb ;
+    rdfs:comment "The envelope noun: affi envelope <sign|verify|list|export>"@en .
+
+# ── EDIT 2: APPEND at end of file ───────────────────────────────────────────
+
+# --- Verb: envelope list -----------------------------------------------------
+# v26.9.28 trust-plane wave, wave 2 lane 5. Same rendered-wrapper contract as
+# the sign/verify block above: the handler lives behind the seam
+# (crate::handlers::envelope_list, crypto-trust gated) and this block renders
+# src/verbs/envelope_list.rs on the next ggen sync (plus its `pub mod` line in
+# src/verbs/mod.rs). The store argument is the shared affi:KeysStoreArg (the
+# envelope-verify precedent): one store individual, many readers.
+affi:EnvelopeListVerb a cnv:Verb ;
+    cnv:fieldName "envelope_list" ;
+    cnv:hasVerbName "list" ;
+    cnv:verbAbout "List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)" ;
+    cnv:belongsToNoun affi:EnvelopeNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:KeysStoreArg ;
+    cnv:hasArguments ( affi:KeysStoreArg ) .
+
+# --- Verb: envelope export ---------------------------------------------------
+# v26.9.28 trust-plane wave, wave 2 lane 5. Export wire form is export-local:
+# json (the CTP-ENVELOPE-v1 envelope document, the default) or sa2a (the
+# SA2A-C2-APPROVAL-v1 approval, JCS-canonical). This verb carries its OWN
+# format argument individual rather than the shared affi:FormatArg, whose
+# defaultValue "text" is not an admitted export format (a recorded failed
+# edge: reusing affi:FormatArg would type `affi envelope export f.json` with
+# the refused default). The sealed-file argument is the shared
+# affi:EnvelopeSealedFileArg (positional 1, identical semantics to
+# envelope verify).
+affi:EnvelopeExportVerb a cnv:Verb ;
+    cnv:fieldName "envelope_export" ;
+    cnv:hasVerbName "export" ;
+    cnv:verbAbout "Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical); unknown formats are refused" ;
+    cnv:belongsToNoun affi:EnvelopeNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:EnvelopeSealedFileArg ;
+    cnv:hasArgument affi:EnvelopeExportFormatArg ;
+    cnv:hasArguments ( affi:EnvelopeSealedFileArg affi:EnvelopeExportFormatArg ) .
+
+affi:EnvelopeExportFormatArg a cnv:Argument ;
+    cnv:hasArgumentName "format" ;
+    cnv:argumentAbout "Export wire form: json (the CTP-ENVELOPE-v1 envelope document, the default) or sa2a (the SA2A-C2-APPROVAL-v1 approval document, JCS-canonical); any other value is REFUSED_UNSUPPORTED" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .

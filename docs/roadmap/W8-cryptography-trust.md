@@ -3,7 +3,7 @@
 **Workstream:** W8 (Cryptography & Trust)
 **Owner role:** the cryptographic trust layer on top of BLAKE3 content-addressing
 **Horizon:** 2026 H2 → 2030
-**Status:** design / proposal · grounded against the tree at `26.6.17`
+**Status:** design / proposal · **partially delivered in v26.9.28** (see Appendix B) · originally grounded against the tree at `26.6.17`
 **Doctrine:** *certify, don't decide.* A signature attests **who** assembled or witnessed a receipt and **that its bytes are unaltered** — never that the work is honest, good, or virtuous.
 
 > **Build caveat.** The private-registry `26.6` deps (`clap-noun-verb`, `clnrm-core`, `wasm4pm`, `lsp-max`, …) do not resolve in a lone checkout, so nothing here was `cargo build`/`test`-verified. All Rust is compilable-*style*: correct against the patterns in-tree, pending signature finalization against the sibling crates.
@@ -601,3 +601,131 @@ A receipt's trust story is **complete, default-secure, and quantum-ready** when 
 | `src/1000x_post_quantum_sealing.rs` (`pub mod pqc_sealing`, `src/lib.rs:120-121`) | Full hybrid PQC *design* — `PqcSeal`/`PqcReceipt`/`QuantumResistantAssembler`/`verify_pqc_receipt` — but `mock_*` crypto (`:157-184`) and **not** `#[cfg(feature="pqc")]`-gated (G4). |
 | `Cargo.toml:167` | `pqc = []` — empty feature; populated in Phase 2 / 2028. |
 | `src/sbom_supply_chain.rs:18-26` | `attest_provenance` + the "certify, don't decide" doctrine note W8 inherits (I3). |
+
+---
+
+## Appendix B — Delivered in v26.9.28 (honest delta)
+
+v26.9.28 delivered part of this workstream as the **cryptographic trust
+plane**: pack-rendered modules `src/crypto_trust_*.rs` (projected by `ggen
+sync` from `affidavit-trust-plane-pack`, compiled under the `crypto-trust`
+feature), documented as-built in
+[`../CRYPTO_TRUST_PLANE.md`](../CRYPTO_TRUST_PLANE.md) — module map, envelope
+field closure, standing vocabulary, and the honest standing table for the
+plane itself. That capability map, not this plan, is the admission record for
+what follows.
+
+Two as-built departures from the plan above, stated up front:
+
+- **ES256, not Ed25519.** The classical suite shipped is ES256 (P-256, RFC
+  6979 deterministic). Ed25519 is not implemented. §3 Phase 0 named Ed25519
+  first; the invariants (I1–I5) carried over, the suite id did not.
+- **Pack-rendered layout, not `src/trust/*`.** The plan sketched a
+  hand-written `src/trust/` tree; the delivered plane is ontology-rendered
+  `src/crypto_trust_*.rs` modules plus a rendered e2e court and bench.
+
+Per in-scope item (§1.2), what shipped vs. what remains:
+
+### 1. Signing & attestation — delivered (different suite)
+
+Shipped: the §2.1 stub table is obsolete on the signing path. Real signatures
+replace the string-literal era on this surface:
+
+- ES256 over a 12-field JCS-canonicalized envelope (`CTP-ENVELOPE-v1`); the
+  signed message is `domain_separated("affidavit.crypto-trust-plane.v1",
+  jcs(envelope))` — I4's canonical-input law, as-built.
+- `SealedReceipt` (`PQ-SEAL-v1`, `crypto_trust_seal`) wraps a finalized
+  `Receipt` — I1 holds: the envelope binds the receipt's content address via
+  `subject_digest`, and a tampered base refuses deserialization (I2's
+  integrity-first law is inherited from the chain re-hash on load).
+- `VerificationEngine` (`crypto_trust_verify`): ordered admission — bytes →
+  window → policy → registry → revocation → replay → signature — with a
+  closed eight-value `CryptographicStanding` vocabulary and typed
+  `VerifyRefusal`s. `CryptoStandingReceipt` is minted only on `VALID` (I3:
+  it certifies the signature, never the act).
+- CLI: `affi keys generate|list`, `affi envelope sign|verify`,
+  `affi receipt sign`. Built without the `crypto-trust` feature, the same
+  verbs refuse with typed `REFUSED_UNSUPPORTED` values — the `format!`-JSON
+  echo stubs (G1, G7 on this path) are gone from the tree.
+
+Remains: `attest` and `sbom-attest` are unchanged — still unsigned
+in-toto/SLSA-shaped statements (G6 open); DSSE-style signing of those
+predicates is not started. The W7 stage-8 `SignatureCheck` spec is not
+written; the equivalent primitive exists (`VerificationEngine`), the
+pipeline-stage contract does not.
+
+### 2. Key management — delivered in substance, different surface
+
+Shipped:
+
+- Key model and registry (`crypto_trust_keys`): `AlgorithmId`, `CryptoProfile`
+  (CLASSICAL/HYBRID/PQC), `KeyId` (`afk1_`-prefixed), key fingerprints,
+  `KeyRecord`, custody identity/origin, `InMemoryKeyRegistry`.
+- Durable, tamper-evident public-key store (`crypto_trust_store`).
+- Lifecycle law (`crypto_trust_lifecycle`): key epochs, rotation policy
+  (default 2 epochs in flight, 90-day max age), `RevocationList` doubling as
+  the revocation-epoch clock.
+- Rotation ceremony and the profile migration law
+  (`crypto_trust_rotation`); signed revocation publication (`CTP-CRL-v1`,
+  `crypto_trust_revocation`) — revocation state is verifier-local until
+  published and signed.
+- Custody tiers: dev/test = raw 32-byte hex key file; production =
+  non-exportable provider — macOS Secure Enclave under the `secure-enclave`
+  feature (`crypto_trust_enclave`); HSM is a typed `UNSUPPORTED`, never faked.
+
+Remains / differs: no passphrase-encrypted on-disk secret keyring; the plan's
+`affi keyring` noun shipped as `affi keys`; the planned `TrustRoot` type is
+realized as `TrustPolicy` + the key registry, not that name. G3 is closed in
+substance (keygen, rotation, revocation, trust decisions all exist) but not in
+the planned surface. `affi keyring migrate` does not exist.
+
+### 3. Post-quantum crypto — delivered (G4 closed, ahead of the 2028 phase)
+
+Shipped (`crypto_trust_pqc`): real ML-DSA-65 (FIPS 204), SLH-DSA-SHA2-128s
+(FIPS 205), and the hybrid ES256+ML-DSA-65 (both halves sign the same bytes;
+verification requires both; the ML-DSA randomizer is a domain-separated
+BLAKE3 of the message, so the hybrid is deterministic). All compiled under
+the `crypto-trust` feature — the "compiles unconditionally" half of G4 is
+closed, and the mock module `src/1000x_post_quantum_sealing.rs` is gone from
+the tree. The rendered default profile for new seals is HYBRID.
+
+Remains: the migration tooling — `affi keyring migrate` and the
+`--require {classical|hybrid|pqc}` verifier knob — is not started. Policy
+floors exist as `TrustPolicy` data; the ratchet CLI does not.
+
+### 4. Transparency log — ops layer delivered; witness network not
+
+Shipped:
+
+- RFC 9162-style append-only Merkle log over envelope commitments, with
+  domain-separated BLAKE3 in place of the RFC's SHA-256
+  (`crypto_trust_transparency`), including inclusion/consistency proof
+  machinery.
+- Append-only, hash-chained journal of cryptographic standing receipts
+  (`crypto_trust_journal`).
+- Both bound into one operational surface (`crypto_trust_log`).
+
+Remains: **no witness co-signing network** — no third-party countersignatures
+over checkpoints, no gossip, no multi-log federation (`--quorum N` is
+unrelated to the k-of-n *signature* quorum that did ship in
+`crypto_trust_quorum`). No RFC 3161 TSA integration; `notarize` is unchanged
+(G5 partially closed: append-only log + proofs exist; external witnessing
+does not).
+
+### 5. Supply-chain trust — not started
+
+`attest` still emits an unsigned SLSA-shaped statement;
+`sbom-attest` remains in-chain-but-unsigned; no DSSE envelope. The trust
+plane supplies exactly the primitives these attestations would be signed
+with (keys, envelope, signature, verification, log) — the signing of the
+attestations themselves is future work against the same G6 row above.
+
+### Plan-section status after v26.9.28
+
+| Plan section | State |
+|---|---|
+| Phase 0 (real signatures, envelope, key management) | **Substantially delivered** in v26.9.28, ES256 instead of Ed25519, pack-rendered surface instead of `src/trust/*` |
+| Phase 1 (transparency log, notarization, signed attestations) | **Partially** — log + journal + proofs shipped; witness co-signing, TSA, signed attestations open |
+| Phase 2 (PQC) | **Delivered early** — ML-DSA-65/SLH-DSA/hybrid are real and feature-gated; migration tooling open |
+| Phase 3 (rotation, revocation, federated logs, gossip) | **Partially** — rotation ceremony, CRL publication, k-of-n quorum shipped; witness gossip, multi-log federation, threshold author policy open |
+| Phase 4 (default-secure, HSM, audit) | **Not started** — HSM is typed `UNSUPPORTED`; no external crypto review |
