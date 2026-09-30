@@ -65,11 +65,11 @@ pub(crate) fn op_certify_authzen_evidence(
         }
     }
 
-    let subject_type = required_str(&Value::Object(subject.clone()), "type")?;
-    let subject_id = required_str(&Value::Object(subject.clone()), "id")?;
-    let resource_type = required_str(&Value::Object(resource.clone()), "type")?;
-    let resource_id = required_str(&Value::Object(resource.clone()), "id")?;
-    let action_name = required_str(&Value::Object(action.clone()), "name")?;
+    let subject_type = required_map_str(subject, "type")?;
+    let subject_id = required_map_str(subject, "id")?;
+    let resource_type = required_map_str(resource, "type")?;
+    let resource_id = required_map_str(resource, "id")?;
+    let action_name = required_map_str(action, "name")?;
 
     let decision = field(req, "decision")?
         .as_bool()
