@@ -9,7 +9,22 @@ all-features = true
 version = 2
 # RustSec advisory DB. Vulnerabilities are always denied in schema v2.
 yanked = "deny"
-ignore = []
+ignore = [
+    # Residual advisories with NO in-tree fix (checked 2026-09-29 with
+    # `cargo update`; every fix is gated on an upstream release). Each is
+    # reachable only through an optional feature, never the default build or
+    # the crypto-trust plane. Remove an entry the moment upstream unblocks it.
+    # protobuf 2.x <- prometheus 0.13 <- opentelemetry-prometheus (feature: otel/metrics)
+    { id = "RUSTSEC-2024-0437", reason = "protobuf 2.x pinned by prometheus 0.13 via opentelemetry-prometheus; optional otel feature" },
+    # quick-xml 0.37 <- oxrdfxml <- oxigraph 0.5.8 <- lsp-max (feature: lsp)
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.37 pinned by oxigraph via lsp-max; needs upstream bump; optional lsp feature" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.37 pinned by oxigraph via lsp-max; needs upstream bump; optional lsp feature" },
+    { id = "RUSTSEC-2024-0375", reason = "atty unmaintained; transitive of optional tooling, no safe upgrade" },
+    { id = "RUSTSEC-2025-0119", reason = "number_prefix unmaintained; transitive (indicatif), no safe upgrade" },
+    { id = "RUSTSEC-2025-0123", reason = "opentelemetry-jaeger unmaintained; optional otel feature" },
+    { id = "RUSTSEC-2024-0387", reason = "opentelemetry_api merged upstream; optional otel feature" },
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error unmaintained; build-time only, no safe upgrade" },
+]
 
 [licenses]
 version = 2
@@ -27,6 +42,8 @@ allow = [
     "CC0-1.0",
     "Zlib",
     "MPL-2.0",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
 exceptions = []

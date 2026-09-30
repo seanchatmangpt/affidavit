@@ -917,7 +917,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 92; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify) + 3 keys lifecycle verbs (keys import/revoke/rotate, wave 1 lane 4) + 4 evidence verbs (evidence journal/crl-publish/crl-apply/heads, wave 2 lane 1)
+        let expected = 92; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify) + 3 keys lifecycle verbs (keys import/revoke/rotate, wave 1 lane 4) + 4 evidence verbs (evidence journal/crl-publish/crl-apply/heads, wave 2 lane 1) + 2 envelope verbs (envelope list/export, wave 3)
         assert_eq!(
             verb_count(),
             expected,
