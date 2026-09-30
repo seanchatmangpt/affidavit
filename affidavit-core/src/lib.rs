@@ -64,6 +64,7 @@ extern crate alloc;
 pub mod chain;
 pub mod crypto_verify;
 pub mod digest;
+pub mod external_evidence;
 pub mod verifier;
 
 #[cfg(feature = "alloc")]
@@ -74,6 +75,12 @@ pub use crypto_verify::{
     Algorithm, EnvelopeError, EnvelopeRef, Profile, DOMAIN_TAG, ENVELOPE_FIELDS, ENVELOPE_VERSION,
 };
 pub use digest::{ChainHasher, Digest, Fnv256};
+pub use external_evidence::{
+    admit_authzen_evidence, admit_workload_identity, AuthZenActionRef, AuthZenDecisionEvidenceRef,
+    AuthZenEntityRef, AuthZenRequestRef, EvidenceError, SpiffeIdRef, SvidType,
+    WorkloadIdentityEvidenceRef, AUTHORITY_NONE, AUTHZEN_STANDARD, CONSEQUENCE_EVIDENCE_ONLY,
+    SPIFFE_PREFIX,
+};
 pub use verifier::{verify, RejectReason, Verdict};
 
 #[cfg(feature = "alloc")]
