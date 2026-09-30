@@ -342,6 +342,26 @@ dev = ["all"]
 # bounded stub until that version/feature boundary is intentionally graduated.
 clnrm-core = { path = "stubs/clnrm-core" }
 
+# CI/test latency: optimize crypto dependency compute without changing first-party dev checks.
+[profile.dev.package.ml-dsa]
+opt-level = 3
+[profile.dev.package.slh-dsa]
+opt-level = 3
+[profile.dev.package.p256]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.sha3]
+opt-level = 3
+[profile.dev.package.crypto-bigint]
+opt-level = 3
+[profile.dev.package.elliptic-curve]
+opt-level = 3
+[profile.dev.package.primeorder]
+opt-level = 3
+[profile.dev.package.keccak]
+opt-level = 3
+
 [profile.release]
 lto = true
 codegen-units = 1
