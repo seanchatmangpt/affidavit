@@ -1,8 +1,8 @@
 {
   "qme_profile": "QME-1/EcosystemReference",
   "version": "26.9.29",
-  "canonical_spec_subject": "seanchatmangpt/chatman-ecosystem@32c47032a9cefd0ab4f0980efc32fa84505031b2",
-  "local_subject": "seanchatmangpt/affidavit@cedd662d8e3c9c0f36e4410798321ee2fea68835",
+  "canonical_spec_subject": "seanchatmangpt/chatman-ecosystem@88b276f71e2c8e606553942cb721bceb6836a87e",
+  "local_subject": "seanchatmangpt/affidavit@95f8b5b7f224424a35ab1412b7b49254a31ed603",
   "role": "cryptographic evidence and standing",
   "normative": false,
   "weakens_core": false,
