@@ -5,6 +5,7 @@
 //! [`call`] never panics on any input.
 
 use crate::crypto;
+use crate::external_evidence;
 use crate::receipt::{self, ObjectRef, OperationEvent, Receipt};
 use affidavit_core::mining::conformance::replay;
 use affidavit_core::mining::{
@@ -29,6 +30,8 @@ const OPS: &[&str] = &[
     "mine",
     "conform",
     "verify_signature_input",
+    "certify_authzen_evidence",
+    "certify_spiffe_evidence",
 ];
 
 /// A structured, host-readable failure.
@@ -88,6 +91,8 @@ fn dispatch(request: &[u8]) -> Res<Map<String, Value>> {
         "mine" => mine(&req)?,
         "conform" => conform(&req)?,
         "verify_signature_input" => crypto::op_verify_signature_input(&req)?,
+        "certify_authzen_evidence" => external_evidence::op_certify_authzen_evidence(&req)?,
+        "certify_spiffe_evidence" => external_evidence::op_certify_spiffe_evidence(&req)?,
         other => {
             return Err(err(
                 "unknown_op",
