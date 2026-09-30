@@ -294,7 +294,7 @@ mod tests {
         ] {
             let mut input = json!({
                 "op": "certify_authzen_evidence",
-                "request": request,
+                "request": request.clone(),
                 "decision": true,
                 "policy_decision_point": "https://pdp.example.com",
                 "expected_policy_decision_point": "https://pdp.example.com",
