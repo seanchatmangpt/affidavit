@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 83, Registry nouns: 8
+# Source: src/registry.rs — Registry verbs: 92, Registry nouns: 9
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `source /path/to/completions/affi.nu` to your config.nu.
@@ -13,10 +13,11 @@ def "nu-complete affi nouns" [] {
     [
         {value: "affi", description: "1 verbs"}
         {value: "ecosystem", description: "2 verbs"}
-        {value: "envelope", description: "2 verbs"}
+        {value: "envelope", description: "4 verbs"}
         {value: "errc", description: "4 verbs"}
+        {value: "evidence", description: "4 verbs"}
         {value: "guide", description: "1 verbs"}
-        {value: "keys", description: "2 verbs"}
+        {value: "keys", description: "5 verbs"}
         {value: "receipt", description: "69 verbs"}
         {value: "standing", description: "2 verbs"}
     ]
@@ -33,6 +34,8 @@ def "nu-complete affi verbs" [context: string] {
             {value: "verify", description: "Re-run the federation law over a sealed ecosystem receipt"}
         ]
         "envelope" => [
+            {value: "export", description: "Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)"}
+            {value: "list", description: "List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)"}
             {value: "sign", description: "Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document"}
             {value: "verify", description: "Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)"}
         ]
@@ -42,12 +45,21 @@ def "nu-complete affi verbs" [context: string] {
             {value: "verify", description: "Re-run the ERRC directional and preservation laws over a sealed receipt"}
             {value: "verify-assurance", description: "Re-run the claim-assurance law, optionally binding to the exact parent ERRC receipt"}
         ]
+        "evidence" => [
+            {value: "crl-apply", description: "Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)"}
+            {value: "crl-publish", description: "Publish the signed revocation list (CTP-CRL-v1) for the store's recorded revocations under the registered issuer key"}
+            {value: "heads", description: "Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)"}
+            {value: "journal", description: "Record a receipt's cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry"}
+        ]
         "guide" => [
             {value: "search", description: "Search the verb registry by keyword to discover relevant commands"}
         ]
         "keys" => [
             {value: "generate", description: "Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)"}
+            {value: "import", description: "Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)"}
             {value: "list", description: "List registered key records: kid, algorithm, fingerprint, custodian"}
+            {value: "revoke", description: "Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store"}
+            {value: "rotate", description: "Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store"}
         ]
         "receipt" => [
             {value: "anomaly-detect", description: "Detect anomalous events in the receipt chain using statistical outlier analysis"}
