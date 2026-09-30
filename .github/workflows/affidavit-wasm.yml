@@ -12,6 +12,7 @@ name: affidavit-wasm
 
 on:
   push:
+    branches: [main]
     paths:
       - "affidavit-wasm/**"
       - "affidavit-core/**"
@@ -27,8 +28,8 @@ on:
     types: [published]
 
 concurrency:
-  group: affidavit-wasm-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: affidavit-wasm-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -43,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install the pinned toolchain (rustfmt, clippy) + wasm32-wasip1
         run: |
@@ -53,9 +54,10 @@ jobs:
           rustup target add wasm32-wasip1
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: affidavit-wasm
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: cargo fmt --check
         run: cargo fmt -- --check

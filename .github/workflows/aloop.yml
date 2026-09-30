@@ -9,11 +9,13 @@ name: aloop
 
 on:
   push:
+    branches: [main]
     paths:
       - "tools/aloop_falsifiers.py"
       - "tools/check_dfcm_schema_sync.py"
       - "tools/tests/**"
       - "tools/bench/**"
+      - "tools/requirements-ci.txt"
       - "schemas/**"
       - "fixtures/aloop/**"
       - ".github/workflows/aloop.yml"
@@ -23,13 +25,14 @@ on:
       - "tools/check_dfcm_schema_sync.py"
       - "tools/tests/**"
       - "tools/bench/**"
+      - "tools/requirements-ci.txt"
       - "schemas/**"
       - "fixtures/aloop/**"
       - ".github/workflows/aloop.yml"
 
 concurrency:
-  group: aloop-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: aloop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -40,12 +43,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/requirements-ci.txt
       - name: Install test deps
-        run: python -m pip install --disable-pip-version-check "pytest>=8" "jsonschema>=4.18"
+        run: python -m pip install --disable-pip-version-check -r tools/requirements-ci.txt
       - name: Schema sync guard
         run: python tools/check_dfcm_schema_sync.py
       - name: Falsifier self-test
