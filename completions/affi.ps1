@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 83, Registry nouns: 8
+# Source: src/registry.rs — Registry verbs: 92, Registry nouns: 9
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `. /path/to/completions/affi.ps1` to your $PROFILE.
@@ -19,6 +19,8 @@ $script:AffiCompletions = [ordered]@{
         'verify' = 'Re-run the federation law over a sealed ecosystem receipt'
     }
     'envelope' = [ordered]@{
+        'export' = 'Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)'
+        'list' = 'List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)'
         'sign' = 'Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document'
         'verify' = 'Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)'
     }
@@ -28,12 +30,21 @@ $script:AffiCompletions = [ordered]@{
         'verify' = 'Re-run the ERRC directional and preservation laws over a sealed receipt'
         'verify-assurance' = 'Re-run the claim-assurance law, optionally binding to the exact parent ERRC receipt'
     }
+    'evidence' = [ordered]@{
+        'crl-apply' = 'Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)'
+        'crl-publish' = 'Publish the signed revocation list (CTP-CRL-v1) for the store''s recorded revocations under the registered issuer key'
+        'heads' = 'Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)'
+        'journal' = 'Record a receipt''s cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry'
+    }
     'guide' = [ordered]@{
         'search' = 'Search the verb registry by keyword to discover relevant commands'
     }
     'keys' = [ordered]@{
         'generate' = 'Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)'
+        'import' = 'Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)'
         'list' = 'List registered key records: kid, algorithm, fingerprint, custodian'
+        'revoke' = 'Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store'
+        'rotate' = 'Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store'
     }
     'receipt' = [ordered]@{
         'anomaly-detect' = 'Detect anomalous events in the receipt chain using statistical outlier analysis'
