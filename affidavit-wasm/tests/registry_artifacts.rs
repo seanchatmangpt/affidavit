@@ -97,7 +97,11 @@ fn pin() -> Option<(String, usize, String)> {
 #[test]
 fn pinned_artifact_matches_the_built_module() {
     let Some(path) = std::env::var_os("AFFIDAVIT_WASM") else {
-        eprintln!("AFFIDAVIT_WASM unset: artifact pin not checked");
+        assert!(
+            std::env::var_os("AFFIDAVIT_REQUIRE_PIN").is_none(),
+            "AFFIDAVIT_REQUIRE_PIN is set but AFFIDAVIT_WASM is unset: pin not checked"
+        );
+        eprintln!("SKIPPED: AFFIDAVIT_WASM unset: artifact pin not checked");
         return;
     };
     let Some((sha, size, name)) = pin() else {
