@@ -2,9 +2,11 @@
 #
 # These attributes pin EXACTLY what src/tracing.rs records into each SpanRecord:
 #   SpanRecord { operation: String, target: String }
-# emitted by trace_emit / trace_assemble / trace_verify / trace_show.
+# emitted by trace_emit / trace_assemble / trace_verify / trace_show /
+# trace_model / trace_conformance / trace_graph / trace_stats /
+# trace_replay / trace_diagnose.
 #
-# `operation` is the operation that opened the span (enum: emit/assemble/verify/show).
+# `operation` is the operation that opened the span (enum: all ten verbs below).
 # `target` is the span's primary target attribute (receipt path, event type, count).
 groups:
   - id: affidavit.operation
@@ -14,10 +16,9 @@ groups:
     brief: "An affidavit receipt-pipeline operation span."
     note: |
       Opened by the trace_* wrappers in src/tracing.rs. Each operation
-      (emit/assemble/verify/show) records an observable SpanRecord with the
-      operation name and its target. This group pins those two attributes so
-      that the emitted shape is validated against a real OTel semantic-convention
-      registry via `weaver registry check`.
+      records an observable SpanRecord with the operation name and its target.
+      This group pins those two attributes so that the emitted shape is validated
+      against a real OTel semantic-convention registry via `weaver registry check`.
     attributes:
       - id: operation
         type:
@@ -38,10 +39,34 @@ groups:
               value: "show"
               brief: "Show a receipt."
               stability: development
+            - id: model
+              value: "model"
+              brief: "Discover a process model from the receipt (wasm4pm)."
+              stability: development
+            - id: conformance
+              value: "conformance"
+              brief: "Compute conformance metrics (fitness/activity_coverage/simplicity)."
+              stability: development
+            - id: graph
+              value: "graph"
+              brief: "Discover the directly-follows graph (wasm4pm)."
+              stability: development
+            - id: stats
+              value: "stats"
+              brief: "Compute aggregate counts and conformance metrics."
+              stability: development
+            - id: replay
+              value: "replay"
+              brief: "Replay the receipt's event sequence in lawful seq order."
+              stability: development
+            - id: diagnose
+              value: "diagnose"
+              brief: "Generate LSP-shaped diagnostics from verify outcomes."
+              stability: development
         stability: development
         requirement_level: required
         brief: "The operation that opened the span."
-        examples: ["verify", "emit"]
+        examples: ["verify", "emit", "model", "conformance"]
       - id: target
         type: string
         stability: development

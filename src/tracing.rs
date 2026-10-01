@@ -1,7 +1,8 @@
 //! Operation span recording for the affidavit pipeline.
 //!
 //! This is the OTel-shaped instrumentation seam. Each receipt operation
-//! (emit/assemble/verify/show) opens a span via the `trace_*` wrappers. Spans
+//! (emit/assemble/verify/show/model/conformance/graph/stats/replay/diagnose/inspect/mutate/bench)
+//! opens a span via the `trace_*` wrappers. Spans
 //! are recorded into an observable, thread-local sink so that a test can assert
 //! a span was actually emitted — the witness that this instrumentation is real
 //! and not a dormant no-op (see `tests/otel_witness.rs`).
@@ -71,6 +72,8 @@ pub fn clear_spans() {
 }
 
 /// Trace an emit operation: opens an `emit` span, then runs `f`.
+#[must_use]
+#[inline]
 pub fn trace_emit<F, T>(event_type: &str, _object_count: usize, f: F) -> T
 where
     F: FnOnce() -> T,
@@ -80,6 +83,8 @@ where
 }
 
 /// Trace an assemble operation: opens an `assemble` span, then runs `f`.
+#[must_use]
+#[inline]
 pub fn trace_assemble<F, T>(event_count: usize, f: F) -> T
 where
     F: FnOnce() -> T,
@@ -91,6 +96,8 @@ where
 /// Trace a verify operation: opens a `verify` span, then runs `f`.
 ///
 /// # Example: see `examples/observable_spans.rs` (run: `cargo run --example observable_spans`).
+#[must_use]
+#[inline]
 pub fn trace_verify<F, T>(receipt_path: &str, f: F) -> T
 where
     F: FnOnce() -> T,
@@ -100,11 +107,106 @@ where
 }
 
 /// Trace a show operation: opens a `show` span, then runs `f`.
+#[must_use]
+#[inline]
 pub fn trace_show<F, T>(receipt_path: &str, f: F) -> T
 where
     F: FnOnce() -> T,
 {
     record_span("show", receipt_path);
+    f()
+}
+
+/// Trace a model operation: opens a `model` span, then runs `f`.
+/// Covers wasm4pm process discovery on an admitted receipt.
+pub fn trace_model<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("model", receipt_path);
+    f()
+}
+
+/// Trace a conformance operation: opens a `conformance` span, then runs `f`.
+/// Covers fitness/activity_coverage/simplicity metrics via wasm4pm.
+pub fn trace_conformance<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("conformance", receipt_path);
+    f()
+}
+
+/// Trace a graph operation: opens a `graph` span, then runs `f`.
+/// Covers directly-follows graph discovery via wasm4pm.
+pub fn trace_graph<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("graph", receipt_path);
+    f()
+}
+
+/// Trace a stats operation: opens a `stats` span, then runs `f`.
+/// Covers aggregate counts + conformance metrics.
+pub fn trace_stats<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("stats", receipt_path);
+    f()
+}
+
+/// Trace a replay operation: opens a `replay` span, then runs `f`.
+/// Covers event trace replay in lawful seq order.
+pub fn trace_replay<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("replay", receipt_path);
+    f()
+}
+
+/// Trace a diagnose operation: opens a `diagnose` span, then runs `f`.
+/// Covers LSP diagnostic generation from verify outcomes.
+pub fn trace_diagnose<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("diagnose", receipt_path);
+    f()
+}
+
+/// Trace an inspect operation: opens an `inspect` span, then runs `f`.
+#[inline]
+#[must_use]
+pub fn trace_inspect<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("inspect", receipt_path);
+    f()
+}
+
+/// Trace a mutate operation: opens a `mutate` span, then runs `f`.
+#[inline]
+#[must_use]
+pub fn trace_mutate<F, T>(receipt_path: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("mutate", receipt_path);
+    f()
+}
+
+/// Trace a bench operation: opens a `bench` span, then runs `f`.
+#[inline]
+#[must_use]
+pub fn trace_bench<F, T>(label: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    record_span("bench", label);
     f()
 }
 
