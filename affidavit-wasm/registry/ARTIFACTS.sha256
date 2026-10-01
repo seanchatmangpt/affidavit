@@ -1,0 +1,9 @@
+# affidavit-wasm release artifacts (ABI version 1). Format: <kind> <sha256> <bytes> <name>
+# Consumed query columns (cargo.rq): crate_name, export_prefix, abi_version.
+# Rendered by ggen (wasi-json-abi-pack) from the wja: graph; this is a SKELETON.
+# The wasm line is a pin, not a live check: replace the placeholders with the
+# digest and size of the built module after
+#   cargo build --locked --target wasm32-wasip1 --profile wasm
+# and regenerate the pin after any src/ change. Verification of the pin is the
+# consumer's test suite, not this file.
+wasm 1be9678b2ddcaf71a5c18926ffb94ee4fba9963877e3f4be081eef1d6f42f436 264736 affidavit_wasm.wasm

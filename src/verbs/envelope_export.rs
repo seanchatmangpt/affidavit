@@ -21,5 +21,8 @@ pub fn envelope_export(
     sealed_file: String,
     format: Option<String>,
 ) -> Result<()> {
-    crate::handlers::envelope_export(sealed_file, format)
+    crate::handlers::envelope_export(
+        sealed_file,
+        format,
+    )
 }

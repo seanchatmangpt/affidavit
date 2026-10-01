@@ -1,0 +1,74 @@
+{
+  "abi_version": 1,
+  "crate": "affidavit-wasm",
+  "error_codes": [
+    "bad_json",
+    "missing_field",
+    "unknown_op",
+    "bad_field",
+    "too_large",
+    "too_deep",
+    "missing_buffer",
+    "internal"
+  ],
+  "exports": [
+    "af_abi_version",
+    "af_alloc",
+    "af_call",
+    "af_free"
+  ],
+  "imports_policy": "wasi_snapshot_preview1",
+  "limits": {
+    "max_json_depth": 64,
+    "max_request_bytes": 16777216,
+    "stack_size_bytes": 16777216
+  },
+  "ops": [
+    {
+      "name": "capabilities",
+      "request_fields": ["op"],
+      "response_fields": ["ok", "op", "module", "version", "abi_version", "format_version", "genesis_seed", "hash", "ops", "limits"]
+    },
+    {
+      "name": "commit",
+      "request_fields": ["op", "payload", "payload_hex"],
+      "response_fields": ["ok", "op", "commitment", "bytes"]
+    },
+    {
+      "name": "assemble",
+      "request_fields": ["op", "events"],
+      "response_fields": ["ok", "op", "receipt", "content_address", "chain_hash"]
+    },
+    {
+      "name": "verify",
+      "request_fields": ["op", "receipt"],
+      "response_fields": ["ok", "op", "accepted", "profile", "outcomes", "reason", "content_address"]
+    },
+    {
+      "name": "mine",
+      "request_fields": ["op", "receipts"],
+      "response_fields": ["ok", "op", "trace_count", "event_count", "activities", "edges", "start", "end", "activity_frequency", "variants", "distinct_variants", "footprint", "footprint_omitted", "all_accepted", "rejected_receipts"]
+    },
+    {
+      "name": "conform",
+      "request_fields": ["op", "model", "trace"],
+      "response_fields": ["ok", "op", "verdict", "fitness", "legal_moves", "total_moves", "start_ok", "end_ok", "first_violation", "model_traces", "trace_accepted", "model_all_accepted"]
+    },
+    {
+      "name": "verify_signature_input",
+      "request_fields": ["op", "envelope_json", "expected_signing_input_hex"],
+      "response_fields": ["ok", "op", "verified", "signing_input_hex"]
+    },
+    {
+      "name": "certify_authzen_evidence",
+      "request_fields": ["op", "request", "decision", "policy_decision_point", "expected_policy_decision_point", "expected_principal", "expected_effect_digest"],
+      "response_fields": ["ok", "op", "certified", "standard", "policy_allows", "policy_decision_point", "principal", "effect_digest", "action", "authority", "consequence", "evidence_digest", "evidence"]
+    },
+    {
+      "name": "certify_spiffe_evidence",
+      "request_fields": ["op", "spiffe_id", "expected_spiffe_id", "expected_trust_domain", "bundle_digest", "verified", "svid_type", "allow_jwt"],
+      "response_fields": ["ok", "op", "certified", "standard", "spiffe_id", "trust_domain", "path", "svid_type", "authority", "consequence", "evidence_digest", "evidence"]
+    }
+  ],
+  "schema": "wasi-json-abi.capability-registry/1"
+}

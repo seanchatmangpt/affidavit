@@ -22,7 +22,10 @@ path = "../clap-noun-verb"
 
 [ontology]
 source = "ontology/affi-cli.ttl"
-imports = ["../ggen-marketplace/packs/affidavit-trust-plane-pack/ontology.ttl"]
+imports = [
+  "../ggen-marketplace/packs/affidavit-trust-plane-pack/ontology.ttl",
+  "ontology/affi-wasm.ttl",
+]
 
 [ontology.prefixes]
 cnv  = "http://clap-noun-verb.io/ontology#"
@@ -259,10 +262,24 @@ template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "
 output_file = "benches/crypto_trust_bench.rs"
 mode = "Overwrite"
 [[generation.rules]]
+name = "ctp-rotation-store"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "rotation-store.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_rotation_store.rs.tmpl" }
+output_file = "src/crypto_trust_rotation_store.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
 name = "ctp-witness"
 query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "witness.rq" }
 template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_witness.rs.tmpl" }
 output_file = "src/crypto_trust_witness.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "ctp-attestation"
+query    = { pack = "affidavit-trust-plane-pack", output = "queries", file = "attestation.rq" }
+template = { pack = "affidavit-trust-plane-pack", output = "templates", file = "crypto_trust_attestation.rs.tmpl" }
+output_file = "src/crypto_trust_attestation.rs"
 mode = "Overwrite"
 
 [[generation.rules]]
@@ -322,3 +339,53 @@ mode = "Overwrite"
 
 
 
+
+# --- WASI JSON-ABI module (wasi-json-abi-pack, project-neutral) --------------
+# All affidavit specifics (prefix af, crate, ops, limits) live in
+# ontology/affi-wasm.ttl. ARTIFACTS.sha256 is a pin: Create never overwrites a real pin.
+[[packs]]
+name = "wasi-json-abi-pack"
+registry = "local"
+path = "../ggen-marketplace/packs/wasi-json-abi-pack"
+
+[[generation.rules]]
+name = "wasm-ffi"
+query    = { pack = "wasi-json-abi-pack", output = "queries", file = "ffi.rq" }
+template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_ffi.rs.tmpl" }
+output_file = "affidavit-wasm/src/ffi.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "wasm-abi-meta"
+query    = { pack = "wasi-json-abi-pack", output = "queries", file = "meta.rq" }
+template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_abi_meta.rs.tmpl" }
+output_file = "affidavit-wasm/src/abi_meta.rs"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "wasm-cargo-config"
+query    = { pack = "wasi-json-abi-pack", output = "queries", file = "cargo.rq" }
+template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_cargo_config.toml.tmpl" }
+output_file = "affidavit-wasm/.cargo/config.toml"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "wasm-capability-registry"
+query    = { pack = "wasi-json-abi-pack", output = "queries", file = "registry.rq" }
+template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_capability_registry.json.tmpl" }
+output_file = "affidavit-wasm/registry/capability-registry.json"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "wasm-op-examples"
+query    = { pack = "wasi-json-abi-pack", output = "queries", file = "examples.rq" }
+template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_op_examples.json.tmpl" }
+output_file = "affidavit-wasm/registry/op-examples.json"
+mode = "Overwrite"
+
+[[generation.rules]]
+name = "wasm-artifacts"
+query    = { pack = "wasi-json-abi-pack", output = "queries", file = "registry.rq" }
+template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_artifacts.sha256.tmpl" }
+output_file = "affidavit-wasm/registry/ARTIFACTS.sha256"
+mode = "Create"

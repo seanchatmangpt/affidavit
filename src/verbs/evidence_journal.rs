@@ -13,7 +13,7 @@
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Record a receipt's cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry
+/// Record a receipt's cryptographic standing as durable journal evidence: assemble a real receipt over the subject, seal it under the custody key (AFFI_SIGNING_KEY_PATH), adjudicate the standing, and append the hash-chained journal entry (.affi/standing-journal.jsonl)
 #[rustfmt::skip]
 #[verb("journal", "evidence")]
 pub fn evidence_journal(

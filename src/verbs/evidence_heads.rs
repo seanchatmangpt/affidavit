@@ -13,7 +13,7 @@
 
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
-/// Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)
+/// Audit the standing journal (full chain re-verified from genesis) and report the RFC 9162 tree head re-derived from the journal entries alone; with AFFI_SIGNING_KEY_PATH custody the head is published signed and self-verified
 #[rustfmt::skip]
 #[verb("heads", "evidence")]
 pub fn evidence_heads(

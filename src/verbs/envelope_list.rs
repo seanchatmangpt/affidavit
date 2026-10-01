@@ -19,5 +19,7 @@ use clap_noun_verb_macros::verb;
 pub fn envelope_list(
     store: Option<String>,
 ) -> Result<()> {
-    crate::handlers::envelope_list(store)
+    crate::handlers::envelope_list(
+        store,
+    )
 }

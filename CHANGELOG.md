@@ -162,12 +162,9 @@ certification may authorize. See
 - The README still says "90 canonical verbs" against a 92-entry registry;
   `tests/release_identity.rs` holds the README to the registry and will fail
   until the projection is regenerated.
-- Attestation records and the rotation store are **not shipped**: the branch
-  carried two 1-byte placeholder modules (`crypto_trust_attestation.rs`,
-  `crypto_trust_rotation_store.rs`) with no capability behind them. They, their
-  `pub mod` seats, and their `ggen.toml` generation rules were dropped when
-  this work was ported onto main; nothing in this entry should be read as
-  shipping attestation records.
+- `src/crypto_trust_attestation.rs` is declared in `src/lib.rs` and is empty
+  (0 bytes): the attestation-records module *seat* exists, the capability does
+  not. Nothing in this entry should be read as shipping attestation records.
 - Wave 0's two BUILD_BROKEN courts are repaired in source —
   `tests/crypto_trust_e2e.rs` was re-rendered through the pack (zero
   `crate::` imports remain) and the seal test module's imports are complete —

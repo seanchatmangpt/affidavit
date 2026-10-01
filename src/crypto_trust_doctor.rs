@@ -206,7 +206,7 @@ fn fixed_envelope() -> SignatureEnvelope {
         not_before: 1_000,
         expires_at: 2_000,
         subject_digest: doctor_fixture("envelope-subject"),
-        audience: "affi.doctor".to_string(),
+        audience: "affidavit.cli".to_string(),
     }
 }
 

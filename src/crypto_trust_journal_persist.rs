@@ -22,11 +22,43 @@
 //! key ids are hex-derived and the nonce suffix is fixed-length.
 //!
 //! ATOMICITY LAW: `record` and `prune` never write the live path in place.
-//! The next file image is written to a same-directory tmp file (same
-//! filesystem, so rename is atomic), synced to disk with `sync_all` BEFORE
-//! the rename, then renamed over the live path. A reader on the other side of
+//! The next file image is written to a same-directory tmp sibling
+//! `.<name>.tmp-<pid>-<blake3(time, pid, path)[..16]>` (same filesystem, so
+//! rename is atomic; unique per attempt, so two processes never stage into
+//! one temporary and a pre-placed name cannot be predicted), created with
+//! `create_new(true)` — a pre-placed symlink (or any leftover) at the staged
+//! path is REFUSED at the open, never followed, so the
+//! arbitrary-file-clobber class is closed structurally — synced to disk with
+//! `sync_all` BEFORE the rename, then renamed over the live path (a failed
+//! rename removes the temporary best-effort). A reader on the other side of
 //! the rename therefore never observes a partial file, and a crash mid-write
-//! leaves the previous image intact and at most an orphaned tmp file.
+//! leaves the previous image intact and at most an orphaned tmp file. A
+//! nanos-clock tie producing a duplicate staging name is a typed refusal
+//! (fail-closed), never a clobber.
+//!
+//! LOCK LAW (bounded, honest, std-only): `record` and `prune` are
+//! read-modify-write transitions (refresh → check → flush). Without a
+//! cross-process lock, two processes can refresh the same image, both admit
+//! the same nonce, and the second flush silently erases the first — replay
+//! evidence lost. Every mutating transition therefore holds a lock file
+//! (`<name>.lock`, created with `create_new(true)`) across the WHOLE
+//! refresh→check→flush span and removes it on drop.
+//!
+//! Why not `flock`: the plane's admitted dependency closure takes no new
+//! crates (fs2/libc would be new deps) and std exposes no flock. The O_EXCL
+//! lock file is the honest std-only equivalent, with two real tradeoffs,
+//! both handled and neither hidden: (1) the kernel does not reclaim the lock
+//! on process death — the holder stamps `acquired=<unix>` + pid into the
+//! file, and an acquirer that finds the stamp (or an unparsable/missing
+//! stamp, judged by mtime age) older than [`LOCK_STALE_SECONDS`] steals the
+//! lock. A live holder paused longer than that inside the critical section
+//! can therefore be stolen from — acknowledged: the section is microseconds,
+//! the window is 5 seconds, and a stolen holder's drop removes the file only
+//! if its own token is still on it, so a steal never pulls the lock out from
+//! under the new holder. Staleness is age-based, not pid-liveness-based
+//! (no portable pid-liveness check in std). (2) Acquisition is a bounded
+//! retry loop ([`LOCK_TIMEOUT`]): past the deadline the transition is
+//! refused [`PersistError::Lock`] with nothing written; retry is lawful.
 //!
 //! CORRUPTION LAW: the wire form is never trusted without re-derivation.
 //! Every load/refresh/re-verify parses each line and validates its
@@ -42,9 +74,10 @@
 //! never by a forged nonce column, and no mirror function is offered — there
 //! is nothing lawful to mirror from.
 
-use std::fs;
-use std::io::Write;
+use std::fs::{self, OpenOptions};
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Default durable ledger file (ctp:journal-persist-v1
 /// ctp:persistenceFile), relative to the consumer repository root. One
@@ -104,6 +137,13 @@ pub enum PersistError {
     /// path carries for the transition that cannot currently fire.
     #[error("serialization: {0}")]
     Serialization(String),
+    /// The cross-process transition lock could not be acquired within the
+    /// bounded wait ([`LOCK_TIMEOUT`]): another holder is alive
+    /// mid-transition. Nothing was read as fresh, nothing was written;
+    /// retrying the record is lawful. Distinct from [`PersistError::Io`] —
+    /// the ledger itself is fine, contention refused the transition.
+    #[error("lock: {0}")]
+    Lock(String),
 }
 
 impl From<std::io::Error> for PersistError {
@@ -165,13 +205,146 @@ fn hex_decode_nonce(s: &str) -> Option<[u8; 16]> {
 }
 
 /// The tmp sibling used by the atomic flush: same directory as the live path
-/// (same filesystem, so `rename` is atomic), name derived from the live file
-/// name.
+/// (same filesystem, so `rename` is atomic), name
+/// `.<name>.tmp-<pid>-<blake3(time, pid, path)[..16]>`. Unique per attempt —
+/// two processes (or two attempts of one process) never stage into the same
+/// temporary, and the name is not predictable in advance, so an attacker
+/// cannot pre-plant the path the next flush will stage at. A nanos-clock tie
+/// duplicating a name is a typed refusal at the `create_new(true)` open
+/// (fail-closed), never a clobber.
 fn tmp_sibling(path: &Path) -> PathBuf {
     let name = path
         .file_name()
         .map_or_else(|| "ledger".to_string(), |n| n.to_string_lossy().to_string());
-    path.with_file_name(format!("{name}.tmp"))
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let seed = format!("{nanos}|{}|{}", std::process::id(), path.display());
+    let digest = blake3::hash(seed.as_bytes()).to_hex();
+    path.with_file_name(format!(
+        ".{name}.tmp-{}-{}",
+        std::process::id(),
+        &digest[..16]
+    ))
+}
+
+/// Seconds after which a lock file's stamp (or its mtime, for an
+/// unparsable/missing stamp) marks its holder dead and the lock stealable.
+pub(crate) const LOCK_STALE_SECONDS: u64 = 5;
+
+/// Bounded total wait for lock acquisition; past it the transition is
+/// refused [`PersistError::Lock`] with nothing written.
+pub(crate) const LOCK_TIMEOUT: Duration = Duration::from_secs(LOCK_STALE_SECONDS);
+
+/// The `<name>.lock` path guarding mutations of the ledger at `path`.
+fn lock_path(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map_or_else(|| "ledger".to_string(), |n| n.to_string_lossy().to_string());
+    path.with_file_name(format!("{name}.lock"))
+}
+
+/// Seconds since the Unix epoch (clock fallback 0 is honest here: it only
+/// makes a stamp look maximally old, i.e. stealable, for a broken clock).
+fn unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// The staleness decision for one observed lock file, pure so every branch
+/// is witnessed by the court: `body` is the file content (None = unreadable),
+/// `mtime_age` its age (None = unstatable). A parsable `acquired=<unix>`
+/// stamp decides by stamp age; anything unparsable falls back to mtime age
+/// and fails CLOSED — no readable age, no steal.
+fn lock_is_stale(body: Option<&str>, mtime_age: Option<Duration>, now_unix: u64) -> bool {
+    if let Some(text) = body {
+        if let Some(acquired) = text
+            .lines()
+            .find_map(|line| line.strip_prefix("acquired="))
+            .and_then(|value| value.trim().parse::<u64>().ok())
+        {
+            return now_unix.saturating_sub(acquired) >= LOCK_STALE_SECONDS;
+        }
+    }
+    mtime_age.map_or(false, |age| age >= Duration::from_secs(LOCK_STALE_SECONDS))
+}
+
+/// A held transition lock. Drop removes the lock file — but only if the
+/// holder's own token is still on it: a stale-steal may have handed the lock
+/// to another acquirer while this holder was paused past the staleness
+/// window, and that steal must never be undone by the old holder's exit.
+#[derive(Debug)]
+struct FileLock {
+    path: PathBuf,
+    token: String,
+}
+
+impl Drop for FileLock {
+    fn drop(&mut self) {
+        if let Ok(current) = fs::read_to_string(&self.path) {
+            if current == self.token {
+                let _ = fs::remove_file(&self.path);
+            }
+        }
+    }
+}
+
+/// Acquire the transition lock for the ledger at `path` with the standard
+/// 5s bounded wait. O_EXCL `create_new(true)` is the whole mutual-exclusion
+/// mechanism: exactly one acquirer materializes the file; everyone else
+/// finds it existing, judges it live or stale, and either waits its bounded
+/// turn or steals a provably dead one.
+fn acquire_lock(path: &Path) -> Result<FileLock, PersistError> {
+    acquire_lock_within(path, LOCK_TIMEOUT)
+}
+
+/// The bounded acquire loop (timeout made explicit so the court can witness
+/// both the refusal and the steal without sleeping real seconds).
+fn acquire_lock_within(path: &Path, timeout: Duration) -> Result<FileLock, PersistError> {
+    let lock = lock_path(path);
+    // The lock lives beside the ledger, whose directory may not exist yet on
+    // a first-ever record (before any flush has created it).
+    if let Some(dir) = lock.parent() {
+        if !dir.as_os_str().is_empty() {
+            fs::create_dir_all(dir)?;
+        }
+    }
+    let deadline = Instant::now() + timeout;
+    let mut backoff = Duration::from_millis(1);
+    loop {
+        match OpenOptions::new().write(true).create_new(true).open(&lock) {
+            Ok(mut file) => {
+                let token = format!("acquired={}\npid={}\n", unix_now(), std::process::id());
+                file.write_all(token.as_bytes())?;
+                return Ok(FileLock { path: lock, token });
+            }
+            Err(err) if err.kind() == ErrorKind::AlreadyExists => {
+                let body = fs::read_to_string(&lock).ok();
+                let mtime_age = fs::metadata(&lock).ok().and_then(|meta| {
+                    meta.modified()
+                        .ok()
+                        .and_then(|modified| modified.elapsed().ok())
+                });
+                if lock_is_stale(body.as_deref(), mtime_age, unix_now()) {
+                    // Steal. Racing thieves that lose the remove simply
+                    // re-enter the loop against the winner's fresh stamp.
+                    let _ = fs::remove_file(&lock);
+                }
+            }
+            Err(err) => return Err(PersistError::from(err)),
+        }
+        if Instant::now() >= deadline {
+            return Err(PersistError::Lock(format!(
+                "transition lock {} not acquired within {timeout:?}",
+                lock.display()
+            )));
+        }
+        std::thread::sleep(backoff);
+        backoff = (backoff * 2).min(Duration::from_millis(25));
+    }
 }
 
 /// The durable, cross-process nonce ledger: an append-only JSONL file of
@@ -273,9 +446,11 @@ impl NonceLedgerFile {
     /// law: a repeat strictly inside the half-open window
     /// (`at - seen_at < window_seconds`) is refused
     /// [`PersistError::Replay`] and nothing is written; at or beyond the
-    /// boundary the new sighting is appended. The ledger is refreshed from
-    /// disk FIRST, then the record is appended and the file rewritten
-    /// atomically (same-directory tmp, `sync_all`, rename).
+    /// boundary the new sighting is appended. The whole
+    /// refresh→check→append→flush span runs under the cross-process
+    /// transition lock (LOCK LAW), so two processes racing the same nonce
+    /// serialize and exactly one admits — the loser is a typed
+    /// [`PersistError::Replay`], never a silent lost update.
     pub fn record(
         &mut self,
         kid: &str,
@@ -283,6 +458,7 @@ impl NonceLedgerFile {
         at: u64,
         window_seconds: u64,
     ) -> Result<(), PersistError> {
+        let _guard = acquire_lock(&self.path)?;
         self.refresh()?;
         if let Some(seen_at) = self.seen(kid, &nonce) {
             if at.saturating_sub(seen_at) < window_seconds {
@@ -315,8 +491,11 @@ impl NonceLedgerFile {
     /// [`NonceLedgerFile::record`]: an entry pruned at `now` is exactly an
     /// entry whose re-record at `now` would be admitted — and atomically
     /// rewrite the file without them. Returns the number of evicted records;
-    /// a zero count writes nothing. The view is refreshed from disk first.
+    /// a zero count writes nothing. The view is refreshed from disk first,
+    /// and the whole refresh→retain→flush span runs under the cross-process
+    /// transition lock (LOCK LAW), same as [`NonceLedgerFile::record`].
     pub fn prune(&mut self, now: u64, window_seconds: u64) -> Result<usize, PersistError> {
+        let _guard = acquire_lock(&self.path)?;
         self.refresh()?;
         let before = self.entries.len();
         self.entries
@@ -346,11 +525,24 @@ impl NonceLedgerFile {
 
     /// Atomic full-file flush: every record is serialized (refusals map to
     /// [`PersistError::Serialization`]), the next file image is written to a
-    /// same-directory tmp file, synced with `sync_all`, and renamed over the
-    /// live path — a reader after the rename never sees a partial file, and
-    /// the tmp file never survives a completed flush.
+    /// unique same-directory tmp sibling ([`tmp_sibling`]) created with
+    /// `create_new(true)` — refusing, never following, anything already at
+    /// the staged path, so a pre-placed symlink cannot redirect the write —
+    /// synced with `sync_all`, and renamed over the live path (a failed
+    /// rename removes the temporary best-effort). A reader after the rename
+    /// never sees a partial file, and the tmp file never survives a
+    /// completed flush.
     fn flush(&self) -> Result<(), PersistError> {
-        if let Some(dir) = self.path.parent() {
+        let tmp = tmp_sibling(&self.path);
+        self.flush_to(&tmp)
+    }
+
+    /// The flush law with the staging path made explicit — the exact code
+    /// [`NonceLedgerFile::flush`] runs, with only the (unpredictable)
+    /// staging name lifted into an argument so the symlink-attack court can
+    /// plant one and watch the refusal fire.
+    fn flush_to(&self, tmp: &Path) -> Result<(), PersistError> {
+        if let Some(dir) = tmp.parent() {
             if !dir.as_os_str().is_empty() {
                 fs::create_dir_all(dir)?;
             }
@@ -364,12 +556,29 @@ impl NonceLedgerFile {
         } else {
             format!("{}\n", lines.join("\n"))
         };
-        let tmp = tmp_sibling(&self.path);
-        let mut file = fs::File::create(&tmp)?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(tmp)
+            .map_err(|err| {
+                PersistError::Io(format!(
+                    "stage {}: refused (never follows an existing path): {err}",
+                    tmp.display()
+                ))
+            })?;
         file.write_all(body.as_bytes())?;
         file.sync_all()?;
-        fs::rename(&tmp, &self.path)?;
-        Ok(())
+        match fs::rename(tmp, &self.path) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                let _ = fs::remove_file(tmp);
+                Err(PersistError::Io(format!(
+                    "rename {} -> {}: {err}",
+                    tmp.display(),
+                    self.path.display()
+                )))
+            }
+        }
     }
 
     /// The durable path this ledger writes.
@@ -421,13 +630,21 @@ mod tests {
         dir.join(PERSIST_FILE).with_file_name("nonce-journal.jsonl")
     }
 
-    /// Count orphaned tmp files: after any completed transition there must
-    /// be none (the atomic flush renames its tmp away or fails typed).
-    fn tmp_leftovers(dir: &Path) -> usize {
+    /// Count orphaned staging temporaries (`.tmp-*`) and transition locks
+    /// (`.lock`) beside the ledger: after any completed transition there
+    /// must be none (the atomic flush renames its tmp away or fails typed;
+    /// the lock guard removes its file on drop). The check lists the LEDGER'S
+    /// directory — the `.affi/` parent the flush stages in — not the scratch
+    /// root, where it would count nothing and carry no bits.
+    fn tmp_leftovers(ledger_path: &Path) -> usize {
+        let dir = ledger_path.parent().expect("ledger has a parent");
         fs::read_dir(dir)
-            .expect("scratch dir reads")
+            .expect("ledger dir reads")
             .filter_map(|entry| entry.ok())
-            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
+            .filter(|entry| {
+                let name = entry.file_name().to_string_lossy().to_string();
+                name.contains(".tmp-") || name.ends_with(".lock")
+            })
             .count()
     }
 
@@ -467,7 +684,7 @@ mod tests {
             a.record(KID_A, nonce(7), 1_000, 600)
                 .expect("first sighting records");
             assert_eq!(a.len(), 1);
-            assert_eq!(tmp_leftovers(&dir), 0, "flush leaves no tmp behind");
+            assert_eq!(tmp_leftovers(&path), 0, "flush leaves no tmp behind");
         }
 
         // Process B: fresh struct, empty memory, the file is the only
@@ -482,7 +699,7 @@ mod tests {
         // A refused record must not mutate the durable file.
         let wire = fs::read_to_string(&path).expect("durable file reads");
         assert_eq!(wire.lines().count(), 1, "replay refusal writes nothing");
-        assert_eq!(tmp_leftovers(&dir), 0);
+        assert_eq!(tmp_leftovers(&path), 0);
 
         // Window expiry admits: at 1_000 + 600 the half-open window has
         // closed, so the re-sighting is appended and becomes the latest.
@@ -541,6 +758,229 @@ mod tests {
             Err(PersistError::Replay { kid }) => assert_eq!(kid, KID_B),
             other => panic!("expected cross-handle Replay, got {other:?}"),
         }
+    }
+
+    // -- the transition lock: cross-process serialization --------------------
+
+    #[test]
+    fn concurrent_processes_racing_the_same_nonce_admit_exactly_one() {
+        let dir = scratch_dir("race");
+        let path = ledger_in(&dir);
+        const PROCESSES: usize = 8;
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(PROCESSES));
+        let handles: Vec<_> = (0..PROCESSES)
+            .map(|_| {
+                let barrier = barrier.clone();
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    // Each thread is its own "process": its own struct, its
+                    // own empty in-memory view, only the file shared. The
+                    // barrier fires all records into the same instant.
+                    let mut ledger = NonceLedgerFile::open_or_create(&path).expect("opens");
+                    barrier.wait();
+                    ledger.record(KID_A, nonce(7), 1_000, 600)
+                })
+            })
+            .collect();
+        let outcomes: Vec<Result<(), PersistError>> = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("no thread panics"))
+            .collect();
+        let admitted = outcomes.iter().filter(|o| o.is_ok()).count();
+        let replayed = outcomes
+            .iter()
+            .filter(|o| matches!(o, Err(PersistError::Replay { .. })))
+            .count();
+        assert_eq!(admitted, 1, "exactly one process admits: {outcomes:?}");
+        assert_eq!(
+            replayed,
+            PROCESSES - 1,
+            "every loser is a typed Replay, never a silent lost update: {outcomes:?}"
+        );
+        // The durable file carries exactly the winner's sighting.
+        let wire = fs::read_to_string(&path).expect("durable file reads");
+        assert_eq!(wire.lines().count(), 1, "one sighting on disk");
+        assert_eq!(
+            tmp_leftovers(&path),
+            0,
+            "no staging tmp or lock residue after the race"
+        );
+        // A fresh process verifies the winner from disk alone.
+        let verifier = NonceLedgerFile::load(&path).expect("reloads");
+        assert_eq!(verifier.seen(KID_A, &nonce(7)), Some(1_000));
+    }
+
+    #[test]
+    fn lock_is_stale_pure_decision_covers_every_branch() {
+        const NOW: u64 = 1_000_000;
+        let fresh_stamp = Some("acquired=999999\npid=1\n");
+        let old_stamp = Some(format!("acquired={}\npid=1\n", NOW - LOCK_STALE_SECONDS));
+        let old_stamp = old_stamp.as_deref();
+        // Parsable stamps decide by stamp age.
+        assert!(!lock_is_stale(fresh_stamp, None, NOW), "fresh stamp holds");
+        assert!(
+            lock_is_stale(old_stamp, None, NOW),
+            "stamp at exactly the boundary is stealable"
+        );
+        // Unparsable/missing bodies fall back to mtime age, fail-closed.
+        assert!(!lock_is_stale(Some(""), Some(Duration::from_secs(1)), NOW));
+        assert!(lock_is_stale(
+            Some(""),
+            Some(Duration::from_secs(LOCK_STALE_SECONDS)),
+            NOW
+        ));
+        assert!(!lock_is_stale(
+            Some("garbage"),
+            Some(Duration::from_secs(1)),
+            NOW
+        ));
+        assert!(lock_is_stale(
+            Some("garbage"),
+            Some(Duration::from_secs(LOCK_STALE_SECONDS)),
+            NOW
+        ));
+        // No readable age at all: never steal.
+        assert!(!lock_is_stale(None, None, NOW));
+        assert!(!lock_is_stale(Some("garbage"), None, NOW));
+    }
+
+    #[test]
+    fn stale_lock_is_stolen_and_bounded_wait_refuses_a_live_holder() {
+        let dir = scratch_dir("lock");
+        let path = ledger_in(&dir);
+        fs::create_dir_all(path.parent().expect("ledger has a parent"))
+            .expect("ledger dir creates");
+        let lock = lock_path(&path);
+
+        // A live holder (fresh stamp): the bounded acquire must refuse with
+        // the typed Lock variant. The internal bounded acquire is the exact
+        // loop the public 5s path runs, driven here with a short deadline so
+        // the suite does not sleep real seconds.
+        fs::write(
+            &lock,
+            format!("acquired={}\npid={}\n", unix_now(), std::process::id()),
+        )
+        .expect("fresh lock planted");
+        match acquire_lock_within(&path, Duration::from_millis(50)) {
+            Err(PersistError::Lock(message)) => {
+                assert!(message.contains("lock"), "{message}");
+            }
+            other => panic!("expected Lock, got {other:?}"),
+        }
+        // The refusal leaves the holder's lock untouched.
+        assert!(
+            lock.is_file(),
+            "a timed-out acquire never removes a live lock"
+        );
+
+        // A dead holder (stamp past LOCK_STALE_SECONDS): the very next
+        // acquire steals, stamps its own token, and drop removes the file.
+        let old = unix_now().saturating_sub(LOCK_STALE_SECONDS + 10);
+        fs::write(&lock, format!("acquired={old}\npid=1\n")).expect("stale lock planted");
+        {
+            let guard = acquire_lock(&path).expect("stale lock is stolen");
+            assert_eq!(
+                fs::read_to_string(&lock).expect("lock reads"),
+                guard.token,
+                "the thief's token is what is on file"
+            );
+        }
+        assert!(
+            !lock.exists(),
+            "drop removes the lock its holder still owns"
+        );
+
+        // And through the public transition: a stale lock does not block a
+        // record; the guard acquires, transitions, and cleans up.
+        fs::write(&lock, format!("acquired={old}\npid=1\n")).expect("stale lock replanted");
+        let mut ledger = NonceLedgerFile::open_or_create(&path).expect("opens");
+        ledger
+            .record(KID_A, nonce(3), 500, 600)
+            .expect("record steals the stale lock and lands");
+        assert!(!lock.exists(), "record's guard removed the lock");
+        assert!(path.is_file(), "the transition's evidence is durable");
+    }
+
+    #[test]
+    fn a_completed_transition_leaves_no_lock_file() {
+        let dir = scratch_dir("lock-cleanup");
+        let path = ledger_in(&dir);
+        let mut ledger = NonceLedgerFile::open_or_create(&path).expect("opens");
+        ledger.record(KID_A, nonce(1), 100, 600).expect("record");
+        ledger.prune(10_000, 600).expect("prune evicts everything");
+        assert!(
+            !lock_path(&path).exists(),
+            "the transition lock is released on completion"
+        );
+        assert_eq!(tmp_leftovers(&path), 0);
+    }
+
+    // -- the staging tmp: symlink attack refused, unique per attempt ---------
+
+    #[test]
+    fn symlink_at_staging_path_refused_and_victim_never_followed() {
+        let dir = scratch_dir("symlink");
+        let path = ledger_in(&dir);
+        let mut ledger = NonceLedgerFile::open_or_create(&path).expect("opens");
+        ledger
+            .record(KID_A, nonce(1), 100, 600)
+            .expect("seed record");
+
+        // Attack: a symlink planted at a staging path pointing at a victim
+        // file. The stage open runs create_new(true), so the pre-placed name
+        // is REFUSED (EEXIST) — never followed, never clobbered.
+        let victim = dir.join("victim.json");
+        fs::write(&victim, b"original victim bytes").expect("victim writes");
+        let planted = dir.join(".nonce-journal.jsonl.tmp-attack");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&victim, &planted).expect("symlink planted");
+        match ledger.flush_to(&planted) {
+            Err(PersistError::Io(message)) => {
+                assert!(
+                    message.contains(&planted.display().to_string()),
+                    "refusal names the staged path: {message}"
+                );
+            }
+            other => panic!("expected Io refusal at the planted symlink, got {other:?}"),
+        }
+        assert_eq!(
+            fs::read(&victim).expect("victim reads"),
+            b"original victim bytes",
+            "the symlink must never be followed"
+        );
+
+        // A DANGLING symlink is refused the same way: O_EXCL sees the link
+        // itself, not its missing target, and materializes nothing through it.
+        #[cfg(unix)]
+        {
+            let dangling = dir.join(".nonce-journal.jsonl.tmp-dangling");
+            std::os::unix::fs::symlink(dir.join("no-such-target"), &dangling)
+                .expect("dangling symlink planted");
+            match ledger.flush_to(&dangling) {
+                Err(PersistError::Io(_)) => {}
+                other => panic!("expected Io refusal at the dangling symlink, got {other:?}"),
+            }
+            assert!(!dir.join("no-such-target").exists());
+        }
+
+        // The honest path still lands: the staging name flush() actually
+        // computes is dot-prefixed, pid-stamped, and unique per attempt.
+        let tmp = tmp_sibling(&path);
+        ledger.flush_to(&tmp).expect("honest staged flush lands");
+        assert!(path.is_file(), "the rename landed over the live path");
+        let name = tmp
+            .file_name()
+            .expect("tmp has a file name")
+            .to_string_lossy()
+            .to_string();
+        assert!(name.starts_with(".nonce-journal.jsonl.tmp-"), "{name}");
+        assert!(name.contains(&std::process::id().to_string()), "{name}");
+        assert_ne!(
+            tmp_sibling(&path),
+            tmp,
+            "staging name carries per-attempt entropy"
+        );
+        assert_eq!(tmp_leftovers(&path), 0, "renames consumed both temporaries");
     }
 
     // -- load / open_or_create / integrity -----------------------------------
@@ -700,7 +1140,7 @@ mod tests {
             "the file is rewritten, not just the view"
         );
         ledger.verify_integrity().expect("rewritten file verifies");
-        assert_eq!(tmp_leftovers(&dir), 0, "rewrite is the atomic flush");
+        assert_eq!(tmp_leftovers(&path), 0, "rewrite is the atomic flush");
 
         // A zero-count prune writes nothing.
         let before = fs::read_to_string(&path).expect("durable file reads");

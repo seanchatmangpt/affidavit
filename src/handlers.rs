@@ -7757,8 +7757,7 @@ pub fn envelope_list(store: Option<String>) -> Result<()> {
             "{}\t{}\t{}\t{}\t{}",
             record.id,
             record.algorithm.as_str(),
-            // Wire form of the profile (SCREAMING_SNAKE_CASE), not the variant name.
-            record.algorithm.profile().as_str().to_uppercase(),
+            record.algorithm.profile().as_str(),
             record.fingerprint.as_hex(),
             record.custodian.subject
         );

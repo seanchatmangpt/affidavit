@@ -29,28 +29,60 @@ not.
 | Export | Signature | Meaning |
 |---|---|---|
 | `af_abi_version` | `() -> u32` | ABI revision (currently `1`). |
-| `af_alloc` | `(len: u32) -> ptr` | Reserve `len` zeroed bytes for a request. |
+| `af_alloc` | `(len: u32) -> ptr` | Reserve `len` zeroed bytes for a request. Returns **null (0)** when `len` exceeds the request limit (16 MiB). |
 | `af_call` | `(ptr: u32, len: u32) -> u64` | Run the request; **consumes** the request buffer. Returns `(out_ptr << 32) \| out_len`. |
 | `af_free` | `(ptr: u32, len: u32)` | Release a response buffer (or an unused request buffer). |
 | `memory` | | Linear memory. |
 
 Round trip: `alloc` → write UTF-8 JSON → `call` → read `out_len` bytes at
-`out_ptr` → `free(out_ptr, out_len)`. Every response is JSON:
+`out_ptr` → `free(out_ptr, out_len)`. A null request pointer or an oversize
+length never traps: `af_call` answers with a typed error. Every response is JSON:
 `{"ok":true,"op":…,…}` or `{"ok":false,"error":{"code","message"}}`. The call
 never panics on any input.
 
-Error codes: `bad_json`, `missing_field`, `unknown_op`, `bad_field`,
-`too_large` (requests over 16 MiB), `internal`.
+Error codes (`abi_meta::ERROR_CODES`): `bad_json`, `missing_field`,
+`unknown_op`, `bad_field`, `too_large` (request over 16 MiB), `too_deep` (JSON
+nesting over 64), `missing_buffer` (`af_call` on a null buffer), `internal`.
+Limit failures carry `error.limit`, `error.observed`, `error.max`.
+
+Unknown extra request fields are tolerated (forward compatibility); an unknown
+`op` is a typed `unknown_op`.
+
+## Generated vs hand-written
+
+The ABI shell is **manufactured**, not written: `ontology/affi-wasm.ttl` (an
+instance of the project-neutral `wja:` vocabulary of
+`ggen-marketplace/packs/wasi-json-abi-pack`) is rendered by `ggen sync` into
+
+| Output | Content |
+|---|---|
+| `affidavit-wasm/src/ffi.rs` | the only `unsafe`: `af_abi_version/_alloc/_free/_call`, null/oversize guards |
+| `affidavit-wasm/src/abi_meta.rs` | `ABI_VERSION`, `MAX_REQUEST_BYTES`, `MAX_JSON_DEPTH`, `OPS`, `ERROR_CODES` |
+| `affidavit-wasm/.cargo/config.toml` | 16 MiB stack for the wasm targets |
+| `affidavit-wasm/registry/capability-registry.json`, `op-examples.json` | machine-readable capability registry and one example request per op |
+| `affidavit-wasm/registry/ARTIFACTS.sha256` | create-only pin of the built module (`wasm <sha256> <bytes> <name>`) |
+
+Never edit these by hand: change the ontology and re-render (CI runs a drift
+court: `ggen sync run` then `git diff --exit-code`). The op bodies
+(`abi.rs`), `receipt.rs` and `crypto.rs` stay hand-written (`HANDWRITTEN.md`).
+
+**Re-pin after any change to `src/` or `Cargo.lock`:**
+`cargo build --locked --lib --target wasm32-wasip1 --profile wasm`, build again
+with `--target-dir <other>` and `cmp` the two (they must be identical; the
+profile sets `trim-paths` so embedded paths are checkout-independent), then put
+`sha256`/size of the module on the `wasm` line of `registry/ARTIFACTS.sha256`.
+`AFFIDAVIT_WASM=<module> cargo test --test registry_artifacts` enforces the pin.
 
 ## Ops
 
 | Op | Request | Response (besides `ok`, `op`) |
 |---|---|---|
-| `capabilities` | `{}` | `version`, `abi_version`, `format_version` (`core/v1`), `genesis_seed`, `hash`, `ops`, `limits` |
+| `capabilities` | `{}` | `version`, `abi_version`, `format_version` (`core/v1`), `genesis_seed`, `hash`, `ops`, `limits` (`max_request_bytes`, `max_json_depth`), `error_codes` |
 | `commit` | `{payload}` or `{payload_hex}` | `commitment` (BLAKE3 hex), `bytes` |
 | `assemble` | `{events:[{event_type, payload\|payload_hex\|payload_commitment, id?, objects?}]}` | `receipt`, `content_address`, `chain_hash` |
 | `verify` | `{receipt}` | `accepted`, `profile`, `outcomes[6]` (`stage`,`passed`,`detail`), `reason`, `content_address` |
 | `mine` | `{receipts:[…]}` | `activities`, `edges`, `start`, `end`, `activity_frequency`, `variants`, `footprint`, `trace_count`, `event_count`, `all_accepted`, `rejected_receipts` |
+| `verify_signature_input` | `{envelope_json, expected_signing_input_hex}` | `verified`, `signing_input_hex` (envelope signing pre-image binding; no signature arithmetic) |
 | `conform` | `{model:[receipts], trace: receipt}` | `verdict`, `fitness`, `legal_moves`, `total_moves`, `start_ok`, `end_ok`, `first_violation`, `trace_accepted`, `model_all_accepted` |
 
 Notes:
@@ -103,7 +135,10 @@ buffer detaches when linear memory grows.
 `affi` binary (`affi receipt emit` ×3 → `assemble`). The tests assert, in a real
 wasm runtime (wasmi), that the module (1) ACCEPTs it, (2) REJECTs a tampered copy
 with the exact reason `affi` prints, (3) reproduces it byte-for-byte via
-`assemble`, and (4) answers identically native vs. wasm. `tests/release_identity.rs`
+`assemble`, and (4) answers identically native vs. wasm, over every op example in
+`registry/op-examples.json` (`tests/op_differential.rs`, which also pins typed
+limits and forward-compat), with the registry checked against the module's own
+`capabilities` and the artifact pin verified (`tests/registry_artifacts.rs`). `tests/release_identity.rs`
 in the root crate additionally requires the fixture to ACCEPT under the current
 release's own verifier and the wasm crate's version to equal `affi`'s, so a
 version bump cannot leave either behind.

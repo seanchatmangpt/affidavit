@@ -1,0 +1,95 @@
+# affi-wasm.ttl -- affidavit's instance of the wasi-json-abi-pack vocabulary.
+# All affidavit-specific ABI facts (prefix, crate, ops, limits, version) live
+# here; the pack itself is project-neutral. Rendered by `ggen sync` into
+# affidavit-wasm/{src/ffi.rs,src/abi_meta.rs,.cargo/config.toml,registry/*}.
+# Example requests embed the real-affi golden receipt
+# (affidavit-wasm/tests/fixtures/golden_receipt.json); after a version bump they
+# remain valid requests (verify answers REJECT) until the fixture is regenerated.
+
+@prefix wja: <https://ggen.dev/ontology/wasi-json-abi#> .
+@prefix afw: <http://affidavit.io/wasm#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+afw:module a wja:WasmModule ;
+    rdfs:label "affidavit WASI module" ;
+    wja:crateName "affidavit-wasm" ;
+    wja:exportPrefix "af" ;
+    wja:abiVersion 1 ;
+    wja:maxRequestBytes 16777216 ;
+    wja:maxJsonDepth 64 ;
+    wja:stackSizeBytes 16777216 ;
+    wja:importsPolicy "wasi_snapshot_preview1" ;
+    wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input ;
+    wja:hasErrorCode afw:err-bad-json , afw:err-missing-field , afw:err-unknown-op , afw:err-bad-field , afw:err-too-large , afw:err-too-deep , afw:err-missing-buffer , afw:err-internal .
+
+afw:op-capabilities a wja:Op ;
+    wja:opName "capabilities" ;
+    wja:opOrder 1 ;
+    wja:requestFields "op" ;
+    wja:responseFields "ok,op,module,version,abi_version,format_version,genesis_seed,hash,ops,limits" ;
+    wja:exampleRequest """{"op":"capabilities"}""" .
+
+afw:op-commit a wja:Op ;
+    wja:opName "commit" ;
+    wja:opOrder 2 ;
+    wja:requestFields "op,payload,payload_hex" ;
+    wja:responseFields "ok,op,commitment,bytes" ;
+    wja:exampleRequest """{"op":"commit","payload":"héllo wörld ✓"}""" .
+
+afw:op-assemble a wja:Op ;
+    wja:opName "assemble" ;
+    wja:opOrder 3 ;
+    wja:requestFields "op,events" ;
+    wja:responseFields "ok,op,receipt,content_address,chain_hash" ;
+    wja:exampleRequest """{"op":"assemble","events":[{"event_type":"build","objects":["repo:git:main"],"payload":"compile step\\n"},{"event_type":"test","objects":["suite:test-suite:unit"],"payload":"unit tests\\n"},{"event_type":"deploy","objects":["svc:service"],"payload":"ship it\\n"}]}""" .
+
+afw:op-verify a wja:Op ;
+    wja:opName "verify" ;
+    wja:opOrder 4 ;
+    wja:requestFields "op,receipt" ;
+    wja:responseFields "ok,op,accepted,profile,outcomes,reason,content_address" ;
+    wja:exampleRequest """{"op":"verify","receipt":{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"}}""" .
+
+afw:op-mine a wja:Op ;
+    wja:opName "mine" ;
+    wja:opOrder 5 ;
+    wja:requestFields "op,receipts" ;
+    wja:responseFields "ok,op,trace_count,event_count,activities,edges,start,end,activity_frequency,variants,distinct_variants,footprint,footprint_omitted,all_accepted,rejected_receipts" ;
+    wja:exampleRequest """{"op":"mine","receipts":[{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"},{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"}]}""" .
+
+afw:op-conform a wja:Op ;
+    wja:opName "conform" ;
+    wja:opOrder 6 ;
+    wja:requestFields "op,model,trace" ;
+    wja:responseFields "ok,op,verdict,fitness,legal_moves,total_moves,start_ok,end_ok,first_violation,model_traces,trace_accepted,model_all_accepted" ;
+    wja:exampleRequest """{"op":"conform","model":[{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"}],"trace":{"chain_hash":"d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0","events":[{"event_type":"build","id":"evt-0","objects":[{"id":"repo","obj_type":"git","qualifier":"main"}],"payload_commitment":"31877ca434e544552d2f0c49564061cb198397d039ba4c598a89ef0fc808886f","seq":0},{"event_type":"test","id":"evt-1","objects":[{"id":"suite","obj_type":"test-suite","qualifier":"unit"}],"payload_commitment":"30e7d86e96771d575bc31dd23d3e5eee701be433ff5c7bd31e4f55e228ede395","seq":1},{"event_type":"deploy","id":"evt-2","objects":[{"id":"svc","obj_type":"service","qualifier":null}],"payload_commitment":"7ee8b77db36492d94a546e3414f38c859f7fe14226ded0ab4392e2d93a77863a","seq":2}],"format_version":"core/v1"}}""" .
+
+afw:op-verify-signature-input a wja:Op ;
+    wja:opName "verify_signature_input" ;
+    wja:opOrder 7 ;
+    wja:requestFields "op,envelope_json,expected_signing_input_hex" ;
+    wja:responseFields "ok,op,verified,signing_input_hex" ;
+    wja:exampleRequest """{"op":"verify_signature_input","envelope_json":"{\\"algorithm\\":\\"ES256\\",\\"audience\\":\\"affidavit.kat\\",\\"expires_at\\":4102444800,\\"generation\\":1,\\"key_id\\":\\"afk1_a9c3bd446195e2e2\\",\\"nonce\\":[25,107,217,46,141,94,95,54,120,72,204,59,49,154,244,42],\\"not_before\\":1700000000,\\"policy_epoch\\":1,\\"profile\\":\\"CLASSICAL\\",\\"revocation_epoch\\":0,\\"subject_digest\\":[206,63,11,26,126,80,218,245,190,191,110,203,240,54,52,94,36,141,20,88,5,127,63,121,250,128,109,66,210,110,68,97],\\"version\\":\\"CTP-ENVELOPE-v1\\"}","expected_signing_input_hex":"6166666964617669742e63727970746f2d74727573742d706c616e652e7631006166666964617669742e63727970746f2d74727573742d706c616e652e76310000000000000001ac7b22616c676f726974686d223a224553323536222c2261756469656e6365223a226166666964617669742e6b6174222c22657870697265735f6174223a343130323434343830302c2267656e65726174696f6e223a312c226b65795f6964223a2261666b315f61396333626434343631393565326532222c226e6f6e6365223a5b32352c3130372c3231372c34362c3134312c39342c39352c35342c3132302c37322c3230342c35392c34392c3135342c3234342c34325d2c226e6f745f6265666f7265223a313730303030303030302c22706f6c6963795f65706f6368223a312c2270726f66696c65223a22434c4153534943414c222c227265766f636174696f6e5f65706f6368223a302c227375626a6563745f646967657374223a5b3230362c36332c31312c32362c3132362c38302c3231382c3234352c3139302c3139312c3131302c3230332c3234302c35342c35322c39342c33362c3134312c32302c38382c352c3132372c36332c3132312c3235302c3132382c3130392c36362c3231302c3131302c36382c39375d2c2276657273696f6e223a224354502d454e56454c4f50452d7631227d"}""" .
+
+afw:op-certify-authzen-evidence a wja:Op ;
+    wja:opName "certify_authzen_evidence" ;
+    wja:opOrder 8 ;
+    wja:requestFields "op,request,decision,policy_decision_point,expected_policy_decision_point,expected_principal,expected_effect_digest" ;
+    wja:responseFields "ok,op,certified,standard,policy_allows,policy_decision_point,principal,effect_digest,action,authority,consequence,evidence_digest,evidence" ;
+    wja:exampleRequest """{"op":"certify_authzen_evidence","request":{"subject":{"type":"user","id":"alice@example.com"},"resource":{"type":"account","id":"123"},"action":{"name":"can_read","properties":{"method":"GET"}},"context":{"time":"1985-10-26T01:22-07:00"}},"decision":true,"policy_decision_point":"https://pdp.example.com","expected_policy_decision_point":"https://pdp.example.com","expected_principal":"alice@example.com","expected_effect_digest":"123"}""" .
+
+afw:op-certify-spiffe-evidence a wja:Op ;
+    wja:opName "certify_spiffe_evidence" ;
+    wja:opOrder 9 ;
+    wja:requestFields "op,spiffe_id,expected_spiffe_id,expected_trust_domain,bundle_digest,verified,svid_type,allow_jwt" ;
+    wja:responseFields "ok,op,certified,standard,spiffe_id,trust_domain,path,svid_type,authority,consequence,evidence_digest,evidence" ;
+    wja:exampleRequest """{"op":"certify_spiffe_evidence","spiffe_id":"spiffe://prod.acme.com/billing/api","expected_spiffe_id":"spiffe://prod.acme.com/billing/api","expected_trust_domain":"prod.acme.com","svid_type":"x509","bundle_digest":"sha256:canonical-example-bundle","verified":true}""" .
+
+afw:err-bad-json a wja:ErrorCode ; wja:codeName "bad_json" ; wja:codeOrder 1 .
+afw:err-missing-field a wja:ErrorCode ; wja:codeName "missing_field" ; wja:codeOrder 2 .
+afw:err-unknown-op a wja:ErrorCode ; wja:codeName "unknown_op" ; wja:codeOrder 3 .
+afw:err-bad-field a wja:ErrorCode ; wja:codeName "bad_field" ; wja:codeOrder 4 .
+afw:err-too-large a wja:ErrorCode ; wja:codeName "too_large" ; wja:codeOrder 5 .
+afw:err-too-deep a wja:ErrorCode ; wja:codeName "too_deep" ; wja:codeOrder 6 .
+afw:err-missing-buffer a wja:ErrorCode ; wja:codeName "missing_buffer" ; wja:codeOrder 7 .
+afw:err-internal a wja:ErrorCode ; wja:codeName "internal" ; wja:codeOrder 8 .

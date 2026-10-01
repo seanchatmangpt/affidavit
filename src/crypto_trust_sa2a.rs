@@ -136,7 +136,7 @@ fn hex_digit(byte: u8) -> Option<u8> {
 /// character count (`2 * N`) for the fixed-width envelope field.
 fn hex_decode_fixed<const N: usize>(hex: &str) -> Result<[u8; N], Sa2aWireError> {
     let bytes = hex.as_bytes();
-    if !bytes.len() % 2 == 0 {
+    if bytes.len() % 2 != 0 {
         return Err(Sa2aWireError::MalformedHex(hex.to_string()));
     }
     if bytes.len() != N * 2 {

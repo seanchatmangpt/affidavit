@@ -4,6 +4,7 @@
 //! Every failure is a structured `{"ok":false,"error":{"code","message"}}`;
 //! [`call`] never panics on any input.
 
+use crate::abi_meta::{ERROR_CODES, MAX_JSON_DEPTH, OPS};
 use crate::crypto;
 use crate::external_evidence;
 use crate::receipt::{self, ObjectRef, OperationEvent, Receipt};
@@ -13,42 +14,100 @@ use affidavit_core::mining::{
 };
 use serde_json::{json, Map, Value};
 
-/// ABI revision, bumped on any incompatible change to requests or responses.
-pub const ABI_VERSION: u32 = 1;
-
-/// Largest request accepted, in bytes.
-pub const MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
+// ABI revision and request limit come from the generated `abi_meta` (rendered
+// from `ontology/affi-wasm.ttl`); they are re-exported here for callers.
+pub use crate::abi_meta::{ABI_VERSION, MAX_REQUEST_BYTES};
 
 /// Footprints are quadratic in activities; beyond this they are omitted.
 const MAX_FOOTPRINT_ACTIVITIES: usize = 256;
 
-const OPS: &[&str] = &[
-    "capabilities",
-    "commit",
-    "assemble",
-    "verify",
-    "mine",
-    "conform",
-    "verify_signature_input",
-    "certify_authzen_evidence",
-    "certify_spiffe_evidence",
-];
-
 /// A structured, host-readable failure.
 #[derive(Debug, PartialEq, Eq)]
 pub struct AbiError {
-    /// Stable machine-readable code (`bad_json`, `unknown_op`, `missing_field`,
-    /// `bad_field`, `too_large`, `internal`).
+    /// Stable machine-readable code; always one of [`ERROR_CODES`].
     pub code: &'static str,
     /// Human-readable explanation.
     pub message: String,
+    /// Extra typed fields merged into the `error` object (limit failures).
+    pub details: Option<Value>,
 }
 
 pub(crate) fn err(code: &'static str, message: impl Into<String>) -> AbiError {
     AbiError {
         code,
         message: message.into(),
+        details: None,
     }
+}
+
+/// A typed resource-limit failure: `too_large` (bytes) or `too_deep` (nesting).
+fn limit(name: &str, observed: usize, max: usize) -> AbiError {
+    let code = if name == "json_depth" {
+        "too_deep"
+    } else {
+        "too_large"
+    };
+    AbiError {
+        code,
+        message: format!("resource limit `{name}` exceeded: {observed} > {max}"),
+        details: Some(json!({"limit": name, "observed": observed, "max": max})),
+    }
+}
+
+fn error_body(e: AbiError) -> Value {
+    let mut error = json!({"code": e.code, "message": e.message});
+    if let (Some(Value::Object(extra)), Some(map)) = (e.details, error.as_object_mut()) {
+        map.extend(extra);
+    }
+    json!({"ok": false, "error": error})
+}
+
+/// Maximum bracket nesting of a JSON text (string-aware, allocation-free).
+fn json_depth(b: &[u8]) -> usize {
+    let (mut depth, mut max, mut in_str, mut esc) = (0usize, 0usize, false, false);
+    for &c in b {
+        if in_str {
+            if esc {
+                esc = false;
+            } else if c == b'\\' {
+                esc = true;
+            } else if c == b'"' {
+                in_str = false;
+            }
+            continue;
+        }
+        match c {
+            b'"' => in_str = true,
+            b'[' | b'{' => {
+                depth += 1;
+                max = max.max(depth);
+            }
+            b']' | b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    max
+}
+
+/// Typed response for a request over a resource limit (used by the FFI shell).
+pub fn limit_response(name: &str, observed: usize, max: usize) -> Vec<u8> {
+    encode(error_body(limit(name, observed, max)))
+}
+
+/// Typed response for a call whose request buffer does not exist (`af_alloc`
+/// refused it, or it was never allocated).
+pub fn missing_buffer_response() -> Vec<u8> {
+    encode(error_body(err(
+        "missing_buffer",
+        "request buffer missing: af_alloc refused or was never called",
+    )))
+}
+
+fn encode(v: Value) -> Vec<u8> {
+    // Serializing a `Value` cannot fail; the fallback keeps the ABI total anyway.
+    serde_json::to_vec(&v).unwrap_or_else(|_| {
+        br#"{"ok":false,"error":{"code":"internal","message":"encode"}}"#.to_vec()
+    })
 }
 
 type Res<T> = Result<T, AbiError>;
@@ -60,23 +119,18 @@ pub fn call(request: &[u8]) -> Vec<u8> {
             body.insert("ok".into(), Value::Bool(true));
             Value::Object(body)
         }
-        Err(e) => json!({"ok": false, "error": {"code": e.code, "message": e.message}}),
+        Err(e) => error_body(e),
     };
-    // Serializing a `Value` cannot fail; the fallback keeps the ABI total anyway.
-    serde_json::to_vec(&response).unwrap_or_else(|_| {
-        br#"{"ok":false,"error":{"code":"internal","message":"encode"}}"#.to_vec()
-    })
+    encode(response)
 }
 
 fn dispatch(request: &[u8]) -> Res<Map<String, Value>> {
     if request.len() > MAX_REQUEST_BYTES {
-        return Err(err(
-            "too_large",
-            format!(
-                "request is {} bytes; limit is {MAX_REQUEST_BYTES}",
-                request.len()
-            ),
-        ));
+        return Err(limit("request_bytes", request.len(), MAX_REQUEST_BYTES));
+    }
+    let depth = json_depth(request);
+    if depth > MAX_JSON_DEPTH {
+        return Err(limit("json_depth", depth, MAX_JSON_DEPTH));
     }
     let req: Value = serde_json::from_slice(request).map_err(|e| err("bad_json", e.to_string()))?;
     let op = req
@@ -120,7 +174,8 @@ fn capabilities() -> Map<String, Value> {
         "genesis_seed": receipt::GENESIS_SEED,
         "hash": "blake3",
         "ops": OPS,
-        "limits": {"max_request_bytes": MAX_REQUEST_BYTES},
+        "limits": {"max_request_bytes": MAX_REQUEST_BYTES, "max_json_depth": MAX_JSON_DEPTH},
+        "error_codes": ERROR_CODES,
     }))
 }
 
@@ -564,6 +619,51 @@ mod tests {
     }
 
     #[test]
+    fn limit_failures_are_typed_with_observed_and_max() {
+        let r: Value = serde_json::from_slice(&limit_response("request_bytes", 9, 4)).unwrap();
+        assert_eq!(r["error"]["code"], "too_large");
+        assert_eq!(r["error"]["limit"], "request_bytes");
+        assert_eq!(r["error"]["observed"], 9);
+        assert_eq!(r["error"]["max"], 4);
+        let d: Value = serde_json::from_slice(&limit_response("json_depth", 65, 64)).unwrap();
+        assert_eq!(d["error"]["code"], "too_deep");
+        let m: Value = serde_json::from_slice(&missing_buffer_response()).unwrap();
+        assert_eq!(m["error"]["code"], "missing_buffer");
+    }
+
+    #[test]
+    fn depth_counts_brackets_outside_strings_only() {
+        assert_eq!(json_depth(br#"{"a":"[[[[","b":[1,{"c":2}]}"#), 3);
+        assert_eq!(json_depth(br#""\"[[""#), 0);
+        let at_limit = format!(
+            "{}{}",
+            "[".repeat(MAX_JSON_DEPTH),
+            "]".repeat(MAX_JSON_DEPTH)
+        );
+        let r: Value = serde_json::from_slice(&call(at_limit.as_bytes())).unwrap();
+        assert_eq!(r["error"]["code"], "missing_field"); // parsed, not limit-refused
+    }
+
+    #[test]
+    fn every_emitted_error_code_is_declared() {
+        for req in [
+            &b"junk"[..],
+            b"{}",
+            br#"{"op":"nope"}"#,
+            br#"{"op":"verify"}"#,
+            br#"{"op":"mine","receipts":[{"x":1}]}"#,
+        ] {
+            let r: Value = serde_json::from_slice(&call(req)).unwrap();
+            let code = r["error"]["code"].as_str().unwrap();
+            assert!(ERROR_CODES.contains(&code), "undeclared code {code}");
+        }
+        assert_eq!(
+            run(json!({"op": "capabilities"}))["error_codes"],
+            json!(ERROR_CODES)
+        );
+    }
+
+    #[test]
     fn errors_are_structured_and_the_abi_is_total() {
         let code = |req: &[u8]| -> String {
             let r: Value = serde_json::from_slice(&call(req)).unwrap();
@@ -588,6 +688,12 @@ mod tests {
         );
         assert_eq!(code(br#"{"op":"mine","receipts":[{"x":1}]}"#), "bad_field");
         assert_eq!(code(&vec![b' '; MAX_REQUEST_BYTES + 1]), "too_large");
+        let deep = format!(
+            "{}{}",
+            "[".repeat(MAX_JSON_DEPTH + 1),
+            "]".repeat(MAX_JSON_DEPTH + 1)
+        );
+        assert_eq!(code(deep.as_bytes()), "too_deep");
         // Arbitrary bytes never panic.
         for junk in [
             &b""[..],

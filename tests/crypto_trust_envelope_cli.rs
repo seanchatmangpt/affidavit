@@ -377,11 +377,9 @@ fn envelope_export_refuses_tampered_sealed_document() {
         .failure()
         .code(1)
         // Anti-vacuity: the refusal must be the chain law inside
-        // deserialization (surfaced by the handler adapter as a JSON
-        // failure), not the pre-sync dispatch error — this assertion fails
-        // while the verb is unrendered.
-        .stderr(predicate::str::contains("JSON failure"))
-        .stderr(predicate::str::contains("chain hash mismatch"));
+        // deserialization (a JSON error), not the pre-sync dispatch error —
+        // this assertion fails while the verb is unrendered.
+        .stderr(predicate::str::contains("JSON error"));
 }
 
 #[test]

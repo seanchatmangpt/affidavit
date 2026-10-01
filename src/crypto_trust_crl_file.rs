@@ -7,9 +7,17 @@
 //! graph's publication file as JCS (RFC 8785) canonical JSON, so the bytes on
 //! disk are exactly the canonical form the signature covers — no pretty-print
 //! drift between wire and file. [`CrlFile::write`] stages the bytes to a
-//! same-directory temporary file, syncs, and renames them into place: a crash
-//! before the rename leaves the previous publication intact (readers never
-//! see a partial CRL).
+//! unique same-directory temporary
+//! (`.<name>.tmp-<pid>-<blake3(time, pid, path)[..16]>`) created with
+//! `create_new(true)` — anything already staged at that path (a pre-placed
+//! symlink above all) is REFUSED at the open, never followed, closing the
+//! arbitrary-file-clobber class structurally — syncs, and renames them into
+//! place: a crash before the rename leaves the previous publication intact
+//! (readers never see a partial CRL). The pid + blake3(time) suffixes keep
+//! concurrent publishers from staging into one temporary and keep the
+//! staging name unpredictable in advance; a nanos-clock tie duplicating a
+//! name is a typed refusal (fail-closed), never a clobber. On a failed
+//! rename the temporary is removed best-effort.
 //!
 //! Fail-closed law: [`CrlFile::read`] refuses an absent file. A missing CRL
 //! is NOT an empty CRL — without a verified publication the verifier knows
@@ -44,8 +52,34 @@ use crate::crypto_trust_lifecycle::RevocationList;
 use crate::crypto_trust_revocation::{
     apply_to, publish, RevocationPubError, SignedRevocationList, CRL_FORMAT,
 };
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// The staging sibling for an atomic write of the file at `path`: same
+/// directory (same filesystem, so `rename` is atomic), name
+/// `.<name>.tmp-<pid>-<blake3(time, pid, path)[..16]>` — unique per attempt
+/// (concurrent publishers never stage into one temporary) and unpredictable
+/// in advance (an attacker cannot pre-plant the path the next write stages
+/// at). A nanos-clock tie duplicating a name is a typed refusal at the
+/// `create_new(true)` open, never a clobber.
+fn tmp_sibling(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map_or_else(|| "crl".to_string(), |n| n.to_string_lossy().to_string());
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let seed = format!("{nanos}|{}|{}", std::process::id(), path.display());
+    let digest = blake3::hash(seed.as_bytes()).to_hex();
+    path.with_file_name(format!(
+        ".{name}.tmp-{}-{}",
+        std::process::id(),
+        &digest[..16]
+    ))
+}
 
 /// CRL publication file location (ctp:crl-file-v1 ctp:publicationFile),
 /// relative to the consumer repository root. The default of every
@@ -123,11 +157,13 @@ impl CrlFile {
 
     /// Serializes `list` to JCS canonical JSON and writes it atomically to
     /// `path` (`None` = the graph const [`CRL_FILE`]). Write law: stage to a
-    /// sibling temporary file (`.<name>.tmp-<pid>`), `sync_all`, then
-    /// `rename` into place — the rename lands all bytes at once or none, so
-    /// a crash leaves the previous publication intact and at most an
-    /// orphaned dot-prefixed temporary (removed best-effort on a failed
-    /// rename). Returns the path written.
+    /// unique sibling temporary ([`tmp_sibling`], created with
+    /// `create_new(true)` — a pre-placed symlink at the staged path is
+    /// refused, never followed), `sync_all`, then `rename` into place — the
+    /// rename lands all bytes at once or none, so a crash leaves the
+    /// previous publication intact and at most an orphaned dot-prefixed
+    /// temporary (removed best-effort on a failed rename). Returns the path
+    /// written.
     ///
     /// Refusals: an unusable location is [`CrlFileError::Io`]; content that
     /// cannot be canonicalized (an instant beyond 2^53, per JCS) is
@@ -212,34 +248,45 @@ impl CrlFile {
         .map_err(map_pub_err)
     }
 
-    /// Atomic write: serialize -> sibling temporary file (`.<name>.tmp-<pid>`)
-    /// -> `sync_all` -> `rename`. On a failed rename the temporary is removed
-    /// best-effort.
+    /// Atomic write: serialize → unique sibling temporary ([`tmp_sibling`],
+    /// created with `create_new(true)`) → `sync_all` → `rename`. On a failed
+    /// rename the temporary is removed best-effort.
     fn write_atomic(path: &Path, body: &[u8]) -> Result<(), CrlFileError> {
+        let tmp = tmp_sibling(path);
+        Self::write_atomic_via(path, body, &tmp)
+    }
+
+    /// The write law with the staging path made explicit — the exact code
+    /// [`CrlFile::write_atomic`] runs, with only the (unpredictable) staging
+    /// name lifted into an argument so the symlink-attack court can plant
+    /// one and watch the refusal fire. The stage open runs
+    /// `create_new(true)`: anything already at `tmp` (a pre-placed symlink
+    /// above all) is refused, never followed.
+    fn write_atomic_via(path: &Path, body: &[u8], tmp: &Path) -> Result<(), CrlFileError> {
         let parent = path
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
         std::fs::create_dir_all(parent)
             .map_err(|e| CrlFileError::Io(format!("create dir {}: {e}", parent.display())))?;
-        let name = path
-            .file_name()
-            .ok_or_else(|| CrlFileError::Io(format!("path has no file name: {}", path.display())))?
-            .to_string_lossy()
-            .into_owned();
-        let tmp = parent.join(format!(".{name}.tmp-{}", std::process::id()));
-        {
-            let mut file = std::fs::File::create(&tmp)
-                .map_err(|e| CrlFileError::Io(format!("create {}: {e}", tmp.display())))?;
-            file.write_all(body)
-                .map_err(|e| CrlFileError::Io(format!("write {}: {e}", tmp.display())))?;
-            file.sync_all()
-                .map_err(|e| CrlFileError::Io(format!("sync {}: {e}", tmp.display())))?;
-        }
-        match std::fs::rename(&tmp, path) {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(tmp)
+            .map_err(|e| {
+                CrlFileError::Io(format!(
+                    "stage {}: refused (never follows an existing path): {e}",
+                    tmp.display()
+                ))
+            })?;
+        file.write_all(body)
+            .map_err(|e| CrlFileError::Io(format!("write {}: {e}", tmp.display())))?;
+        file.sync_all()
+            .map_err(|e| CrlFileError::Io(format!("sync {}: {e}", tmp.display())))?;
+        match std::fs::rename(tmp, path) {
             Ok(()) => Ok(()),
             Err(e) => {
-                let _ = std::fs::remove_file(&tmp);
+                let _ = std::fs::remove_file(tmp);
                 Err(CrlFileError::Io(format!(
                     "rename {} -> {}: {e}",
                     tmp.display(),
@@ -633,6 +680,61 @@ mod tests {
             .collect();
         entries.sort();
         assert_eq!(entries, vec!["crl.json".to_string()], "no .tmp-* remains");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn symlink_at_staging_path_refused_and_victim_never_followed() {
+        let dir = temp_dir("symlink");
+        let path = dir.join("crl.json");
+
+        // Attack: a symlink planted at a staging path pointing at a victim
+        // file. The stage open runs create_new(true), so the pre-placed name
+        // is REFUSED (EEXIST) — never followed, never clobbered.
+        let victim = dir.join("victim.json");
+        std::fs::write(&victim, b"original victim bytes").expect("victim writes");
+        let planted = dir.join(".crl.json.tmp-attack");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&victim, &planted).expect("symlink planted");
+        let err = CrlFile::write_atomic_via(&path, b"{} bytes that would clobber", &planted)
+            .expect_err("planted symlink must be refused");
+        assert!(matches!(err, CrlFileError::Io(_)), "{err:?}");
+        assert_eq!(
+            std::fs::read(&victim).expect("victim reads"),
+            b"original victim bytes",
+            "the symlink must never be followed"
+        );
+
+        // A DANGLING symlink is refused the same way; nothing materializes
+        // through it.
+        #[cfg(unix)]
+        {
+            let dangling = dir.join(".crl.json.tmp-dangling");
+            std::os::unix::fs::symlink(dir.join("no-such-target"), &dangling)
+                .expect("dangling symlink planted");
+            assert!(
+                CrlFile::write_atomic_via(&path, b"{}", &dangling).is_err(),
+                "dangling symlink must be refused"
+            );
+            assert!(!dir.join("no-such-target").exists());
+        }
+
+        // The honest path still lands, and the production staging name is
+        // dot-prefixed and unique per attempt.
+        let tmp = tmp_sibling(&path);
+        CrlFile::write_atomic_via(&path, b"{}", &tmp).expect("honest staged write lands");
+        assert!(path.is_file(), "the rename landed over the live path");
+        let name = tmp
+            .file_name()
+            .expect("tmp has a file name")
+            .to_string_lossy()
+            .to_string();
+        assert!(name.starts_with(".crl.json.tmp-"), "{name}");
+        assert_ne!(
+            tmp_sibling(&path),
+            tmp,
+            "staging name carries per-attempt entropy"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

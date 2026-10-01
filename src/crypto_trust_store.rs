@@ -17,18 +17,51 @@
 // surfaces as a typed refusal on the next read or register, never as silent
 // acceptance.
 //
-// Atomicity law: writes go to a sibling temporary file (`.<name>.tmp-<pid>`),
-// are flushed with `sync_all`, and are moved into place with `rename`. On
-// POSIX and Windows `rename` within one directory is atomic, so a crash before
-// the rename leaves the previous store intact (readers never see a partial
-// file) and at worst an orphaned dot-prefixed temporary. The pid suffix keeps
-// concurrent processes from clobbering each other's staging file.
+// Atomicity law: writes go to a unique sibling temporary file
+// (`.<name>.tmp-<pid>-<blake3(time, pid, path)[..16]>`), created with
+// `create_new(true)` so anything already staged at that path — a pre-placed
+// symlink above all — is REFUSED at the open, never followed, closing the
+// arbitrary-file-clobber class structurally; the temporary is then flushed
+// with `sync_all` and moved into place with `rename`. On POSIX and Windows
+// `rename` within one directory is atomic, so a crash before the rename
+// leaves the previous store intact (readers never see a partial file) and at
+// worst an orphaned dot-prefixed temporary. The pid + blake3(time) suffixes
+// keep concurrent processes from staging into one temporary and keep the
+// staging name unpredictable in advance; a nanos-clock tie duplicating a
+// name is a typed refusal (fail-closed), never a clobber. On a failed rename
+// the temporary is removed best-effort.
 
 use crate::crypto_trust_keys::{KeyId, KeyRecord, KeyRegistry, RegistryError};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// The staging sibling for an atomic write of the file at `path`: same
+/// directory (same filesystem, so `rename` is atomic), name
+/// `.<name>.tmp-<pid>-<blake3(time, pid, path)[..16]>` — unique per attempt
+/// (concurrent processes never stage into one temporary) and unpredictable
+/// in advance (an attacker cannot pre-plant the path the next write stages
+/// at). A nanos-clock tie duplicating a name is a typed refusal at the
+/// `create_new(true)` open, never a clobber.
+fn tmp_sibling(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map_or_else(|| "store".to_string(), |n| n.to_string_lossy().to_string());
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let seed = format!("{nanos}|{}|{}", std::process::id(), path.display());
+    let digest = blake3::hash(seed.as_bytes()).to_hex();
+    path.with_file_name(format!(
+        ".{name}.tmp-{}-{}",
+        std::process::id(),
+        &digest[..16]
+    ))
+}
 
 /// Trust-plane policy domain tag (ctp:policy-v1 ctp:domainTag) mixed into the
 /// store checksum digest. Conformance-tested equal to
@@ -231,13 +264,26 @@ impl FileKeyStore {
         Ok(())
     }
 
-    /// Writes the store file atomically: serialize → sibling temporary file
-    /// (`.<name>.tmp-<pid>`) → `sync_all` → `rename`. The rename lands all
-    /// bytes at once or none, so readers either see the previous store or the
-    /// complete new one; a crash before the rename leaves the old store
-    /// intact and at most an orphaned dot-prefixed temporary. On a failed
-    /// rename the temporary is removed best-effort.
+    /// Writes the store file atomically: serialize → unique sibling temporary
+    /// ([`tmp_sibling`], created with `create_new(true)`) → `sync_all` →
+    /// `rename`. The rename lands all bytes at once or none, so readers
+    /// either see the previous store or the complete new one; a crash before
+    /// the rename leaves the old store intact and at most an orphaned
+    /// dot-prefixed temporary. On a failed rename the temporary is removed
+    /// best-effort.
     fn write_atomic(&self, store: &KeyStoreFile) -> Result<(), StoreError> {
+        let body = serde_json::to_string_pretty(store)?;
+        let tmp = tmp_sibling(&self.path);
+        self.write_atomic_via(body.as_bytes(), &tmp)
+    }
+
+    /// The write law with the staging path made explicit — the exact code
+    /// [`FileKeyStore::write_atomic`] runs, with only the (unpredictable)
+    /// staging name lifted into an argument so the symlink-attack court can
+    /// plant one and watch the refusal fire. The stage open runs
+    /// `create_new(true)`: anything already at `tmp` (a pre-placed symlink
+    /// above all) is refused, never followed.
+    fn write_atomic_via(&self, body: &[u8], tmp: &Path) -> Result<(), StoreError> {
         let parent = self
             .path
             .parent()
@@ -245,28 +291,24 @@ impl FileKeyStore {
             .unwrap_or_else(|| Path::new("."));
         std::fs::create_dir_all(parent)
             .map_err(|e| StoreError::Io(format!("create dir {}: {e}", parent.display())))?;
-        let name = self
-            .path
-            .file_name()
-            .ok_or_else(|| {
-                StoreError::Io(format!("path has no file name: {}", self.path.display()))
-            })?
-            .to_string_lossy()
-            .into_owned();
-        let tmp = parent.join(format!(".{name}.tmp-{}", std::process::id()));
-        let body = serde_json::to_string_pretty(store)?;
-        {
-            let mut file = std::fs::File::create(&tmp)
-                .map_err(|e| StoreError::Io(format!("create {}: {e}", tmp.display())))?;
-            file.write_all(body.as_bytes())
-                .map_err(|e| StoreError::Io(format!("write {}: {e}", tmp.display())))?;
-            file.sync_all()
-                .map_err(|e| StoreError::Io(format!("sync {}: {e}", tmp.display())))?;
-        }
-        match std::fs::rename(&tmp, &self.path) {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(tmp)
+            .map_err(|e| {
+                StoreError::Io(format!(
+                    "stage {}: refused (never follows an existing path): {e}",
+                    tmp.display()
+                ))
+            })?;
+        file.write_all(body)
+            .map_err(|e| StoreError::Io(format!("write {}: {e}", tmp.display())))?;
+        file.sync_all()
+            .map_err(|e| StoreError::Io(format!("sync {}: {e}", tmp.display())))?;
+        match std::fs::rename(tmp, &self.path) {
             Ok(()) => Ok(()),
             Err(e) => {
-                let _ = std::fs::remove_file(&tmp);
+                let _ = std::fs::remove_file(tmp);
                 Err(StoreError::Io(format!(
                     "rename {} -> {}: {e}",
                     tmp.display(),
@@ -617,6 +659,68 @@ mod tests {
             .collect();
         entries.sort();
         assert_eq!(entries, vec!["keys.json".to_string()], "no .tmp-* remains");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn symlink_at_staging_path_refused_and_victim_never_followed() {
+        let dir = temp_dir("symlink");
+        let path = dir.join("keys.json");
+        let store = FileKeyStore::open(&path).expect("open fresh store");
+        let body = serde_json::to_string_pretty(&KeyStoreFile {
+            format: STORE_FORMAT.to_string(),
+            records: vec![],
+            checksum: checksum_for(&[]).expect("empty checksum"),
+        })
+        .expect("serialize body");
+
+        // Attack: a symlink planted at a staging path pointing at a victim
+        // file. The stage open runs create_new(true), so the pre-placed name
+        // is REFUSED (EEXIST) — never followed, never clobbered.
+        let victim = dir.join("victim.json");
+        std::fs::write(&victim, b"original victim bytes").expect("victim writes");
+        let planted = dir.join(".keys.json.tmp-attack");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&victim, &planted).expect("symlink planted");
+        let err = store
+            .write_atomic_via(body.as_bytes(), &planted)
+            .expect_err("planted symlink must be refused");
+        assert!(matches!(err, StoreError::Io(_)), "{err:?}");
+        assert_eq!(
+            std::fs::read(&victim).expect("victim reads"),
+            b"original victim bytes",
+            "the symlink must never be followed"
+        );
+
+        // A DANGLING symlink is refused the same way; nothing materializes
+        // through it.
+        #[cfg(unix)]
+        {
+            let dangling = dir.join(".keys.json.tmp-dangling");
+            std::os::unix::fs::symlink(dir.join("no-such-target"), &dangling)
+                .expect("dangling symlink planted");
+            assert!(store.write_atomic_via(body.as_bytes(), &dangling).is_err());
+            assert!(!dir.join("no-such-target").exists());
+        }
+
+        // The honest path still lands, and the production staging name is
+        // dot-prefixed and unique per attempt.
+        let tmp = tmp_sibling(&path);
+        store
+            .write_atomic_via(body.as_bytes(), &tmp)
+            .expect("honest staged write lands");
+        assert!(path.is_file(), "the rename landed over the live path");
+        let name = tmp
+            .file_name()
+            .expect("tmp has a file name")
+            .to_string_lossy()
+            .to_string();
+        assert!(name.starts_with(".keys.json.tmp-"), "{name}");
+        assert_ne!(
+            tmp_sibling(&path),
+            tmp,
+            "staging name carries per-attempt entropy"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

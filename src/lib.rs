@@ -154,6 +154,8 @@ pub mod mutate;
 // Rendered by `ggen sync run` from
 // ../ggen-marketplace/packs/affidavit-trust-plane-pack — never hand-edited.
 #[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_attestation;
+#[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_canonical;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_crl_file;
@@ -189,6 +191,8 @@ pub mod crypto_trust_quorum;
 pub mod crypto_trust_revocation;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_rotation;
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_rotation_store;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_sa2a;
 #[cfg(feature = "crypto-trust")]
