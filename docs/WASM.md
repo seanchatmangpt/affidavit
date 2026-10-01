@@ -60,6 +60,7 @@ instance of the project-neutral `wja:` vocabulary of
 | `affidavit-wasm/src/abi_meta.rs` | `ABI_VERSION`, `MAX_REQUEST_BYTES`, `MAX_JSON_DEPTH`, `OPS`, `ERROR_CODES` |
 | `affidavit-wasm/.cargo/config.toml` | 16 MiB stack for the wasm targets |
 | `affidavit-wasm/registry/capability-registry.json`, `op-examples.json` | machine-readable capability registry and one example request per op |
+| `affidavit-wasm/registry/artifact-pin.json` | producer pin record (`qcb.artifact-pin/1`): sha256, bytes, abi, exports, imports, ops, registry sha256, toolchain; rendered by the affidavit-local `queries/artifact_pin.rq` + `templates/artifact_pin.json.tmpl` |
 | `affidavit-wasm/registry/ARTIFACTS.sha256` | create-only pin of the built module (`wasm <sha256> <bytes> <name>`) |
 
 Never edit these by hand: change the ontology and re-render (CI runs a drift
@@ -73,6 +74,17 @@ profile sets `trim-paths` so embedded paths are checkout-independent), then put
 `sha256`/size of the module on the `wasm` line of `registry/ARTIFACTS.sha256`.
 `AFFIDAVIT_WASM=<module> cargo test --test registry_artifacts` enforces the pin.
 
+### Producer pin record
+
+`registry/artifact-pin.json` is rendered from the `wja:wasmSha256`, `wja:wasmBytes`,
+`wja:registrySha256` and `afw:toolchain/buildTarget/buildProfile` facts in
+`ontology/affi-wasm.ttl` (ops 8 and 9 are attached via `wja:hasOp`). It is identity,
+never authority. The source commit is not stored in it (a commit cannot contain its
+own hash); consumers supply it out of tree. `ARTIFACTS.sha256` is unchanged and its
+`wasm` line must equal the record's `sha256`/`bytes`. On a deliberate re-pin, update the
+ontology facts (and `registrySha256` = sha256 of the regenerated
+`capability-registry.json`), then `ggen sync run`; the record regenerates byte-identically.
+
 ## Ops
 
 | Op | Request | Response (besides `ok`, `op`) |
@@ -83,6 +95,8 @@ profile sets `trim-paths` so embedded paths are checkout-independent), then put
 | `verify` | `{receipt}` | `accepted`, `profile`, `outcomes[6]` (`stage`,`passed`,`detail`), `reason`, `content_address` |
 | `mine` | `{receipts:[…]}` | `activities`, `edges`, `start`, `end`, `activity_frequency`, `variants`, `footprint`, `trace_count`, `event_count`, `all_accepted`, `rejected_receipts` |
 | `verify_signature_input` | `{envelope_json, expected_signing_input_hex}` | `verified`, `signing_input_hex` (envelope signing pre-image binding; no signature arithmetic) |
+| `certify_authzen_evidence` | `{request, decision, policy_decision_point, expected_policy_decision_point, expected_principal, expected_effect_digest}` | `certified`, `standard`, `policy_allows`, `principal`, `action`, `authority` (`NONE`), `consequence` (`EVIDENCE_ONLY`), `evidence_digest`, `evidence` |
+| `certify_spiffe_evidence` | `{spiffe_id, expected_spiffe_id, expected_trust_domain, bundle_digest, verified, svid_type, allow_jwt?}` | `certified`, `spiffe_id`, `trust_domain`, `path`, `svid_type`, `authority` (`NONE`), `consequence` (`EVIDENCE_ONLY`), `evidence_digest`, `evidence` (x509 only unless `allow_jwt`) |
 | `conform` | `{model:[receipts], trace: receipt}` | `verdict`, `fitness`, `legal_moves`, `total_moves`, `start_ok`, `end_ok`, `first_violation`, `trace_accepted`, `model_all_accepted` |
 
 Notes:
