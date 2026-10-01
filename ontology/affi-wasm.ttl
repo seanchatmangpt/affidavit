@@ -9,6 +9,7 @@
 @prefix wja: <https://ggen.dev/ontology/wasi-json-abi#> .
 @prefix afw: <http://affidavit.io/wasm#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 afw:module a wja:WasmModule ;
     rdfs:label "affidavit WASI module" ;
@@ -18,8 +19,20 @@ afw:module a wja:WasmModule ;
     wja:maxRequestBytes 16777216 ;
     wja:maxJsonDepth 64 ;
     wja:stackSizeBytes 16777216 ;
+    # Release pin (identity, not authority). wasmSha256/wasmBytes describe
+    # affidavit-wasm/target/wasm32-wasip1/wasm/affidavit_wasm.wasm built with
+    # `cargo build --locked --lib --target wasm32-wasip1 --profile wasm`;
+    # registrySha256 is the sha256 of the rendered registry/capability-registry.json.
+    # Source commit is deliberately absent: a commit cannot contain its own hash.
+    wja:wasmSha256 "5e721cc20d07193eee5d489077f4cb534f12c45f948e53247f79f38a5a7761f7" ;
+    wja:wasmBytes 284650 ;
+    wja:registrySha256 "ebac457843cd2322af575f02583a4a2a2a11a2488de6ee0eabef468861ebe61b" ;
+    afw:toolchain "nightly-2026-08-12" ;
+    afw:buildTarget "wasm32-wasip1" ;
+    afw:buildProfile "wasm" ;
     wja:importsPolicy "wasi_snapshot_preview1" ;
-    wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input ;
+    wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input , afw:op-certify-authzen-evidence , afw:op-certify-spiffe-evidence ;
+    wja:hasWasiImport afw:imp-environ-get , afw:imp-environ-sizes-get , afw:imp-fd-write , afw:imp-proc-exit ;
     wja:hasErrorCode afw:err-bad-json , afw:err-missing-field , afw:err-unknown-op , afw:err-bad-field , afw:err-too-large , afw:err-too-deep , afw:err-missing-buffer , afw:err-internal .
 
 afw:op-capabilities a wja:Op ;
@@ -93,3 +106,9 @@ afw:err-too-large a wja:ErrorCode ; wja:codeName "too_large" ; wja:codeOrder 5 .
 afw:err-too-deep a wja:ErrorCode ; wja:codeName "too_deep" ; wja:codeOrder 6 .
 afw:err-missing-buffer a wja:ErrorCode ; wja:codeName "missing_buffer" ; wja:codeOrder 7 .
 afw:err-internal a wja:ErrorCode ; wja:codeName "internal" ; wja:codeOrder 8 .
+
+# Observed import section of the pinned module (wasi_snapshot_preview1 only).
+afw:imp-environ-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "environ_get" .
+afw:imp-environ-sizes-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "environ_sizes_get" .
+afw:imp-fd-write a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "fd_write" .
+afw:imp-proc-exit a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "proc_exit" .

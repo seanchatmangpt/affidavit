@@ -389,3 +389,12 @@ query    = { pack = "wasi-json-abi-pack", output = "queries", file = "registry.r
 template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_artifacts.sha256.tmpl" }
 output_file = "affidavit-wasm/registry/ARTIFACTS.sha256"
 mode = "Create"
+
+# Producer pin record (affidavit-local query + template; schema affidavit.wasm-pin/1).
+# Reads the wja: pin facts only; ARTIFACTS.sha256 (create-only, test-parsed) is untouched.
+[[generation.rules]]
+name = "wasm-artifact-pin"
+query    = { file = "affidavit-wasm/queries/artifact_pin.rq" }
+template = { file = "affidavit-wasm/templates/artifact_pin.json.tmpl" }
+output_file = "affidavit-wasm/registry/artifact-pin.json"
+mode = "Overwrite"
