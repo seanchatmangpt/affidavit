@@ -264,6 +264,40 @@ testable JSON ABI, tested in a real wasm runtime.
   wasm module uses BLAKE3 (`blake3` crate, `pure` feature) because it must
   agree with `affi`.
 
+## [26.9.28] — 2026-09-28
+
+**Theme: the v26.9.x fan-out lands on one line.**
+
+Consolidates the parallel v26.9.x workstreams into `main` (PR #88) and cuts the
+release. The version moves 26.9.24 → 26.9.28. Because the chain genesis seed is
+derived from the crate version (`affidavit-v<version>-genesis`), every receipt
+hash changes: receipts assembled by 26.9.24 or earlier do **not** verify under
+26.9.28, and the browser verifier and visualizer carry the new seed.
+
+### Added
+- Execution manifests (`src/execution_manifest.rs`) binding provenance to
+  immutable execution subjects.
+- GALL crown certification with typed predecessor witnesses (`src/gall.rs`).
+- Ecosystem standing receipts, ERRC courts, and architecture qualification receipts.
+- Examples: `conformance_report` (requires the `discovery` feature),
+  `chain_growth`, `adversarial_proof`.
+
+### Changed
+- Dependency bumps: `opentelemetry-jaeger` 0.22, `shlex` 2,
+  `prometheus` 0.14, `criterion` 0.8, `pollster` 1.0, `syn` 3; web: Next 16,
+  react-dom 19.3, `@types/node` 26; CI: `actions/checkout@v7`.
+- Benches use `std::hint::black_box` (criterion 0.8 deprecates its own).
+- Release workflow is now `release-tag-v26.9.28.yml`.
+- `wgpu` stays at 0.19: 30.x requires `wasm-bindgen ^0.2.127`, which conflicts with
+  the published `wasm4pm 26.6.10` pin (`=0.2.100`) and breaks `cargo publish`.
+  `Cargo.lock` keeps `wasm-bindgen 0.2.100` / `js-sys 0.3.77` for the same reason.
+
+### Known limitations
+- The `otel` and `gpu` features and `--all-features` do not build (stub
+  fences and `tracing` wiring); this predates the release and is not addressed.
+- Two June branches (`claude/confident-mendel-mrolti`,
+  `claude/vigilant-hawking-l7is37`) were intentionally not merged.
+
 ## [26.9.24] — 2026-09-24
 
 **Theme: consolidation of the v26.9.x branch fan-out.**
