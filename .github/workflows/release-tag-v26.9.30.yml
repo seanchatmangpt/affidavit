@@ -1,4 +1,4 @@
-name: v26.9.28 crates.io release
+name: v26.9.30 crates.io release
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - Cargo.toml
-      - .github/workflows/release-tag-v26.9.28.yml
+      - .github/workflows/release-tag-v26.9.30.yml
 
 permissions:
   contents: write
@@ -23,12 +23,12 @@ jobs:
       - name: Admit package and dry-run
         run: |
           set -euo pipefail
-          grep -Eq '^version = "26\.9\.28"$' Cargo.toml
+          grep -Eq '^version = "26\.9\.30"$' Cargo.toml
           cargo publish --dry-run
       - name: Observe crates.io
         id: registry
         run: |
-          if curl -fsS https://crates.io/api/v1/crates/affidavit/26.9.28 >/dev/null; then
+          if curl -fsS https://crates.io/api/v1/crates/affidavit/26.9.30 >/dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -46,17 +46,17 @@ jobs:
         run: |
           set -euo pipefail
           for i in 1 2 3 4 5 6 7 8 9 10; do
-            if curl -fsS https://crates.io/api/v1/crates/affidavit/26.9.28 >/dev/null; then break; fi
+            if curl -fsS https://crates.io/api/v1/crates/affidavit/26.9.30 >/dev/null; then break; fi
             test "$i" != 10
             sleep 3
           done
           subject="$(git rev-parse HEAD)"
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v26.9.28" >/dev/null 2>&1; then
-            test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v26.9.28" --jq .object.sha)" = "$subject"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v26.9.30" >/dev/null 2>&1; then
+            test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v26.9.30" --jq .object.sha)" = "$subject"
           else
-            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v26.9.28" -f sha="$subject" >/dev/null
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v26.9.30" -f sha="$subject" >/dev/null
           fi
-          if ! gh release view v26.9.28 >/dev/null 2>&1; then
-            gh release create v26.9.28 --target "$subject" --title "v26.9.28" --generate-notes
+          if ! gh release view v26.9.30 >/dev/null 2>&1; then
+            gh release create v26.9.30 --target "$subject" --title "v26.9.30" --generate-notes
           fi
-          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v26.9.28" --jq .object.sha)" = "$subject"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v26.9.30" --jq .object.sha)" = "$subject"

@@ -6,10 +6,9 @@
 
 use crate::abi::{err, field, obj, AbiError};
 use affidavit_core::{
-    admit_authzen_evidence, admit_workload_identity, AuthZenActionRef,
-    AuthZenDecisionEvidenceRef, AuthZenEntityRef, AuthZenRequestRef, EvidenceError, SpiffeIdRef,
-    SvidType, WorkloadIdentityEvidenceRef, AUTHORITY_NONE, AUTHZEN_STANDARD,
-    CONSEQUENCE_EVIDENCE_ONLY,
+    admit_authzen_evidence, admit_workload_identity, AuthZenActionRef, AuthZenDecisionEvidenceRef,
+    AuthZenEntityRef, AuthZenRequestRef, EvidenceError, SpiffeIdRef, SvidType,
+    WorkloadIdentityEvidenceRef, AUTHORITY_NONE, AUTHZEN_STANDARD, CONSEQUENCE_EVIDENCE_ONLY,
 };
 use serde_json::{json, Map, Value};
 
@@ -17,10 +16,7 @@ fn evidence_err(error: EvidenceError) -> AbiError {
     err(error.code(), error.to_string())
 }
 
-fn required_map_str<'a>(
-    value: &'a Map<String, Value>,
-    name: &str,
-) -> Result<&'a str, AbiError> {
+fn required_map_str<'a>(value: &'a Map<String, Value>, name: &str) -> Result<&'a str, AbiError> {
     value
         .get(name)
         .and_then(Value::as_str)
@@ -50,9 +46,7 @@ fn validate_optional_object(value: &Value, name: &str) -> Result<(), AbiError> {
 }
 
 /// Certify an AuthZEN Authorization API 1.0 observation as authority-free evidence.
-pub(crate) fn op_certify_authzen_evidence(
-    req: &Value,
-) -> Result<Map<String, Value>, AbiError> {
+pub(crate) fn op_certify_authzen_evidence(req: &Value) -> Result<Map<String, Value>, AbiError> {
     let request = field(req, "request")?;
     let subject = require_object(request, "subject")?;
     let resource = require_object(request, "resource")?;
@@ -80,7 +74,12 @@ pub(crate) fn op_certify_authzen_evidence(
     let pdp = field(req, "policy_decision_point")?
         .as_str()
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| err("bad_field", "`policy_decision_point` must be a non-empty string"))?;
+        .ok_or_else(|| {
+            err(
+                "bad_field",
+                "`policy_decision_point` must be a non-empty string",
+            )
+        })?;
     let expected_pdp = field(req, "expected_policy_decision_point")?
         .as_str()
         .filter(|s| !s.is_empty())
@@ -93,7 +92,12 @@ pub(crate) fn op_certify_authzen_evidence(
     let expected_principal = field(req, "expected_principal")?
         .as_str()
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| err("bad_field", "`expected_principal` must be a non-empty string"))?;
+        .ok_or_else(|| {
+            err(
+                "bad_field",
+                "`expected_principal` must be a non-empty string",
+            )
+        })?;
     let expected_effect_digest = field(req, "expected_effect_digest")?
         .as_str()
         .filter(|s| !s.is_empty())
@@ -156,9 +160,7 @@ pub(crate) fn op_certify_authzen_evidence(
 }
 
 /// Certify verifier-produced SPIFFE/SVID workload evidence.
-pub(crate) fn op_certify_spiffe_evidence(
-    req: &Value,
-) -> Result<Map<String, Value>, AbiError> {
+pub(crate) fn op_certify_spiffe_evidence(req: &Value) -> Result<Map<String, Value>, AbiError> {
     let spiffe_id = field(req, "spiffe_id")?
         .as_str()
         .filter(|s| !s.is_empty())
@@ -166,7 +168,12 @@ pub(crate) fn op_certify_spiffe_evidence(
     let expected_spiffe_id = field(req, "expected_spiffe_id")?
         .as_str()
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| err("bad_field", "`expected_spiffe_id` must be a non-empty string"))?;
+        .ok_or_else(|| {
+            err(
+                "bad_field",
+                "`expected_spiffe_id` must be a non-empty string",
+            )
+        })?;
     let expected_trust_domain = field(req, "expected_trust_domain")?
         .as_str()
         .filter(|s| !s.is_empty())
@@ -189,12 +196,7 @@ pub(crate) fn op_certify_spiffe_evidence(
     let svid_type = match svid_type_raw {
         "x509" => SvidType::X509,
         "jwt" => SvidType::Jwt,
-        _ => {
-            return Err(err(
-                "bad_field",
-                "`svid_type` must be \"x509\" or \"jwt\"",
-            ))
-        }
+        _ => return Err(err("bad_field", "`svid_type` must be \"x509\" or \"jwt\"")),
     };
     let allow_jwt = match req.get("allow_jwt") {
         None => false,
@@ -288,9 +290,17 @@ mod tests {
             "action": {"name": "can_read"}
         });
         for (field_name, value, code) in [
-            ("expected_principal", "mallory@example.com", "principal_mismatch"),
+            (
+                "expected_principal",
+                "mallory@example.com",
+                "principal_mismatch",
+            ),
             ("expected_effect_digest", "999", "effect_digest_mismatch"),
-            ("expected_policy_decision_point", "https://other.example.com", "pdp_mixup"),
+            (
+                "expected_policy_decision_point",
+                "https://other.example.com",
+                "pdp_mixup",
+            ),
         ] {
             let mut input = json!({
                 "op": "certify_authzen_evidence",

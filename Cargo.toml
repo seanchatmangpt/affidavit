@@ -1,6 +1,6 @@
 [package]
 name = "affidavit"
-version = "26.9.28"
+version = "26.9.30"
 edition = "2021"
 rust-version = "1.85"
 description = "Provenance Layer — receipt assembly and certification, with an optional crypto trust plane (signatures, post-quantum, key custody). Verify a witness against a format standard; never decide honesty."
