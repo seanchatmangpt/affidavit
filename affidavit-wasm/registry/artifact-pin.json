@@ -1,0 +1,38 @@
+{
+  "abi_version": 1,
+  "build": {
+    "locked": true,
+    "profile": "wasm",
+    "target": "wasm32-wasip1",
+    "toolchain": "nightly-2026-08-12"
+  },
+  "bytes": 284650,
+  "crate": "affidavit-wasm",
+  "exports": [
+    "af_abi_version",
+    "af_alloc",
+    "af_call",
+    "af_free"
+  ],
+  "imports": [
+    {"module": "wasi_snapshot_preview1", "name": "environ_get"},
+    {"module": "wasi_snapshot_preview1", "name": "environ_sizes_get"},
+    {"module": "wasi_snapshot_preview1", "name": "fd_write"},
+    {"module": "wasi_snapshot_preview1", "name": "proc_exit"}
+  ],
+  "name": "affidavit_wasm.wasm",
+  "ops": [
+    "capabilities",
+    "commit",
+    "assemble",
+    "verify",
+    "mine",
+    "conform",
+    "verify_signature_input",
+    "certify_authzen_evidence",
+    "certify_spiffe_evidence"
+  ],
+  "registry_sha256": "ebac457843cd2322af575f02583a4a2a2a11a2488de6ee0eabef468861ebe61b",
+  "schema": "affidavit.wasm-pin/1",
+  "sha256": "5e721cc20d07193eee5d489077f4cb534f12c45f948e53247f79f38a5a7761f7"
+}

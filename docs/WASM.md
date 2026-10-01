@@ -60,12 +60,23 @@ instance of the project-neutral `wja:` vocabulary of
 | `affidavit-wasm/src/abi_meta.rs` | `ABI_VERSION`, `MAX_REQUEST_BYTES`, `MAX_JSON_DEPTH`, `OPS`, `ERROR_CODES` |
 | `affidavit-wasm/.cargo/config.toml` | 16 MiB stack for the wasm targets |
 | `affidavit-wasm/registry/capability-registry.json`, `op-examples.json` | machine-readable capability registry and one example request per op |
-| `affidavit-wasm/registry/artifact-pin.json` | producer pin record (`qcb.artifact-pin/1`): sha256, bytes, abi, exports, imports, ops, registry sha256, toolchain; rendered by the affidavit-local `queries/artifact_pin.rq` + `templates/artifact_pin.json.tmpl` |
+| `affidavit-wasm/registry/artifact-pin.json` | producer pin record (`affidavit.wasm-pin/1`): sha256, bytes, abi, exports, imports, ops, registry sha256, toolchain; rendered by the affidavit-local `queries/artifact_pin.rq` + `templates/artifact_pin.json.tmpl` |
 | `affidavit-wasm/registry/ARTIFACTS.sha256` | create-only pin of the built module (`wasm <sha256> <bytes> <name>`) |
 
 Never edit these by hand: change the ontology and re-render (CI runs a drift
 court: `ggen sync run` then `git diff --exit-code`). The op bodies
 (`abi.rs`), `receipt.rs` and `crypto.rs` stay hand-written (`HANDWRITTEN.md`).
+
+**Sync inputs (observed 2026-09-30):** `ggen sync run` here reads packs from sibling
+directories (`../ggen-marketplace/packs/{affidavit-trust-plane-pack,wasi-json-abi-pack}`)
+and `../clap-noun-verb`; a bare `git archive` of this repository does not sync. The pin bytes
+are deterministic against those siblings (two runs, identical sha256), but the siblings are
+not pinned by this repository. The generated `src/crypto_trust_*.rs` come out of `ggen sync run`
+unformatted by `rustfmt` and so differ from the committed, formatted copies; the committed
+copies are the admitted state and a re-render must be followed by restoring them (the drift
+court is not `cargo fmt` aware). The consumer-side pin record
+(`qcb.artifact-pin/1`, rendered by `qri-consumer-binding-pack` from a ConsumerBinding) is a
+different record from the producer pin above (`affidavit.wasm-pin/1`).
 
 **Re-pin after any change to `src/` or `Cargo.lock`:**
 `cargo build --locked --lib --target wasm32-wasip1 --profile wasm`, build again
@@ -84,6 +95,21 @@ own hash); consumers supply it out of tree. `ARTIFACTS.sha256` is unchanged and 
 `wasm` line must equal the record's `sha256`/`bytes`. On a deliberate re-pin, update the
 ontology facts (and `registrySha256` = sha256 of the regenerated
 `capability-registry.json`), then `ggen sync run`; the record regenerates byte-identically.
+
+**Producer record to ConsumerBinding pin.** The producer record (`affidavit.wasm-pin/1`) is not the
+consumer record (`qcb.artifact-pin/1`, rendered by `qri-consumer-binding-pack`); the two schema ids are
+deliberately different. A consumer states its pin in its `ConsumerBinding` (a `qcb:ArtifactPin`) using these
+producer fields:
+
+| producer field | ConsumerBinding pin term |
+|---|---|
+| `sha256` | `qcb:checksum` as `spdx:Checksum` (`spdx:checksumAlgorithm_sha256`, `spdx:checksumValue`) |
+| `bytes` | `dcat:byteSize` |
+| `registry_sha256` | `qcb:registrySha256` (also stated on the bound contract) |
+| `abi_version` | `qcb:abiVersion` |
+
+`build`, `ops`, `imports`, `exports`, `crate` and `name` have no consumer-pin term: they stay producer facts.
+The mapping is identity only; a matching pin grants no authority.
 
 ## Ops
 

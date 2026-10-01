@@ -1,0 +1,38 @@
+{#- SPDX-License-Identifier: MIT OR Apache-2.0 -#}
+{#- artifact_pin.json.tmpl -- renders registry/artifact-pin.json (affidavit.wasm-pin/1) from
+    queries/artifact_pin.rq. Every string goes through json_encode; no hand JSON values. -#}
+{%- set op_list = ops | split(pat="@@") | sort -%}
+{%- set imp_list = imports | split(pat="@@") | sort -%}
+{
+  "abi_version": {{ abi_version }},
+  "build": {
+    "locked": true,
+    "profile": {{ build_profile | json_encode() | safe }},
+    "target": {{ build_target | json_encode() | safe }},
+    "toolchain": {{ toolchain | json_encode() | safe }}
+  },
+  "bytes": {{ wasm_bytes }},
+  "crate": {{ crate_name | json_encode() | safe }},
+  "exports": [
+    "{{ export_prefix }}_abi_version",
+    "{{ export_prefix }}_alloc",
+    "{{ export_prefix }}_call",
+    "{{ export_prefix }}_free"
+  ],
+  "imports": [
+{%- for i in imp_list %}
+{%- set p = i | split(pat="##") %}
+    {"module": {{ p[0] | json_encode() | safe }}, "name": {{ p[1] | json_encode() | safe }}}{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ],
+  "name": "{{ crate_name | replace(from="-", to="_") }}.wasm",
+  "ops": [
+{%- for o in op_list %}
+{%- set p = o | split(pat="##") %}
+    {{ p[1] | json_encode() | safe }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+  ],
+  "registry_sha256": {{ registry_sha256 | json_encode() | safe }},
+  "schema": "affidavit.wasm-pin/1",
+  "sha256": {{ wasm_sha256 | json_encode() | safe }}
+}

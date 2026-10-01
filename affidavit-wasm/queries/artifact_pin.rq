@@ -1,0 +1,64 @@
+# artifact_pin.rq -- single-row binding for templates/artifact_pin.json.tmpl.
+# Producer-side pin record (schema affidavit.wasm-pin/1) for the pinned affidavit
+# WASI module. Affidavit-local; reads only the wja:/afw: facts in
+# ontology/affi-wasm.ttl. Pin = identity, never authority.
+# Columns (MUST equal the template's {{ }} vars):
+#   crate_name, export_prefix, abi_version, wasm_sha256, wasm_bytes,
+#   registry_sha256, toolchain, build_target, build_profile  -- scalar facts.
+#   ops     - GROUP_CONCAT, one per "@@": <order zero-padded to 6>##opName
+#   imports - GROUP_CONCAT, one per "@@": <module>##<name>
+# Delimiters "@@" and "##" must not occur in values.
+# A module missing any pin fact, op or import yields zero rows => refusal.
+
+PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
+PREFIX afw: <http://affidavit.io/wasm#>
+
+SELECT ?crate_name ?export_prefix ?abi_version ?wasm_sha256 ?wasm_bytes
+       ?registry_sha256 ?toolchain ?build_target ?build_profile ?ops ?imports
+WHERE {
+  ?m a wja:WasmModule ;
+     wja:crateName ?crate_name ;
+     wja:exportPrefix ?export_prefix ;
+     wja:abiVersion ?abi_version ;
+     wja:wasmSha256 ?wasm_sha256 ;
+     wja:wasmBytes ?wasm_bytes ;
+     wja:registrySha256 ?registry_sha256 ;
+     afw:toolchain ?toolchain ;
+     afw:buildTarget ?build_target ;
+     afw:buildProfile ?build_profile .
+  {
+    SELECT ?m2 (GROUP_CONCAT(?spec; separator="@@") AS ?ops)
+    WHERE {
+      {
+        SELECT ?m2 ?spec
+        WHERE {
+          ?m2 wja:hasOp ?op .
+          ?op wja:opName ?on ;
+              wja:opOrder ?oo .
+          BIND(CONCAT(SUBSTR("000000", STRLEN(STR(?oo)) + 1), STR(?oo), "##", STR(?on)) AS ?spec)
+        }
+        ORDER BY ?oo
+      }
+    }
+    GROUP BY ?m2
+  }
+  {
+    SELECT ?m3 (GROUP_CONCAT(?ispec; separator="@@") AS ?imports)
+    WHERE {
+      {
+        SELECT ?m3 ?ispec
+        WHERE {
+          ?m3 wja:hasWasiImport ?imp .
+          ?imp wja:importModule ?im ;
+               wja:importName ?in .
+          BIND(CONCAT(STR(?im), "##", STR(?in)) AS ?ispec)
+        }
+        ORDER BY ?im ?in
+      }
+    }
+    GROUP BY ?m3
+  }
+  FILTER(?m = ?m2 && ?m = ?m3)
+}
+ORDER BY ?crate_name
+LIMIT 1
