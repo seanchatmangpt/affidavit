@@ -68,6 +68,9 @@ pub mod external_evidence;
 pub mod verifier;
 
 #[cfg(feature = "alloc")]
+pub mod accumulator;
+
+#[cfg(feature = "alloc")]
 pub mod mining;
 
 pub use chain::{compute_chain_hash, Event, PROFILE};
@@ -88,6 +91,9 @@ pub use crypto_verify::SignatureEnvelope;
 
 #[cfg(feature = "alloc")]
 pub use chain::{ChainBuilder, OwnedEvent, Receipt};
+
+#[cfg(feature = "alloc")]
+pub use accumulator::{MmrAccumulator, MmrError, MmrProof};
 
 #[cfg(feature = "alloc")]
 pub use mining::{DirectlyFollowsGraph, Trace};
