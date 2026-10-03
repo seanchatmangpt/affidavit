@@ -5,6 +5,7 @@
 //! [`call`] never panics on any input.
 
 use crate::abi_meta::{ERROR_CODES, MAX_JSON_DEPTH, OPS};
+use crate::advanced;
 use crate::crypto;
 use crate::external_evidence;
 use crate::receipt::{self, ObjectRef, OperationEvent, Receipt};
@@ -110,7 +111,7 @@ fn encode(v: Value) -> Vec<u8> {
     })
 }
 
-type Res<T> = Result<T, AbiError>;
+pub(crate) type Res<T> = Result<T, AbiError>;
 
 /// Execute one UTF-8 JSON request and return the UTF-8 JSON response.
 pub fn call(request: &[u8]) -> Vec<u8> {
@@ -147,6 +148,9 @@ fn dispatch(request: &[u8]) -> Res<Map<String, Value>> {
         "verify_signature_input" => crypto::op_verify_signature_input(&req)?,
         "certify_authzen_evidence" => external_evidence::op_certify_authzen_evidence(&req)?,
         "certify_spiffe_evidence" => external_evidence::op_certify_spiffe_evidence(&req)?,
+        "jcs_canonicalize" => advanced::op_jcs_canonicalize(&req)?,
+        "smt_absence_verify" => advanced::op_smt_absence_verify(&req)?,
+        "range_proof_verify" => advanced::op_range_proof_verify(&req)?,
         other => {
             return Err(err(
                 "unknown_op",

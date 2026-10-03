@@ -32,6 +32,9 @@ pub const OPS: &[&str] = &[
     "verify_signature_input",
     "certify_authzen_evidence",
     "certify_spiffe_evidence",
+    "jcs_canonicalize",
+    "smt_absence_verify",
+    "range_proof_verify",
 ];
 
 /// Typed error codes, ordered by `wja:codeOrder`.
