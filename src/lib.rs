@@ -236,6 +236,8 @@ pub mod ed25519_witness;
 pub mod hlc;
 #[cfg(feature = "policy-cedar")]
 pub mod policy_cedar;
+#[cfg(feature = "quantized-payoff")]
+pub mod quantized_payoff;
 #[cfg(feature = "replay-filter")]
 pub mod replay_filter;
 #[cfg(feature = "secp256k1")]

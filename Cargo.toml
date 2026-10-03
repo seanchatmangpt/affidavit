@@ -390,6 +390,9 @@ zero-copy = ["dep:rkyv"]
 wasm-court = ["dep:wasmtime"]
 # Decidable authority-policy gate (AWS Cedar, Lean-verified semantics).
 policy-cedar = ["dep:cedar-policy"]
+# Float->Q16.16 quantization seam to the CMCA payoff layout (in-tree;
+# consumes wasm4pm-compat's DependencyMeasure content, hence requires core).
+quantized-payoff = ["core"]
 # Umbrella for the full advanced witness surface.
 advanced-crypto = [
   "smt",
@@ -408,6 +411,7 @@ advanced-crypto = [
   "zero-copy",
   "wasm-court",
   "policy-cedar",
+  "quantized-payoff",
 ]
 # Parallel-session single-file trust plane (unreachable WIP) — gated verbatim, pending consolidation.
 
