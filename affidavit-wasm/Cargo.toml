@@ -26,6 +26,16 @@ serde = { version = "1", features = ["derive"] }
 # NOTE: do NOT enable serde_json's `preserve_order` feature. Canonical JSON
 # relies on `Map` being a BTreeMap (sorted keys); `receipt::tests` guards this.
 serde_json = "1"
+# Advanced witness verification ops (verifier-side): RFC 8785 canonical
+# bytes, sparse Merkle tree proof folding, bulletproofs range checks.
+serde_jcs = "0.1"
+monotree = "0.2"
+bulletproofs = "4"
+curve25519-dalek-ng = "4.1"
+merlin = "3"
+# Force clear_on_drop's no_cc feature through the graph: its default C build
+# script cannot compile for wasm32-wasip1 (feature unification, no API change).
+clear_on_drop = { version = "0.2", features = ["no_cc"] }
 
 [dev-dependencies]
 wasmi = "1"

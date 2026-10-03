@@ -24,14 +24,14 @@ afw:module a wja:WasmModule ;
     # `cargo build --locked --lib --target wasm32-wasip1 --profile wasm`;
     # registrySha256 is the sha256 of the rendered registry/capability-registry.json.
     # Source commit is deliberately absent: a commit cannot contain its own hash.
-    wja:wasmSha256 "5e721cc20d07193eee5d489077f4cb534f12c45f948e53247f79f38a5a7761f7" ;
-    wja:wasmBytes 284650 ;
-    wja:registrySha256 "ebac457843cd2322af575f02583a4a2a2a11a2488de6ee0eabef468861ebe61b" ;
+    wja:wasmSha256 "95be2d188efe21f7b557552ccb3e32e38c5067bc30ca4c3c65a86e0fb65c2a58" ;
+    wja:wasmBytes 458683 ;
+    wja:registrySha256 "968eb6bd16d590921e2ae83558fbff80e855de27eaa9d5c8aaaa4679437ad77a" ;
     afw:toolchain "nightly-2026-08-12" ;
     afw:buildTarget "wasm32-wasip1" ;
     afw:buildProfile "wasm" ;
     wja:importsPolicy "wasi_snapshot_preview1" ;
-    wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input , afw:op-certify-authzen-evidence , afw:op-certify-spiffe-evidence ;
+    wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input , afw:op-certify-authzen-evidence , afw:op-certify-spiffe-evidence , afw:op-jcs-canonicalize , afw:op-smt-absence-verify , afw:op-range-proof-verify ;
     wja:hasWasiImport afw:imp-environ-get , afw:imp-environ-sizes-get , afw:imp-fd-write , afw:imp-proc-exit ;
     wja:hasErrorCode afw:err-bad-json , afw:err-missing-field , afw:err-unknown-op , afw:err-bad-field , afw:err-too-large , afw:err-too-deep , afw:err-missing-buffer , afw:err-internal .
 
@@ -97,6 +97,31 @@ afw:op-certify-spiffe-evidence a wja:Op ;
     wja:requestFields "op,spiffe_id,expected_spiffe_id,expected_trust_domain,bundle_digest,verified,svid_type,allow_jwt" ;
     wja:responseFields "ok,op,certified,standard,spiffe_id,trust_domain,path,svid_type,authority,consequence,evidence_digest,evidence" ;
     wja:exampleRequest """{"op":"certify_spiffe_evidence","spiffe_id":"spiffe://prod.acme.com/billing/api","expected_spiffe_id":"spiffe://prod.acme.com/billing/api","expected_trust_domain":"prod.acme.com","svid_type":"x509","bundle_digest":"sha256:canonical-example-bundle","verified":true}""" .
+
+# --- Advanced witness verification ops (PR #113 capability set) -------------
+# Verifier-side only: these ops check witnesses computed by a prover elsewhere
+# (Certify, Don't Decide — the edge module never originates proofs).
+
+afw:op-jcs-canonicalize a wja:Op ;
+    wja:opName "jcs_canonicalize" ;
+    wja:opOrder 10 ;
+    wja:requestFields "op,json" ;
+    wja:responseFields "ok,op,canonical_json,commitment" ;
+    wja:exampleRequest """{"op":"jcs_canonicalize","json":"{\\"b\\":1,\\"a\\":2}"}""" .
+
+afw:op-smt-absence-verify a wja:Op ;
+    wja:opName "smt_absence_verify" ;
+    wja:opOrder 11 ;
+    wja:requestFields "op,root_hex,queried_key_hex,neighbor_key_hex,neighbor_value_hex,claimed_prefix_bits,proof_steps" ;
+    wja:responseFields "ok,op,admitted" ;
+    wja:exampleRequest """{\"op\":\"smt_absence_verify\",\"root_hex\":\"26c125e91454332c68ecaef86614e09fd2c95220d0c2d42d296dda8c52fe12af\",\"queried_key_hex\":\"7f00000000000000000000000000000000000000000000000000000000000000\",\"neighbor_key_hex\":\"8000000000000000000000000000000000000000000000000000000000000000\",\"neighbor_value_hex\":\"ab00000000000000000000000000000000000000000000000000000000000000\",\"claimed_prefix_bits\":0,\"proof_steps\":[{\"right\":false,\"cut_hex\":\"00000100800000000000000000000000000000000000000000000000000000000000000000\"}]}""" .
+
+afw:op-range-proof-verify a wja:Op ;
+    wja:opName "range_proof_verify" ;
+    wja:opOrder 12 ;
+    wja:requestFields "op,commitment_hex,proof_hex,bits,label" ;
+    wja:responseFields "ok,op,admitted" ;
+    wja:exampleRequest """{"op":"range_proof_verify","commitment_hex":"0000000000000000000000000000000000000000000000000000000000000000","proof_hex":"00","bits":32,"label":"affidavit:zk-range:v1:effect-budget"}""" .
 
 afw:err-bad-json a wja:ErrorCode ; wja:codeName "bad_json" ; wja:codeOrder 1 .
 afw:err-missing-field a wja:ErrorCode ; wja:codeName "missing_field" ; wja:codeOrder 2 .
