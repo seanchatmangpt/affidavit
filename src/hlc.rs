@@ -91,7 +91,7 @@ impl HlcClock {
                 logical: 0,
             };
         } else {
-            self.last.logical += 1;
+            self.last.logical = self.last.logical.saturating_add(1);
         }
         self.last
     }
@@ -114,13 +114,15 @@ impl HlcClock {
             });
         }
         let physical_ms = now.max(self.last.physical_ms).max(received.physical_ms);
+        // Saturating at the u32 logical ceiling keeps the causal order total
+        // (timestamps remain comparable); overflow can never panic here.
         let logical = if physical_ms == self.last.physical_ms && physical_ms == received.physical_ms
         {
-            self.last.logical.max(received.logical) + 1
+            self.last.logical.max(received.logical).saturating_add(1)
         } else if physical_ms == self.last.physical_ms {
-            self.last.logical + 1
+            self.last.logical.saturating_add(1)
         } else if physical_ms == received.physical_ms {
-            received.logical + 1
+            received.logical.saturating_add(1)
         } else {
             0
         };
@@ -198,5 +200,19 @@ mod tests {
             local.receive(far_future),
             Err(HlcError::ClockSkewExceeded { .. })
         ));
+    }
+
+    #[test]
+    fn logical_counter_saturates_instead_of_panicking() {
+        let mut clock = HlcClock::with_skew_bound(1_000);
+        // Received stamp shares the clock's physical ms with logical = MAX:
+        // the propagate branch must saturate, never overflow-panic.
+        let phys = clock.peek().physical_ms;
+        let maxed = timestamp(phys, u32::MAX);
+        let issued = clock.receive(maxed).expect("within skew");
+        assert_eq!(issued.logical, u32::MAX, "saturated at the ceiling");
+        let again = clock.receive(maxed).expect("still within skew");
+        assert_eq!(again.logical, u32::MAX, "stays saturated, never wraps");
+        assert_eq!(again, issued);
     }
 }

@@ -44,14 +44,12 @@ pub enum WasmCourtError {
 }
 
 /// A sandbox court with fuel metering enabled engine-wide.
+///
+/// Construction is fallible (`WasmCourt::new`); there is intentionally no
+/// `Default` impl — a panic path in a sandbox boundary would violate the
+/// crate's panic-free production-path law.
 pub struct WasmCourt {
     engine: Engine,
-}
-
-impl Default for WasmCourt {
-    fn default() -> Self {
-        Self::new().expect("engine construction cannot fail with default config")
-    }
 }
 
 impl WasmCourt {

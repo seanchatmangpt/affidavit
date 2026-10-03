@@ -286,3 +286,88 @@ fn chicago_wasm_court_bounds_execution() {
         Err(WasmCourtError::OutOfFuel { budget: 1_000 })
     ));
 }
+
+#[test]
+fn chicago_fast_path_gates_before_heavy_crypto() {
+    use affidavit::authority_fence::fast_path::{
+        verify_fast_path, AdmittedProof, ConsequenceClaim, FastPathRefusal,
+    };
+    use affidavit::hlc::HlcClock;
+    use affidavit::replay_filter::ReplayFilter;
+    use affidavit::threshold_quorum::{
+        aggregate_signature, generate_quorum, round1_commit, round2_sign, signing_package,
+        verify_quorum,
+    };
+
+    let mut fence = AuthorityFence::new();
+    let mut replay = ReplayFilter::new(1_000);
+    let mut clock = HlcClock::with_skew_bound(1_000);
+
+    // Prepare the heavy witness NOW but verify it only AFTER the gate.
+    let message = b"fast-path gated consequence";
+    let quorum = generate_quorum(5, 3, &mut OsRng).expect("dealer");
+    let chosen: Vec<_> = quorum.shares.keys().copied().take(3).collect();
+    let mut commitments = Vec::new();
+    let mut nonces = Vec::new();
+    for p in &chosen {
+        let (n, c) = round1_commit(&quorum.shares[p], &mut OsRng).expect("round1");
+        nonces.push(n);
+        commitments.push((*p, c));
+    }
+    let package = signing_package(&commitments, message, quorum.threshold).expect("package");
+    let mut shares = Vec::new();
+    for p in &chosen {
+        let s = round2_sign(&quorum.shares[p], &nonces[shares.len()], &package).expect("round2");
+        shares.push((*p, s));
+    }
+    let signature = aggregate_signature(
+        &package,
+        &shares,
+        &quorum.public_key_package,
+        quorum.threshold,
+    )
+    .expect("aggregate");
+
+    // Stage the fast-path gate first.
+    let stamp = clock.send();
+    let claim = ConsequenceClaim {
+        consequence_id: key(0xA1),
+        authority_id: key(0xA2),
+        received: stamp,
+    };
+    let proof: AdmittedProof = verify_fast_path(&mut fence, &mut replay, &mut clock, &claim)
+        .expect("fast path admits clean claim");
+
+    // Heavy cryptography runs only after the gate admitted.
+    assert_ok!(
+        verify_quorum(&quorum.group_key, message, &signature),
+        "group signature holds"
+    );
+
+    // Re-confirm at the live root immediately before actuation.
+    assert_ok!(
+        law_holds(proof.confirm(&fence).is_ok()),
+        "permit confirms at live root"
+    );
+
+    // Replay of the same consequence id: refused at the screen — the
+    // refusal variant carries no witness, so no crypto was reachable.
+    assert_eq!(
+        verify_fast_path(&mut fence, &mut replay, &mut clock, &claim),
+        Err(FastPathRefusal::Replay),
+        "replay refused at the cheapest stage"
+    );
+
+    // Revoked authority: refused at the fence stage.
+    fence.revoke(&key(0xA2)).expect("revoke the authority");
+    let second = ConsequenceClaim {
+        consequence_id: key(0xA3),
+        authority_id: key(0xA2),
+        received: clock.send(),
+    };
+    assert_eq!(
+        verify_fast_path(&mut fence, &mut replay, &mut clock, &second),
+        Err(FastPathRefusal::Revoked),
+        "revoked authority refused at the fence stage"
+    );
+}

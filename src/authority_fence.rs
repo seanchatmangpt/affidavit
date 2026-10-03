@@ -28,6 +28,122 @@ use bitvec::prelude::{BitSlice, Msb0};
 use bitvec::view::BitView;
 use thiserror::Error;
 
+// --- Fast-path actuation gate ------------------------------------------------
+// Cost-ordered composition of the cheap screens ahead of any expensive
+// cryptography: cuckoo replay screen O(1) → HLC monotonicity O(1) → SMT
+// revocation absence O(log 256). Heavy witnesses (threshold signatures, ZK
+// range proofs) are verified only AFTER the fast path admits — and the
+// permit is re-confirmed against the live root at actuation time.
+#[cfg(all(feature = "hlc", feature = "replay-filter"))]
+pub mod fast_path {
+    use super::{gate_do, AuthorityFence, DoWitness, FenceError, StateRoot};
+    use crate::hlc::{HlcClock, HlcError, HlcTimestamp};
+    use crate::replay_filter::ReplayFilter;
+
+    /// The claim an effector presents at the fast-path gate.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ConsequenceClaim {
+        /// Replay-screen key (nonce): first sight admits, any resubmission
+        /// refuses. Note: the id is burned at screen time even if a later
+        /// stage refuses — a refused claim can never be replayed.
+        pub consequence_id: [u8; 32],
+        /// The authority whose revocation status the fence checks.
+        pub authority_id: [u8; 32],
+        /// The upstream causal stamp to absorb into the local clock.
+        pub received: HlcTimestamp,
+    }
+
+    /// Fast-path refusals, named in the order they can fire.
+    #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+    pub enum FastPathRefusal {
+        /// The cuckoo screen has already seen this consequence id.
+        #[error("replay refused: consequence id already witnessed")]
+        Replay,
+        /// The received stamp violates causality or the skew bound.
+        #[error("temporal order refused: {0}")]
+        ClockSkew(#[from] HlcError),
+        /// The authority id is in the revocation set at the live root.
+        #[error("authority revoked at live root")]
+        Revoked,
+        /// A fence-internal refusal (stale, unknown, or tree failure).
+        #[error("fence refused: {0}")]
+        Fence(#[from] FenceError),
+    }
+
+    /// Everything the caller needs to actuate after heavy checks: the
+    /// revocation permit cut at gate time, the causal stamp the gate
+    /// issued, and the root the permit was cut against.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AdmittedProof {
+        /// The revocation-set permit (inclusion or absence witness).
+        pub permit: DoWitness,
+        /// The stamp the gate issued after absorbing the claim's stamp.
+        pub admitted_at: HlcTimestamp,
+        /// The revocation-set root at gate time. Re-check against the live
+        /// root before actuation: [`AdmittedProof::confirm`].
+        pub gate_root: Option<StateRoot>,
+    }
+
+    impl AdmittedProof {
+        /// Re-confirm the permit against the fence's **live** root.
+        ///
+        /// Call this after any expensive work (signature aggregation, ZK
+        /// verification) and immediately before `DO`: if the root advanced
+        /// between gate and actuation, the refusal is typed, not silent.
+        ///
+        /// # Errors
+        ///
+        /// See [`gate_do`].
+        pub fn confirm(&self, fence: &AuthorityFence) -> Result<(), FenceError> {
+            gate_do(&self.permit, fence.root())
+        }
+    }
+
+    /// The fast-path actuation gate: screens in strict cost order, then
+    /// issues a permit for post-crypto confirmation.
+    ///
+    /// 1. **Cuckoo replay screen** — O(1), sub-microsecond: catches replays
+    ///    before anything else runs.
+    /// 2. **HLC monotonicity** — O(1) integer compare: catches temporal
+    ///    drift and causality violations.
+    /// 3. **SMT revocation absence** — O(log 256) hash path: catches
+    ///    revoked leases without any broker round-trip.
+    ///
+    /// Heavy cryptography (FROST aggregation, ZK range proofs) belongs
+    /// AFTER this gate, followed by [`AdmittedProof::confirm`].
+    ///
+    /// # Errors
+    ///
+    /// Typed refusals in [`FastPathRefusal`]; never panics.
+    pub fn verify_fast_path(
+        fence: &mut AuthorityFence,
+        replay: &mut ReplayFilter,
+        clock: &mut HlcClock,
+        claim: &ConsequenceClaim,
+    ) -> Result<AdmittedProof, FastPathRefusal> {
+        // Stage 1 (cheapest): replay screen. Commit-on-claim.
+        if !replay
+            .witness(&claim.consequence_id)
+            .map_err(|e| FenceError::Tree(e.to_string()))?
+        {
+            return Err(FastPathRefusal::Replay);
+        }
+        // Stage 2: causal order. Absorbing refuses future-skewed stamps.
+        let admitted_at = clock.receive(claim.received)?;
+        // Stage 3: revocation absence at the live root.
+        let permit = match fence.prepare_do_permit(&claim.authority_id) {
+            Ok(witness) => witness,
+            Err(FenceError::Revoked) => return Err(FastPathRefusal::Revoked),
+            Err(e) => return Err(FastPathRefusal::Fence(e)),
+        };
+        Ok(AdmittedProof {
+            permit,
+            admitted_at,
+            gate_root: fence.root(),
+        })
+    }
+}
+
 /// Marker value committed under a revoked authority id.
 pub const REVOCATION_TOMBSTONE: StateValue = [0xFF; 32];
 
@@ -313,5 +429,123 @@ mod tests {
             panic!("expected absence witness");
         }
         gate_do(&witness, fence.root()).expect("admitted");
+    }
+}
+
+#[cfg(all(test, feature = "hlc", feature = "replay-filter"))]
+mod fast_path_tests {
+    use super::fast_path::{verify_fast_path, ConsequenceClaim, FastPathRefusal};
+    use super::AuthorityFence;
+    use crate::hlc::{timestamp, HlcClock};
+    use crate::replay_filter::ReplayFilter;
+
+    fn id(seed: u8) -> [u8; 32] {
+        let mut k = [0u8; 32];
+        k[0] = seed;
+        k
+    }
+
+    #[test]
+    fn honest_claim_admits_with_permit_and_stamp() {
+        let mut fence = AuthorityFence::new();
+        let mut replay = ReplayFilter::new(1_000);
+        let mut clock = HlcClock::with_skew_bound(1_000);
+        let upstream = clock.send();
+        let claim = ConsequenceClaim {
+            consequence_id: id(1),
+            authority_id: id(2),
+            received: upstream,
+        };
+        let proof =
+            verify_fast_path(&mut fence, &mut replay, &mut clock, &claim).expect("admitted");
+        assert_eq!(proof.gate_root, fence.root());
+        proof.confirm(&fence).expect("confirm at live root");
+    }
+
+    #[test]
+    fn replayed_claim_refused_at_the_screen() {
+        let mut fence = AuthorityFence::new();
+        let mut replay = ReplayFilter::new(1_000);
+        let mut clock = HlcClock::with_skew_bound(1_000);
+        let stamp = clock.send();
+        let claim = ConsequenceClaim {
+            consequence_id: id(9),
+            authority_id: id(2),
+            received: stamp,
+        };
+        verify_fast_path(&mut fence, &mut replay, &mut clock, &claim).expect("first admits");
+        assert_eq!(
+            verify_fast_path(&mut fence, &mut replay, &mut clock, &claim),
+            Err(FastPathRefusal::Replay),
+            "second sight is the replay refusal"
+        );
+    }
+
+    #[test]
+    fn revoked_authority_refused_before_heavy_work() {
+        let mut fence = AuthorityFence::new();
+        fence.revoke(&id(3)).expect("revoke");
+        let mut replay = ReplayFilter::new(1_000);
+        let mut clock = HlcClock::with_skew_bound(1_000);
+        let stamp = clock.send();
+        let claim = ConsequenceClaim {
+            consequence_id: id(4),
+            authority_id: id(3),
+            received: stamp,
+        };
+        assert_eq!(
+            verify_fast_path(&mut fence, &mut replay, &mut clock, &claim),
+            Err(FastPathRefusal::Revoked)
+        );
+    }
+
+    #[test]
+    fn root_advance_between_gate_and_actuation_refuses_confirm() {
+        let mut fence = AuthorityFence::new();
+        fence
+            .revoke(&id(0x80))
+            .expect("seed revocation so root is Some");
+        let mut replay = ReplayFilter::new(1_000);
+        let mut clock = HlcClock::with_skew_bound(1_000);
+        let stamp = clock.send();
+        let claim = ConsequenceClaim {
+            consequence_id: id(5),
+            authority_id: id(6),
+            received: stamp,
+        };
+        let proof = verify_fast_path(&mut fence, &mut replay, &mut clock, &claim)
+            .expect("admitted at gate");
+        // Root advances after the gate cut the permit.
+        fence.revoke(&id(0x40)).expect("advance root");
+        assert_eq!(
+            proof.confirm(&fence),
+            Err(super::FenceError::WitnessStaleOrInvalid),
+            "stale permit refuses at actuation"
+        );
+    }
+
+    #[test]
+    fn skew_bound_refuses_far_future_stamps() {
+        let mut fence = AuthorityFence::new();
+        let mut replay = ReplayFilter::new(1_000);
+        let mut clock = HlcClock::with_skew_bound(1_000);
+        let far_future = timestamp(u64::MAX / 2, 0);
+        let claim = ConsequenceClaim {
+            consequence_id: id(7),
+            authority_id: id(8),
+            received: far_future,
+        };
+        assert!(matches!(
+            verify_fast_path(&mut fence, &mut replay, &mut clock, &claim),
+            Err(FastPathRefusal::ClockSkew(
+                crate::hlc::HlcError::ClockSkewExceeded { .. }
+            ))
+        ));
+        // The claim's consequence id was burned at the screen even though a
+        // later stage refused — a refused claim can never be replayed.
+        assert!(
+            !replay.witness(&id(7)).expect("capacity"),
+            "id must already be recorded"
+        );
     }
 }
