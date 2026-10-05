@@ -347,6 +347,12 @@ gpu = ["wgpu", "bytemuck", "pollster"]
 crypto-trust = ["dep:signature", "dep:p256", "dep:ml-dsa", "dep:slh-dsa", "dep:rand_core"]
 # Backward-compatible explicit PQC surface used by the exact-head crypto court.
 pqc = ["crypto-trust"]
+# OPTIONAL certified-receipts upgrade for paid-delivery receipts: signs the
+# canonical "affidavit-paid-delivery/v1|<subject>|<payload_hash_hex>" subject
+# through the existing certify_signed path. The chain rule itself stays the
+# plain sha256 fold; this seam adds signatures, never replaces it, and fails
+# OPEN to uncertified (absent feature => module absent => fold-only verify).
+certified-receipts = ["crypto-trust"]
 # Real Secure Enclave signing (macOS only): non-exportable P-256 keys via
 # Security.framework; affidavit owns KeyRef/custody semantics, never key bytes.
 secure-enclave = ["crypto-trust", "dep:security-framework"]

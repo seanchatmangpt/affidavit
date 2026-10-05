@@ -161,6 +161,14 @@ pub mod visualize;
 #[cfg(feature = "mutation")]
 pub mod mutate;
 
+// --- Certified paid-delivery receipts (hand-written consumer seam) ---
+// OPTIONAL upgrade over the plain sha256 fold chain: signs
+// "affidavit-paid-delivery/v1|<subject>|<payload_hash_hex>" through the
+// existing crypto_trust_verify::certify_signed path. Fail-open-to-uncertified:
+// without this feature the module is not declared and fold-only verify stands.
+#[cfg(feature = "certified-receipts")]
+pub mod receipts_certified;
+
 // --- Cryptographic trust plane (affidavit-trust-plane-pack projections) ---
 // Rendered by `ggen sync run` from
 // ../ggen-marketplace/packs/affidavit-trust-plane-pack — never hand-edited.
