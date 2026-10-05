@@ -8,7 +8,7 @@ version = "0.1.0"
 
 [[package]]
 name = "affidavit-wasm"
-version = "26.9.28"
+version = "26.10.5"
 dependencies = [
  "affidavit-core",
  "blake3",
