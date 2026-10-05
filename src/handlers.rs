@@ -6929,7 +6929,7 @@ fn evidence_journal_core(
         TrustPolicy::from_graph_defaults().with_now(now),
     );
     let receipt = engine
-        .certify(&envelope, &signature, &subject)
+        .certify_signed(&envelope, &signature, &subject, &signing)
         .map_err(|e| {
             to_noun_verb(AffidavitError::VerificationFailed(format!(
                 "envelope refused adjudication: {e}"

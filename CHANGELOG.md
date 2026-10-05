@@ -2,6 +2,19 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## Unreleased
+
+### Added
+- **`affidavit::event_builder`** — `EventBuilder`, the type-safe preferred public
+  API for constructing events before appending them to a chain; `build()`
+  delegates to `build_event`, so it applies the same admission checks. See
+  `examples/event_builder.rs` (commit `4dbc71e`, 2026-09-30).
+- **Shell completions now also ship for PowerShell** (`completions/affi.ps1`)
+  **and Nushell** (`completions/affi.nu`), generated from the verb registry by
+  `scripts/generate_completions.py` and drift-enforced by
+  `tests/completions_drift.rs` (commit `cab0903`, 2026-09-30). The existing
+  bash/zsh/fish completions are unchanged in law.
+
 ## v26.9.28 — Cryptographic trust plane
 
 **Theme: affidavit owns the ecosystem's cryptographic trust plane — real keys,

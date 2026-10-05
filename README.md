@@ -178,11 +178,16 @@ Each receipt passes through a rigorous validation gauntlet:
 6.  **Profile Evaluation:** Conformance scoring against business logic.
 7.  **Final Verdict:** Atomic `ACCEPT` or `REJECT` output.
 
+### EventBuilder
+`affidavit::event_builder::EventBuilder` is the type-safe, preferred public API for constructing events before appending them to a chain — its `build()` delegates to `build_event`, so it applies the same admission checks (see `examples/event_builder.rs`).
+
 ---
 
 ## 💻 CLI Surface
 
 Affidavit ships **92 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
+
+Shell completions ship for five shells — bash, zsh, fish, PowerShell (`completions/affi.ps1`), and Nushell (`completions/affi.nu`) — generated from the verb registry by `scripts/generate_completions.py` and drift-enforced by `tests/completions_drift.rs`.
 
 **Core Verbs (The Provenance Loop):**
 - `affi emit` — Record a new operation-event.
