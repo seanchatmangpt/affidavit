@@ -183,11 +183,22 @@ in the root crate additionally requires the fixture to ACCEPT under the current
 release's own verifier and the wasm crate's version to equal `affi`'s, so a
 version bump cannot leave either behind.
 
-**Regenerate the fixture on every version bump** (the genesis seed is
-`affidavit-v<version>-genesis`): emit three events, assemble with the new `affi`,
-copy to `golden_receipt.json`, and `sed 's/"test"/"tampered"/'` a copy to
-`tampered_receipt.json`; then update the expected hashes in
-`tests/wasm_abi.rs::rejects_a_tampered_receipt_with_the_exact_reason_affi_gives`.
+**Regenerate the fixture on every version bump** with `just golden-mint`
+(script: `scripts/golden_receipt.py mint`; the genesis seed is
+`affidavit-v<version>-genesis`). It executes exactly the documented sequence —
+emit three events (`build`/`compile step`, `test`/`unit tests`,
+`deploy`/`ship it`), assemble with the new `affi`, copy to
+`golden_receipt.json`, and `sed 's/"test"/"tampered"/'` a copy to
+`tampered_receipt.json` — refusing with `REFUSED_VERSION_MISMATCH` if
+`CHANGELOG.md` has no `## [<version>]` section. It is idempotent at the
+current version: a re-mint with no version bump leaves the fixtures
+byte-identical. Still manual afterward: update the expected hashes in
+`tests/wasm_abi.rs::rejects_a_tampered_receipt_with_the_exact_reason_affi_gives`
+(the script prints this reminder). To catch the second drift class — the
+hand-typed genesis seed in `web/lib/verify-client.ts` and
+`web/app/visualizer/model.ts` — run `just check-genesis`, a verification-only
+court that fails loudly with the `release_identity` drift message and never
+edits the web files.
 
 ## Trust-model boundaries (read before relying on it)
 
