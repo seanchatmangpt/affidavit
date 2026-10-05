@@ -75,7 +75,7 @@ fn rejects_a_tampered_receipt_with_the_exact_reason_affi_gives() {
     assert_eq!(v["accepted"], false);
     assert_eq!(
         v["reason"],
-        "chain_integrity: chain hash mismatch: stored d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0, recomputed 1f1d040c94289281daa2c13b18d4cda9b1a28c59ba323285febc20971f461d7a"
+        "chain_integrity: chain hash mismatch: stored 199d1e6af18c9e22b2f2125d32f43b6e31f52fa34c9417bef8beace2a2628321, recomputed a44a512bc7c446346732ed3204f4df4d63d99d37117ff5c4c5abd4b54917d0eb"
     );
 }
 

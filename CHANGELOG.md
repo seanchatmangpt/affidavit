@@ -2,7 +2,7 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
-## 26.10.5 — Advanced witness capability set
+## [26.10.5] — Advanced witness capability set
 
 **Theme: the advanced witness set — 16 feature-gated cryptographic
 integrations behind a panic-free fast-path actuation gate, a typed
