@@ -35,9 +35,10 @@ jobs:
   pqc:
     name: crypto trust (ML-DSA-65)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Checkout exact candidate
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.CANDIDATE_SHA }}
 
@@ -51,14 +52,14 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Resolve and compile PQC trust plane
         run: cargo check --lib --features pqc
 
       - name: Preserve resolver-produced Cargo.lock
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: crypto-trust-resolved-lock-${{ env.CANDIDATE_SHA }}
           path: Cargo.lock

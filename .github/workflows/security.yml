@@ -7,12 +7,16 @@ on:
     # Run daily at 6am UTC
     - cron: '0 6 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   audit:
     name: cargo audit
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
