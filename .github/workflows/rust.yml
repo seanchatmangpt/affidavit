@@ -206,6 +206,7 @@ jobs:
   perf-budget:
     name: perf-budget (crypto-trust 10x recorded-median drift alarm)
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     needs: build-and-test
     continue-on-error: false
     steps:
