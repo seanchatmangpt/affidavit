@@ -6680,7 +6680,10 @@ const EVIDENCE_CRL_FILE: &str = ".affi/crl.json";
 
 /// Audience bound inside evidence envelopes (`evidence journal`).
 #[cfg(feature = "crypto-trust")]
-const EVIDENCE_AUDIENCE: &str = "affidavit.evidence";
+// The evidence lane certifies through the engine's graph-default policy,
+// whose audience allowlist admits `affidavit.cli` — an unadmitted audience
+// would refuse adjudication of every envelope the lane mints.
+const EVIDENCE_AUDIENCE: &str = "affidavit.cli";
 
 /// Resolve `AFFI_SIGNING_KEY_PATH` when it is set to a non-empty value; an
 /// unset (or empty) variable is `None` — the caller decides whether that is a
@@ -6899,6 +6902,18 @@ fn evidence_journal_core(
             "subject digest: {e}"
         )))
     })?;
+    // SUBJECT BINDING LAW (`certify_signed`): the certified subject STRING
+    // must digest — under the trust-plane domain tag — to exactly the
+    // envelope's bound digest, i.e. it is the receipt's content address in
+    // hex, never the caller's evidence label.
+    let subject_address = crate::chain::content_address(&base)
+        .map_err(|e| {
+            to_noun_verb(AffidavitError::ContentAddressing(format!(
+                "content address: {e}"
+            )))
+        })?
+        .as_hex()
+        .to_string();
     let envelope = build_signature_envelope(
         &record.id,
         EVIDENCE_AUDIENCE,
@@ -6929,7 +6944,7 @@ fn evidence_journal_core(
         TrustPolicy::from_graph_defaults().with_now(now),
     );
     let receipt = engine
-        .certify_signed(&envelope, &signature, &subject, &signing)
+        .certify_signed(&envelope, &signature, &subject_address, &signing)
         .map_err(|e| {
             to_noun_verb(AffidavitError::VerificationFailed(format!(
                 "envelope refused adjudication: {e}"

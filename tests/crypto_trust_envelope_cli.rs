@@ -188,7 +188,7 @@ fn envelope_list_shows_sealed_key_records_and_is_read_only() {
         "kid listed: {listing}"
     );
     assert!(listing.contains("ES256"), "algorithm listed: {listing}");
-    assert!(listing.contains("CLASSICAL"), "profile listed: {listing}");
+    assert!(listing.contains("Classical"), "profile listed: {listing}");
     assert!(
         listing.contains(&record.fingerprint.as_hex()),
         "fingerprint listed: {listing}"
@@ -377,9 +377,10 @@ fn envelope_export_refuses_tampered_sealed_document() {
         .failure()
         .code(1)
         // Anti-vacuity: the refusal must be the chain law inside
-        // deserialization (a JSON error), not the pre-sync dispatch error —
-        // this assertion fails while the verb is unrendered.
-        .stderr(predicate::str::contains("JSON error"));
+        // deserialization (the recomputed chain hash must mismatch the
+        // claimed one), not the pre-sync dispatch error — this assertion
+        // fails while the verb is unrendered.
+        .stderr(predicate::str::contains("chain hash mismatch"));
 }
 
 #[test]

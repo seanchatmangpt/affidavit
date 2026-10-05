@@ -107,7 +107,9 @@ fn envelope_over(subject: [u8; 32], kid: &KeyId, nonce_tag: u8) -> SignatureEnve
         not_before: NOT_BEFORE,
         expires_at: EXPIRES_AT,
         subject_digest: subject,
-        audience: "affidavit.court".to_string(),
+        // An audience admitted by the graph-default policy: the court's
+        // target is the certify/seal stack, never audience policy.
+        audience: "affidavit.cli".to_string(),
     }
 }
 
@@ -230,10 +232,17 @@ fn es256_full_cycle_from_receipt_to_standing_to_seal() {
     assert_eq!(verdict.key_id, Some(record.id.clone()));
 
     // (5) Sitting two: certify mints the standing receipt — evidence for the
-    // SA2A authorization layer, never authorization itself.
+    // SA2A authorization layer, never authorization itself. `certify_signed`
+    // enforces SUBJECT BINDING: the named subject string must digest — under
+    // the trust-plane domain tag — to exactly the envelope's bound digest,
+    // which here is the receipt's content address.
+    let subject_address = affidavit::chain::content_address(&receipt)
+        .expect("content address")
+        .as_hex()
+        .to_string();
     let certifying = fresh_sitting(&record, NOW);
     let standing_receipt: CryptoStandingReceipt = certifying
-        .certify(&envelope, &signature, "subject-a")
+        .certify_signed(&envelope, &signature, &subject_address, &signing)
         .expect("VALID verdict mints a receipt");
     assert_eq!(standing_receipt.profile, CRYPTO_STANDING_PROFILE);
     assert_eq!(standing_receipt.standing, CryptographicStanding::Valid);
