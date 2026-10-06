@@ -6,4 +6,4 @@
 #   cargo build --locked --target wasm32-wasip1 --profile wasm
 # and regenerate the pin after any src/ change. Verification of the pin is the
 # consumer's test suite, not this file.
-wasm 4c93c26329ae1ca626df994ccbaf691dcbfa8dad959fa40018a9a19cc829c382 660847 affidavit_wasm.wasm
+wasm a89e34d9a45f221b3e8dee32d9a8e8e70bc9e80633665f959f2a508827ea3223 660847 affidavit_wasm.wasm

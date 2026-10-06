@@ -2,6 +2,13 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+### Added (26.10.5, continued)
+- `affidavit-wasm/src/signature.rs`: the new `verify_signature` op (order 14)
+  and its native tests: real RFC 8032 Ed25519 KAT, real RFC 6979 ES256/ES256K
+  signing round trips, typed refusals; new pure-Rust verifier deps (`p256`,
+  `k256`, `ed25519-dalek`); artifact re-pinned (`ARTIFACTS.sha256`,
+  `artifact-pin.json`, ontology pin facts).
+
 ## [26.10.5] — Advanced witness capability set
 
 **Theme: the advanced witness set — 16 feature-gated cryptographic

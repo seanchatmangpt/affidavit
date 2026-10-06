@@ -33,6 +33,13 @@ monotree = "0.2"
 bulletproofs = "4"
 curve25519-dalek-ng = "4.1"
 merlin = "3"
+# Signature adjudication for `verify_signature` (verifier-side, pure Rust —
+# the same stacks the root crate's AG1 lanes use, so native and wasm32 agree).
+# ES256: P-256 ECDSA, DER, low-s. ES256K: secp256k1 ECDSA, fixed 64-byte, low-s.
+# Ed25519: raw 32-byte key, 64-byte signature.
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "alloc", "arithmetic"] }
+k256 = { version = "0.14", default-features = false, features = ["ecdsa", "alloc", "arithmetic"] }
+ed25519-dalek = { version = "2.1", default-features = false, features = ["alloc", "rand_core"] }
 # Force clear_on_drop's no_cc feature through the graph: its default C build
 # script cannot compile for wasm32-wasip1 (feature unification, no API change).
 clear_on_drop = { version = "0.2", features = ["no_cc"] }

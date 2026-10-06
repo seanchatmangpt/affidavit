@@ -109,6 +109,72 @@ fn check(
     Ok((computed == expected, computed))
 }
 
+/// Domain-separated BLAKE3 subject digest, with the domain tag as an INPUT.
+///
+/// This is the rendered plane's [`affidavit_core`] signing-input law —
+/// `digest(DOMAIN_TAG, [subject])` — with the constant replaced by the
+/// caller's tag, so a host can derive digests for any domain, not just
+/// `affidavit.crypto-trust-plane.v1`. Pre-image:
+/// `tag || 0x00 || tag || 0x00 || u64_be(len) || subject` (the explicit
+/// length prefix makes the boundary unambiguous under concatenation).
+pub fn derive_subject_digest(domain_tag: &str, subject: &[u8]) -> [u8; 32] {
+    blake3::hash(&pre_image(domain_tag, subject)).into()
+}
+
+/// The ABI op behind `{"op":"derive_subject_digest"}`. Request:
+/// `{"domain_tag": "<string>", "subject": "<string>"}` or
+/// `{"domain_tag": ..., "subject_hex": "<hex bytes>"}` (exactly one of the
+/// two subject fields). Response adds `digest_hex` (64 lowercase hex chars)
+/// and `pre_image_hex` (the exact bytes hashed, so hosts can audit the
+/// domain separation without re-deriving the law).
+pub(crate) fn op_derive_subject_digest(req: &Value) -> Result<Map<String, Value>, AbiError> {
+    let domain_tag = field(req, "domain_tag")?
+        .as_str()
+        .ok_or_else(|| err("bad_field", "`domain_tag` must be a string"))?;
+    let subject: Vec<u8> = match (
+        req.get("subject").and_then(Value::as_str),
+        req.get("subject_hex").and_then(Value::as_str),
+    ) {
+        (Some(_), Some(_)) => {
+            return Err(err(
+                "bad_field",
+                "pass exactly one of `subject` or `subject_hex`, not both",
+            ))
+        }
+        (Some(s), None) => s.as_bytes().to_vec(),
+        (None, Some(h)) => hex_decode(h).ok_or_else(|| {
+            err("bad_field", "`subject_hex` must be valid lowercase or uppercase hex")
+        })?,
+        (None, None) => {
+            return Err(err(
+                "missing_field",
+                "request needs one of `subject` or `subject_hex`",
+            ))
+        }
+    };
+    if domain_tag.is_empty() {
+        return Err(err("bad_field", "`domain_tag` must not be empty"));
+    }
+    let digest = derive_subject_digest(domain_tag, &subject);
+    let pre_image = pre_image(domain_tag, &subject);
+    Ok(crate::abi::obj(json!({
+        "digest_hex": hex_encode(&digest),
+        "pre_image_hex": hex_encode(&pre_image),
+    })))
+}
+
+/// The exact bytes hashed, exposed for audit.
+fn pre_image(domain_tag: &str, subject: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(2 * domain_tag.len() + 2 + 8 + subject.len());
+    buf.extend_from_slice(domain_tag.as_bytes());
+    buf.push(0x00);
+    buf.extend_from_slice(domain_tag.as_bytes());
+    buf.push(0x00);
+    buf.extend_from_slice(&(subject.len() as u64).to_be_bytes());
+    buf.extend_from_slice(subject);
+    buf
+}
+
 /// The ABI op behind `{"op":"verify_signature_input"}`. Request:
 /// `{"envelope_json": "<envelope document JSON>",
 ///   "expected_signing_input_hex": "<hex>"}`. Response adds `verified`,
@@ -164,9 +230,115 @@ mod tests {
         );
     }
 
+    /// KAT extracted from the rendered plane's
+    /// `crypto_trust_canonical::digest_hex(DOMAIN_TAG, [subject])` law with
+    /// DOMAIN_TAG := "affidavit-paid-delivery/v1" (computed against
+    /// blake3 1.8.5, the pinned crate in Cargo.lock).
+    const KAT_TAG: &str = "affidavit-paid-delivery/v1";
+    const KAT_SUBJECT: &str = "paid-delivery:evt-001";
+    const KAT_DIGEST_HEX: &str =
+        "3ca4fb8419bd2319a832f8c9b2a5e2d8f2e8105c17d5fc6115de0238a7ec5e3f";
+
     #[test]
-    fn refusals_are_typed() {
-        assert!(matches!(
+    fn kat_matches_the_rust_surface_digest_law() {
+        assert_eq!(
+            derive_subject_digest(KAT_TAG, KAT_SUBJECT.as_bytes()),
+            {
+                let mut d = [0u8; 32];
+                for i in 0..32 {
+                    d[i] = u8::from_str_radix(&KAT_DIGEST_HEX[2 * i..2 * i + 2], 16).unwrap();
+                }
+                d
+            }
+        );
+    }
+
+    #[test]
+    fn domains_are_separated() {
+        let a = derive_subject_digest("affidavit-paid-delivery/v1", b"x");
+        let b = derive_subject_digest("affidavit.other-domain/v1", b"x");
+        assert_ne!(a, b);
+        // Same tag in both slots: flipping the constant slot alone must move
+        // the digest (guards against a single-slot pre-image regression).
+        let pre = pre_image("affidavit-paid-delivery/v1", b"x");
+        let mut single = Vec::with_capacity(pre.len());
+        single.extend_from_slice(KAT_TAG.as_bytes());
+        single.push(0x00);
+        single.extend_from_slice(b"x");
+        assert_ne!(pre, single);
+    }
+
+    #[test]
+    fn deterministic_and_length_prefixed() {
+        assert_eq!(
+            derive_subject_digest(KAT_TAG, b"subject"),
+            derive_subject_digest(KAT_TAG, b"subject")
+        );
+        // Boundary ambiguity under concatenation: ("ab","c") must differ
+        // from ("a","bc") because parts are length-prefixed.
+        assert_ne!(pre_image(KAT_TAG, b"abc"), {
+            let mut v = Vec::new();
+            v.extend_from_slice(KAT_TAG.as_bytes());
+            v.push(0x00);
+            v.extend_from_slice(b"abc");
+            v
+        });
+        // Empty subject is a lawful input, not an error.
+        assert_ne!(derive_subject_digest(KAT_TAG, b""), [0u8; 32]);
+    }
+
+    #[test]
+    fn op_accepts_string_and_hex_subjects_and_refuses_bad_input() {
+        use crate::abi::Res;
+        let by_string = op_derive_subject_digest(&serde_json::json!({
+            "domain_tag": KAT_TAG,
+            "subject": KAT_SUBJECT,
+        }))
+        .unwrap();
+        let by_hex = op_derive_subject_digest(&serde_json::json!({
+            "domain_tag": KAT_TAG,
+            "subject_hex": KAT_SUBJECT.as_bytes().iter().map(|b| format!("{b:02x}")).collect::<String>(),
+        }))
+        .unwrap();
+        assert_eq!(
+            by_string.get("digest_hex").and_then(Value::as_str),
+            Some(KAT_DIGEST_HEX)
+        );
+        assert_eq!(by_string, by_hex);
+        // Pre-image audit field: tag twice, 0x00 separators, be8 length.
+        let pre = hex_decode(
+            by_string
+                .get("pre_image_hex")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        let tag = KAT_TAG.as_bytes();
+        assert_eq!(&pre[..tag.len()], tag);
+        assert_eq!(pre[tag.len()], 0x00);
+        assert_eq!(&pre[tag.len() + 1..2 * tag.len() + 1], tag);
+        assert_eq!(pre[2 * tag.len() + 1], 0x00);
+        assert_eq!(&pre[2 * tag.len() + 2..2 * tag.len() + 10], &21u64.to_be_bytes());
+        assert_eq!(&pre[2 * tag.len() + 10..], KAT_SUBJECT.as_bytes());
+        // Refusals: both subject fields, neither, empty tag, bad hex.
+        let r: Res<_> = op_derive_subject_digest(&serde_json::json!({
+            "domain_tag": KAT_TAG, "subject": "a", "subject_hex": "61"
+        }));
+        assert_eq!(r.unwrap_err().code, "bad_field");
+        let r: Res<_> =
+            op_derive_subject_digest(&serde_json::json!({"domain_tag": KAT_TAG}));
+        assert_eq!(r.unwrap_err().code, "missing_field");
+        let r: Res<_> =
+            op_derive_subject_digest(&serde_json::json!({"domain_tag": "", "subject": "a"}));
+        assert_eq!(r.unwrap_err().code, "bad_field");
+        let r: Res<_> = op_derive_subject_digest(&serde_json::json!({
+            "domain_tag": KAT_TAG, "subject_hex": "zz"
+        }));
+        assert_eq!(r.unwrap_err().code, "bad_field");
+    }
+
+    #[test]
+    fn refusals_are_typed() {        assert!(matches!(
             verify_signature_input(b"not json", V0_SIGNING_INPUT_HEX),
             Err(SignatureInputError::Envelope(
                 affidavit_core::crypto_verify::EnvelopeError::Malformed(_)

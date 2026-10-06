@@ -9,6 +9,7 @@ use crate::advanced;
 use crate::crypto;
 use crate::external_evidence;
 use crate::receipt::{self, ObjectRef, OperationEvent, Receipt};
+use crate::signature;
 use affidavit_core::mining::conformance::replay;
 use affidavit_core::mining::{
     AlphaRelation, DirectlyFollowsGraph, Footprint, LogStatistics, Trace,
@@ -146,6 +147,8 @@ fn dispatch(request: &[u8]) -> Res<Map<String, Value>> {
         "mine" => mine(&req)?,
         "conform" => conform(&req)?,
         "verify_signature_input" => crypto::op_verify_signature_input(&req)?,
+        "derive_subject_digest" => crypto::op_derive_subject_digest(&req)?,
+        "verify_signature" => signature::op_verify_signature(&req)?,
         "certify_authzen_evidence" => external_evidence::op_certify_authzen_evidence(&req)?,
         "certify_spiffe_evidence" => external_evidence::op_certify_spiffe_evidence(&req)?,
         "jcs_canonicalize" => advanced::op_jcs_canonicalize(&req)?,
