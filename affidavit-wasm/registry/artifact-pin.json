@@ -33,9 +33,11 @@
     "certify_spiffe_evidence",
     "jcs_canonicalize",
     "smt_absence_verify",
-    "range_proof_verify"
+    "range_proof_verify",
+    "derive_subject_digest",
+    "verify_signature"
   ],
-  "registry_sha256": "968eb6bd16d590921e2ae83558fbff80e855de27eaa9d5c8aaaa4679437ad77a",
+  "registry_sha256": "2fcaae611aaf069317123c0e1fe0c2978b2bd9c72aeadf2888aaee8be34d2ee5",
   "schema": "affidavit.wasm-pin/1",
-  "sha256": "95be2d188efe21f7b557552ccb3e32e38c5067bc30ca4c3c65a86e0fb65c2a58"
+  "sha256": "4c93c26329ae1ca626df994ccbaf691dcbfa8dad959fa40018a9a19cc829c382"
 }

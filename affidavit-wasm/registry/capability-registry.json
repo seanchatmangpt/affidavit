@@ -9,7 +9,8 @@
     "too_large",
     "too_deep",
     "missing_buffer",
-    "internal"
+    "internal",
+    "malformed"
   ],
   "exports": [
     "af_abi_version",
@@ -83,6 +84,16 @@
       "name": "range_proof_verify",
       "request_fields": ["op", "commitment_hex", "proof_hex", "bits", "label"],
       "response_fields": ["ok", "op", "admitted"]
+    },
+    {
+      "name": "derive_subject_digest",
+      "request_fields": ["op", "domain_tag", "subject", "subject_hex"],
+      "response_fields": ["ok", "op", "digest_hex", "pre_image_hex"]
+    },
+    {
+      "name": "verify_signature",
+      "request_fields": ["op", "alg", "public_key_hex", "signature_hex", "signing_input", "signing_input_hex"],
+      "response_fields": ["ok", "op", "valid", "refusal"]
     }
   ],
   "schema": "wasi-json-abi.capability-registry/1"

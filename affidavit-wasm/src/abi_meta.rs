@@ -35,6 +35,8 @@ pub const OPS: &[&str] = &[
     "jcs_canonicalize",
     "smt_absence_verify",
     "range_proof_verify",
+    "derive_subject_digest",
+    "verify_signature",
 ];
 
 /// Typed error codes, ordered by `wja:codeOrder`.
@@ -47,4 +49,5 @@ pub const ERROR_CODES: &[&str] = &[
     "too_deep",
     "missing_buffer",
     "internal",
+    "malformed",
 ];
