@@ -109,3 +109,20 @@ wasm-test:
 # fails when a verb is added without running this.
 completions:
     python3 scripts/generate_completions.py
+
+# --- mutation court (crypto trust surface) -----------------------------------
+
+# Targeted cargo-mutants regression court over the crypto-critical files.
+# Runs the `crypto_trust`-filtered lib suite plus the certified-receipts
+# integration falsifiers so the mutants meet real cryptographic assertions.
+# Baseline (2026-10-05, affidavit@HEAD): 129 mutants, 116+ caught,
+# <= 3 survivors, all classified equivalent (see mutations/BASELINE.json).
+mutate-crypto:
+    cargo mutants \
+        --file src/crypto_trust_verify.rs \
+        --file src/receipts_certified.rs \
+        --file src/crypto_trust_keys.rs \
+        --timeout 300 \
+        -j 4 \
+        -- --lib --test receipts_certified --test crypto_trust_mutation_court \
+            --features crypto-trust,certified-receipts -- crypto_trust
