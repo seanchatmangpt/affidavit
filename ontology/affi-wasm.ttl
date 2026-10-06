@@ -24,7 +24,7 @@ afw:module a wja:WasmModule ;
     # `cargo build --locked --lib --target wasm32-wasip1 --profile wasm`;
     # registrySha256 is the sha256 of the rendered registry/capability-registry.json.
     # Source commit is deliberately absent: a commit cannot contain its own hash.
-    wja:wasmSha256 "a89e34d9a45f221b3e8dee32d9a8e8e70bc9e80633665f959f2a508827ea3223" ;
+    wja:wasmSha256 "5cc37aea8e59f7139e2ff5d43ab3c3c82931285b6400cf45f943c61d21a41402" ;
     wja:wasmBytes 660847 ;
     wja:registrySha256 "2fcaae611aaf069317123c0e1fe0c2978b2bd9c72aeadf2888aaee8be34d2ee5" ;
     afw:toolchain "nightly-2026-08-12" ;
