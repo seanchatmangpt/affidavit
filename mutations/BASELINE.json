@@ -33,5 +33,29 @@
       }
     ]
   },
-  "killing_tests": "tests/crypto_trust_mutation_court.rs"
+  "killing_tests": "tests/crypto_trust_mutation_court.rs",
+  "verification_run": {
+    "subject_commit": "8d074306651da3f7a329079947c191261c94a560",
+    "date": "2026-10-05",
+    "mutants_generated": 129,
+    "caught": 126,
+    "survived": 3,
+    "survivors": [
+      {
+        "mutant": "delete match arm Ed25519 (verify_signature_bytes:555)",
+        "classification": "equivalent under court features",
+        "reason": "arm is cfg(ed25519); not compiled under crypto-trust,certified-receipts"
+      },
+      {
+        "mutant": "delete match arm Es256k (verify_signature_bytes:573)",
+        "classification": "equivalent under court features",
+        "reason": "arm is cfg(secp256k1); not compiled under court features"
+      },
+      {
+        "mutant": "decode_hex || -> && (receipts_certified.rs:268)",
+        "classification": "equivalent",
+        "reason": "a non-hexdigit byte fails the u8::from_str_radix parse to None regardless of the operator"
+      }
+    ]
+  }
 }
