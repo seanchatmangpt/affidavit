@@ -83,6 +83,15 @@ pub fn certify_paid_delivery_payload(
             "empty subject refused: a certified receipt must name a subject".to_string(),
         ));
     }
+    // AG4 whitespace law: a subject that is only whitespace — or that carries
+    // leading/trailing whitespace, which round-trips ambiguously through
+    // display/transport — names nobody and refuses like the empty subject.
+    if subject.trim() != subject {
+        return Err(VerifyRefusal::SubjectMismatch(format!(
+            "subject has leading/trailing whitespace (len {}): refused",
+            subject.len()
+        )));
+    }
 
     let canonical_subject = build_canonical_subject(payload_hash_hex, subject);
     let subject_digest = digest(DOMAIN_TAG, &[canonical_subject.as_bytes()]);
@@ -181,6 +190,33 @@ pub fn verify_certified_paid_delivery(
             "payload hash / subject does not match the certified binding".to_string(),
         ));
     }
+
+    // AG4 RECEIPT-ENVELOPE LINKAGE LAW: the carried receipt is re-audited
+    // (hash + signature) and must bind THIS envelope — a valid receipt
+    // minted over a DIFFERENT envelope must not ride along in the swap.
+    let envelope_commitment = blake3::hash(
+        certified
+            .envelope
+            .signing_input_checked()
+            .map_err(|err| VerifyRefusal::Provider(format!("envelope canonicalization: {err}")))?
+            .as_slice(),
+    )
+    .to_hex()
+    .to_string();
+    if certified.receipt.envelope_commitment != envelope_commitment
+        || certified.receipt.subject != canonical_subject
+        || certified.receipt.key_id != certified.envelope.key_id.to_string()
+        || certified.receipt.algorithm != certified.envelope.algorithm.as_str()
+    {
+        return Err(VerifyRefusal::Provider(
+            "receipt-envelope linkage mismatch: receipt does not bind this envelope".to_string(),
+        ));
+    }
+    certified
+        .receipt
+        .verify()
+        .map_err(|err| VerifyRefusal::Provider(format!("receipt re-audit: {err}")))?;
+
     let public_bytes = decode_hex(&certified.verifying_key_sec1_hex)
         .ok_or_else(|| VerifyRefusal::Provider("verifying key is not valid hex".to_string()))?;
     let public = PublicKeyMaterial::Es256Sec1(public_bytes);

@@ -94,6 +94,124 @@ fn hex_encode(bytes: &[u8]) -> String {
     s
 }
 
+/// AG4 duplicate-key court: scan raw JSON bytes and refuse any object that
+/// declares the same key twice (compared after unescaping, so `"a"` and
+/// `"\u0061"` collide too — serde would admit both and keep the last).
+fn refuse_duplicate_keys(bytes: &[u8]) -> Result<(), EnvelopeError> {
+    /// Keys seen per open object, with the container stack ('{' / '[').
+    struct Scanner {
+        containers: Vec<u8>,
+        object_keys: Vec<Vec<String>>,
+    }
+    impl Scanner {
+        fn unescape(raw: &[u8]) -> String {
+            let mut out = String::with_capacity(raw.len());
+            let mut chars = raw.iter().copied();
+            while let Some(c) = chars.next() {
+                if c != b'\\' {
+                    out.push(c as char);
+                    continue;
+                }
+                match chars.next() {
+                    Some(b'"') => out.push('"'),
+                    Some(b'\\') => out.push('\\'),
+                    Some(b'/') => out.push('/'),
+                    Some(b'b') => out.push('\u{0008}'),
+                    Some(b'f') => out.push('\u{000C}'),
+                    Some(b'n') => out.push('\n'),
+                    Some(b'r') => out.push('\r'),
+                    Some(b't') => out.push('\t'),
+                    Some(b'u') => {
+                        let mut v: u32 = 0;
+                        for _ in 0..4 {
+                            let d = chars
+                                .next()
+                                .and_then(|c| (c as char).to_digit(16))
+                                .unwrap_or(0);
+                            v = v * 16 + d;
+                        }
+                        out.push(char::from_u32(v).unwrap_or('\u{FFFD}'));
+                    }
+                    _ => out.push('\u{FFFD}'),
+                }
+            }
+            out
+        }
+
+        fn scan(&mut self, bytes: &[u8]) -> Result<(), EnvelopeError> {
+            let mut i = 0usize;
+            while i < bytes.len() {
+                match bytes[i] {
+                    b'"' => {
+                        let start = i + 1;
+                        i += 1;
+                        let mut escaped = false;
+                        while i < bytes.len() {
+                            let c = bytes[i];
+                            i += 1;
+                            if escaped {
+                                escaped = false;
+                            } else if c == b'\\' {
+                                escaped = true;
+                            } else if c == b'"' {
+                                break;
+                            }
+                        }
+                        if i > bytes.len() {
+                            return Err(EnvelopeError::Malformed(
+                                "unterminated JSON string".to_string(),
+                            ));
+                        }
+                        let raw = &bytes[start..i - 1];
+                        // A string is a KEY when the innermost container is an
+                        // object and the next non-whitespace byte is ':'.
+                        let mut j = i;
+                        while j < bytes.len()
+                            && matches!(bytes[j], b' ' | b'\t' | b'\n' | b'\r')
+                        {
+                            j += 1;
+                        }
+                        if self.containers.last() == Some(&b'{') && bytes.get(j) == Some(&b':') {
+                            let key = Self::unescape(raw);
+                            let keys = self
+                                .object_keys
+                                .last_mut()
+                                .expect("object container always pushes a key set");
+                            if keys.iter().any(|k| *k == key) {
+                                return Err(EnvelopeError::Malformed(format!(
+                                    "duplicate JSON object key {key:?}"
+                                )));
+                            }
+                            keys.push(key);
+                        }
+                    }
+                    b'{' | b'[' => {
+                        self.containers.push(bytes[i]);
+                        if bytes[i] == b'{' {
+                            self.object_keys.push(Vec::new());
+                        }
+                    }
+                    b'}' => {
+                        self.containers.pop();
+                        self.object_keys.pop();
+                    }
+                    b']' => {
+                        self.containers.pop();
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            Ok(())
+        }
+    }
+    let mut scanner = Scanner {
+        containers: Vec::new(),
+        object_keys: Vec::new(),
+    };
+    scanner.scan(bytes)
+}
+
 /// Journal key for the graph's replay tuple (ctp:nonce-policy-v1
 /// ctp:replayKey = "kid,nonce"): `kid + ":" + lowercase_hex(nonce)`. The
 /// suffix is unambiguous — lowercase hex digits and `:` are disjoint
@@ -164,6 +282,11 @@ impl SignatureEnvelope {
     /// - [`EnvelopeError::WrongVersion`] — `version` differs from
     ///   [`ENVELOPE_VERSION`]; the payload carries the refused version.
     pub fn from_bytes(b: &[u8]) -> Result<Self, EnvelopeError> {
+        // AG4 duplicate-key law: serde silently takes the LAST occurrence of
+        // a duplicated JSON object key, which would make "which field won" a
+        // hidden attacker-influenced choice. Duplicate keys refuse before any
+        // parsing.
+        refuse_duplicate_keys(b)?;
         let value: serde_json::Value =
             serde_json::from_slice(b).map_err(|e| EnvelopeError::Malformed(e.to_string()))?;
         let envelope: SignatureEnvelope =

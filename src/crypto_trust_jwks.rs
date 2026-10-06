@@ -43,6 +43,11 @@ pub enum JwksError {
     /// arithmetic); the record cannot export without it.
     #[error("ES256K export requires the secp256k1 feature (point decompression)")]
     FeatureRequired,
+    /// Two records in one exported set share a `kid`. A relying party that
+    /// resolves kid -> key could pick the wrong algorithm family and verify a
+    /// cross-family forgery, so a duplicate-kid set refuses WHOLE.
+    #[error("duplicate kid {0} across records; a JWKS with colliding kids is ambiguous")]
+    DuplicateKid(String),
 }
 
 /// RFC 4648 base64url WITHOUT padding (the JOSE base64url alphabet).
@@ -156,6 +161,15 @@ pub fn export_jwk(record: &KeyRecord) -> Result<serde_json::Value, JwksError> {
 pub fn export_jwks(records: &[KeyRecord]) -> Result<serde_json::Value, JwksError> {
     let mut sorted: Vec<&KeyRecord> = records.iter().collect();
     sorted.sort_by(|a, b| a.id.cmp(&b.id));
+    // AG4 kid-uniqueness law: records are sorted by kid, so a duplicate kid
+    // is exactly an adjacent pair. A kid that resolves to two keys of
+    // DIFFERENT algorithms (or two keys at all) is ambiguous for every
+    // consumer that resolves kid -> key.
+    for pair in sorted.windows(2) {
+        if pair[0].id == pair[1].id {
+            return Err(JwksError::DuplicateKid(pair[0].id.to_string()));
+        }
+    }
     let keys: Vec<serde_json::Value> = sorted
         .iter()
         .map(|record| export_jwk(record))

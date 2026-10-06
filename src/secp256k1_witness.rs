@@ -98,6 +98,14 @@ pub fn verify_ecdsa(
         .map_err(|_| Secp256k1WitnessError::MalformedEcdsaKey)?;
     let signature = EcdsaSignature::from_slice(signature)
         .map_err(|_| Secp256k1WitnessError::EcdsaVerificationFailed)?;
+    // AG4 malleability closure (BIP-62 semantics, the same law the ES256
+    // provider enforces): for one mathematical signature, (r, s) and its
+    // mirror (r, n - s) are BOTH valid — a verifier that admits both lets a
+    // flipped-sign re-present double through any signature-keyed surface.
+    // The high-s member refuses; the signing path already emits only low-s.
+    if bool::from(signature.s().is_high()) {
+        return Err(Secp256k1WitnessError::EcdsaVerificationFailed);
+    }
     verifying
         .verify(message, &signature)
         .map_err(|_| Secp256k1WitnessError::EcdsaVerificationFailed)
