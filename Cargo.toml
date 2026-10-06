@@ -234,7 +234,7 @@ rkyv = { version = "0.8", default-features = false, features = [
   "bytecheck",
 ], optional = true }
 # Sandboxed, fuel-bounded execution of untrusted witness validators (WASM).
-wasmtime = { version = "25.0", default-features = false, features = [
+wasmtime = { version = "49.0", default-features = false, features = [
   "cranelift",
   "runtime",
   "wat",
