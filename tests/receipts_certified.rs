@@ -20,7 +20,7 @@ const PAYLOAD_HASH: &str = "3f7a1b0c9d8e2f4153647a1b0c9d8e2f4153647a8b9c0d1e2f3a
 const SUBJECT: &str = "subject-a";
 
 #[test]
-fn honest_path_certifies_and_reverifies() {
+fn crypto_trust_certified_honest_path_certifies_and_reverifies() {
     let signing = Es256SigningKey::generate().expect("key");
     let certified =
         certify_paid_delivery_payload(PAYLOAD_HASH, SUBJECT, &signing).expect("certify");
@@ -35,7 +35,7 @@ fn honest_path_certifies_and_reverifies() {
 }
 
 #[test]
-fn tampered_payload_hash_breaks_the_binding() {
+fn crypto_trust_certified_tampered_payload_hash_breaks_the_binding() {
     let signing = Es256SigningKey::generate().expect("key");
     let certified =
         certify_paid_delivery_payload(PAYLOAD_HASH, SUBJECT, &signing).expect("certify");
@@ -48,7 +48,7 @@ fn tampered_payload_hash_breaks_the_binding() {
 }
 
 #[test]
-fn empty_subject_is_refused() {
+fn crypto_trust_certified_empty_subject_is_refused() {
     let signing = Es256SigningKey::generate().expect("key");
     match certify_paid_delivery_payload(PAYLOAD_HASH, "", &signing) {
         Err(VerifyRefusal::SubjectMismatch(_)) => {}
@@ -57,7 +57,7 @@ fn empty_subject_is_refused() {
 }
 
 #[test]
-fn flipped_signature_byte_refuses() {
+fn crypto_trust_certified_flipped_signature_byte_refuses() {
     let signing = Es256SigningKey::generate().expect("key");
     let mut certified =
         certify_paid_delivery_payload(PAYLOAD_HASH, SUBJECT, &signing).expect("certify");
@@ -76,7 +76,7 @@ fn flipped_signature_byte_refuses() {
 }
 
 #[test]
-fn canonical_subject_layout_is_pinned() {
+fn crypto_trust_certified_canonical_subject_layout_is_pinned() {
     assert_eq!(
         build_canonical_subject("abc", "s"),
         "affidavit-paid-delivery/v1|s|abc"
