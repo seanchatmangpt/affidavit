@@ -458,11 +458,16 @@ fn court_pins_match_the_rendered_plane() {
 }
 
 /// The graph's algorithm admit list in graph order, as rendered from the
-/// e2e.rq aggregate (Es256@@HybridEs256MlDsa65@@MlDsa65@@SlhDsa128s).
+/// e2e.rq aggregate. AG1 lane: ED25519 (RFC 8032) and ES256K (RFC 8812)
+/// joined the graph — keys.rs was advanced to the same admit list in the
+/// same graph order (name-sorted: ED25519, ES256, ES256+ML-DSA-65, ES256K,
+/// ML-DSA-65, SLH-DSA-SHA2-128s).
 fn rendered_algs() -> Vec<&'static str> {
     vec![
+        AlgorithmId::Ed25519.as_str(),
         AlgorithmId::Es256.as_str(),
         AlgorithmId::HybridEs256MlDsa65.as_str(),
+        AlgorithmId::Es256k.as_str(),
         AlgorithmId::MlDsa65.as_str(),
         AlgorithmId::SlhDsa128s.as_str(),
     ]

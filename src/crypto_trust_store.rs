@@ -395,6 +395,8 @@ mod tests {
             },
             AlgorithmId::MlDsa65 => PublicKeyMaterial::MlDsa65(vec![tag; 1952]),
             AlgorithmId::SlhDsa128s => PublicKeyMaterial::SlhDsa128s(vec![tag; 33]),
+            AlgorithmId::Ed25519 => PublicKeyMaterial::Ed25519(vec![tag; 32]),
+            AlgorithmId::Es256k => PublicKeyMaterial::Es256kSec1(vec![tag; 33]),
         }
     }
 

@@ -9,8 +9,10 @@
 //! foreign identities; it does not originate them. Signing belongs to the
 //! upstream wallet/HSM that owns the secret key.
 
-use k256::ecdsa::signature::Verifier;
-use k256::ecdsa::{Signature as EcdsaSignature, VerifyingKey as EcdsaVerifyingKey};
+use k256::ecdsa::signature::{Signer, Verifier};
+use k256::ecdsa::{Signature as EcdsaSignature, SigningKey as EcdsaSigningKey, VerifyingKey as EcdsaVerifyingKey};
+use k256::elliptic_curve::scalar::IsHigh;
+use k256::elliptic_curve::sec1::ToSec1Point;
 use k256::schnorr::{Signature as SchnorrSignature, VerifyingKey as SchnorrVerifyingKey};
 use thiserror::Error;
 
@@ -101,6 +103,62 @@ pub fn verify_ecdsa(
         .map_err(|_| Secp256k1WitnessError::EcdsaVerificationFailed)
 }
 
+/// AG1 capability lane: an secp256k1 ECDSA signing key for ENVELOPE signing
+/// through the certify path (RFC 6979 deterministic nonces — the same key and
+/// message always yield the same DER signature, so signing stays replayable
+/// byte-identically; canonical low-s emission, `s → n − s` when high-s, the
+/// emitter side of the malleability closure the plane's ES256 provider
+/// already enforces). This is the secp256k1 analogue of
+/// `crypto_trust_es256::Es256SigningKey`; the verification-only doctrine of
+/// the rest of this module is untouched — Schnorr/BIP-340 stays verify-only.
+pub struct WitnessSigningKey {
+    signing: EcdsaSigningKey,
+}
+
+/// Errors of the ES256K envelope signing surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum WitnessSigningError {
+    /// The seed does not decode to a valid non-zero secp256k1 scalar.
+    #[error("seed is not a valid non-zero secp256k1 scalar")]
+    InvalidSeed,
+}
+
+impl WitnessSigningKey {
+    /// Derives a signing key from a 32-byte big-endian scalar seed
+    /// (KEY derivation for deterministic test/fixture keys; the nonce law is
+    /// RFC 6979 itself).
+    pub fn from_seed(seed: &[u8; 32]) -> Result<Self, WitnessSigningError> {
+        let signing = EcdsaSigningKey::from_slice(seed)
+            .map_err(|_| WitnessSigningError::InvalidSeed)?;
+        Ok(WitnessSigningKey { signing })
+    }
+
+    /// The public key, compressed SEC1 (`0x02/03 || X`, 33 bytes — the
+    /// encoding `PublicKeyMaterial::Es256kSec1` carries and the JWKS export
+    /// decompresses).
+    pub fn public_key_sec1(&self) -> [u8; 33] {
+        let encoded = self
+            .signing
+            .verifying_key()
+            .to_sec1_point(true);
+        let mut out = [0u8; 33];
+        out.copy_from_slice(encoded.as_bytes());
+        out
+    }
+
+    /// Signs a message with RFC 6979 deterministic ECDSA (secp256k1, SHA-256)
+    /// and returns the fixed-width 64-byte `r||s` encoding (the encoding
+    /// [`verify_ecdsa`] parses), normalized to the canonical low-s member of
+    /// its malleability class.
+    pub fn sign(&self, msg: &[u8]) -> [u8; 64] {
+        let signature: EcdsaSignature = self.signing.sign(msg);
+        let canonical = signature.normalize_s();
+        let mut out = [0u8; 64];
+        out.copy_from_slice(&canonical.to_bytes());
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +210,28 @@ mod tests {
             verify_bip340_raw(&bad_key, &BIP340_MSG, &BIP340_SIG),
             Err(Secp256k1WitnessError::MalformedSchnorrKey)
         );
+    }
+}
+
+#[cfg(test)]
+mod ag1_signing_tests {
+    use super::*;
+
+    #[test]
+    fn rfc6979_sign_then_verify_ecdsa_roundtrip() {
+        let signing = WitnessSigningKey::from_seed(&[9u8; 32]).expect("seed");
+        let msg = b"envelope pre-image bytes";
+        let sig = signing.sign(msg);
+        assert!(verify_ecdsa(&signing.public_key_sec1(), msg, &sig).is_ok());
+        let mut tampered = sig.clone();
+        tampered[0] ^= 1;
+        assert!(verify_ecdsa(&signing.public_key_sec1(), msg, &tampered).is_err());
+    }
+
+    #[test]
+    fn deterministic_rfc6979_same_key_message_same_signature() {
+        let a = WitnessSigningKey::from_seed(&[9u8; 32]).expect("seed");
+        let b = WitnessSigningKey::from_seed(&[9u8; 32]).expect("seed");
+        assert_eq!(a.sign(b"m"), b.sign(b"m"));
     }
 }

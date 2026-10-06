@@ -6016,6 +6016,14 @@ pub fn keys_import(
                     .to_string(),
             )));
         }
+        // AG1 lane: flat-hex import is an ES256/PQC import seam; Ed25519 and
+        // ES256K keys enter through the witness features instead.
+        AlgorithmId::Ed25519 | AlgorithmId::Es256k => {
+            return Err(to_noun_verb(AffidavitError::Validation(format!(
+                "REFUSED_UNSUPPORTED: flat-hex import is not defined for {}",
+                alg.as_str()
+            ))));
+        }
     };
 
     let custodian = custodian.trim().to_string();
@@ -6372,12 +6380,23 @@ mod keys_lane_tests {
         let store = temp_store("import-refuse");
         // Unknown algorithm: REFUSED_UNSUPPORTED naming the admitted set.
         let err = keys_import(
-            "ED25519".into(),
+            "FOO25519".into(),
             external_pk_hex(0x42),
             "alice".into(),
             Some(store.clone()),
         )
         .expect_err("unknown algorithm refused");
+        assert!(err.to_string().contains("REFUSED_UNSUPPORTED"));
+        assert!(err.to_string().contains("FOO25519"));
+        // AG1 lane: ED25519 is now an ADMITTED algorithm, but flat-hex import
+        // is not its custody path — the witness features own Ed25519 keys.
+        let err = keys_import(
+            "ED25519".into(),
+            "00".repeat(32),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("admitted-but-unsupported import path refused");
         assert!(err.to_string().contains("REFUSED_UNSUPPORTED"));
         assert!(err.to_string().contains("ED25519"));
         // Hybrid flat-hex: REFUSED_UNSUPPORTED.

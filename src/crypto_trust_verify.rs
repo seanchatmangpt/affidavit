@@ -50,6 +50,10 @@ use crate::crypto_trust_lifecycle::{LifecycleRefusal, RevocationList, NONCE_WIND
 use crate::crypto_trust_pqc::{
     hybrid_verify, ml_dsa65_verify, slh_dsa128s_verify, HybridSignature,
 };
+#[cfg(feature = "ed25519")]
+use crate::ed25519_witness::verify_witness as verify_ed25519_witness;
+#[cfg(feature = "secp256k1")]
+use crate::secp256k1_witness::verify_ecdsa as verify_secp256k1_ecdsa_witness;
 
 /// Trust-plane policy domain tag (ctp:policy-v1 ctp:domainTag).
 pub const DOMAIN_TAG: &str = "affidavit.crypto-trust-plane.v1";
@@ -543,6 +547,38 @@ fn verify_signature_bytes(
             })?;
             hybrid_verify(es256_pk, mldsa65_pk, signing_input, &hybrid)
                 .map_err(|err| VerifyRefusal::Provider(err.to_string()))
+        }
+        // AG1 lane: classical Ed25519 envelope signatures — the same dalek
+        // stack the witness plane already shares. Key selection is
+        // protected-header-only: the registered record under the envelope's
+        // SIGNED `key_id` is the only key consulted.
+        #[cfg(feature = "ed25519")]
+        (PublicKeyMaterial::Ed25519(pk), AlgorithmId::Ed25519) => {
+            let key: &[u8; 32] = pk.as_slice().try_into().map_err(|_| {
+                VerifyRefusal::Provider(format!(
+                    "ed25519 key must be 32 raw bytes, got {}",
+                    pk.len()
+                ))
+            })?;
+            let sig: &[u8; 64] = signature.try_into().map_err(|_| {
+                VerifyRefusal::Provider(format!(
+                    "ed25519 signature must be 64 bytes, got {}",
+                    signature.len()
+                ))
+            })?;
+            Ok(verify_ed25519_witness(key, signing_input, sig).is_ok())
+        }
+        // AG1 lane: secp256k1 ECDSA (SHA-256, RFC 6979 capable signer, DER)
+        // envelope signatures — the same k256 stack the witness plane uses.
+        #[cfg(feature = "secp256k1")]
+        (PublicKeyMaterial::Es256kSec1(pk), AlgorithmId::Es256k) => {
+            let key: &[u8; 33] = pk.as_slice().try_into().map_err(|_| {
+                VerifyRefusal::Provider(format!(
+                    "es256k key must be 33 compressed SEC1 bytes, got {}",
+                    pk.len()
+                ))
+            })?;
+            Ok(verify_secp256k1_ecdsa_witness(key, signing_input, signature).is_ok())
         }
         // The registered material and the envelope's algorithm disagree: the
         // verifier cannot adjudicate under a key it does not have.
@@ -1858,5 +1894,301 @@ mod tests {
             0,
             "nothing left to evict: the verify already pruned"
         );
+    }
+
+    // -- AG1 capability lane: Ed25519 / ES256K envelope-signing parity --------
+    //
+    // Chicago courts per variant: real keys, real engine, assertions on
+    // decided state — sign->verify; tampered subject -> typed refusal;
+    // wrong kid -> typed refusal; rotated keys -> old kid still valid until
+    // its revocation, new kid valid throughout.
+
+    #[cfg(feature = "ed25519")]
+    mod ag1_ed25519 {
+        use super::*;
+        use crate::ed25519_witness::WitnessKeyPair;
+
+        /// Real Ed25519 signing key + its registry record.
+        fn fixture(tag: u8) -> (WitnessKeyPair, KeyRecord) {
+            let kp = WitnessKeyPair::generate();
+            let public = PublicKeyMaterial::Ed25519(kp.public().to_vec());
+            let fingerprint = fingerprint_public_key(AlgorithmId::Ed25519, &public);
+            let record = KeyRecord {
+                id: KeyId::from_fingerprint(&fingerprint),
+                algorithm: AlgorithmId::Ed25519,
+                fingerprint,
+                custodian: CustodianIdentity {
+                    subject: "subject-a".to_string(),
+                    device: None,
+                    org: None,
+                },
+                origin: KeyOrigin::Generated,
+                public_key: public.clone(),
+                created_epoch: 1_700_000_000,
+            };
+            let _ = tag;
+            (kp, record)
+        }
+
+        /// The ES256 `envelope` fixture with the algorithm swapped for
+        /// Ed25519 (same twelve-field law, same subject binding).
+        fn envelope_for(kid: &KeyId) -> SignatureEnvelope {
+            let mut env = envelope(kid, [9u8; 16], 0);
+            env.algorithm = AlgorithmId::Ed25519;
+            env
+        }
+
+        fn engine_for(record: &KeyRecord) -> VerificationEngine {
+            engine_with(record)
+        }
+
+        fn attestation() -> Es256SigningKey {
+            Es256SigningKey::from_seed(&[21u8; 32]).expect("valid scalar seed")
+        }
+
+        #[test]
+        fn sign_verify_and_certify_mints_a_valid_receipt() {
+            let (signer, record) = fixture(1);
+            let env = envelope_for(&record.id);
+            let signature = signer.sign(&env.signing_input_checked().expect("pre-image"));
+            let engine = engine_for(&record);
+            let receipt = engine
+                .certify_signed(
+                    &env,
+                    &signature,
+                    "subject-a",
+                    &attestation(),
+                )
+                .expect("ed25519 envelope must certify");
+            assert_eq!(receipt.standing, CryptographicStanding::Valid);
+            assert_eq!(receipt.key_id, record.id.to_string());
+            assert_eq!(receipt.algorithm, "ED25519");
+            // The minted receipt carries its own two-layer law.
+            receipt.verify().expect("receipt re-audits");
+        }
+
+        #[test]
+        fn tampered_signature_decides_invalid() {
+            let (signer, record) = fixture(2);
+            let env = envelope_for(&record.id);
+            let mut signature = signer.sign(&env.signing_input_checked().expect("pre-image"));
+            signature[0] ^= 0x01;
+            let verdict = engine_for(&record)
+                .verify_envelope(&env, &signature)
+                .expect("a failed check is a decided Ok verdict");
+            assert_eq!(verdict.standing, CryptographicStanding::Invalid);
+        }
+
+        #[test]
+        fn tampered_subject_refuses_before_adjudication() {
+            let (signer, record) = fixture(3);
+            let env = envelope_for(&record.id);
+            let signature = signer.sign(&env.signing_input_checked().expect("pre-image"));
+            let err = engine_for(&record)
+                .certify_signed(&env, &signature, "subject-b", &attestation())
+                .expect_err("mis-bound subject must refuse");
+            assert!(matches!(err, VerifyRefusal::SubjectMismatch(_)));
+        }
+
+        #[test]
+        fn wrong_kid_refuses_unknown_key() {
+            let (signer, record) = fixture(4);
+            let env = envelope_for(&record.id);
+            let signature = signer.sign(&env.signing_input_checked().expect("pre-image"));
+            // Registry holds a DIFFERENT Ed25519 key under the envelope's kid
+            // slot: the protected header names a key the bytes cannot honor.
+            let (other_signer, other_record) = fixture(5);
+            let mut mismatched = other_record.clone();
+            mismatched.id = record.id.clone();
+            let verdict = engine_for(&mismatched)
+                .verify_envelope(&env, &signature)
+                .expect("key swap is a decided verdict, not a refusal");
+            assert_eq!(
+                verdict.standing,
+                CryptographicStanding::Invalid,
+                "the signature does not verify under the swapped key"
+            );
+            // And the genuine other key's own envelope does not verify under
+            // the first key either.
+            let (signer_b, record_b) = fixture(6);
+            let env_b = envelope_for(&record_b.id);
+            let sig_b = signer_b.sign(&env_b.signing_input_checked().expect("pre-image"));
+            let err_b = engine_for(&record)
+                .verify_envelope(&env_b, &sig_b)
+                .expect_err("unknown kid must refuse");
+            assert!(matches!(err_b, VerifyRefusal::UnknownKey(_)));
+            let _ = other_signer;
+        }
+
+        #[test]
+        fn rotated_keys_old_kid_valid_until_revoked_new_kid_throughout() {
+            let (old_signer, old_record) = fixture(7);
+            let (new_signer, new_record) = fixture(8);
+            // Rotation: both kids live in the registry simultaneously.
+            let mut engine = engine_for(&old_record);
+            engine.register_key(new_record.clone()).expect("rotate in");
+            let old_env = envelope_for(&old_record.id);
+            let old_sig = old_signer.sign(&old_env.signing_input_checked().expect("pre-image"));
+            let new_env = SignatureEnvelope {
+                algorithm: AlgorithmId::Ed25519,
+                key_id: new_record.id.clone(),
+                nonce: [8u8; 16],
+                subject_digest: subject_bound("subject-a"),
+                ..envelope_for(&new_record.id)
+            };
+            let new_sig = new_signer.sign(&new_env.signing_input_checked().expect("pre-image"));
+            // Within the rotation window both kids verify.
+            assert_eq!(
+                engine.verify_envelope(&old_env, &old_sig).expect("old").standing,
+                CryptographicStanding::Valid
+            );
+            assert_eq!(
+                engine.verify_envelope(&new_env, &new_sig).expect("new").standing,
+                CryptographicStanding::Valid
+            );
+            // Revoking the old kid ends only ITS validity.
+            engine.revoke_key(&old_record.id.to_string(), NOW, "rotation".to_string());
+            let err = engine
+                .verify_envelope(&old_env, &old_sig)
+                .expect_err("revoked old kid must refuse");
+            assert!(matches!(err, VerifyRefusal::KeyRevoked(_)));
+            // Fresh presentation of the NEW kid (one verify per presentation).
+            let new_env_2 = SignatureEnvelope {
+                nonce: [5u8; 16],
+                ..envelope_for(&new_record.id)
+            };
+            let new_sig_2 = new_signer.sign(&new_env_2.signing_input_checked().expect("pre-image"));
+            assert_eq!(
+                engine.verify_envelope(&new_env_2, &new_sig_2).expect("new").standing,
+                CryptographicStanding::Valid
+            );
+        }
+    }
+
+    #[cfg(feature = "secp256k1")]
+    mod ag1_es256k {
+        use super::*;
+        use crate::secp256k1_witness::WitnessSigningKey;
+
+        /// Real secp256k1 signing key + its registry record.
+        fn fixture(tag: u8) -> (WitnessSigningKey, KeyRecord) {
+            let signing = WitnessSigningKey::from_seed(&[tag; 32])
+                .expect("valid secp256k1 scalar seed");
+            let public = PublicKeyMaterial::Es256kSec1(signing.public_key_sec1().to_vec());
+            let fingerprint = fingerprint_public_key(AlgorithmId::Es256k, &public);
+            let record = KeyRecord {
+                id: KeyId::from_fingerprint(&fingerprint),
+                algorithm: AlgorithmId::Es256k,
+                fingerprint,
+                custodian: CustodianIdentity {
+                    subject: "subject-a".to_string(),
+                    device: None,
+                    org: None,
+                },
+                origin: KeyOrigin::Generated,
+                public_key: public.clone(),
+                created_epoch: 1_700_000_000,
+            };
+            (signing, record)
+        }
+
+        fn envelope_for(kid: &KeyId) -> SignatureEnvelope {
+            let mut env = envelope(kid, [7u8; 16], 0);
+            env.algorithm = AlgorithmId::Es256k;
+            env
+        }
+
+        fn attestation() -> Es256SigningKey {
+            Es256SigningKey::from_seed(&[22u8; 32]).expect("valid scalar seed")
+        }
+
+        #[test]
+        fn sign_verify_and_certify_mints_a_valid_receipt() {
+            let (signer, record) = fixture(1);
+            let env = envelope_for(&record.id);
+            let signature = signer.sign(&env.signing_input_checked().expect("pre-image"));
+            let engine = engine_with(&record);
+            let receipt = engine
+                .certify_signed(&env, &signature, "subject-a", &attestation())
+                .expect("es256k envelope must certify");
+            assert_eq!(receipt.standing, CryptographicStanding::Valid);
+            assert_eq!(receipt.key_id, record.id.to_string());
+            assert_eq!(receipt.algorithm, "ES256K");
+            receipt.verify().expect("receipt re-audits");
+        }
+
+        #[test]
+        fn tampered_signature_decides_invalid() {
+            let (signer, record) = fixture(2);
+            let env = envelope_for(&record.id);
+            let mut signature = signer.sign(&env.signing_input_checked().expect("pre-image"));
+            signature[3] ^= 0x80;
+            let verdict = engine_with(&record)
+                .verify_envelope(&env, &signature)
+                .expect("decided verdict, not a refusal");
+            assert_eq!(verdict.standing, CryptographicStanding::Invalid);
+        }
+
+        #[test]
+        fn tampered_subject_refuses_before_adjudication() {
+            let (signer, record) = fixture(3);
+            let env = envelope_for(&rec_id(&record));
+            let signature = signer.sign(&env.signing_input_checked().expect("pre-image"));
+            let err = engine_with(&record)
+                .certify_signed(&env, &signature, "subject-b", &attestation())
+                .expect_err("mis-bound subject must refuse");
+            assert!(matches!(err, VerifyRefusal::SubjectMismatch(_)));
+        }
+
+        fn rec_id(record: &KeyRecord) -> KeyId {
+            record.id.clone()
+        }
+
+        #[test]
+        fn wrong_kid_refuses_unknown_key() {
+            let (_signer, record) = fixture(4);
+            let (signer_b, record_b) = fixture(5);
+            let env_b = envelope_for(&record_b.id);
+            let sig_b = signer_b.sign(&env_b.signing_input_checked().expect("pre-image"));
+            // Envelope names kid_b; the registry holds only kid_a.
+            let err = engine_with(&record)
+                .verify_envelope(&env_b, &sig_b)
+                .expect_err("unknown kid must refuse");
+            assert!(matches!(err, VerifyRefusal::UnknownKey(_)));
+        }
+
+        #[test]
+        fn rotated_keys_old_kid_valid_until_revoked_new_kid_throughout() {
+            let (old_signer, old_record) = fixture(6);
+            let (new_signer, new_record) = fixture(7);
+            let mut engine = engine_with(&old_record);
+            engine.register_key(new_record.clone()).expect("rotate in");
+            let old_env = envelope_for(&old_record.id);
+            let old_sig = old_signer.sign(&old_env.signing_input_checked().expect("pre-image"));
+            let mut new_env = envelope_for(&new_record.id);
+            new_env.nonce = [6u8; 16];
+            let new_sig = new_signer.sign(&new_env.signing_input_checked().expect("pre-image"));
+            assert_eq!(
+                engine.verify_envelope(&old_env, &old_sig).expect("old").standing,
+                CryptographicStanding::Valid
+            );
+            assert_eq!(
+                engine.verify_envelope(&new_env, &new_sig).expect("new").standing,
+                CryptographicStanding::Valid
+            );
+            engine.revoke_key(&old_record.id.to_string(), NOW, "rotation".to_string());
+            let err = engine
+                .verify_envelope(&old_env, &old_sig)
+                .expect_err("revoked old kid must refuse");
+            assert!(matches!(err, VerifyRefusal::KeyRevoked(_)));
+            // Fresh presentation of the NEW kid (one verify per presentation).
+            let mut new_env_2 = envelope_for(&new_record.id);
+            new_env_2.nonce = [5u8; 16];
+            let new_sig_2 = new_signer.sign(&new_env_2.signing_input_checked().expect("pre-image"));
+            assert_eq!(
+                engine.verify_envelope(&new_env_2, &new_sig_2).expect("new").standing,
+                CryptographicStanding::Valid
+            );
+        }
     }
 }

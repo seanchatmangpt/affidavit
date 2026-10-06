@@ -190,6 +190,10 @@ pub mod crypto_trust_es256;
 pub mod crypto_trust_journal;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_journal_persist;
+// AG1 capability lane: JWKS export of the trust plane's classical signing
+// keys (the G4 card profile publishes the same JWK Set shape).
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_jwks;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_kat;
 #[cfg(feature = "crypto-trust")]
