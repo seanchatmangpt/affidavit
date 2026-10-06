@@ -156,6 +156,32 @@ Policy, not code, moves across every transition: `TrustPolicy` is data
 (`min_profile`, `allowed` algorithm set, staleness bound, verifier clock), and
 the engine never reads wall-clock time or widens its own admission set.
 
+## Advanced witness set (added on the v26.9.28 surface)
+
+- **Envelope variants**: `AlgorithmId::Ed25519` (RFC 8032) and
+  `AlgorithmId::Es256K` (RFC 8812) sign/verify through the same
+  `SignatureEnvelope`/`verify_envelope`/`certify_signed` path as ES256, behind
+  the `ed25519`/`secp256k1` features. Key selection is signed-`kid`-only.
+- **JWKS export** (`crypto_trust_jwks`): SEC1 → EC/P-256, raw → OKP/Ed25519,
+  compressed SEC1 → EC/secp256k1; PQ/hybrid refuses typed
+  (`UnsupportedAlgorithm`); kid-sorted, byte-deterministic; duplicate-`kid`
+  sets refuse (`DuplicateKid`).
+- **Certified-receipts seam** (`certified-receipts` feature,
+  `receipts_certified`): `certify_paid_delivery_payload` mints over subject
+  `"affidavit-paid-delivery/v1|<subject>|<payload_hash_hex>"`;
+  `verify_certified_paid_delivery` enforces the linkage law (envelope
+  commitment == `blake3(signing_input)`, subject/key/algorithm bound, carried
+  receipt re-audited before key registration).
+- **Quorum parity**: `share_verifies` gained feature-gated Ed25519/ES256K arms.
+- **Adversarial court**: `tests/ag4_adversarial_crypto.rs` — 19 executed
+  attacks over the real engine; the six that WORKED pre-fix (certified-receipt
+  envelope swap, duplicate JSON keys, high-s ES256K, quorum parity,
+  JWKS duplicate-kid, whitespace subject) are pinned as refusal courts.
+
+Standing of this wave lives with its courts (`tests/ag4_adversarial_crypto.rs`
+19/19, `--features certified-receipts,ed25519,secp256k1` lib 791/791 at
+commit `b2635ed`); the table below predates it.
+
 ## Honest standing table (plane itself, as of 2026-09-28)
 
 Standing of the trust plane itself, stated with teeth (the same vocabulary it

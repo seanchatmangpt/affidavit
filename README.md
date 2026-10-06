@@ -157,6 +157,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Signing & Auth Surface (advanced witness set)
+
+On top of the ES256 attestation path, the envelope now admits Ed25519 (RFC
+8032) and ES256K (RFC 8812) variants behind the `ed25519`/`secp256k1`
+features; both flow through the same `SignatureEnvelope`/`verify_envelope`/
+`certify_signed` path, with key selection from the signed `kid` only (alg/kid
+mismatch refuses `UnknownKey` before any signature runs). Post-quantum
+material (ML-DSA-65, SLH-DSA-SHA2-128s, hybrid ES256+ML-DSA-65) stays
+sign/verify-capable but is outside the envelope surface.
+
+JWKS export (`crypto_trust_jwks`, RFC 7517/7518/8037/8812): SEC1 → EC/P-256,
+raw → OKP/Ed25519, compressed SEC1 → EC/secp256k1 (curve decompression);
+PQ/hybrid material is typed-refused (`JwksError::UnsupportedAlgorithm`, never
+a silent skip). Sets are kid-sorted and byte-deterministic; a set with one
+`kid` under two algorithms refuses `JwksError::DuplicateKid` wholesale.
+
+Optional `certified-receipts` feature: `certify_paid_delivery_payload` binds
+`"affidavit-paid-delivery/v1|<subject>|<payload_hash_hex>"` as the subject and
+mints a standing receipt through `certify_signed`; `verify_certified_paid_delivery`
+enforces the linkage law — the carried receipt's commitment must equal
+`blake3(signing_input)` with subject/key/algorithm bound, and the receipt is
+re-audited (`receipt.verify()`) before any key registers.
+
+Key rotation is court-pinned: an old `kid` stays valid alongside the new one
+until revoked, then only the old `kid` refuses `KeyRevoked`. Threshold quorum
+`share_verifies` mirrors the envelope dispatch with feature-gated Ed25519 and
+ES256K arms.
+
+The adversarial court (`tests/ag4_adversarial_crypto.rs`, 19 tests, real
+keys/engine/wire forms) executes real attacks: duplicate JSON keys in the
+envelope parser refuse pre-parse; high-s ES256K mirror signatures refuse;
+JWKS duplicate-`kid` sets refuse; certified-receipt envelope swaps refuse via
+the linkage law; alg-confusion, kid swap/empty, JCS float epoch and NFC/NFD,
+and quorum duplicate-signer/share-reorder attacks refuse as-is.
 
 ---
 
