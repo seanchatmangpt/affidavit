@@ -340,53 +340,55 @@ mode = "Overwrite"
 
 
 
-# --- WASI JSON-ABI module (wasi-json-abi-pack, project-neutral) --------------
+# --- WASI JSON-ABI module (rust-wasi-wasmex-pack, project-neutral) -----------
 # All affidavit specifics (prefix af, crate, ops, limits) live in
 # ontology/affi-wasm.ttl. ARTIFACTS.sha256 is a pin: Create never overwrites a real pin.
+# Successor of wasi-json-abi-pack (deprecated): abi/ render surfaces + queries,
+# per W642 pack completion.
 [[packs]]
-name = "wasi-json-abi-pack"
+name = "rust-wasi-wasmex-pack"
 registry = "local"
-path = "../ggen-marketplace/packs/wasi-json-abi-pack"
+path = "../ggen-marketplace/packs/rust-wasi-wasmex-pack"
 
 [[generation.rules]]
 name = "wasm-ffi"
-query    = { pack = "wasi-json-abi-pack", output = "queries", file = "ffi.rq" }
-template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_ffi.rs.tmpl" }
+query    = { pack = "rust-wasi-wasmex-pack", output = "queries", file = "ffi.rq" }
+template = { pack = "rust-wasi-wasmex-pack", output = "templates", file = "abi/ffi.rs.tmpl" }
 output_file = "affidavit-wasm/src/ffi.rs"
 mode = "Overwrite"
 
 [[generation.rules]]
 name = "wasm-abi-meta"
-query    = { pack = "wasi-json-abi-pack", output = "queries", file = "meta.rq" }
-template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_abi_meta.rs.tmpl" }
+query    = { pack = "rust-wasi-wasmex-pack", output = "queries", file = "meta.rq" }
+template = { pack = "rust-wasi-wasmex-pack", output = "templates", file = "abi/abi_meta.rs.tmpl" }
 output_file = "affidavit-wasm/src/abi_meta.rs"
 mode = "Overwrite"
 
 [[generation.rules]]
 name = "wasm-cargo-config"
-query    = { pack = "wasi-json-abi-pack", output = "queries", file = "cargo.rq" }
-template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_cargo_config.toml.tmpl" }
+query    = { pack = "rust-wasi-wasmex-pack", output = "queries", file = "cargo.rq" }
+template = { pack = "rust-wasi-wasmex-pack", output = "templates", file = "abi/cargo_config.toml.tmpl" }
 output_file = "affidavit-wasm/.cargo/config.toml"
 mode = "Overwrite"
 
 [[generation.rules]]
 name = "wasm-capability-registry"
-query    = { pack = "wasi-json-abi-pack", output = "queries", file = "registry.rq" }
-template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_capability_registry.json.tmpl" }
+query    = { pack = "rust-wasi-wasmex-pack", output = "queries", file = "registry.rq" }
+template = { pack = "rust-wasi-wasmex-pack", output = "templates", file = "abi/capability_registry.json.tmpl" }
 output_file = "affidavit-wasm/registry/capability-registry.json"
 mode = "Overwrite"
 
 [[generation.rules]]
 name = "wasm-op-examples"
-query    = { pack = "wasi-json-abi-pack", output = "queries", file = "examples.rq" }
-template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_op_examples.json.tmpl" }
+query    = { pack = "rust-wasi-wasmex-pack", output = "queries", file = "examples.rq" }
+template = { pack = "rust-wasi-wasmex-pack", output = "templates", file = "abi/op_examples.json.tmpl" }
 output_file = "affidavit-wasm/registry/op-examples.json"
 mode = "Overwrite"
 
 [[generation.rules]]
 name = "wasm-artifacts"
-query    = { pack = "wasi-json-abi-pack", output = "queries", file = "registry.rq" }
-template = { pack = "wasi-json-abi-pack", output = "templates", file = "wasm_artifacts.sha256.tmpl" }
+query    = { pack = "rust-wasi-wasmex-pack", output = "queries", file = "registry.rq" }
+template = { pack = "rust-wasi-wasmex-pack", output = "templates", file = "abi/artifacts.sha256.tmpl" }
 output_file = "affidavit-wasm/registry/ARTIFACTS.sha256"
 mode = "Create"
 

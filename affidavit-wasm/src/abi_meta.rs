@@ -2,7 +2,7 @@
 //
 // Consumed query columns (meta.rq): crate_name, export_prefix, abi_version,
 // max_request_bytes, max_json_depth, ops, error_codes.
-// Rendered by ggen (wasi-json-abi-pack) from the wja: graph.
+// Rendered by ggen (rust-wasi-wasmex-pack) from the wja: graph.
 // Edit the ontology and re-render; never edit this file by hand.
 #![allow(dead_code)]
 
