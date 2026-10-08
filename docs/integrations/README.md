@@ -92,7 +92,7 @@ Overview of all integration points and extension mechanisms.
 ## 🔗 Related Documentation
 
 - **Main Project**: See [../README.md](../README.md)
-- **Architecture**: See [../CLAUDE.md](../CLAUDE.md)
+- **Architecture**: See [../../CLAUDE.md](../../CLAUDE.md)
 - **All Docs**: See [../INDEX.md](../INDEX.md)
 
 ---

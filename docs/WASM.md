@@ -234,6 +234,6 @@ edits the web files.
 - [`affidavit-wasm/tests/registry_artifacts.rs`](../affidavit-wasm/tests/registry_artifacts.rs) —
   the artifact-pin court enforcing `registry/artifact-pin.json` and
   `registry/ARTIFACTS.sha256`
-- [signature-envelope.md](../../../ash_affidavit/docs/diataxis/how-to/signature-envelope.md) —
+- [signature-envelope.md](../../ash_affidavit/docs/diataxis/how-to/signature-envelope.md) —
   signature envelope how-to (external sibling repo `ash_affidavit`; the wasm
   surface has no signature verification — see trust-model boundaries above)
