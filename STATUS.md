@@ -1,52 +1,51 @@
-# Affidavit v26.9.6 — Status Report
+# Affidavit — Status Report
 
-**Date:** 2026-09-06
-**Status:** **Federation surface complete** — the evidence kernel is reachable from `affi`
-**Version:** 26.9.6
+**Date:** 2026-10-08
+**Current tag:** v26.10.8 (fleet release; branch `feat/advanced-witness-capability-set`)
+**Status era:** Cryptographic trust plane (shipped v26.9.28) on a v26.10.x fleet cadence
 
 ---
 
-## Current Release — v26.9.6
+## Current Era — v26.9.28 trust plane, v26.10.x fleet
 
-The v26.9.x BCRE federation kernel shipped as library code in 26.9.1:
-`certify_standing`, `certify_ecosystem`, `certify_errc`, and
-`certify_errc_claim_assurance` were implemented, unit tested, and exported — but
-no verb, handler, or registry entry referenced any of them. The kernel could
-only be driven from Rust. v26.9.6 closes that gap.
+The headline capability of this era is the **Cryptographic Trust Plane** (new in
+v26.9.28, per [README](README.md#the-cryptographic-trust-plane-new-in-v26928)):
+key identity and custody, JCS canonicalization, classical and post-quantum
+signatures (ML-DSA-65 / FIPS 204, SLH-DSA-SHA2-128s / FIPS 205, hybrid
+ES256+ML-DSA-65), replay and revocation law, and verification to a closed
+standing vocabulary. The boundary is `certify-don't-decide`: a
+`CryptographicStanding` is evidence about bytes and keys; whether that evidence
+authorizes an act is a decision for the downstream authorization layer. The
+retired blake3-mock seal is replaced by real post-quantum cryptography. Known
+limits are typed: Secure Enclave signing needs an entitlement-signed host
+(`PARTIAL_ALIVE`); HSM is `UNSUPPORTED`. See
+[`docs/CRYPTO_TRUST_PLANE.md`](docs/CRYPTO_TRUST_PLANE.md) and
+[`SECURITY.md`](SECURITY.md).
 
-| Capability | State | Witness |
-|------------|-------|---------|
-| Federation CLI courts (8 verbs, 3 nouns) | ✅ Shipped | `tests/federation_cli.rs` (15 E2E tests through the real binary) |
-| `src/federation.rs` adapter | ✅ Shipped | `src/federation.rs` unit tests (13) |
-| Registry ↔ ontology ↔ projection parity | ✅ Enforced | `src/registry.rs` parity tests |
-| Release identity (`affi --version`, genesis seed, CHANGELOG, README count) | ✅ Enforced | `tests/release_identity.rs` |
-| Completions across all 79 verbs and 6 nouns | ✅ Shipped | `completions/affi.{bash,zsh,fish}` |
-| `just validate` (AGENTS.md §6 ladder) | ✅ Shipped | `justfile` |
-| `verify` reaches stage 3 and exits 2 on a tampered receipt | ✅ Fixed | `tests/e2e.rs`, `tests/cli_dispatch.rs`, `tests/golden_run.rs` |
-| Registry ↔ ontology ↔ projection agree on `(verb, noun)` pairs, both directions | ✅ Enforced | `src/registry.rs` parity tests |
-| Browser verifier uses the binary's genesis seed | ✅ Fixed | `tests/release_identity.rs` |
-| `examples/golden_run.sh` runs and is exercised by a test | ✅ Fixed | `tests/golden_run.rs` |
-
-**Verification ladder at this head** — every court green:
-
-| Court | Result |
-|-------|--------|
-| `python3 -m unittest discover -s scripts/tests -p 'test_ci_errc.py'` | 11 passed |
-| `cargo fmt --all -- --check` | clean |
-| `cargo build --all-targets` | ok |
-| `cargo test --all-targets` | 835 passed, 0 failed |
-| `cargo test --doc` | 32 passed, 0 failed |
-| `cargo clippy --all-targets -- -D warnings` | clean |
+The `v26.10.8` tag is a fleet release cut on the v26.10.x cadence; it carries
+the trust plane forward without changing its capability boundary.
 
 **Release boundary:** the chain genesis seed is derived from
-`CARGO_PKG_VERSION`, so receipts assembled by 26.6.22 fail stage 3
-(`chain_integrity`) under 26.9.6. This is intended — re-emit and re-assemble.
+`CARGO_PKG_VERSION` (`affidavit-v26.9.28-genesis` at v26.9.28), so receipts
+assembled by older binaries fail stage 3 (`chain_integrity`) under newer
+versions. This is intended — re-emit and re-assemble.
 
-See [`docs/FEDERATION.md`](docs/FEDERATION.md) and the
-[CHANGELOG](CHANGELOG.md#2696--2026-09-06).
+**Current courts:** run `just validate` (AGENTS.md §6 ladder). The targeted
+mutation regression court is `just mutate-crypto` (baseline 2026-10-05:
+129 mutants, 116+ caught, <= 3 survivors, all classified equivalent — see
+`justfile` and `mutations/BASELINE.json`).
+
+**Historical status reports:**
+
+- v26.9.6 (2026-09-06) — "federation surface complete": 8 federation CLI verbs
+  across 3 nouns, `src/federation.rs` adapter, registry↔ontology↔projection
+  parity, completions for all 79 verbs. Superseded by the trust-plane era; the
+  capability table and verification ladder for that head are preserved in git
+  history and the [CHANGELOG](CHANGELOG.md).
 
 ---
 
+## Historical: the 1000x Initiative (v26.6.17–26.6.22)
 ## Historical: the 1000x Initiative (v26.6.17–26.6.22)
 
 *The sections below record the 1000x Initiative as reported at v26.6.22. They are

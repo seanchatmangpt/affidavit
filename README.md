@@ -51,8 +51,9 @@ doctests, clippy, and the ERRC fast court).
 The default feature set is what ships and what CI gates. Several optional
 features do **not** currently compile, so `--all-features` fails:
 
-Each row below was verified with `cargo check --lib --features <name>` at
-v26.9.6:
+Each row below was verified with `cargo check --lib --features <name>`; rows
+were last re-verified across the v26.9.28 trust-plane release and remain the
+gating feature matrix at the v26.10.8 fleet tag:
 
 | Feature | State |
 |---------|-------|
@@ -245,7 +246,7 @@ Shell completions ship for five shells — bash, zsh, fish, PowerShell (`complet
 - `affi causality-chain` — Track root cause and event lineage.
 - `affi security-debt` — Calculate pending remediation metrics.
 
-**Evidence Federation (new in v26.9.6):**
+**Evidence Federation (v26.9.6; still current at v26.10.8):**
 - `affi standing certify` / `verify` — Seal and re-check a receipt-bound standing claim. ALIVE is unconstructable without execution, verification, *and* replay evidence.
 - `affi ecosystem certify` / `verify` — Federate exact, already-sealed member standing receipts against a declared per-role ALIVE quorum.
 - `affi errc certify` / `verify` — Seal a formal ERRC transformation: each claim bound to one `(target, metric, unit)` coordinate under one directional law, behind a mandatory preservation fence.
