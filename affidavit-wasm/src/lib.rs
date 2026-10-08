@@ -39,7 +39,7 @@ mod advanced;
 mod external_evidence;
 pub mod receipt;
 
-// Generated FFI shell (wasi-json-abi-pack). Exports are wasm32-only; the helpers
+// Generated FFI shell (rust-wasi-wasmex-pack). Exports are wasm32-only; the helpers
 // and their tests also build natively.
 #[rustfmt::skip] // generated; byte-identical to the ggen render
 mod ffi;

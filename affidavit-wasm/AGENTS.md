@@ -8,7 +8,8 @@ Invariants (each has a test that fails if you break it):
    real `affi`) via `tests/wasm_abi.rs`.
 2. **`unsafe` lives only in `src/ffi.rs`**, which is **generated** (as are
    `src/abi_meta.rs`, `.cargo/config.toml`, `registry/{capability-registry,op-examples}.json`)
-   by `ggen sync` from `../ontology/affi-wasm.ttl` via `wasi-json-abi-pack`.
+   by `ggen sync` from `../ontology/affi-wasm.ttl` via `rust-wasi-wasmex-pack`
+   (successor of the deprecated `wasi-json-abi-pack`).
    Never hand-edit them; edit the ontology (ops, limits, error codes, ABI
    version, prefix) and re-render. Everything else is `#![deny(unsafe_code)]`
    and native-testable. New op behavior goes in `abi.rs`; new ops also need an

@@ -51,8 +51,9 @@ Unknown extra request fields are tolerated (forward compatibility); an unknown
 ## Generated vs hand-written
 
 The ABI shell is **manufactured**, not written: `ontology/affi-wasm.ttl` (an
-instance of the project-neutral `wja:` vocabulary of
-`ggen-marketplace/packs/wasi-json-abi-pack`) is rendered by `ggen sync` into
+instance of the project-neutral `wja:` vocabulary defined by
+`ggen-marketplace/packs/rust-wasi-wasmex-pack` — successor of the deprecated
+`wasi-json-abi-pack`) is rendered by `ggen sync` into
 
 | Output | Content |
 |---|---|
@@ -67,8 +68,15 @@ Never edit these by hand: change the ontology and re-render (CI runs a drift
 court: `ggen sync run` then `git diff --exit-code`). The op bodies
 (`abi.rs`), `receipt.rs` and `crypto.rs` stay hand-written (`HANDWRITTEN.md`).
 
+**Known stale render:** the header comment of `affidavit-wasm/registry/ARTIFACTS.sha256`
+still says "Rendered by ggen (wasi-json-abi-pack)". It is a generated file (the
+create-only pin), so it is not hand-edited; the header comes from the pack's
+`templates/abi/artifacts.sha256.tmpl`. The lawful fix is a re-render after the
+template's wording (or an equivalent regeneration) is updated — the pack itself
+already attributes to `rust-wasi-wasmex-pack` elsewhere (e.g. `src/ffi.rs`).
+
 **Sync inputs (observed 2026-09-30):** `ggen sync run` here reads packs from sibling
-directories (`../ggen-marketplace/packs/{affidavit-trust-plane-pack,wasi-json-abi-pack}`)
+directories (`../ggen-marketplace/packs/{affidavit-trust-plane-pack,rust-wasi-wasmex-pack}`)
 and `../clap-noun-verb`; a bare `git archive` of this repository does not sync. The pin bytes
 are deterministic against those siblings (two runs, identical sha256), but the siblings are
 not pinned by this repository. The generated `src/crypto_trust_*.rs` come out of `ggen sync run`
