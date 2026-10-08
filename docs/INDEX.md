@@ -20,6 +20,7 @@ Start here for project overview and setup:
 - [Crypto Provenance How-To](CRYPTO_PROVENANCE_HOWTO.md) — certify-don't-decide operator guide: the 7-stage certify pipeline, rolling BLAKE3 chain, witness verification, `affi` certify/evidence commands (committed surfaces only)
 - [Trust-plane consolidation](jira/v26.9.28/CONSOLIDATION.md) — v26.9.28 wave 1: retiring `trust-plane-legacy` by capability court — 15 covered-by, 3 ported-as, failed edges recorded
 - [SLH-DSA pin decision](jira/v26.9.28/SLH-DSA-PIN.md) — why `slh-dsa = "=0.2.0-rc.5"` is kept (crates.io evidence, upgrade law, FIPS 205 tripwires)
+- [Generated API reference](reference/generated/README.md) — doc-hdit scaffolded skeletons rendered from the Rust code surface (do not edit by hand)
 
 ---
 
