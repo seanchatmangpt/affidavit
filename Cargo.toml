@@ -185,7 +185,7 @@ rand_core = { version = "0.6", features = ["getrandom"], optional = true }
 # --- Advanced witness capability set (accumulator / quorum / ZK / causal DAG) ---
 # Sparse Merkle tree state accumulator (BLAKE3): O(log n) inclusion AND absence
 # proofs over key-value state claims.
-monotree = { version = "0.2", optional = true }
+monotree = { version = "0.4", optional = true }
 # Bitfield traversal for SMT key paths and footprint matrices.
 bitvec = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
 # FROST threshold signatures (RFC 9591, Ed25519): t-of-n quorum signing that
