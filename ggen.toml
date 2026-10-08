@@ -387,7 +387,7 @@ mode = "Overwrite"
 
 [[generation.rules]]
 name = "wasm-artifacts"
-query    = { pack = "rust-wasi-wasmex-pack", output = "queries", file = "registry.rq" }
+query    = { pack = "rust-wasi-wasmex-pack", output = "queries", file = "artifacts.rq" }
 template = { pack = "rust-wasi-wasmex-pack", output = "templates", file = "abi/artifacts.sha256.tmpl" }
 output_file = "affidavit-wasm/registry/ARTIFACTS.sha256"
 mode = "Create"
