@@ -154,7 +154,7 @@ Each baseline directory mirrors the Criterion `base/` format:
 - `estimates.json` — mean, median, std_dev, confidence_interval
 - `sample.json` — raw sample points
 
-CI writes new measurements to `target/criterion/` (gitignored) and compares against `benches/baselines/` (committed).
+CI writes new measurements to target/criterion/ (gitignored) and compares against `benches/baselines/` (committed).
 
 ---
 
@@ -171,7 +171,7 @@ A new Criterion benchmark file `benches/throughput.rs` measures the end-to-end l
 
 ### Benchmark Function Signatures
 
-The following Criterion group and function names are normative. CI scripts parse these exact names from `target/criterion/` paths.
+The following Criterion group and function names are normative. CI scripts parse these exact names from target/criterion/ paths.
 
 ```
 throughput/emit_single_event
@@ -383,7 +383,7 @@ criterion_main!(throughput_benches);
 
 **Given** a release build of affidavit on the `claude/zen-cerf-oq87br` branch,  
 **When** `cargo bench --bench throughput` completes,  
-**Then** Criterion produces HTML reports under `target/criterion/throughput/` for all 20 named benchmark functions without error.
+**Then** Criterion produces HTML reports under target/criterion/throughput/ for all 20 named benchmark functions without error.
 
 ---
 
@@ -654,13 +654,13 @@ criterion_main!(variance_benches);
 
 ---
 
-**Given** the `variance/surprise_sequential/10` benchmark,  
+**Given** the variance/surprise_sequential/10 benchmark,  
 **When** it runs at least 50 Criterion iterations,  
 **Then** the mean latency is ≤ 5 ms and p99 is ≤ 10 ms.
 
 ---
 
-**Given** the `variance/quality_metrics_pipeline/4` benchmark,  
+**Given** the variance/quality_metrics_pipeline/4 benchmark,  
 **When** it runs,  
 **Then** all three returned values (`fitness`, `activity_coverage`, `simplicity`) are within `[0.0, 1.0]` (validated in the harness, not just the bench).
 
@@ -690,7 +690,7 @@ criterion_main!(variance_benches);
 
 ---
 
-**Given** the `variance/dfg_discovery` group runs at n = 5, 10, 50,  
+**Given** the variance/dfg_discovery group runs at n = 5, 10, 50,  
 **When** DFG results are computed,  
 **Then** the number of DFG nodes equals the number of distinct `event_type` values in the receipt.
 
@@ -720,19 +720,19 @@ A custom CSS theme in `benches/theme/` overrides Criterion's default report styl
 
 - `benches/theme/criterion.css` — Custom CSS overriding Criterion's default styles
 - `benches/theme/README.md` — Instructions for applying the theme
-- `benches/gen_summary.sh` — Shell script that reads `target/criterion/` JSON and writes `BENCH_SUMMARY.md`
+- `benches/gen_summary.sh` — Shell script that reads target/criterion/ JSON and writes `BENCH_SUMMARY.md`
 - `benches/gen_summary.py` — Python alternative to `gen_summary.sh` for environments with Python 3.x
 
 ### Dashboard Spec
 
-The Criterion HTML dashboard at `target/criterion/report/index.html` must display the following panels after `cargo bench` completes:
+The Criterion HTML dashboard at target/criterion/report/index.html must display the following panels after `cargo bench` completes:
 
 | Panel | Metric displayed | Required for feature completion |
 |-------|-----------------|--------------------------------|
 | Throughput overview | Grouped bar chart: assemble and verify at 1/5/10/50/100 events | Yes |
 | Regression timeline | Line chart showing mean latency per function across baseline comparisons | Yes |
 | Variance surprise | Bar chart comparing sequential vs. interleaved surprise scores | Yes |
-| Flamegraph link | Hyperlink to most recent `target/flamegraph.svg` | Yes |
+| Flamegraph link | Hyperlink to most recent target/flamegraph.svg | Yes |
 | Scaling curve | Scatter plot: event count (x) vs. latency (y) for assemble and verify | Yes |
 | CI status badge | Text indicator: PASS / WARN / FAIL based on last regression check | Yes |
 | Per-function summary | Table: function name, mean, p99, baseline delta, status | Yes |
@@ -751,7 +751,7 @@ The custom theme in `benches/theme/criterion.css` must:
 
 ### Applying the Theme
 
-Criterion's HTML output is self-contained; the custom CSS must be injected post-generation. The `benches/gen_summary.sh` script includes a step that copies `benches/theme/criterion.css` into `target/criterion/` and patches the `<link>` tags in the generated HTML files.
+Criterion's HTML output is self-contained; the custom CSS must be injected post-generation. The `benches/gen_summary.sh` script includes a step that copies `benches/theme/criterion.css` into target/criterion/ and patches the `<link>` tags in the generated HTML files.
 
 ### Markdown Summary Generator Spec
 
@@ -795,7 +795,7 @@ Overall: PASS / WARN / FAIL
 
 **Given** `benches/theme/criterion.css` exists,  
 **When** `benches/gen_summary.sh` runs the post-processing step,  
-**Then** all HTML files under `target/criterion/` reference the custom CSS, and the `#0d1117` background color is present in at least the `report/index.html` file.
+**Then** all HTML files under target/criterion/ reference the custom CSS, and the `#0d1117` background color is present in at least the `report/index.html` file.
 
 ---
 
@@ -819,7 +819,7 @@ Overall: PASS / WARN / FAIL
 
 **Given** a flamegraph SVG has been generated by the profile bench,  
 **When** the dashboard HTML is generated,  
-**Then** the Flamegraph link panel contains an `<a href="...">` pointing to a relative path that resolves to `target/flamegraph.svg`.
+**Then** the Flamegraph link panel contains an `<a href="...">` pointing to a relative path that resolves to target/flamegraph.svg.
 
 ---
 
@@ -846,7 +846,7 @@ Overall: PASS / WARN / FAIL
 | Throughput overview | Mean latency per bench function | `target/criterion/<bench>/<group>/<n>/new/estimates.json` → `mean.point_estimate` | `cargo bench` |
 | Regression timeline | Delta vs. baseline | `target/criterion/<bench>/<group>/<n>/change/estimates.json` → `mean.point_estimate` | `--baseline` run |
 | Variance surprise | Surprise score (1 - fitness) | Computed from `quality_metrics_pipeline` bench output | `cargo bench --bench variance` |
-| Flamegraph link | SVG path | `target/flamegraph.svg` | `cargo flamegraph` |
+| Flamegraph link | SVG path | target/flamegraph.svg | `cargo flamegraph` |
 | Scaling curve | (n, mean) pairs | All `assemble_pipeline` and `verify_pipeline` groups | `cargo bench` |
 | Per-function table | All bench functions | `target/criterion/*/*/new/estimates.json` | `cargo bench` |
 
@@ -1089,7 +1089,7 @@ echo "Open with: xdg-open $OUTPUT  (Linux) or open $OUTPUT  (macOS)"
 
 **Given** `cargo-flamegraph` is installed and Linux `perf` is available,  
 **When** `bash benches/profile.sh` runs,  
-**Then** `target/flamegraph.svg` is created and contains SVG content with frame labels mentioning `blake3`, `serde_json`, and `affidavit`.
+**Then** target/flamegraph.svg is created and contains SVG content with frame labels mentioning `blake3`, `serde_json`, and `affidavit`.
 
 ---
 
@@ -1111,7 +1111,7 @@ echo "Open with: xdg-open $OUTPUT  (Linux) or open $OUTPUT  (macOS)"
 
 ---
 
-**Given** the `profile/verify_hot_path/100` benchmark runs with `measurement_time = 15s`,  
+**Given** the profile/verify_hot_path/100 benchmark runs with `measurement_time = 15s`,  
 **When** Criterion reports sample count,  
 **Then** at least 100 samples are collected (Criterion minimum) and the SVG has ≥ 10,000 perf samples.
 
@@ -1119,11 +1119,11 @@ echo "Open with: xdg-open $OUTPUT  (Linux) or open $OUTPUT  (macOS)"
 
 **Given** a stored baseline and a PR that modifies `src/chain.rs` or `src/verifier.rs`,  
 **When** `cargo bench --bench profile -- --baseline main` runs,  
-**Then** any regression > 10% in `profile/verify_hot_path/100` blocks merge.
+**Then** any regression > 10% in profile/verify_hot_path/100 blocks merge.
 
 ---
 
-**Given** the `profile/chain_recompute_hot_path/100` bench runs,  
+**Given** the profile/chain_recompute_hot_path/100 bench runs,  
 **When** its mean latency is compared to `throughput/verify_pipeline/100` mean minus `throughput/assemble_pipeline/100` mean,  
 **Then** the `chain_recompute` bench accounts for ≥ 40% of `verify` latency (chain recomputation dominates verification cost).
 
@@ -1455,7 +1455,7 @@ jobs:
 
 ---
 
-**Given** the CI job uploads `target/criterion/` as an artifact,  
+**Given** the CI job uploads target/criterion/ as an artifact,  
 **When** the artifact is downloaded and opened,  
 **Then** the Criterion HTML report at `report/index.html` renders all benchmarks with the custom CSS theme applied.
 
@@ -1473,7 +1473,7 @@ jobs:
 
 ### Before/After Test Fixtures
 
-The `benches/baselines/` directory serves as the "before" fixture. The "after" is always the current run's `target/criterion/` output. To manually test regression detection without CI:
+The `benches/baselines/` directory serves as the "before" fixture. The "after" is always the current run's target/criterion/ output. To manually test regression detection without CI:
 
 ```bash
 # Step 1: Establish a known-good baseline
@@ -1508,9 +1508,9 @@ The following gates must ALL be met before the Benchmarking & Performance phase 
 | Baselines committed | `benches/baselines/` contains base JSON for all three suites | Git |
 | Dashboard generated | `gen_summary.sh` produces valid `BENCH_SUMMARY.md` | CI |
 | Custom CSS applied | `benches/theme/criterion.css` present and patched into HTML output | CI |
-| Flamegraph captures blake3 | `target/flamegraph.svg` exists and contains `blake3` frame labels | Manual |
-| Flamegraph captures serde_json | `target/flamegraph.svg` contains `serde_json` frame labels | Manual |
-| Surprise metric in range | `variance/surprise_sequential` returns values in [0.0, 1.0] | CI |
+| Flamegraph captures blake3 | target/flamegraph.svg exists and contains `blake3` frame labels | Manual |
+| Flamegraph captures serde_json | target/flamegraph.svg contains `serde_json` frame labels | Manual |
+| Surprise metric in range | variance/surprise_sequential returns values in [0.0, 1.0] | CI |
 | No `unwrap` in bench files | Bench files use `.expect("message")` per No-Unwrap Policy | Code review |
 | Existing bench unmodified | `benches/receipt_operations.rs` behavior unchanged | CI regression |
 | All tests still pass | `cargo test` exits 0 after adding bench files | CI |
@@ -1598,7 +1598,7 @@ The following frame patterns indicate problems that must be investigated before 
 
 ### Sharing Flamegraphs
 
-Commit `target/flamegraph.svg` to the PR description (not to the repository) using a GitHub gist or the CI artifact. The `target/` directory is gitignored. Include the following metadata in the PR description when sharing:
+Commit target/flamegraph.svg to the PR description (not to the repository) using a GitHub gist or the CI artifact. The `target/` directory is gitignored. Include the following metadata in the PR description when sharing:
 
 ```
 Flamegraph: <link to SVG>

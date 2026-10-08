@@ -90,7 +90,7 @@ different record from the producer pin above (`affidavit.wasm-pin/1`).
 `cargo build --locked --lib --target wasm32-wasip1 --profile wasm`, build again
 with `--target-dir <other>` and `cmp` the two (they must be identical; the
 profile sets `trim-paths` so embedded paths are checkout-independent), then put
-`sha256`/size of the module on the `wasm` line of `registry/ARTIFACTS.sha256`.
+`sha256`/size of the module on the `wasm` line of registry/ARTIFACTS.sha256.
 `AFFIDAVIT_WASM=<module> cargo test --test registry_artifacts` enforces the pin.
 
 ### Producer pin record
@@ -233,7 +233,7 @@ edits the web files.
   `ggen.toml` pins it at `../ggen-marketplace/packs/rust-wasi-wasmex-pack`)
 - [`affidavit-wasm/tests/registry_artifacts.rs`](../affidavit-wasm/tests/registry_artifacts.rs) —
   the artifact-pin court enforcing `registry/artifact-pin.json` and
-  `registry/ARTIFACTS.sha256`
+  registry/ARTIFACTS.sha256
 - [signature-envelope.md](../../ash_affidavit/docs/diataxis/how-to/signature-envelope.md) —
   signature envelope how-to (external sibling repo `ash_affidavit`; the wasm
   surface has no signature verification — see trust-model boundaries above)
