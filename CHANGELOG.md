@@ -2,6 +2,21 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.9.30] — 2026-10-01
+
+**Theme: release-identity bump.** No behavioural change to the verifier or the
+trust plane. The genesis seed is bound to the package version, so the chain
+genesis, the `affidavit-wasm` module, and the browser verifier all move to
+`affidavit-v26.9.30-genesis`; receipts minted by earlier releases do not verify
+under this seed (as with every version bump).
+
+### Changed
+- Package version 26.9.28 → 26.9.30 (`affidavit`, `affidavit-wasm`, `ggen.toml`);
+  26.9.29 was never published.
+- `affidavit-wasm` golden/tampered fixtures regenerated for the new seed.
+- Browser verifier genesis seed (`web/`) updated to match.
+- Release workflow renamed to `release-tag-v26.9.30.yml` and re-pinned. The
+  v26.9.28 crates.io publish run failed at the Publish step; 26.9.30 supersedes it.
 ### Added (26.10.5, continued)
 - `affidavit-wasm/src/signature.rs`: the new `verify_signature` op (order 14)
   and its native tests: real RFC 8032 Ed25519 KAT, real RFC 6979 ES256/ES256K
