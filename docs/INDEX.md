@@ -13,7 +13,7 @@ Start here for project overview and setup:
 - **[CHANGELOG.md](../CHANGELOG.md)** — Version history and breaking changes
 - **[CONTRIBUTING.md](../CONTRIBUTING.md)** — Contribution guidelines
 - **[STATUS.md](../STATUS.md)** — Current project status and releases
-- **[IMPLEMENTATION_SUMMARY.md](../IMPLEMENTATION_SUMMARY.md)** — Western Electric quality monitoring implementation details
+- **[IMPLEMENTATION_SUMMARY.md](archive/IMPLEMENTATION_SUMMARY.md)** — Western Electric quality monitoring implementation details
 - **[ROADMAP.md](../ROADMAP.md)** — Bug ledger and open workstreams, re-verified each release
 - **[AGENTS.md](../AGENTS.md)** — Execution doctrine, invariants, and the verification ladder
 - [Crypto Trust Plane](CRYPTO_TRUST_PLANE.md) — cryptographic trust substrate: keys, signatures, verification → standing (ggen-manufactured)
