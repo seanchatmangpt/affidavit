@@ -217,3 +217,15 @@ edits the web files.
 - **Sandboxed, not sealed.** Unlike the Rust `Receipt`, which cannot be forged by
   struct literal (`E0451`), a host can hand `verify` any JSON. Verification, not
   construction, is the guarantee across this boundary.
+
+## See Also
+
+- [rust-wasi-wasmex-pack](../../ggen-marketplace/packs/rust-wasi-wasmex-pack/) —
+  the marketplace pack this module is rendered from (external sibling repo;
+  `ggen.toml` pins it at `../ggen-marketplace/packs/rust-wasi-wasmex-pack`)
+- [`affidavit-wasm/tests/registry_artifacts.rs`](../affidavit-wasm/tests/registry_artifacts.rs) —
+  the artifact-pin court enforcing `registry/artifact-pin.json` and
+  `registry/ARTIFACTS.sha256`
+- [signature-envelope.md](../../../ash_affidavit/docs/diataxis/how-to/signature-envelope.md) —
+  signature envelope how-to (external sibling repo `ash_affidavit`; the wasm
+  surface has no signature verification — see trust-model boundaries above)
