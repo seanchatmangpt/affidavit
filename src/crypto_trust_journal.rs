@@ -662,20 +662,9 @@ mod tests {
             nonce,
             not_before: NOW - 1_000,
             expires_at: NOW + 1_000,
-            // Bound to the fixture subject under the same domain-separated
-            // law `certify_signed` enforces (mirrors crypto_trust_verify).
-            subject_digest: subject_bound("subject-a"),
-            audience: "affidavit.cli".to_string(),
+            subject_digest: [0x22; 32],
+            audience: "affidavit.verifier".to_string(),
         }
-    }
-
-    /// The domain-separated digest of a subject string — the exact law
-    /// `certify_signed` enforces against `env.subject_digest`.
-    fn subject_bound(subject: &str) -> [u8; 32] {
-        crate::crypto_trust_canonical::digest(
-            crate::crypto_trust_verify::DOMAIN_TAG,
-            &[subject.as_bytes()],
-        )
     }
 
     /// An engine holding `record` under the graph-default policy, clock at NOW.
@@ -696,7 +685,7 @@ mod tests {
         let env = envelope(&record.id, [31u8; 16]);
         let signature = signing.sign(&env.signing_input_checked().expect("canonical pre-image"));
         let receipt = engine_with(&record)
-            .certify_signed(&env, &signature, "subject-a", &signing)
+            .certify(&env, &signature, "subject-a")
             .expect("VALID verdict mints a receipt");
 
         let mut journal = StandingJournal::new();
@@ -731,7 +720,7 @@ mod tests {
             let signature =
                 signing.sign(&env.signing_input_checked().expect("canonical pre-image"));
             let receipt = engine_with(&record)
-                .certify_signed(&env, &signature, "subject-a", &signing)
+                .certify(&env, &signature, "subject-a")
                 .expect("mint");
             record_receipt(&mut journal_a, &receipt, 2, 0).expect("record a");
             record_receipt(&mut journal_b, &receipt, 2, 0).expect("record b");

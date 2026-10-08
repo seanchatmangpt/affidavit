@@ -259,30 +259,6 @@ impl<'a, R: KeyRegistry> QuorumEngine<'a, R> {
                 hybrid_verify(es256, mldsa65, signing_input, &sig)
                     .map_err(|_| QuorumError::InvalidShare(kid))
             }
-            // AG1 parity (AG4 court): Ed25519 and ES256K shares must COUNT
-            // toward quorum, not refuse as a registry mismatch.
-            #[cfg(feature = "ed25519")]
-            (PublicKeyMaterial::Ed25519(pk), AlgorithmId::Ed25519) => {
-                let kid_a = kid.clone();
-                let key: &[u8; 32] = pk
-                    .as_slice()
-                    .try_into()
-                    .map_err(|_| QuorumError::InvalidShare(kid_a))?;
-                let kid_b = kid.clone();
-                let sig: &[u8; 64] = signature
-                    .try_into()
-                    .map_err(|_| QuorumError::InvalidShare(kid_b))?;
-                Ok(crate::ed25519_witness::verify_witness(key, signing_input, sig).is_ok())
-            }
-            #[cfg(feature = "secp256k1")]
-            (PublicKeyMaterial::Es256kSec1(pk), AlgorithmId::Es256k) => {
-                let kid = kid.clone();
-                let key: &[u8; 33] = pk
-                    .as_slice()
-                    .try_into()
-                    .map_err(|_| QuorumError::InvalidShare(kid.clone()))?;
-                Ok(crate::secp256k1_witness::verify_ecdsa(key, signing_input, signature).is_ok())
-            }
             (registered, claimed) => Err(QuorumError::Registry(format!(
                 "key {} material serves {} but the share claims {}",
                 record.id,

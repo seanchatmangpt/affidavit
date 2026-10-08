@@ -46,7 +46,7 @@ const BENCH_DIGEST_ALGORITHM: &str = "BLAKE3";
 /// Algorithm registry rendered from the graph (bench.rq): `name|rustVariant`
 /// per `@@` group, ordered by `ctp:algorithmName` — the set of algorithms the
 /// benches must cover.
-const BENCH_ALGORITHM_REGISTRY: &str = "ES256|Es256@@ES256+ML-DSA-65|HybridEs256MlDsa65@@ML-DSA-65|MlDsa65@@SLH-DSA-SHA2-128s|SlhDsa128s";
+const BENCH_ALGORITHM_REGISTRY: &str = "ED25519|Ed25519@@ES256|Es256@@ES256+ML-DSA-65|HybridEs256MlDsa65@@ES256K|Es256k@@ML-DSA-65|MlDsa65@@SLH-DSA-SHA2-128s|SlhDsa128s";
 
 /// The bench's graph-fact teeth, checked at the start of EVERY bench: the
 /// rendered bindings must equal the plane's own rendered consts — same graph,

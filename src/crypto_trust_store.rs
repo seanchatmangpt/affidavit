@@ -395,8 +395,6 @@ mod tests {
             },
             AlgorithmId::MlDsa65 => PublicKeyMaterial::MlDsa65(vec![tag; 1952]),
             AlgorithmId::SlhDsa128s => PublicKeyMaterial::SlhDsa128s(vec![tag; 33]),
-            AlgorithmId::Ed25519 => PublicKeyMaterial::Ed25519(vec![tag; 32]),
-            AlgorithmId::Es256k => PublicKeyMaterial::Es256kSec1(vec![tag; 33]),
         }
     }
 
@@ -718,11 +716,7 @@ mod tests {
             .to_string_lossy()
             .to_string();
         assert!(name.starts_with(".keys.json.tmp-"), "{name}");
-        assert_ne!(
-            tmp_sibling(&path),
-            tmp,
-            "staging name carries per-attempt entropy"
-        );
+        assert_ne!(tmp_sibling(&path), tmp, "staging name carries per-attempt entropy");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -107,9 +107,7 @@ fn envelope_over(subject: [u8; 32], kid: &KeyId, nonce_tag: u8) -> SignatureEnve
         not_before: NOT_BEFORE,
         expires_at: EXPIRES_AT,
         subject_digest: subject,
-        // An audience admitted by the graph-default policy: the court's
-        // target is the certify/seal stack, never audience policy.
-        audience: "affidavit.cli".to_string(),
+        audience: "affidavit.court".to_string(),
     }
 }
 
@@ -131,6 +129,24 @@ fn fresh_sitting(record: &KeyRecord, now: u64) -> VerificationEngine {
 }
 
 // ── per-algorithm admission: one test renders per graph algorithm ───────────
+#[test]
+fn court_admits_ed25519_exactly_as_the_graph_declares() {
+    // The graph admits this algorithm; the keys module renders the variant
+    // and the court holds the rendered plane to it.
+    let all = AlgorithmId::all();
+    let alg = AlgorithmId::Ed25519;
+    assert!(
+        all.contains(&alg),
+        "Ed25519 must be admitted by the rendered plane"
+    );
+    assert!(!alg.as_str().is_empty());
+    // Wire form round-trips through the keys module's serde law.
+    let json = serde_json::to_string(&alg).expect("algorithm serializes");
+    let back: AlgorithmId = serde_json::from_str(&json).expect("algorithm deserializes");
+    assert_eq!(back, alg);
+    // Assurance profile follows the pinned policy mapping.
+    assert_eq!(alg.profile(), CryptoProfile::Classical);
+}
 #[test]
 fn court_admits_es256_exactly_as_the_graph_declares() {
     // The graph admits this algorithm; the keys module renders the variant
@@ -166,6 +182,24 @@ fn court_admits_hybrides256mldsa65_exactly_as_the_graph_declares() {
     assert_eq!(back, alg);
     // Assurance profile follows the pinned policy mapping.
     assert_eq!(alg.profile(), CryptoProfile::Hybrid);
+}
+#[test]
+fn court_admits_es256k_exactly_as_the_graph_declares() {
+    // The graph admits this algorithm; the keys module renders the variant
+    // and the court holds the rendered plane to it.
+    let all = AlgorithmId::all();
+    let alg = AlgorithmId::Es256k;
+    assert!(
+        all.contains(&alg),
+        "Es256k must be admitted by the rendered plane"
+    );
+    assert!(!alg.as_str().is_empty());
+    // Wire form round-trips through the keys module's serde law.
+    let json = serde_json::to_string(&alg).expect("algorithm serializes");
+    let back: AlgorithmId = serde_json::from_str(&json).expect("algorithm deserializes");
+    assert_eq!(back, alg);
+    // Assurance profile follows the pinned policy mapping.
+    assert_eq!(alg.profile(), CryptoProfile::Classical);
 }
 #[test]
 fn court_admits_mldsa65_exactly_as_the_graph_declares() {
@@ -232,17 +266,10 @@ fn es256_full_cycle_from_receipt_to_standing_to_seal() {
     assert_eq!(verdict.key_id, Some(record.id.clone()));
 
     // (5) Sitting two: certify mints the standing receipt — evidence for the
-    // SA2A authorization layer, never authorization itself. `certify_signed`
-    // enforces SUBJECT BINDING: the named subject string must digest — under
-    // the trust-plane domain tag — to exactly the envelope's bound digest,
-    // which here is the receipt's content address.
-    let subject_address = affidavit::chain::content_address(&receipt)
-        .expect("content address")
-        .as_hex()
-        .to_string();
+    // SA2A authorization layer, never authorization itself.
     let certifying = fresh_sitting(&record, NOW);
     let standing_receipt: CryptoStandingReceipt = certifying
-        .certify_signed(&envelope, &signature, &subject_address, &signing)
+        .certify(&envelope, &signature, "subject-a")
         .expect("VALID verdict mints a receipt");
     assert_eq!(standing_receipt.profile, CRYPTO_STANDING_PROFILE);
     assert_eq!(standing_receipt.standing, CryptographicStanding::Valid);
@@ -458,10 +485,7 @@ fn court_pins_match_the_rendered_plane() {
 }
 
 /// The graph's algorithm admit list in graph order, as rendered from the
-/// e2e.rq aggregate. AG1 lane: ED25519 (RFC 8032) and ES256K (RFC 8812)
-/// joined the graph — keys.rs was advanced to the same admit list in the
-/// same graph order (name-sorted: ED25519, ES256, ES256+ML-DSA-65, ES256K,
-/// ML-DSA-65, SLH-DSA-SHA2-128s).
+/// e2e.rq aggregate (Ed25519|Classical@@Es256|Classical@@HybridEs256MlDsa65|Hybrid@@Es256k|Classical@@MlDsa65|Pqc@@SlhDsa128s|Pqc).
 fn rendered_algs() -> Vec<&'static str> {
     vec![
         AlgorithmId::Ed25519.as_str(),
