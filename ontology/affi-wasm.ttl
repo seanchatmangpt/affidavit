@@ -24,16 +24,16 @@ afw:module a wja:WasmModule ;
     # `cargo build --locked --lib --target wasm32-wasip1 --profile wasm`;
     # registrySha256 is the sha256 of the rendered registry/capability-registry.json.
     # Source commit is deliberately absent: a commit cannot contain its own hash.
-    wja:wasmSha256 "5e721cc20d07193eee5d489077f4cb534f12c45f948e53247f79f38a5a7761f7" ;
-    wja:wasmBytes 284650 ;
-    wja:registrySha256 "ebac457843cd2322af575f02583a4a2a2a11a2488de6ee0eabef468861ebe61b" ;
+    wja:wasmSha256 "5cc37aea8e59f7139e2ff5d43ab3c3c82931285b6400cf45f943c61d21a41402" ;
+    wja:wasmBytes 660847 ;
+    wja:registrySha256 "2fcaae611aaf069317123c0e1fe0c2978b2bd9c72aeadf2888aaee8be34d2ee5" ;
     afw:toolchain "nightly-2026-08-12" ;
     afw:buildTarget "wasm32-wasip1" ;
     afw:buildProfile "wasm" ;
     wja:importsPolicy "wasi_snapshot_preview1" ;
-    wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input , afw:op-certify-authzen-evidence , afw:op-certify-spiffe-evidence ;
+    wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input , afw:op-certify-authzen-evidence , afw:op-certify-spiffe-evidence , afw:op-jcs-canonicalize , afw:op-smt-absence-verify , afw:op-range-proof-verify , afw:op-derive-subject-digest , afw:op-verify-signature ;
     wja:hasWasiImport afw:imp-environ-get , afw:imp-environ-sizes-get , afw:imp-fd-write , afw:imp-proc-exit ;
-    wja:hasErrorCode afw:err-bad-json , afw:err-missing-field , afw:err-unknown-op , afw:err-bad-field , afw:err-too-large , afw:err-too-deep , afw:err-missing-buffer , afw:err-internal .
+    wja:hasErrorCode afw:err-bad-json , afw:err-missing-field , afw:err-unknown-op , afw:err-bad-field , afw:err-too-large , afw:err-too-deep , afw:err-missing-buffer , afw:err-internal , afw:err-malformed .
 
 afw:op-capabilities a wja:Op ;
     wja:opName "capabilities" ;
@@ -98,6 +98,49 @@ afw:op-certify-spiffe-evidence a wja:Op ;
     wja:responseFields "ok,op,certified,standard,spiffe_id,trust_domain,path,svid_type,authority,consequence,evidence_digest,evidence" ;
     wja:exampleRequest """{"op":"certify_spiffe_evidence","spiffe_id":"spiffe://prod.acme.com/billing/api","expected_spiffe_id":"spiffe://prod.acme.com/billing/api","expected_trust_domain":"prod.acme.com","svid_type":"x509","bundle_digest":"sha256:canonical-example-bundle","verified":true}""" .
 
+# --- Advanced witness verification ops (PR #113 capability set) -------------
+# Verifier-side only: these ops check witnesses computed by a prover elsewhere
+# (Certify, Don't Decide — the edge module never originates proofs).
+
+afw:op-jcs-canonicalize a wja:Op ;
+    wja:opName "jcs_canonicalize" ;
+    wja:opOrder 10 ;
+    wja:requestFields "op,json" ;
+    wja:responseFields "ok,op,canonical_json,commitment" ;
+    wja:exampleRequest """{"op":"jcs_canonicalize","json":"{\\"b\\":1,\\"a\\":2}"}""" .
+
+afw:op-derive-subject-digest a wja:Op ;
+    wja:opName "derive_subject_digest" ;
+    wja:opOrder 13 ;
+    wja:requestFields "op,domain_tag,subject,subject_hex" ;
+    wja:responseFields "ok,op,digest_hex,pre_image_hex" ;
+    wja:exampleRequest """{"op":"derive_subject_digest","domain_tag":"affidavit-paid-delivery/v1","subject":"paid-delivery:evt-001"}""" .
+
+afw:op-smt-absence-verify a wja:Op ;
+    wja:opName "smt_absence_verify" ;
+    wja:opOrder 11 ;
+    wja:requestFields "op,root_hex,queried_key_hex,neighbor_key_hex,neighbor_value_hex,claimed_prefix_bits,proof_steps" ;
+    wja:responseFields "ok,op,admitted" ;
+    wja:exampleRequest """{\"op\":\"smt_absence_verify\",\"root_hex\":\"26c125e91454332c68ecaef86614e09fd2c95220d0c2d42d296dda8c52fe12af\",\"queried_key_hex\":\"7f00000000000000000000000000000000000000000000000000000000000000\",\"neighbor_key_hex\":\"8000000000000000000000000000000000000000000000000000000000000000\",\"neighbor_value_hex\":\"ab00000000000000000000000000000000000000000000000000000000000000\",\"claimed_prefix_bits\":0,\"proof_steps\":[{\"right\":false,\"cut_hex\":\"00000100800000000000000000000000000000000000000000000000000000000000000000\"}]}""" .
+
+afw:op-range-proof-verify a wja:Op ;
+    wja:opName "range_proof_verify" ;
+    wja:opOrder 12 ;
+    wja:requestFields "op,commitment_hex,proof_hex,bits,label" ;
+    wja:responseFields "ok,op,admitted" ;
+    wja:exampleRequest """{"op":"range_proof_verify","commitment_hex":"0000000000000000000000000000000000000000000000000000000000000000","proof_hex":"00","bits":32,"label":"affidavit:zk-range:v1:effect-budget"}""" .
+
+# AG1 parity lane: stateless per-algorithm signature adjudication over caller
+# bytes (ES256 DER / ES256K fixed 64-byte / Ed25519). No registry, no replay:
+# `valid` answers exactly "these bytes verify under this key"; malformed
+# encodings and unsupported algorithms surface as a typed `refusal` string.
+afw:op-verify-signature a wja:Op ;
+    wja:opName "verify_signature" ;
+    wja:opOrder 14 ;
+    wja:requestFields "op,alg,public_key_hex,signature_hex,signing_input,signing_input_hex" ;
+    wja:responseFields "ok,op,valid,refusal" ;
+    wja:exampleRequest """{"op":"verify_signature","alg":"Ed25519","public_key_hex":"3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c","signature_hex":"92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00","signing_input_hex":"72"}""" .
+
 afw:err-bad-json a wja:ErrorCode ; wja:codeName "bad_json" ; wja:codeOrder 1 .
 afw:err-missing-field a wja:ErrorCode ; wja:codeName "missing_field" ; wja:codeOrder 2 .
 afw:err-unknown-op a wja:ErrorCode ; wja:codeName "unknown_op" ; wja:codeOrder 3 .
@@ -106,6 +149,10 @@ afw:err-too-large a wja:ErrorCode ; wja:codeName "too_large" ; wja:codeOrder 5 .
 afw:err-too-deep a wja:ErrorCode ; wja:codeName "too_deep" ; wja:codeOrder 6 .
 afw:err-missing-buffer a wja:ErrorCode ; wja:codeName "missing_buffer" ; wja:codeOrder 7 .
 afw:err-internal a wja:ErrorCode ; wja:codeName "internal" ; wja:codeOrder 8 .
+# Emitted by verify_signature_input for a refused envelope (bad shape, wrong
+# version, expired/not-yet-valid window, buffer too small) — see
+# affidavit-wasm/src/crypto.rs SignatureInputError::code.
+afw:err-malformed a wja:ErrorCode ; wja:codeName "malformed" ; wja:codeOrder 9 .
 
 # Observed import section of the pinned module (wasi_snapshot_preview1 only).
 afw:imp-environ-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "environ_get" .

@@ -324,8 +324,11 @@ fn import_refusal_variants_witnessed() {
         .stderr(predicate::str::contains("got 32 bytes"));
 
     // Unknown algorithm: REFUSED_UNSUPPORTED naming the admitted set.
+    // (AG1 lane moved ED25519 into the admitted set; FOO25519 is the
+    // not-an-algorithm probe now, and ED25519 is exercised as an ADMITTED
+    // algorithm whose flat-hex custody path is REFUSED_UNSUPPORTED.)
     affi(&dir)
-        .args(["keys", "import", "ED25519", "04a5", "alice"])
+        .args(["keys", "import", "FOO25519", "04a5", "alice"])
         .args(store_arg)
         .assert()
         .failure()

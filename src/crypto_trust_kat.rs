@@ -53,7 +53,7 @@ pub const KAT_ENVELOPE_VERSION: &str = "CTP-ENVELOPE-v1";
 /// Algorithm registry rendered from the graph (kat.rq): `name|rustVariant`
 /// per `@@` group, ordered by `ctp:algorithmName`. The corpus carries exactly
 /// one vector per registry entry, in this order.
-pub const KAT_ALGORITHM_REGISTRY: &str = "ES256|Es256@@ES256+ML-DSA-65|HybridEs256MlDsa65@@ML-DSA-65|MlDsa65@@SLH-DSA-SHA2-128s|SlhDsa128s";
+pub const KAT_ALGORITHM_REGISTRY: &str = "ED25519|Ed25519@@ES256|Es256@@ES256+ML-DSA-65|HybridEs256MlDsa65@@ES256K|Es256k@@ML-DSA-65|MlDsa65@@SLH-DSA-SHA2-128s|SlhDsa128s";
 
 /// One known-answer vector: a full real signature over a deterministic
 /// message under a deterministic key, hex-encoded. Wire form is JCS JSON

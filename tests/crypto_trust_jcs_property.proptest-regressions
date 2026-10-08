@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 3193fecac147406c214379b1d6877ce8689baa4982ced2a4e648e88e4a9f705e # shrinks to v = Object {"": Object {"": Array [Number(-2.4002209820119454e-180)]}}
+cc 8298c30babb15619f6c8049bedb22453925864739e5600869bf466d9d1a6159c # shrinks to pairs = [("", Number(0.0)), ("", Number(0.0)), ("", Number(-0.0)), ("", Number(10000000000.0))], rotation = 142981832134214949
+cc df9427f9e354a543036495416289c4055bed8339e98b51a4f8770dcc66fe7f0b # shrinks to v = Array [Number(1e+16)]
+cc dcd474e90de77639da9e94004a71ea174be6fb924b897d902f22509f519b5b42 # shrinks to subject = " ", payload_hash_hex = "0aaa0aa0000a0a0aaaa0aaaa0aa00a00000a0aaaaa0aaa0a0aaaaaa0a0000aaa", swap = false

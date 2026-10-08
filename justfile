@@ -53,6 +53,19 @@ clippy:
 golden:
     bash examples/golden_run.sh
 
+# Re-mint the affidavit-wasm golden/tampered fixtures for the current version
+# (docs/WASM.md "Regenerate the fixture on every version bump"). Refuses with
+# REFUSED_VERSION_MISMATCH when CHANGELOG.md lacks a `## [<version>]` section.
+golden-mint:
+    python3 scripts/golden_receipt.py mint
+
+# Verification-only genesis-drift court: fails when the web lane's hand-typed
+# genesis seed literals (web/lib/verify-client.ts, web/app/visualizer/model.ts)
+# do not match the current version's `affidavit-v<version>-genesis`. Never
+# edits web/.
+check-genesis:
+    python3 scripts/golden_receipt.py check-genesis
+
 # Federation courts end-to-end: standing, ecosystem, and ERRC through `affi`.
 federation:
     cargo test --test federation_cli
@@ -96,3 +109,20 @@ wasm-test:
 # fails when a verb is added without running this.
 completions:
     python3 scripts/generate_completions.py
+
+# --- mutation court (crypto trust surface) -----------------------------------
+
+# Targeted cargo-mutants regression court over the crypto-critical files.
+# Runs the `crypto_trust`-filtered lib suite plus the certified-receipts
+# integration falsifiers so the mutants meet real cryptographic assertions.
+# Baseline (2026-10-05, affidavit@HEAD): 129 mutants, 116+ caught,
+# <= 3 survivors, all classified equivalent (see mutations/BASELINE.json).
+mutate-crypto:
+    cargo mutants \
+        --file src/crypto_trust_verify.rs \
+        --file src/receipts_certified.rs \
+        --file src/crypto_trust_keys.rs \
+        --timeout 300 \
+        -j 4 \
+        -- --lib --test receipts_certified --test crypto_trust_mutation_court \
+            --features crypto-trust,certified-receipts -- crypto_trust

@@ -11,9 +11,9 @@
 
 1. [Western Electric Rules Explained](#section-1-western-electric-rules-explained)
 2. [OCEL Mapping](#section-2-ocel-mapping)
-3. [Rule Variants & Tuning](#section-3-rule-variants--tuning)
+3. [Rule Variants & Tuning](#section-3-rule-variants-and-tuning)
 4. [Multi-Dimensional Analysis](#section-4-multi-dimensional-analysis)
-5. [Diagrams & Visualizations](#section-5-diagrams--visualizations)
+5. [Diagrams & Visualizations](#section-5-diagrams-and-visualizations)
 6. [Quick Reference](#quick-reference)
 
 ---
@@ -531,7 +531,7 @@ Causal chain:
 
 ---
 
-## Section 3: Rule Variants & Tuning
+## Section 3: Rule Variants and Tuning
 
 ### 3.1 The Seven Base Rules: Implementation Variants
 
@@ -1007,7 +1007,7 @@ When violations fire, use this framework to prioritize investigation:
 
 ---
 
-## Section 5: Diagrams & Visualizations
+## Section 5: Diagrams and Visualizations
 
 ### 5.1 Western Electric Rule Decision Tree (Mermaid)
 

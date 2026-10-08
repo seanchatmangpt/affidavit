@@ -51,8 +51,9 @@ Unknown extra request fields are tolerated (forward compatibility); an unknown
 ## Generated vs hand-written
 
 The ABI shell is **manufactured**, not written: `ontology/affi-wasm.ttl` (an
-instance of the project-neutral `wja:` vocabulary of
-`ggen-marketplace/packs/wasi-json-abi-pack`) is rendered by `ggen sync` into
+instance of the project-neutral `wja:` vocabulary defined by
+`ggen-marketplace/packs/rust-wasi-wasmex-pack` — successor of the deprecated
+`wasi-json-abi-pack`) is rendered by `ggen sync` into
 
 | Output | Content |
 |---|---|
@@ -67,8 +68,15 @@ Never edit these by hand: change the ontology and re-render (CI runs a drift
 court: `ggen sync run` then `git diff --exit-code`). The op bodies
 (`abi.rs`), `receipt.rs` and `crypto.rs` stay hand-written (`HANDWRITTEN.md`).
 
+**Known stale render:** the header comment of `affidavit-wasm/registry/ARTIFACTS.sha256`
+still says "Rendered by ggen (wasi-json-abi-pack)". It is a generated file (the
+create-only pin), so it is not hand-edited; the header comes from the pack's
+`templates/abi/artifacts.sha256.tmpl`. The lawful fix is a re-render after the
+template's wording (or an equivalent regeneration) is updated — the pack itself
+already attributes to `rust-wasi-wasmex-pack` elsewhere (e.g. `src/ffi.rs`).
+
 **Sync inputs (observed 2026-09-30):** `ggen sync run` here reads packs from sibling
-directories (`../ggen-marketplace/packs/{affidavit-trust-plane-pack,wasi-json-abi-pack}`)
+directories (`../ggen-marketplace/packs/{affidavit-trust-plane-pack,rust-wasi-wasmex-pack}`)
 and `../clap-noun-verb`; a bare `git archive` of this repository does not sync. The pin bytes
 are deterministic against those siblings (two runs, identical sha256), but the siblings are
 not pinned by this repository. The generated `src/crypto_trust_*.rs` come out of `ggen sync run`
@@ -183,11 +191,22 @@ in the root crate additionally requires the fixture to ACCEPT under the current
 release's own verifier and the wasm crate's version to equal `affi`'s, so a
 version bump cannot leave either behind.
 
-**Regenerate the fixture on every version bump** (the genesis seed is
-`affidavit-v<version>-genesis`): emit three events, assemble with the new `affi`,
-copy to `golden_receipt.json`, and `sed 's/"test"/"tampered"/'` a copy to
-`tampered_receipt.json`; then update the expected hashes in
-`tests/wasm_abi.rs::rejects_a_tampered_receipt_with_the_exact_reason_affi_gives`.
+**Regenerate the fixture on every version bump** with `just golden-mint`
+(script: `scripts/golden_receipt.py mint`; the genesis seed is
+`affidavit-v<version>-genesis`). It executes exactly the documented sequence —
+emit three events (`build`/`compile step`, `test`/`unit tests`,
+`deploy`/`ship it`), assemble with the new `affi`, copy to
+`golden_receipt.json`, and `sed 's/"test"/"tampered"/'` a copy to
+`tampered_receipt.json` — refusing with `REFUSED_VERSION_MISMATCH` if
+`CHANGELOG.md` has no `## [<version>]` section. It is idempotent at the
+current version: a re-mint with no version bump leaves the fixtures
+byte-identical. Still manual afterward: update the expected hashes in
+`tests/wasm_abi.rs::rejects_a_tampered_receipt_with_the_exact_reason_affi_gives`
+(the script prints this reminder). To catch the second drift class — the
+hand-typed genesis seed in `web/lib/verify-client.ts` and
+`web/app/visualizer/model.ts` — run `just check-genesis`, a verification-only
+court that fails loudly with the `release_identity` drift message and never
+edits the web files.
 
 ## Trust-model boundaries (read before relying on it)
 
@@ -206,3 +225,15 @@ copy to `golden_receipt.json`, and `sed 's/"test"/"tampered"/'` a copy to
 - **Sandboxed, not sealed.** Unlike the Rust `Receipt`, which cannot be forged by
   struct literal (`E0451`), a host can hand `verify` any JSON. Verification, not
   construction, is the guarantee across this boundary.
+
+## See Also
+
+- [rust-wasi-wasmex-pack](../../ggen-marketplace/packs/rust-wasi-wasmex-pack/) —
+  the marketplace pack this module is rendered from (external sibling repo;
+  `ggen.toml` pins it at `../ggen-marketplace/packs/rust-wasi-wasmex-pack`)
+- [`affidavit-wasm/tests/registry_artifacts.rs`](../affidavit-wasm/tests/registry_artifacts.rs) —
+  the artifact-pin court enforcing `registry/artifact-pin.json` and
+  `registry/ARTIFACTS.sha256`
+- [signature-envelope.md](../../ash_affidavit/docs/diataxis/how-to/signature-envelope.md) —
+  signature envelope how-to (external sibling repo `ash_affidavit`; the wasm
+  surface has no signature verification — see trust-model boundaries above)

@@ -1,9 +1,12 @@
 # affidavit-wasm release artifacts (ABI version 1). Format: <kind> <sha256> <bytes> <name>
-# Consumed query columns (cargo.rq): crate_name, export_prefix, abi_version.
-# Rendered by ggen (wasi-json-abi-pack) from the wja: graph; this is a SKELETON.
-# The wasm line is a pin, not a live check: replace the placeholders with the
-# digest and size of the built module after
+# Consumed query columns (artifacts.rq): crate_name, abi_version, wasm_sha256, wasm_bytes,
+# registry_sha256, surface_sha256 (pin lines render only when the graph carries the pin facts).
+# Rendered by ggen (rust-wasi-wasmex-pack) from the wja: graph; this is a SKELETON.
+# The wasm line is a pin ENFORCED by the generated harness (generated/tests_common.rs,
+# `assert_pin`): it builds the wasm when the env var is unset, PANICS on a placeholder
+# pin, and PANICS on a size or sha256 mismatch; it never skips. Replace the
+# placeholders with the digest and size of the module built by
 #   cargo build --locked --target wasm32-wasip1 --profile wasm
-# and regenerate the pin after any src/ change. Verification of the pin is the
-# consumer's test suite, not this file.
-wasm 5e721cc20d07193eee5d489077f4cb534f12c45f948e53247f79f38a5a7761f7 284650 affidavit_wasm.wasm
+# and regenerate the pin after any src/ change.
+wasm 5cc37aea8e59f7139e2ff5d43ab3c3c82931285b6400cf45f943c61d21a41402 660847 affidavit_wasm.wasm
+registry sha256:2fcaae611aaf069317123c0e1fe0c2978b2bd9c72aeadf2888aaee8be34d2ee5 - capability-registry.json

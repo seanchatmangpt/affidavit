@@ -1,0 +1,61 @@
+{
+  "court": "just mutate-crypto",
+  "tool": "cargo-mutants 27.1.0",
+  "subject_commit": "4f654d21f3863ad89a11a62325c1dbf875cf72df",
+  "date": "2026-10-05",
+  "files": [
+    "src/crypto_trust_verify.rs",
+    "src/receipts_certified.rs",
+    "src/crypto_trust_keys.rs"
+  ],
+  "test_scope": "cargo test --lib --test receipts_certified --test crypto_trust_mutation_court --features crypto-trust,certified-receipts -- crypto_trust",
+  "feature_note": "The whole crypto surface is behind feature = crypto-trust (src/lib.rs). A court run without it compiles no mutated code and every mutant trivially survives: 121/121 MISSED was that artifact.",
+  "baseline_run": {
+    "mutants_generated": 129,
+    "caught": 116,
+    "survived": 13,
+    "survivors_post_killing_tests_expected": 3,
+    "survivor_classes": [
+      {
+        "mutant": "delete match arm Ed25519 (verify_signature_bytes:555)",
+        "classification": "equivalent under court features",
+        "reason": "arm is cfg(ed25519); not compiled under crypto-trust,certified-receipts"
+      },
+      {
+        "mutant": "delete match arm Es256k (verify_signature_bytes:573)",
+        "classification": "equivalent under court features",
+        "reason": "arm is cfg(secp256k1); not compiled under court features"
+      },
+      {
+        "mutant": "decode_hex || -> && (receipts_certified.rs:268)",
+        "classification": "equivalent",
+        "reason": "a non-hexdigit byte fails the u8::from_str_radix parse to None regardless of the operator"
+      }
+    ]
+  },
+  "killing_tests": "tests/crypto_trust_mutation_court.rs",
+  "verification_run": {
+    "subject_commit": "8d074306651da3f7a329079947c191261c94a560",
+    "date": "2026-10-05",
+    "mutants_generated": 129,
+    "caught": 126,
+    "survived": 3,
+    "survivors": [
+      {
+        "mutant": "delete match arm Ed25519 (verify_signature_bytes:555)",
+        "classification": "equivalent under court features",
+        "reason": "arm is cfg(ed25519); not compiled under crypto-trust,certified-receipts"
+      },
+      {
+        "mutant": "delete match arm Es256k (verify_signature_bytes:573)",
+        "classification": "equivalent under court features",
+        "reason": "arm is cfg(secp256k1); not compiled under court features"
+      },
+      {
+        "mutant": "decode_hex || -> && (receipts_certified.rs:268)",
+        "classification": "equivalent",
+        "reason": "a non-hexdigit byte fails the u8::from_str_radix parse to None regardless of the operator"
+      }
+    ]
+  }
+}

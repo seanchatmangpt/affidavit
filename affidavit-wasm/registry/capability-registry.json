@@ -9,7 +9,8 @@
     "too_large",
     "too_deep",
     "missing_buffer",
-    "internal"
+    "internal",
+    "malformed"
   ],
   "exports": [
     "af_abi_version",
@@ -68,6 +69,31 @@
       "name": "certify_spiffe_evidence",
       "request_fields": ["op", "spiffe_id", "expected_spiffe_id", "expected_trust_domain", "bundle_digest", "verified", "svid_type", "allow_jwt"],
       "response_fields": ["ok", "op", "certified", "standard", "spiffe_id", "trust_domain", "path", "svid_type", "authority", "consequence", "evidence_digest", "evidence"]
+    },
+    {
+      "name": "jcs_canonicalize",
+      "request_fields": ["op", "json"],
+      "response_fields": ["ok", "op", "canonical_json", "commitment"]
+    },
+    {
+      "name": "smt_absence_verify",
+      "request_fields": ["op", "root_hex", "queried_key_hex", "neighbor_key_hex", "neighbor_value_hex", "claimed_prefix_bits", "proof_steps"],
+      "response_fields": ["ok", "op", "admitted"]
+    },
+    {
+      "name": "range_proof_verify",
+      "request_fields": ["op", "commitment_hex", "proof_hex", "bits", "label"],
+      "response_fields": ["ok", "op", "admitted"]
+    },
+    {
+      "name": "derive_subject_digest",
+      "request_fields": ["op", "domain_tag", "subject", "subject_hex"],
+      "response_fields": ["ok", "op", "digest_hex", "pre_image_hex"]
+    },
+    {
+      "name": "verify_signature",
+      "request_fields": ["op", "alg", "public_key_hex", "signature_hex", "signing_input", "signing_input_hex"],
+      "response_fields": ["ok", "op", "valid", "refusal"]
     }
   ],
   "schema": "wasi-json-abi.capability-registry/1"

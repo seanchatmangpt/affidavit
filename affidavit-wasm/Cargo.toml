@@ -2,7 +2,7 @@ cargo-features = ["trim-paths"]
 
 [package]
 name = "affidavit-wasm"
-version = "26.9.28"
+version = "26.10.5"
 edition = "2021"
 rust-version = "1.78"
 description = "affidavit as a WebAssembly module: verify, assemble and mine receipt chains through a JSON-over-linear-memory ABI, byte-compatible with `affi`"
@@ -26,6 +26,23 @@ serde = { version = "1", features = ["derive"] }
 # NOTE: do NOT enable serde_json's `preserve_order` feature. Canonical JSON
 # relies on `Map` being a BTreeMap (sorted keys); `receipt::tests` guards this.
 serde_json = "1"
+# Advanced witness verification ops (verifier-side): RFC 8785 canonical
+# bytes, sparse Merkle tree proof folding, bulletproofs range checks.
+serde_jcs = "0.1"
+monotree = "0.2"
+bulletproofs = "4"
+curve25519-dalek-ng = "4.1"
+merlin = "3"
+# Signature adjudication for `verify_signature` (verifier-side, pure Rust —
+# the same stacks the root crate's AG1 lanes use, so native and wasm32 agree).
+# ES256: P-256 ECDSA, DER, low-s. ES256K: secp256k1 ECDSA, fixed 64-byte, low-s.
+# Ed25519: raw 32-byte key, 64-byte signature.
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "alloc", "arithmetic"] }
+k256 = { version = "0.14", default-features = false, features = ["ecdsa", "alloc", "arithmetic"] }
+ed25519-dalek = { version = "2.1", default-features = false, features = ["alloc", "rand_core"] }
+# Force clear_on_drop's no_cc feature through the graph: its default C build
+# script cannot compile for wasm32-wasip1 (feature unification, no API change).
+clear_on_drop = { version = "0.2", features = ["no_cc"] }
 
 [dev-dependencies]
 wasmi = "1"

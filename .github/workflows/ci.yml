@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -14,29 +17,39 @@ jobs:
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout affidavit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: affidavit
 
       - name: Clone companion repos
         run: |
           cd ..
+          # Companion clones are provenance-only path siblings, pinned to a
+          # full 40-hex SHA at pinning time; a moving default-branch HEAD would
+          # make CI non-reproducible.
           git clone --depth 1 https://github.com/seanchatmangpt/clap-noun-verb.git
+          git -C clap-noun-verb checkout --detach 747f1dd4506892c218da4d739c256bcfcf941e50 # pinned: clap-noun-verb@747f1dd4506892c218da4d739c256bcfcf941e50
           git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm-compat.git
+          git -C wasm4pm-compat checkout --detach 4c523e0d81a5bb52fda21cea992201f608e088b5 # pinned: wasm4pm-compat@4c523e0d81a5bb52fda21cea992201f608e088b5
           git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm.git
+          git -C wasm4pm checkout --detach a7352d818dbcaa15909833f13ac367dc5950a7a9 # pinned: wasm4pm@a7352d818dbcaa15909833f13ac367dc5950a7a9
           git clone --depth 1 https://github.com/seanchatmangpt/chicago-tdd-tools.git
+          git -C chicago-tdd-tools checkout --detach 5edb69355d0b5fc933ae602aee0dfb151864070e # pinned: chicago-tdd-tools@5edb69355d0b5fc933ae602aee0dfb151864070e
           git clone --depth 1 https://github.com/seanchatmangpt/clnrm.git
+          git -C clnrm checkout --detach 15d26873d7a0c9e32bffc456a4a90bd7ce355225 # pinned: clnrm@15d26873d7a0c9e32bffc456a4a90bd7ce355225
           git clone --depth 1 https://github.com/seanchatmangpt/lsp-max.git
+          git -C lsp-max checkout --detach 5dec93bef12592b2d7eee7b9a45139595f2bbedb # pinned: lsp-max@5dec93bef12592b2d7eee7b9a45139595f2bbedb
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           components: rustfmt, clippy
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -69,29 +82,39 @@ jobs:
   lint:
     name: Lint (clippy + fmt)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout affidavit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: affidavit
 
       - name: Clone companion repos
         run: |
           cd ..
+          # Companion clones are provenance-only path siblings, pinned to a
+          # full 40-hex SHA at pinning time; a moving default-branch HEAD would
+          # make CI non-reproducible.
           git clone --depth 1 https://github.com/seanchatmangpt/clap-noun-verb.git
+          git -C clap-noun-verb checkout --detach 747f1dd4506892c218da4d739c256bcfcf941e50 # pinned: clap-noun-verb@747f1dd4506892c218da4d739c256bcfcf941e50
           git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm-compat.git
+          git -C wasm4pm-compat checkout --detach 4c523e0d81a5bb52fda21cea992201f608e088b5 # pinned: wasm4pm-compat@4c523e0d81a5bb52fda21cea992201f608e088b5
           git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm.git
+          git -C wasm4pm checkout --detach a7352d818dbcaa15909833f13ac367dc5950a7a9 # pinned: wasm4pm@a7352d818dbcaa15909833f13ac367dc5950a7a9
           git clone --depth 1 https://github.com/seanchatmangpt/chicago-tdd-tools.git
+          git -C chicago-tdd-tools checkout --detach 5edb69355d0b5fc933ae602aee0dfb151864070e # pinned: chicago-tdd-tools@5edb69355d0b5fc933ae602aee0dfb151864070e
           git clone --depth 1 https://github.com/seanchatmangpt/clnrm.git
+          git -C clnrm checkout --detach 15d26873d7a0c9e32bffc456a4a90bd7ce355225 # pinned: clnrm@15d26873d7a0c9e32bffc456a4a90bd7ce355225
           git clone --depth 1 https://github.com/seanchatmangpt/lsp-max.git
+          git -C lsp-max checkout --detach 5dec93bef12592b2d7eee7b9a45139595f2bbedb # pinned: lsp-max@5dec93bef12592b2d7eee7b9a45139595f2bbedb
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           components: rustfmt, clippy
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -110,27 +133,37 @@ jobs:
   benchmarks:
     name: Benchmarks (compile check)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout affidavit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: affidavit
 
       - name: Clone companion repos
         run: |
           cd ..
+          # Companion clones are provenance-only path siblings, pinned to a
+          # full 40-hex SHA at pinning time; a moving default-branch HEAD would
+          # make CI non-reproducible.
           git clone --depth 1 https://github.com/seanchatmangpt/clap-noun-verb.git
+          git -C clap-noun-verb checkout --detach 747f1dd4506892c218da4d739c256bcfcf941e50 # pinned: clap-noun-verb@747f1dd4506892c218da4d739c256bcfcf941e50
           git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm-compat.git
+          git -C wasm4pm-compat checkout --detach 4c523e0d81a5bb52fda21cea992201f608e088b5 # pinned: wasm4pm-compat@4c523e0d81a5bb52fda21cea992201f608e088b5
           git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm.git
+          git -C wasm4pm checkout --detach a7352d818dbcaa15909833f13ac367dc5950a7a9 # pinned: wasm4pm@a7352d818dbcaa15909833f13ac367dc5950a7a9
           git clone --depth 1 https://github.com/seanchatmangpt/chicago-tdd-tools.git
+          git -C chicago-tdd-tools checkout --detach 5edb69355d0b5fc933ae602aee0dfb151864070e # pinned: chicago-tdd-tools@5edb69355d0b5fc933ae602aee0dfb151864070e
           git clone --depth 1 https://github.com/seanchatmangpt/clnrm.git
+          git -C clnrm checkout --detach 15d26873d7a0c9e32bffc456a4a90bd7ce355225 # pinned: clnrm@15d26873d7a0c9e32bffc456a4a90bd7ce355225
           git clone --depth 1 https://github.com/seanchatmangpt/lsp-max.git
+          git -C lsp-max checkout --detach 5dec93bef12592b2d7eee7b9a45139595f2bbedb # pinned: lsp-max@5dec93bef12592b2d7eee7b9a45139595f2bbedb
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry

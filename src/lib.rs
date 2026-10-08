@@ -63,6 +63,17 @@
 //! *   `discovery`: Enables type schema discovery and introspection.
 //! *   `lsp`: Exposes LSP diagnostics for receipt verification.
 //! *   `predictive`: Enables predictive analysis and trend forecasting.
+//! *   `advanced-crypto`: The advanced witness capability set (hand-written
+//!     consumer modules). Individually: `smt` (sparse Merkle tree inclusion
+//!     and absence proofs + the SMT-backed `authority_fence`), `threshold-quorum`
+//!     (FROST t-of-n), `zk-range` (bulletproofs bounded metrics), `causal-graph`
+//!     (Tarjan cycle refusal), `jcs` (RFC 8785 canonical bytes), `binary-envelope`
+//!     (postcard), `ed25519`, `secp256k1` (BIP-340/ECDSA verification), `bls`
+//!     (BLS12-381 non-interactive committee aggregation), `replay-filter`
+//!     (cuckoo screen), `seq-bitmap` (roaring contiguity), `hlc` (in-tree
+//!     hybrid logical clocks), `iso8601` (canonical timestamps), `zero-copy`
+//!     (rkyv archives), `wasm-court` (fuel-bounded wasmtime sandbox),
+//!     `policy-cedar` (Lean-verified Cedar gate).
 //!
 //! # Errors
 //!
@@ -150,6 +161,14 @@ pub mod visualize;
 #[cfg(feature = "mutation")]
 pub mod mutate;
 
+// --- Certified paid-delivery receipts (hand-written consumer seam) ---
+// OPTIONAL upgrade over the plain sha256 fold chain: signs
+// "affidavit-paid-delivery/v1|<subject>|<payload_hash_hex>" through the
+// existing crypto_trust_verify::certify_signed path. Fail-open-to-uncertified:
+// without this feature the module is not declared and fold-only verify stands.
+#[cfg(feature = "certified-receipts")]
+pub mod receipts_certified;
+
 // --- Cryptographic trust plane (affidavit-trust-plane-pack projections) ---
 // Rendered by `ggen sync run` from
 // ../ggen-marketplace/packs/affidavit-trust-plane-pack — never hand-edited.
@@ -171,6 +190,10 @@ pub mod crypto_trust_es256;
 pub mod crypto_trust_journal;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_journal_persist;
+// AG1 capability lane: JWKS export of the trust plane's classical signing
+// keys (the G4 card profile publishes the same JWK Set shape).
+#[cfg(feature = "crypto-trust")]
+pub mod crypto_trust_jwks;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_kat;
 #[cfg(feature = "crypto-trust")]
@@ -205,6 +228,44 @@ pub mod crypto_trust_transparency;
 pub mod crypto_trust_verify;
 #[cfg(feature = "crypto-trust")]
 pub mod crypto_trust_witness;
+
+// --- Advanced witness capability set (hand-written consumer modules) ---
+#[cfg(feature = "smt")]
+pub mod authority_fence;
+#[cfg(feature = "binary-envelope")]
+pub mod binary_envelope;
+#[cfg(feature = "bls")]
+pub mod bls_aggregate;
+#[cfg(feature = "jcs")]
+pub mod canonical_jcs;
+#[cfg(feature = "iso8601")]
+pub mod canonical_time;
+#[cfg(feature = "causal-graph")]
+pub mod causal_graph;
+#[cfg(feature = "ed25519")]
+pub mod ed25519_witness;
+#[cfg(feature = "hlc")]
+pub mod hlc;
+#[cfg(feature = "policy-cedar")]
+pub mod policy_cedar;
+#[cfg(feature = "quantized-payoff")]
+pub mod quantized_payoff;
+#[cfg(feature = "replay-filter")]
+pub mod replay_filter;
+#[cfg(feature = "secp256k1")]
+pub mod secp256k1_witness;
+#[cfg(feature = "seq-bitmap")]
+pub mod seq_bitmap;
+#[cfg(feature = "smt")]
+pub mod smt;
+#[cfg(feature = "threshold-quorum")]
+pub mod threshold_quorum;
+#[cfg(feature = "wasm-court")]
+pub mod wasm_court;
+#[cfg(feature = "zero-copy")]
+pub mod zero_copy;
+#[cfg(feature = "zk-range")]
+pub mod zk_range;
 
 pub mod model_mining;
 pub mod registry;

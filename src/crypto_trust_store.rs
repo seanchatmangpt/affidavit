@@ -716,11 +716,7 @@ mod tests {
             .to_string_lossy()
             .to_string();
         assert!(name.starts_with(".keys.json.tmp-"), "{name}");
-        assert_ne!(
-            tmp_sibling(&path),
-            tmp,
-            "staging name carries per-attempt entropy"
-        );
+        assert_ne!(tmp_sibling(&path), tmp, "staging name carries per-attempt entropy");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

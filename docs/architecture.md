@@ -7,7 +7,7 @@ emits events, finalizes them into an immutable receipt, and certifies that
 receipt against a fixed format standard.
 
 Three ideas hold the whole design together (the doctrine — see
-[`../README.md`](../README.md) and [`../ARDPRD.md`](../ARDPRD.md)):
+[`../README.md`](../README.md) and [`../ARDPRD.md`](archive/ARDPRD.md)):
 
 - **Certify, don't decide.** The verifier never judges whether work was honest
   (an undecidable question). It checks a *witness* — the receipt — against a
@@ -193,7 +193,7 @@ flowchart TD
 
 ## Where to go next
 
-- The doctrine and full requirements: [`../ARDPRD.md`](../ARDPRD.md).
+- The doctrine and full requirements: [`../ARDPRD.md`](archive/ARDPRD.md).
 - Current build/test/integration status: [`../STATUS.md`](../STATUS.md).
 - Precise term definitions: [glossary](glossary.md).
 - Everything else, categorized: the [documentation hub](README.md).

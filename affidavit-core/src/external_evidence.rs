@@ -87,7 +87,9 @@ impl fmt::Display for EvidenceError {
             Self::TrustDomainMismatch => write!(f, "SPIFFE trust domain does not match"),
             Self::WorkloadNotVerified => write!(f, "workload identity was not verified upstream"),
             Self::JwtNotAdmitted => write!(f, "JWT-SVID evidence requires explicit admission"),
-            Self::InvalidPolicyDecisionPoint => write!(f, "AuthZEN PDP must be an HTTPS identifier"),
+            Self::InvalidPolicyDecisionPoint => {
+                write!(f, "AuthZEN PDP must be an HTTPS identifier")
+            }
             Self::PolicyDecisionPointMismatch => write!(f, "AuthZEN PDP identity mismatch"),
             Self::PrincipalMismatch => write!(f, "AuthZEN subject principal mismatch"),
             Self::EffectMismatch => write!(f, "AuthZEN resource/effect mismatch"),

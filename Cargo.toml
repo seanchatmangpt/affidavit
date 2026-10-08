@@ -1,6 +1,6 @@
 [package]
 name = "affidavit"
-version = "26.9.28"
+version = "26.10.5"
 edition = "2021"
 rust-version = "1.85"
 description = "Provenance Layer — receipt assembly and certification, with an optional crypto trust plane (signatures, post-quantum, key custody). Verify a witness against a format standard; never decide honesty."
@@ -182,6 +182,66 @@ ml-dsa = { version = "0.1.1", optional = true }
 slh-dsa = { version = "=0.2.0-rc.5", optional = true }
 rand_core = { version = "0.6", features = ["getrandom"], optional = true }
 
+# --- Advanced witness capability set (accumulator / quorum / ZK / causal DAG) ---
+# Sparse Merkle tree state accumulator (BLAKE3): O(log n) inclusion AND absence
+# proofs over key-value state claims.
+monotree = { version = "0.2", optional = true }
+# Bitfield traversal for SMT key paths and footprint matrices.
+bitvec = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
+# FROST threshold signatures (RFC 9591, Ed25519): t-of-n quorum signing that
+# aggregates into one verifiable Schnorr signature.
+frost-ed25519 = { version = "2.1", optional = true }
+# Classical Ed25519 witness signing/verification (same dalek stack as FROST).
+ed25519-dalek = { version = "2.1", default-features = false, features = [
+  "alloc",
+  "rand_core",
+], optional = true }
+# Bulletproofs zero-knowledge range proofs (Ristretto): prove a committed
+# metric lies in [0, 2^bits) without disclosing the value. Note: bulletproofs
+# 4.0 is built on the curve25519-dalek-ng fork, so the scalar/point types in
+# this feature come from `-ng`, not from `curve25519-dalek`.
+bulletproofs = { version = "4", optional = true }
+curve25519-dalek-ng = { version = "4.1", optional = true }
+merlin = { version = "3", optional = true }
+# Causal DAG certification: Tarjan SCC cycle refusal and topological order.
+petgraph = { version = "0.6", default-features = false, features = ["graphmap"], optional = true }
+# RFC 8785 JSON Canonicalization Scheme: bit-identical serialization for
+# signature preimages across hosts.
+serde_jcs = { version = "0.1", optional = true }
+# Compact, unambiguous no_std-derived binary envelopes for receipts and proofs.
+postcard = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
+# Secp256k1 BIP-340 Schnorr + ECDSA witness verification (pure Rust).
+k256 = { version = "0.14", default-features = false, features = [
+  "ecdsa",
+  "schnorr",
+  "arithmetic",
+  "alloc",
+], optional = true }
+# BLS signatures over BLS12-381: non-interactive aggregation of many witnesses.
+w3f-bls = { version = "0.1", optional = true }
+ark-ec = { version = "0.4", default-features = false, optional = true }
+ark-bls12-381 = { version = "0.4", features = ["curve"], optional = true }
+# Deletable probabilistic membership filter: replay detection / revocation lookups.
+cuckoofilter = { version = "0.5", optional = true }
+# Compressed bitmaps: contiguity certification over monotonic sequence numbers.
+roaring = { version = "0.10", optional = true }
+# Canonical RFC 3339 / ISO-8601 parse and emit.
+iso8601-timestamp = { version = "0.3", optional = true }
+# Zero-copy archival deserialization for large historical receipt stores.
+rkyv = { version = "0.8", default-features = false, features = [
+  "alloc",
+  "pointer_width_32",
+  "bytecheck",
+], optional = true }
+# Sandboxed, fuel-bounded execution of untrusted witness validators (WASM).
+wasmtime = { version = "25.0", default-features = false, features = [
+  "cranelift",
+  "runtime",
+  "wat",
+], optional = true }
+# Formally verified, decidable authority-policy evaluation (AWS Cedar).
+cedar-policy = { version = "4.0", optional = true }
+
 # Secure Enclave signing adapter (macOS; Security.framework, non-exportable P-256).
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = { version = "3.7", optional = true }
@@ -223,6 +283,9 @@ wasm4pm = { path = "stubs/wasm4pm" }
 # same maximal surface as the three concrete public features below.
 wasm4pm-compat = { version = "=26.8.7", features = ["formats", "strict", "wasm4pm"] }
 clnrm-core = { version = "1.3" }
+# Invariant stress-testing for the advanced witness capability set.
+proptest = "1.6"
+arbitrary = { version = "1.4", features = ["derive"] }
 
 [features]
 # Default feature set
@@ -253,7 +316,7 @@ lsp = ["lsp-max", "tokio"]
 file-watch = ["notify", "shell", "tokio"]
 
 # Phase 3: Mutation Testing and high-volume test generation.
-mutation = ["clnrm-core", "tera", "quickcheck", "uuid", "rand"]
+mutation = ["clnrm-core", "tera", "quickcheck", "uuid", "dep:rand"]
 # Local storage for test fixtures.
 fixture-db = ["chrono"]
 
@@ -284,9 +347,78 @@ gpu = ["wgpu", "bytemuck", "pollster"]
 crypto-trust = ["dep:signature", "dep:p256", "dep:ml-dsa", "dep:slh-dsa", "dep:rand_core"]
 # Backward-compatible explicit PQC surface used by the exact-head crypto court.
 pqc = ["crypto-trust"]
+# OPTIONAL certified-receipts upgrade for paid-delivery receipts: signs the
+# canonical "affidavit-paid-delivery/v1|<subject>|<payload_hash_hex>" subject
+# through the existing certify_signed path. The chain rule itself stays the
+# plain sha256 fold; this seam adds signatures, never replaces it, and fails
+# OPEN to uncertified (absent feature => module absent => fold-only verify).
+certified-receipts = ["crypto-trust"]
 # Real Secure Enclave signing (macOS only): non-exportable P-256 keys via
 # Security.framework; affidavit owns KeyRef/custody semantics, never key bytes.
 secure-enclave = ["crypto-trust", "dep:security-framework"]
+
+# --- Advanced witness capability set (hand-written consumer modules) ---
+# Sparse Merkle tree accumulator (monotree, BLAKE3): inclusion + absence proofs
+# over key-value state claims; bitvec drives key-path traversal.
+smt = ["dep:monotree", "dep:bitvec"]
+# FROST threshold quorum certification (RFC 9591, Ed25519): t-of-n signing,
+# single aggregate signature verification against the group key.
+threshold-quorum = ["dep:frost-ed25519"]
+# Zero-knowledge bounded-metric witnesses (bulletproofs range proofs over
+# Ristretto): prove 0 <= v < 2^bits without disclosing v.
+zk-range = ["dep:bulletproofs", "dep:curve25519-dalek-ng", "dep:merlin", "dep:rand_core"]
+# Causal DAG certification (petgraph): Tarjan SCC cycle refusal + topological order.
+causal-graph = ["dep:petgraph"]
+# RFC 8785 JCS canonical serialization: bit-identical signature preimages.
+jcs = ["dep:serde_jcs"]
+# Compact binary envelopes (postcard): unambiguous receipt/proof encoding.
+binary-envelope = ["dep:postcard"]
+# Classical Ed25519 witness signatures (dalek stack shared with FROST).
+ed25519 = ["dep:ed25519-dalek"]
+# Secp256k1 BIP-340 Schnorr + ECDSA witness verification.
+secp256k1 = ["dep:k256"]
+# BLS12-381 BLS signatures with non-interactive witness aggregation.
+bls = ["dep:w3f-bls", "dep:ark-ec", "dep:ark-bls12-381", "dep:rand"]
+# Replay detection / revocation membership (cuckoo filter, deletable).
+replay-filter = ["dep:cuckoofilter"]
+# Sequence-number contiguity certification (roaring bitmaps).
+seq-bitmap = ["dep:roaring"]
+# Hybrid logical clocks: causal ordering without wall-clock trust. In-tree
+# implementation under a marker feature: `hybrid-logical-clocks` was the
+# intended crate but does not exist on crates.io (failed edge, receipt
+# 2026-10-03) and a second implementation would not be bought twice.
+hlc = []
+# Canonical RFC 3339 / ISO-8601 timestamps.
+iso8601 = ["dep:iso8601-timestamp"]
+# Zero-copy archival access to large historical receipt stores (rkyv).
+zero-copy = ["dep:rkyv"]
+# Fuel-bounded sandboxed execution of untrusted witness validators (wasmtime).
+wasm-court = ["dep:wasmtime"]
+# Decidable authority-policy gate (AWS Cedar, Lean-verified semantics).
+policy-cedar = ["dep:cedar-policy"]
+# Float->Q16.16 quantization seam to the CMCA payoff layout (in-tree;
+# consumes wasm4pm-compat's DependencyMeasure content, hence requires core).
+quantized-payoff = ["core"]
+# Umbrella for the full advanced witness surface.
+advanced-crypto = [
+  "smt",
+  "threshold-quorum",
+  "zk-range",
+  "causal-graph",
+  "jcs",
+  "binary-envelope",
+  "ed25519",
+  "secp256k1",
+  "bls",
+  "replay-filter",
+  "seq-bitmap",
+  "hlc",
+  "iso8601",
+  "zero-copy",
+  "wasm-court",
+  "policy-cedar",
+  "quantized-payoff",
+]
 # Parallel-session single-file trust plane (unreachable WIP) — gated verbatim, pending consolidation.
 
 # 1000X Innovation Hardening
@@ -322,7 +454,8 @@ all = [
     "crypto-trust",
     "remediation",
     "quality-monitor",
-    "webhook"
+    "webhook",
+    "advanced-crypto"
 ]
 
 # Development environment: alias for 'all'.

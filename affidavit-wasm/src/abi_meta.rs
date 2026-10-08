@@ -2,7 +2,7 @@
 //
 // Consumed query columns (meta.rq): crate_name, export_prefix, abi_version,
 // max_request_bytes, max_json_depth, ops, error_codes.
-// Rendered by ggen (wasi-json-abi-pack) from the wja: graph.
+// Rendered by ggen (rust-wasi-wasmex-pack) from the wja: graph.
 // Edit the ontology and re-render; never edit this file by hand.
 #![allow(dead_code)]
 
@@ -32,6 +32,11 @@ pub const OPS: &[&str] = &[
     "verify_signature_input",
     "certify_authzen_evidence",
     "certify_spiffe_evidence",
+    "jcs_canonicalize",
+    "smt_absence_verify",
+    "range_proof_verify",
+    "derive_subject_digest",
+    "verify_signature",
 ];
 
 /// Typed error codes, ordered by `wja:codeOrder`.
@@ -44,4 +49,5 @@ pub const ERROR_CODES: &[&str] = &[
     "too_deep",
     "missing_buffer",
     "internal",
+    "malformed",
 ];

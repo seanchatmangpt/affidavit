@@ -111,7 +111,10 @@ fn envelope(kid: &KeyId, nonce_tag: u8) -> SignatureEnvelope {
         not_before: NOW - 1_000,
         expires_at: NOW + 1_000,
         subject_digest: [0x22; 32],
-        audience: "affidavit.adversary".to_string(),
+        // An audience admitted by the graph-default policy — the court's
+        // target is envelope/signature tamper adjudication, never audience
+        // policy, which the engine would refuse before adjudicating.
+        audience: "affidavit.cli".to_string(),
     }
 }
 
@@ -338,7 +341,11 @@ fn envelope_field_tamper_is_exactly_adjudicated_per_field() {
         (
             "audience",
             |mut e| {
-                e.audience = "affidavit.other".to_string();
+                // A DIFFERENT allowlisted audience: an unallowlisted audience
+                // would refuse adjudication (AudienceRefused) before the
+                // unsigned tamper could be decided INVALID — this case's
+                // target is the signature, not audience policy.
+                e.audience = "affidavit.seal".to_string();
                 e
             },
             Expected::Invalid,

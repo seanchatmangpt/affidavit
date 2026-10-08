@@ -2,6 +2,70 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+### Added (26.10.5, continued)
+- `affidavit-wasm/src/signature.rs`: the new `verify_signature` op (order 14)
+  and its native tests: real RFC 8032 Ed25519 KAT, real RFC 6979 ES256/ES256K
+  signing round trips, typed refusals; new pure-Rust verifier deps (`p256`,
+  `k256`, `ed25519-dalek`); artifact re-pinned (`ARTIFACTS.sha256`,
+  `artifact-pin.json`, ontology pin facts).
+
+## [26.10.5] — Advanced witness capability set
+
+**Theme: the advanced witness set — 16 feature-gated cryptographic
+integrations behind a panic-free fast-path actuation gate, a typed
+quantization seam for CMCA payoffs, and three advanced-witness ABI ops in the
+WASM runtime.** Branch commits `918a910`…`3b2e413` (2026-10-05).
+
+### Added
+- **Advanced witness capability set** — 16 feature-gated cryptographic
+  integrations (commit `918a910`): BLS12-381 aggregate signatures
+  (`src/bls_aggregate.rs`), secp256k1 and Ed25519 witnessing
+  (`src/secp256k1_witness.rs`, `src/ed25519_witness.rs`), SMT and MMR
+  accumulators (`src/smt.rs`, `affidavit-core/src/accumulator/mmr.rs`),
+  sparse/bitmap sequence tracking (`src/seq_bitmap.rs`,
+  `src/replay_filter.rs`), hybrid logical clocks (`src/hlc.rs`), causal
+  graphs (`src/causal_graph.rs`), Cedar policy evaluation
+  (`src/policy_cedar.rs`), threshold quorums (`src/threshold_quorum.rs`),
+  zk range proofs (`src/zk_range.rs`), zero-copy views (`src/zero_copy.rs`),
+  a WASM court (`src/wasm_court.rs`), JCS canonicalization
+  (`src/canonical_jcs.rs`), canonical time (`src/canonical_time.rs`), and a
+  binary envelope (`src/binary_envelope.rs`) — exercised by Chicago-style and
+  property courts (`tests/advanced_crypto_chicago.rs`,
+  `tests/advanced_crypto_property.rs`).
+- **CMCA QuantizedPayoff seam** (commit `caef991`): `src/quantized_payoff.rs`
+  — a typed f64→Q16.16 quantization boundary so payoff math crosses the
+  deterministic-receipt seam without float drift; wired through
+  `src/lib.rs`.
+- **Three advanced-witness ABI ops in `affidavit-wasm`** (commit `60de40c`),
+  rendered via `wasi-json-abi-pack` into `src/abi.rs` and registered in the
+  capability registry (`registry/capability-registry.json`,
+  `registry/op-examples.json`).
+- **`affidavit::event_builder`** — `EventBuilder`, the type-safe preferred public
+  API for constructing events before appending them to a chain; `build()`
+  delegates to `build_event`, so it applies the same admission checks. See
+  `examples/event_builder.rs` (commit `4dbc71e`, 2026-09-30).
+- **Shell completions now also ship for PowerShell** (`completions/affi.ps1`)
+  **and Nushell** (`completions/affi.nu`), generated from the verb registry by
+  `scripts/generate_completions.py` and drift-enforced by
+  `tests/completions_drift.rs` (commit `cab0903`, 2026-09-30). The existing
+  bash/zsh/fish completions are unchanged in law.
+
+### Fixed
+- **Fast-path actuation gate + panic-free audit fixes** (commit `9b24778`):
+  the fast path now passes through the authority fence
+  (`src/authority_fence.rs`), and the HLC (`src/hlc.rs`) and WASM court
+  (`src/wasm_court.rs`) are panic-free under the audit.
+
+### Documentation
+- **`certify_signed` and `EventBuilder` documented in the README** (commit
+  `3b2e413`): signing-key usage for certify_signed and the EventBuilder
+  construction path.
+
+### Optional seam (documentation only)
+- **Certified-receipts seam**: `CryptoStandingReceipt` via `certify_signed`
+  wraps paid-delivery `payload_hash_hex`; consumers without the feature keep
+  the plain sha256 fold.
+
 ## v26.9.28 — Cryptographic trust plane
 
 **Theme: affidavit owns the ecosystem's cryptographic trust plane — real keys,

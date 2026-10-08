@@ -6016,6 +6016,14 @@ pub fn keys_import(
                     .to_string(),
             )));
         }
+        // AG1 lane: flat-hex import is an ES256/PQC import seam; Ed25519 and
+        // ES256K keys enter through the witness features instead.
+        AlgorithmId::Ed25519 | AlgorithmId::Es256k => {
+            return Err(to_noun_verb(AffidavitError::Validation(format!(
+                "REFUSED_UNSUPPORTED: flat-hex import is not defined for {}",
+                alg.as_str()
+            ))));
+        }
     };
 
     let custodian = custodian.trim().to_string();
@@ -6372,12 +6380,23 @@ mod keys_lane_tests {
         let store = temp_store("import-refuse");
         // Unknown algorithm: REFUSED_UNSUPPORTED naming the admitted set.
         let err = keys_import(
-            "ED25519".into(),
+            "FOO25519".into(),
             external_pk_hex(0x42),
             "alice".into(),
             Some(store.clone()),
         )
         .expect_err("unknown algorithm refused");
+        assert!(err.to_string().contains("REFUSED_UNSUPPORTED"));
+        assert!(err.to_string().contains("FOO25519"));
+        // AG1 lane: ED25519 is now an ADMITTED algorithm, but flat-hex import
+        // is not its custody path — the witness features own Ed25519 keys.
+        let err = keys_import(
+            "ED25519".into(),
+            "00".repeat(32),
+            "alice".into(),
+            Some(store.clone()),
+        )
+        .expect_err("admitted-but-unsupported import path refused");
         assert!(err.to_string().contains("REFUSED_UNSUPPORTED"));
         assert!(err.to_string().contains("ED25519"));
         // Hybrid flat-hex: REFUSED_UNSUPPORTED.
@@ -6680,7 +6699,10 @@ const EVIDENCE_CRL_FILE: &str = ".affi/crl.json";
 
 /// Audience bound inside evidence envelopes (`evidence journal`).
 #[cfg(feature = "crypto-trust")]
-const EVIDENCE_AUDIENCE: &str = "affidavit.evidence";
+// The evidence lane certifies through the engine's graph-default policy,
+// whose audience allowlist admits `affidavit.cli` — an unadmitted audience
+// would refuse adjudication of every envelope the lane mints.
+const EVIDENCE_AUDIENCE: &str = "affidavit.cli";
 
 /// Resolve `AFFI_SIGNING_KEY_PATH` when it is set to a non-empty value; an
 /// unset (or empty) variable is `None` — the caller decides whether that is a
@@ -6899,6 +6921,18 @@ fn evidence_journal_core(
             "subject digest: {e}"
         )))
     })?;
+    // SUBJECT BINDING LAW (`certify_signed`): the certified subject STRING
+    // must digest — under the trust-plane domain tag — to exactly the
+    // envelope's bound digest, i.e. it is the receipt's content address in
+    // hex, never the caller's evidence label.
+    let subject_address = crate::chain::content_address(&base)
+        .map_err(|e| {
+            to_noun_verb(AffidavitError::ContentAddressing(format!(
+                "content address: {e}"
+            )))
+        })?
+        .as_hex()
+        .to_string();
     let envelope = build_signature_envelope(
         &record.id,
         EVIDENCE_AUDIENCE,
@@ -6929,7 +6963,7 @@ fn evidence_journal_core(
         TrustPolicy::from_graph_defaults().with_now(now),
     );
     let receipt = engine
-        .certify(&envelope, &signature, &subject)
+        .certify_signed(&envelope, &signature, &subject_address, &signing)
         .map_err(|e| {
             to_noun_verb(AffidavitError::VerificationFailed(format!(
                 "envelope refused adjudication: {e}"

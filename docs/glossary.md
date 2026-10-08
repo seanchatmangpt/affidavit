@@ -10,7 +10,7 @@ The unit of provenance: an append-only, content-addressed BLAKE3 chain of
 operation-events plus its metadata (`format_version`, stored `chain_hash`,
 profile). A receipt is the *witness* the verifier certifies. The `Receipt` type
 carries a private `_seal` field so it cannot be built by struct literal — only
-the canonical seam can mint one (see [the seal / E0451](#the-seal--e0451-unconstructable-bypass)).
+the canonical seam can mint one (see [the seal / E0451](#the-seal-e0451-unconstructable-bypass)).
 
 ### Operation-event
 
@@ -95,7 +95,7 @@ stage passed; REJECT otherwise, carrying the first failing stage and its reason.
 ACCEPT maps to process exit code `0`, REJECT to non-zero. The `Verdict` type is
 in `src/types.rs`; per-stage results are `CheckOutcome` values.
 
-### The seal / E0451 unconstructable bypass
+### The seal (E0451 unconstructable bypass)
 
 The mechanism that makes "fake a receipt" a *compile error* rather than a
 runtime check. `Receipt` has a private field `_seal`, so external code cannot

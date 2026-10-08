@@ -2,7 +2,7 @@
 //
 // Consumed query columns (ffi.rq): crate_name, export_prefix, abi_version,
 // max_request_bytes.
-// Rendered by ggen (wasi-json-abi-pack) from the wja: graph.
+// Rendered by ggen (rust-wasi-wasmex-pack) from the wja: graph.
 // Edit the ontology and re-render; never edit this file by hand.
 //
 // Protocol (ABI version 1, request limit 16777216 bytes; all

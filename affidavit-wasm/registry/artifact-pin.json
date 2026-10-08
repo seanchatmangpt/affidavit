@@ -6,7 +6,7 @@
     "target": "wasm32-wasip1",
     "toolchain": "nightly-2026-08-12"
   },
-  "bytes": 284650,
+  "bytes": 660847,
   "crate": "affidavit-wasm",
   "exports": [
     "af_abi_version",
@@ -30,9 +30,14 @@
     "conform",
     "verify_signature_input",
     "certify_authzen_evidence",
-    "certify_spiffe_evidence"
+    "certify_spiffe_evidence",
+    "jcs_canonicalize",
+    "smt_absence_verify",
+    "range_proof_verify",
+    "derive_subject_digest",
+    "verify_signature"
   ],
-  "registry_sha256": "ebac457843cd2322af575f02583a4a2a2a11a2488de6ee0eabef468861ebe61b",
+  "registry_sha256": "2fcaae611aaf069317123c0e1fe0c2978b2bd9c72aeadf2888aaee8be34d2ee5",
   "schema": "affidavit.wasm-pin/1",
-  "sha256": "5e721cc20d07193eee5d489077f4cb534f12c45f948e53247f79f38a5a7761f7"
+  "sha256": "5cc37aea8e59f7139e2ff5d43ab3c3c82931285b6400cf45f943c61d21a41402"
 }

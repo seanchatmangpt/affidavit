@@ -27,14 +27,21 @@ pub enum AlgorithmId {
     MlDsa65,
     /// SLH-DSA-SHA2-128s
     SlhDsa128s,
+    /// Ed25519 (AG1 capability lane: Ed25519 envelope signing parity).
+    Ed25519,
+    /// ES256K — ECDSA P-256-K1/secp256k1, SHA-256 (RFC 8812 `ES256K`;
+    /// AG1 capability lane: secp256k1 envelope signing parity).
+    Es256k,
 }
 
 impl AlgorithmId {
     /// Canonical algorithm name as declared in the graph (`ctp:algorithmName`).
     pub fn as_str(self) -> &'static str {
         match self {
+            AlgorithmId::Ed25519 => "ED25519",
             AlgorithmId::Es256 => "ES256",
             AlgorithmId::HybridEs256MlDsa65 => "ES256+ML-DSA-65",
+            AlgorithmId::Es256k => "ES256K",
             AlgorithmId::MlDsa65 => "ML-DSA-65",
             AlgorithmId::SlhDsa128s => "SLH-DSA-SHA2-128s",
         }
@@ -47,8 +54,10 @@ impl AlgorithmId {
     /// specific key).
     pub fn public_key_len(self) -> Option<usize> {
         match self {
+            AlgorithmId::Ed25519 => Some(32),
             AlgorithmId::Es256 => Some(65),
             AlgorithmId::HybridEs256MlDsa65 => None,
+            AlgorithmId::Es256k => Some(33),
             AlgorithmId::MlDsa65 => Some(1952),
             AlgorithmId::SlhDsa128s => None,
         }
@@ -57,8 +66,10 @@ impl AlgorithmId {
     /// Assurance profile the algorithm serves under the trust-plane policy.
     pub fn profile(self) -> CryptoProfile {
         match self {
+            AlgorithmId::Ed25519 => CryptoProfile::Classical,
             AlgorithmId::Es256 => CryptoProfile::Classical,
             AlgorithmId::HybridEs256MlDsa65 => CryptoProfile::Hybrid,
+            AlgorithmId::Es256k => CryptoProfile::Classical,
             AlgorithmId::MlDsa65 => CryptoProfile::Pqc,
             AlgorithmId::SlhDsa128s => CryptoProfile::Pqc,
         }
@@ -67,8 +78,10 @@ impl AlgorithmId {
     /// Every algorithm admitted by the graph, in graph order.
     pub fn all() -> &'static [AlgorithmId] {
         &[
+            AlgorithmId::Ed25519,
             AlgorithmId::Es256,
             AlgorithmId::HybridEs256MlDsa65,
+            AlgorithmId::Es256k,
             AlgorithmId::MlDsa65,
             AlgorithmId::SlhDsa128s,
         ]
@@ -193,6 +206,10 @@ pub enum PublicKeyMaterial {
     MlDsa65(Vec<u8>),
     /// Fixed-length SLH-DSA-SHA2-128s public key (0 bytes).
     SlhDsa128s(Vec<u8>),
+    /// Raw Ed25519 public key (32 bytes) — AG1 capability lane.
+    Ed25519(Vec<u8>),
+    /// Compressed SEC1 secp256k1 public key (33 bytes) — AG1 capability lane.
+    Es256kSec1(Vec<u8>),
 }
 
 impl PublicKeyMaterial {
@@ -203,6 +220,8 @@ impl PublicKeyMaterial {
             PublicKeyMaterial::Hybrid { .. } => AlgorithmId::HybridEs256MlDsa65,
             PublicKeyMaterial::MlDsa65(_) => AlgorithmId::MlDsa65,
             PublicKeyMaterial::SlhDsa128s(_) => AlgorithmId::SlhDsa128s,
+            PublicKeyMaterial::Ed25519(_) => AlgorithmId::Ed25519,
+            PublicKeyMaterial::Es256kSec1(_) => AlgorithmId::Es256k,
         }
     }
 
@@ -216,6 +235,8 @@ impl PublicKeyMaterial {
             PublicKeyMaterial::Hybrid { es256, mldsa65 } => es256.len() + mldsa65.len(),
             PublicKeyMaterial::MlDsa65(_) => 1952,
             PublicKeyMaterial::SlhDsa128s(bytes) => bytes.len(),
+            PublicKeyMaterial::Ed25519(bytes) => bytes.len(),
+            PublicKeyMaterial::Es256kSec1(_) => 33,
         }
     }
 
@@ -232,6 +253,8 @@ impl PublicKeyMaterial {
             }
             PublicKeyMaterial::MlDsa65(bytes) => bytes.clone(),
             PublicKeyMaterial::SlhDsa128s(bytes) => bytes.clone(),
+            PublicKeyMaterial::Ed25519(bytes) => bytes.clone(),
+            PublicKeyMaterial::Es256kSec1(bytes) => bytes.clone(),
         }
     }
 }
@@ -376,6 +399,8 @@ mod tests {
             },
             AlgorithmId::MlDsa65 => PublicKeyMaterial::MlDsa65(vec![tag; 1952]),
             AlgorithmId::SlhDsa128s => PublicKeyMaterial::SlhDsa128s(vec![tag; 33]),
+            AlgorithmId::Ed25519 => PublicKeyMaterial::Ed25519(vec![tag; 32]),
+            AlgorithmId::Es256k => PublicKeyMaterial::Es256kSec1(vec![tag; 33]),
         }
     }
 
