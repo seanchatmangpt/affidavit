@@ -207,7 +207,7 @@ merlin = { version = "3", optional = true }
 petgraph = { version = "0.6", default-features = false, features = ["graphmap"], optional = true }
 # RFC 8785 JSON Canonicalization Scheme: bit-identical serialization for
 # signature preimages across hosts.
-serde_jcs = { version = "0.1", optional = true }
+serde_jcs = { version = "0.2", optional = true }
 # Compact, unambiguous no_std-derived binary envelopes for receipts and proofs.
 postcard = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
 # Secp256k1 BIP-340 Schnorr + ECDSA witness verification (pure Rust).
