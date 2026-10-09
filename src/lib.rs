@@ -153,6 +153,8 @@ pub mod verifier;
 pub mod diag;
 pub mod doctor_check;
 pub mod output;
+#[cfg(feature = "crypto-trust")]
+pub mod sj_record;
 pub mod standing;
 
 pub mod diff;
