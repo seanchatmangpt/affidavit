@@ -268,10 +268,7 @@ fn cdt_path_log<'a>(
         }
     }
     order.reverse();
-    order
-        .iter()
-        .flat_map(|r| r.base.events.clone())
-        .collect()
+    order.iter().flat_map(|r| r.base.events.clone()).collect()
 }
 
 fn cdt_derivation_digest(events: &[affidavit::types::OperationEvent]) -> String {
