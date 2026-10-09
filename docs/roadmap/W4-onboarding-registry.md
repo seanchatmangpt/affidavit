@@ -569,7 +569,7 @@ documented, exampled, completion-covered, and man-page'd — forever.
 
 - **`affi guide registry --json`**: emit the full registry as a stable, versioned schema (groups, verbs, summaries, keywords, examples, `needs_features`) for IDEs, doc sites, and downstream tooling.
 - **Discoverability CI gate** (W4-owned, runs in the W10 governance pipeline): fails the build if any verb lacks a group, a summary, ≥1 example, a completion entry, or a man page — turning "67 verbs, one noun, no grouping" into an *impossible* regression.
-- **Stable registry-schema versioning** (`registry/v1`) so external consumers pin a contract; breaking changes are gated like the `core/v1` receipt format.
+- **Stable registry-schema versioning** (registry/v1) so external consumers pin a contract; breaking changes are gated like the `core/v1` receipt format.
 - **Onboarding analytics dashboard** (opt-in, aggregate): time-to-first-ACCEPT, path completion rates, suggestion-acceptance — to *measure* the 1000x claim, not just assert it.
 - A maintained, generated **doc website** as the canonical reference, rebuilt from the registry on every release.
 
@@ -596,7 +596,7 @@ fn every_verb_is_fully_discoverable() {
 
 **Acceptance criteria (2030)**
 
-- `affi guide registry --json` emits `registry/v1`; a downstream consumer (e.g. an IDE plugin or the doc site) builds solely from it.
+- `affi guide registry --json` emits registry/v1; a downstream consumer (e.g. an IDE plugin or the doc site) builds solely from it.
 - The discoverability CI gate is required-to-merge: no verb can ship ungrouped/undocumented/unexampled/uncompleted/un-manned.
 - Onboarding metrics show time-to-first-ACCEPT is a single command for a new user (vs. "read README + assemble a `cargo run` line" at baseline).
 - **Doctrine:** the registry contract and gate are purely descriptive; they certify *documentation completeness*, never receipt honesty.
@@ -604,7 +604,7 @@ fn every_verb_is_fully_discoverable() {
 **Cross-workstream deps (2030)**
 
 - **W10:** the discoverability gate runs inside W10's governance/compliance CI; registry-schema versioning follows W10's change-control.
-- **W9:** `registry/v1` JSON is the ecosystem integration point (IDEs, doc generators, third-party tools).
+- **W9:** registry/v1 JSON is the ecosystem integration point (IDEs, doc generators, third-party tools).
 - **W3:** `registry --json` emits through the W1/W3 output contract; no bespoke serialization.
 
 ---
@@ -616,7 +616,7 @@ W4 is done when **discoverability is an invariant**, not an aspiration:
 1. **One source of truth.** `src/registry.rs` describes all verbs (group, summary, keywords, examples, `needs_features`); metadata is `linkme`-colocated with each `#[verb]`, so it cannot drift. The live verb count is computed and test-asserted (no repeat of the "59 vs 67" defect; B7/B9 permanently closed).
 2. **Every surface is registry-fed.** Grouped help, `guide search`, `guide examples`, `guide man`, shell completions (all 67, 4 shells), the doc website, and W6's REPL/TUI/LSP completion all read the *same* registry. No hand-maintained verb list survives anywhere (the `affi-shell.rs:121-138` list is gone).
 3. **A new user reaches ACCEPT in one command.** `affi guide tutorial` runs the real lifecycle; role-based learning paths carry users from novice to mastery; adaptive, local-only suggestions and a "did you mean" make the 67-verb surface navigable.
-4. **A machine-readable contract.** `affi guide registry --json` (`registry/v1`) is consumed by external tooling; a required CI gate guarantees every verb stays grouped, documented, exampled, completion-covered, and man-page'd.
+4. **A machine-readable contract.** `affi guide registry --json` (registry/v1) is consumed by external tooling; a required CI gate guarantees every verb stays grouped, documented, exampled, completion-covered, and man-page'd.
 5. **Doctrine held throughout.** Every W4 surface is descriptive or pass-through. `verify` semantics are reused verbatim; W4 makes verdicts *findable*, never *decided differently*.
 
 **Measured outcome:** 100% of verbs reachable via `guide search` and documented via
@@ -640,7 +640,7 @@ W4 commits to and the matrix of who depends on what.
 | Feature requirements | `VerbDoc.needs_features` | **W2** (doctor: "this verb needs `--features discovery`") |
 | Examples | `VerbDoc.examples` | W3 (help), W6 (REPL `examples <verb>`), W9 (docs) |
 | Suggester | `suggest::did_you_mean`, `nearest` | **W3** (error surface), **W6** (REPL catch-all `affi-shell.rs:359`) |
-| Machine contract | `guide registry --json` (`registry/v1`, 2030) | **W9** (IDEs/doc tools), W10 (governance) |
+| Machine contract | `guide registry --json` (registry/v1, 2030) | **W9** (IDEs/doc tools), W10 (governance) |
 
 ### 5.2 Dependency matrix
 
@@ -650,7 +650,7 @@ W4 commits to and the matrix of who depends on what.
 | `registry::all()` | — | grouped `--help`, completion data | replaces 16-word list (`affi-shell.rs:121-138`); full 67-verb dispatch (vs 11, `:229-356`) |
 | `suggest::did_you_mean` | — | unknown-verb error + `--explain` link | REPL catch-all suggestion (`affi-shell.rs:359`) |
 | `VerbDoc.examples` | remediation snippets | `guide examples`, man synopsis | REPL `examples <verb>`, TUI detail pane |
-| `registry/v1` JSON | — | — | LSP completion/hover source |
+| registry/v1 JSON | — | — | LSP completion/hover source |
 
 ### 5.3 What W4 depends on (so W4 stays in its lane)
 

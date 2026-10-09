@@ -154,7 +154,7 @@ affi bench variance receipt.json
 
 ### 3.3 Criterion Dashboards
 **Tutorial:** View beautiful HTML reports of benchmark trends.
-**Location:** `target/criterion/report/index.html`
+**Location:** target/criterion/report/index.html
 **Benefit:** Visual proof of performance stability across 1000s of commits.
 
 ### 3.4 Profiling

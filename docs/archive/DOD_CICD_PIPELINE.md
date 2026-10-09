@@ -1501,7 +1501,7 @@ The DX/QOL 1000x initiative is **done** when every item in this checklist passes
 ### 11.4 Stage 3: Benchmark Regression Gate
 
 - [ ] `cargo bench --bench receipt_operations` runs and produces output
-- [ ] Criterion HTML report is generated at `target/criterion/`
+- [ ] Criterion HTML report is generated at target/criterion/
 - [ ] `scripts/bench-compare.sh` exits 0 when no regression
 - [ ] `scripts/bench-compare.sh` exits 1 on a simulated >10% regression (verified in test)
 - [ ] GitHub Actions uploads Criterion HTML report as artifact
@@ -1560,7 +1560,7 @@ The DX/QOL 1000x initiative is **done** when every item in this checklist passes
 - [ ] All 22 features listed in `DX_QOL_IMPLEMENTATION_CHECKLIST.md` have at least one green test
 - [ ] `make all` runs cleanly in a fresh checkout (after `make install-hooks`)
 - [ ] `make golden-run` exits 0 from a clean temp dir
-- [ ] `make bench` produces Criterion output in `target/criterion/`
+- [ ] `make bench` produces Criterion output in target/criterion/
 
 ### 11.11 The Single Merge Criterion
 

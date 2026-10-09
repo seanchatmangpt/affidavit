@@ -414,7 +414,7 @@ async fn dispatch(line: &str, sess: &mut Session) -> anyhow::Result<()> {
 
 ### 3.6 `affi guide man` — generated man pages
 
-One handler walks `registry::all()` and emits troff (`man`) and Markdown for every verb — group, synopsis (from the handler signature), summary, examples. Wire into the build later as `cargo xtask man` writing to `target/man/affi-receipt-verify.1`. Zero hand-maintenance because it reads the same registry.
+One handler walks `registry::all()` and emits troff (`man`) and Markdown for every verb — group, synopsis (from the handler signature), summary, examples. Wire into the build later as `cargo xtask man` writing to target/man/affi-receipt-verify.1. Zero hand-maintenance because it reads the same registry.
 
 ### 3.7 First-run experience + `affi guide doctor`
 

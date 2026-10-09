@@ -171,7 +171,7 @@ Then publish affidavit. Later, convert back to crates.io versions after dependen
 
 ### GitHub Release
 - [ ] Create GitHub Release for v26.6.17
-- [ ] Attach binary (if applicable): `target/release/affi`
+- [ ] Attach binary (if applicable): target/release/affi
 - [ ] Include release notes from RELEASE.md
 - [ ] Link to crates.io page
 
