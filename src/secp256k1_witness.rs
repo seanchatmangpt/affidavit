@@ -10,9 +10,10 @@
 //! upstream wallet/HSM that owns the secret key.
 
 use k256::ecdsa::signature::{Signer, Verifier};
-use k256::ecdsa::{Signature as EcdsaSignature, SigningKey as EcdsaSigningKey, VerifyingKey as EcdsaVerifyingKey};
+use k256::ecdsa::{
+    Signature as EcdsaSignature, SigningKey as EcdsaSigningKey, VerifyingKey as EcdsaVerifyingKey,
+};
 use k256::elliptic_curve::scalar::IsHigh;
-use k256::elliptic_curve::sec1::ToSec1Point;
 use k256::schnorr::{Signature as SchnorrSignature, VerifyingKey as SchnorrVerifyingKey};
 use thiserror::Error;
 
@@ -136,8 +137,8 @@ impl WitnessSigningKey {
     /// (KEY derivation for deterministic test/fixture keys; the nonce law is
     /// RFC 6979 itself).
     pub fn from_seed(seed: &[u8; 32]) -> Result<Self, WitnessSigningError> {
-        let signing = EcdsaSigningKey::from_slice(seed)
-            .map_err(|_| WitnessSigningError::InvalidSeed)?;
+        let signing =
+            EcdsaSigningKey::from_slice(seed).map_err(|_| WitnessSigningError::InvalidSeed)?;
         Ok(WitnessSigningKey { signing })
     }
 
@@ -145,10 +146,7 @@ impl WitnessSigningKey {
     /// encoding `PublicKeyMaterial::Es256kSec1` carries and the JWKS export
     /// decompresses).
     pub fn public_key_sec1(&self) -> [u8; 33] {
-        let encoded = self
-            .signing
-            .verifying_key()
-            .to_sec1_point(true);
+        let encoded = self.signing.verifying_key().to_sec1_point(true);
         let mut out = [0u8; 33];
         out.copy_from_slice(encoded.as_bytes());
         out
@@ -231,7 +229,7 @@ mod ag1_signing_tests {
         let msg = b"envelope pre-image bytes";
         let sig = signing.sign(msg);
         assert!(verify_ecdsa(&signing.public_key_sec1(), msg, &sig).is_ok());
-        let mut tampered = sig.clone();
+        let mut tampered = sig;
         tampered[0] ^= 1;
         assert!(verify_ecdsa(&signing.public_key_sec1(), msg, &tampered).is_err());
     }

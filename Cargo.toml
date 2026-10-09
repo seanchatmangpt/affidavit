@@ -344,7 +344,7 @@ gpu = ["wgpu", "bytemuck", "pollster"]
 # Cryptographic trust plane: keys, custody, canonicalization, signature
 # envelopes, signing providers, verification -> cryptographic standing.
 # Manufactured from ggen-marketplace affidavit-trust-plane-pack via `ggen sync run`.
-crypto-trust = ["dep:signature", "dep:p256", "dep:ml-dsa", "dep:slh-dsa", "dep:rand_core"]
+crypto-trust = ["dep:signature", "dep:p256", "dep:ml-dsa", "dep:slh-dsa", "dep:rand_core", "ed25519", "secp256k1"]
 # Backward-compatible explicit PQC surface used by the exact-head crypto court.
 pqc = ["crypto-trust"]
 # OPTIONAL certified-receipts upgrade for paid-delivery receipts: signs the

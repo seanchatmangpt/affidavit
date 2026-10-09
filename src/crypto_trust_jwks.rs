@@ -119,7 +119,7 @@ pub fn export_jwk(record: &KeyRecord) -> Result<serde_json::Value, JwksError> {
                     sec1.len()
                 )));
             }
-            let point = k256::elliptic_curve::sec1::EncodedPoint::<Secp256k1>::from_bytes(sec1)
+            let point = k256::elliptic_curve::sec1::Sec1Point::<Secp256k1>::from_bytes(sec1)
                 .map_err(|_| {
                     malformed("ES256K JWK requires a valid compressed SEC1 point".to_string())
                 })?;
