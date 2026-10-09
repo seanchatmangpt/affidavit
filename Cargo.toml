@@ -98,6 +98,10 @@ required-features = ["discovery"]
 name = "conformance_report"
 required-features = ["discovery"]
 
+[[example]]
+name = "seal_sj_record"
+required-features = ["crypto-trust"]
+
 [[bench]]
 name = "receipt_operations"
 harness = false

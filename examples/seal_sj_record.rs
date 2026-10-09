@@ -80,10 +80,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         if line.trim().is_empty() {
             continue;
         }
-        let wire: DraftWire = serde_json::from_str(&line).map_err(|e| format!("line {}: {e}", index + 1))?;
+        let wire: DraftWire =
+            serde_json::from_str(&line).map_err(|e| format!("line {}: {e}", index + 1))?;
         let order = wire.work_order_id.clone();
-        let draft = draft_from_wire(&wire)
-            .map_err(|e| format!("line {} ({}): {e}", index + 1, order))?;
+        let draft =
+            draft_from_wire(&wire).map_err(|e| format!("line {} ({}): {e}", index + 1, order))?;
         let record = SjCampaign::new(draft)
             .map_err(|e| format!("{}: new: {e:?}", order))?
             .finalize()

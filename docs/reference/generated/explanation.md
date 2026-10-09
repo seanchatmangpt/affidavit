@@ -2,7 +2,7 @@
 
 ## Summary
 
-affidavit is a crate with 308 modules and 2684 public items on its code surface.
+affidavit is a crate with 356 modules and 3643 public items on its code surface.
 
 ## Verified snippet
 
@@ -10,7 +10,7 @@ affidavit is a crate with 308 modules and 2684 public items on its code surface.
 
 ```rust
 // affidavit-core/src/accumulator/mmr.rs :: append
-append(&mut self, leaf: Digest)
+append(&mut self, leaf: Digest) -> u64
 ```
 
 ## Commentary

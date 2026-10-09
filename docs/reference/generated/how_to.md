@@ -27,6 +27,30 @@
 
 - affidavit-core/src/accumulator/mmr.rs::append_payload (function)
 
+- affidavit-core/src/accumulator/mmr.rs::bag_peaks (function)
+
+- affidavit-core/src/accumulator/mmr.rs::bag_peaks (function)
+
+- affidavit-core/src/accumulator/mmr.rs::hash_children (function)
+
+- affidavit-core/src/accumulator/mmr.rs::hash_children (function)
+
+- affidavit-core/src/accumulator/mmr.rs::hash_leaf_payload (function)
+
+- affidavit-core/src/accumulator/mmr.rs::hash_leaf_payload (function)
+
+- affidavit-core/src/accumulator/mmr.rs::mmr:v1:bag: (str_key)
+
+- affidavit-core/src/accumulator/mmr.rs::mmr:v1:bag: (str_key)
+
+- affidavit-core/src/accumulator/mmr.rs::mmr:v1:leaf: (str_key)
+
+- affidavit-core/src/accumulator/mmr.rs::mmr:v1:leaf: (str_key)
+
+- affidavit-core/src/accumulator/mmr.rs::mmr:v1:node: (str_key)
+
+- affidavit-core/src/accumulator/mmr.rs::mmr:v1:node: (str_key)
+
 - affidavit-core/src/accumulator/mmr.rs::mountain_heights (function)
 
 - affidavit-core/src/accumulator/mmr.rs::mountain_heights (function)
@@ -51,37 +75,13 @@
 
 - affidavit-core/src/accumulator/mmr.rs::root (function)
 
-- affidavit-core/src/chain.rs::ChainBuilder (struct)
+- affidavit-core/src/accumulator/mmr.rs::verify (function)
 
-- affidavit-core/src/chain.rs::ChainBuilder (struct)
+- affidavit-core/src/accumulator/mmr.rs::verify (function)
 
-- affidavit-core/src/chain.rs::Event (struct)
+- affidavit-core/src/accumulator/mod.rs::mmr::{ bag_peaks, hash_children, hash_leaf_payload, mountain_heights, MmrAccumulator, MmrError, MmrProof, MountainPeak, } (use)
 
-- affidavit-core/src/chain.rs::Event (struct)
-
-- affidavit-core/src/chain.rs::OwnedEvent (struct)
-
-- affidavit-core/src/chain.rs::OwnedEvent (struct)
-
-- affidavit-core/src/chain.rs::Receipt (struct)
-
-- affidavit-core/src/chain.rs::Receipt (struct)
-
-- affidavit-core/src/chain.rs::Seal (struct)
-
-- affidavit-core/src/chain.rs::Seal (struct)
-
-- affidavit-core/src/chain.rs::borrow (function)
-
-- affidavit-core/src/chain.rs::borrow (function)
-
-- affidavit-core/src/chain.rs::chain_hash (function)
-
-- affidavit-core/src/chain.rs::chain_hash (function)
-
-- affidavit-core/src/chain.rs::event (function)
-
-- affidavit-core/src/chain.rs::event (function)
+- affidavit-core/src/accumulator/mod.rs::mmr::{ bag_peaks, hash_children, hash_leaf_payload, mountain_heights, MmrAccumulator, MmrError, MmrProof, MountainPeak, } (use)
 
 
 ## Steps
@@ -93,23 +93,23 @@
 
 3. Use `append_payload` from `affidavit-core/src/accumulator/mmr.rs`.
 
-4. Use `mountain_heights` from `affidavit-core/src/accumulator/mmr.rs`.
+4. Use `bag_peaks` from `affidavit-core/src/accumulator/mmr.rs`.
 
-5. Use `new` from `affidavit-core/src/accumulator/mmr.rs`.
+5. Use `hash_children` from `affidavit-core/src/accumulator/mmr.rs`.
 
-6. Use `num_leaves` from `affidavit-core/src/accumulator/mmr.rs`.
+6. Use `hash_leaf_payload` from `affidavit-core/src/accumulator/mmr.rs`.
 
-7. Use `peaks` from `affidavit-core/src/accumulator/mmr.rs`.
+7. Use `mountain_heights` from `affidavit-core/src/accumulator/mmr.rs`.
 
-8. Use `prove` from `affidavit-core/src/accumulator/mmr.rs`.
+8. Use `new` from `affidavit-core/src/accumulator/mmr.rs`.
 
-9. Use `root` from `affidavit-core/src/accumulator/mmr.rs`.
+9. Use `num_leaves` from `affidavit-core/src/accumulator/mmr.rs`.
 
-10. Use `MmrAccumulator` from `affidavit-core/src/accumulator/mmr.rs`.
+10. Use `peaks` from `affidavit-core/src/accumulator/mmr.rs`.
 
-11. Use `MmrProof` from `affidavit-core/src/accumulator/mmr.rs`.
+11. Use `prove` from `affidavit-core/src/accumulator/mmr.rs`.
 
-12. Use `MountainPeak` from `affidavit-core/src/accumulator/mmr.rs`.
+12. Use `root` from `affidavit-core/src/accumulator/mmr.rs`.
 
 
 ## Verified snippet
@@ -119,7 +119,7 @@
 
 ```rust
 // affidavit-core/src/accumulator/mmr.rs :: append
-append(&mut self, leaf: Digest)
+append(&mut self, leaf: Digest) -> u64
 ```
 
 <!-- AGENT-COMMENTARY-BEGIN -->
