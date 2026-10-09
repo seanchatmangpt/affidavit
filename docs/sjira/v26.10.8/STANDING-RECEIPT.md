@@ -69,8 +69,10 @@ the certify receipt and remain under-gate, not standing-breaking.
 
 ## Falsifier
 
-Any of the following breaks this standing receipt: a commit landing after
-`1380ac7` without re-certification; `v26.10.8-2` failing to resolve to
+Any of the following breaks this standing receipt: a non-empty
+`git diff --stat 1380ac7..HEAD -- src/ crates/` (code/claim-surface change;
+re-certification triggers; docs-only commits are grandfathered);
+`v26.10.8-2` failing to resolve to
 `1380ac7`; the `docs/doc-hdit.receipts.jsonl` tail entry changing verdict or
 subject; thresholds moving; the pin ledger minting a hop that revokes the
 `1b5d9676…` identity as invalid.
