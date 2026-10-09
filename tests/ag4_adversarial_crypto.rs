@@ -21,12 +21,14 @@ use affidavit::crypto_trust_envelope::{NonceJournal, SignatureEnvelope, ENVELOPE
 use affidavit::crypto_trust_es256::Es256SigningKey;
 use affidavit::crypto_trust_jwks::{export_jwks, JwksError};
 use affidavit::crypto_trust_keys::{
-    fingerprint_public_key, AlgorithmId, CustodianIdentity, CryptoProfile, InMemoryKeyRegistry,
+    fingerprint_public_key, AlgorithmId, CryptoProfile, CustodianIdentity, InMemoryKeyRegistry,
     KeyFingerprint, KeyId, KeyOrigin, KeyRecord, KeyRegistry, PublicKeyMaterial,
 };
 use affidavit::crypto_trust_lifecycle::RevocationList;
 use affidavit::crypto_trust_quorum::{QuorumEngine, QuorumError, SignatureShare};
-use affidavit::crypto_trust_verify::{CryptographicStanding, TrustPolicy, VerificationEngine, VerifyRefusal};
+use affidavit::crypto_trust_verify::{
+    CryptographicStanding, TrustPolicy, VerificationEngine, VerifyRefusal,
+};
 use affidavit::receipts_certified::{
     build_canonical_subject, certify_paid_delivery_payload, verify_certified_paid_delivery,
     PAID_DELIVERY_DOMAIN,
@@ -73,7 +75,11 @@ fn engine(registry: &InMemoryKeyRegistry) -> VerificationEngine {
     )
 }
 
-fn envelope_for(algorithm: AlgorithmId, kid: &KeyId, subject_digest: [u8; 32]) -> SignatureEnvelope {
+fn envelope_for(
+    algorithm: AlgorithmId,
+    kid: &KeyId,
+    subject_digest: [u8; 32],
+) -> SignatureEnvelope {
     SignatureEnvelope {
         version: ENVELOPE_VERSION.to_string(),
         algorithm,
@@ -100,7 +106,12 @@ fn envelope_for(algorithm: AlgorithmId, kid: &KeyId, subject_digest: [u8; 32]) -
 fn alg_confusion_ed_key_under_es256k_envelope_refused() {
     let mut registry = InMemoryKeyRegistry::new();
     let kp = affidavit::ed25519_witness::WitnessKeyPair::generate();
-    let kid_ed = register(&mut registry, AlgorithmId::Ed25519, PublicKeyMaterial::Ed25519(kp.public().to_vec()), "attacker");
+    let kid_ed = register(
+        &mut registry,
+        AlgorithmId::Ed25519,
+        PublicKeyMaterial::Ed25519(kp.public().to_vec()),
+        "attacker",
+    );
     let env = envelope_for(AlgorithmId::Es256k, &kid_ed, [7u8; 32]);
     match engine(&registry).verify_envelope(&env, &[0u8; 64]) {
         Err(VerifyRefusal::UnknownKey(kid)) => assert_eq!(kid, kid_ed.to_string()),
@@ -114,8 +125,17 @@ fn alg_confusion_ed_key_under_es256k_envelope_refused() {
 fn alg_confusion_es256k_sig_bytes_under_ed25519_envelope_decided_invalid() {
     let mut registry = InMemoryKeyRegistry::new();
     let kp = affidavit::ed25519_witness::WitnessKeyPair::generate();
-    let kid = register(&mut registry, AlgorithmId::Ed25519, PublicKeyMaterial::Ed25519(kp.public().to_vec()), "custodian-ed");
-    let env = envelope_for(AlgorithmId::Ed25519, &kid, digest(DOMAIN_TAG, &[b"subject-a"]));
+    let kid = register(
+        &mut registry,
+        AlgorithmId::Ed25519,
+        PublicKeyMaterial::Ed25519(kp.public().to_vec()),
+        "custodian-ed",
+    );
+    let env = envelope_for(
+        AlgorithmId::Ed25519,
+        &kid,
+        digest(DOMAIN_TAG, &[b"subject-a"]),
+    );
     // A real Ed25519 signature over a DIFFERENT message (right shape, wrong
     // pre-image) — the same confusion shape as swapping in foreign bytes.
     let foreign = kp.sign(b"some other pre-image entirely");
@@ -133,12 +153,21 @@ fn alg_confusion_es256k_sig_bytes_under_ed25519_envelope_decided_invalid() {
 #[test]
 fn duplicate_kid_registration_refused() {
     let mut registry = InMemoryKeyRegistry::new();
-    let kid = register(&mut registry, AlgorithmId::Es256, PublicKeyMaterial::Es256Sec1(es_signer(0x01).public_key_sec1()), "a");
+    let kid = register(
+        &mut registry,
+        AlgorithmId::Es256,
+        PublicKeyMaterial::Es256Sec1(es_signer(0x01).public_key_sec1()),
+        "a",
+    );
     let dup = KeyRecord {
         id: kid.clone(),
         algorithm: AlgorithmId::Ed25519,
         fingerprint: KeyFingerprint([9u8; 32]),
-        custodian: CustodianIdentity { subject: "b".to_string(), device: None, org: None },
+        custodian: CustodianIdentity {
+            subject: "b".to_string(),
+            device: None,
+            org: None,
+        },
         origin: KeyOrigin::Generated,
         public_key: PublicKeyMaterial::Ed25519(vec![2u8; 32]),
         created_epoch: 1_700_000_000,
@@ -154,13 +183,35 @@ fn duplicate_kid_registration_refused() {
 #[test]
 fn kid_swap_breaks_signature_decided_invalid() {
     let mut registry = InMemoryKeyRegistry::new();
-    let kid = register(&mut registry, AlgorithmId::Es256, PublicKeyMaterial::Es256Sec1(es_signer(0x02).public_key_sec1()), "custodian-a");
-    let other = register(&mut registry, AlgorithmId::Es256, PublicKeyMaterial::Es256Sec1(es_signer(0x03).public_key_sec1()), "custodian-b");
-    let mut env = envelope_for(AlgorithmId::Es256, &kid, digest(DOMAIN_TAG, &[b"subject-a"]));
-    let sig = es_signer(0x02).sign(env.signing_input_checked().expect("canonicalizes").as_slice());
+    let kid = register(
+        &mut registry,
+        AlgorithmId::Es256,
+        PublicKeyMaterial::Es256Sec1(es_signer(0x02).public_key_sec1()),
+        "custodian-a",
+    );
+    let other = register(
+        &mut registry,
+        AlgorithmId::Es256,
+        PublicKeyMaterial::Es256Sec1(es_signer(0x03).public_key_sec1()),
+        "custodian-b",
+    );
+    let mut env = envelope_for(
+        AlgorithmId::Es256,
+        &kid,
+        digest(DOMAIN_TAG, &[b"subject-a"]),
+    );
+    let sig = es_signer(0x02).sign(
+        env.signing_input_checked()
+            .expect("canonicalizes")
+            .as_slice(),
+    );
     env.key_id = other.clone();
     match engine(&registry).verify_envelope(&env, &sig) {
-        Ok(v) => assert_eq!(v.standing, CryptographicStanding::Invalid, "ATTACK WORKED (kid swap verified)"),
+        Ok(v) => assert_eq!(
+            v.standing,
+            CryptographicStanding::Invalid,
+            "ATTACK WORKED (kid swap verified)"
+        ),
         other => panic!("expected decided Invalid, got {other:?}"),
     }
     let _ = kid;
@@ -215,7 +266,10 @@ fn jcs_float_epoch_refused() {
 fn jcs_nfc_nfd_subjects_digest_distinct() {
     let nfc = "caf\u{e9}";
     let nfd = "cafe\u{301}";
-    assert_ne!(digest(DOMAIN_TAG, &[nfc.as_bytes()]), digest(DOMAIN_TAG, &[nfd.as_bytes()]));
+    assert_ne!(
+        digest(DOMAIN_TAG, &[nfc.as_bytes()]),
+        digest(DOMAIN_TAG, &[nfd.as_bytes()])
+    );
 }
 
 // ---------------------------------------------------------------
@@ -252,7 +306,11 @@ fn jwks_duplicate_kid_across_algorithms_refused() {
         id: kid.clone(),
         algorithm: AlgorithmId::Es256,
         fingerprint: KeyFingerprint([1u8; 32]),
-        custodian: CustodianIdentity { subject: "a".to_string(), device: None, org: None },
+        custodian: CustodianIdentity {
+            subject: "a".to_string(),
+            device: None,
+            org: None,
+        },
         origin: KeyOrigin::Generated,
         public_key: PublicKeyMaterial::Es256Sec1(es_signer(0x42).public_key_sec1()),
         created_epoch: 1_700_000_000,
@@ -261,7 +319,11 @@ fn jwks_duplicate_kid_across_algorithms_refused() {
         id: kid.clone(),
         algorithm: AlgorithmId::Ed25519,
         fingerprint: KeyFingerprint([2u8; 32]),
-        custodian: CustodianIdentity { subject: "b".to_string(), device: None, org: None },
+        custodian: CustodianIdentity {
+            subject: "b".to_string(),
+            device: None,
+            org: None,
+        },
         origin: KeyOrigin::Generated,
         public_key: PublicKeyMaterial::Ed25519(vec![3u8; 32]),
         created_epoch: 1_700_000_000,
@@ -283,9 +345,24 @@ fn quorum_share_reorder_is_verdict_invariant() {
     let a = es_signer(0x01);
     let b = es_signer(0x02);
     let c = es_signer(0x03);
-    let kid_a = register(&mut registry, AlgorithmId::Es256, PublicKeyMaterial::Es256Sec1(a.public_key_sec1()), "a");
-    let kid_b = register(&mut registry, AlgorithmId::Es256, PublicKeyMaterial::Es256Sec1(b.public_key_sec1()), "b");
-    let kid_c = register(&mut registry, AlgorithmId::Es256, PublicKeyMaterial::Es256Sec1(c.public_key_sec1()), "c");
+    let kid_a = register(
+        &mut registry,
+        AlgorithmId::Es256,
+        PublicKeyMaterial::Es256Sec1(a.public_key_sec1()),
+        "a",
+    );
+    let kid_b = register(
+        &mut registry,
+        AlgorithmId::Es256,
+        PublicKeyMaterial::Es256Sec1(b.public_key_sec1()),
+        "b",
+    );
+    let kid_c = register(
+        &mut registry,
+        AlgorithmId::Es256,
+        PublicKeyMaterial::Es256Sec1(c.public_key_sec1()),
+        "c",
+    );
     let input = b"common signing input";
     let mk = |kid: &KeyId, s: &Es256SigningKey| SignatureShare {
         key_id: kid.clone(),
@@ -307,11 +384,24 @@ fn quorum_share_reorder_is_verdict_invariant() {
 fn quorum_duplicate_signer_refused() {
     let mut registry = InMemoryKeyRegistry::new();
     let a = es_signer(0x01);
-    let kid_a = register(&mut registry, AlgorithmId::Es256, PublicKeyMaterial::Es256Sec1(a.public_key_sec1()), "a");
+    let kid_a = register(
+        &mut registry,
+        AlgorithmId::Es256,
+        PublicKeyMaterial::Es256Sec1(a.public_key_sec1()),
+        "a",
+    );
     let input = b"input";
     let shares = [
-        SignatureShare { key_id: kid_a.clone(), algorithm: AlgorithmId::Es256, signature: a.sign(input) },
-        SignatureShare { key_id: kid_a.clone(), algorithm: AlgorithmId::Es256, signature: a.sign(input) },
+        SignatureShare {
+            key_id: kid_a.clone(),
+            algorithm: AlgorithmId::Es256,
+            signature: a.sign(input),
+        },
+        SignatureShare {
+            key_id: kid_a.clone(),
+            algorithm: AlgorithmId::Es256,
+            signature: a.sign(input),
+        },
     ];
     match QuorumEngine::new(&registry).verify_quorum(input, &shares, 2) {
         Err(QuorumError::DuplicateSigner(kid)) => assert_eq!(kid, kid_a.to_string()),
@@ -324,7 +414,12 @@ fn quorum_duplicate_signer_refused() {
 fn quorum_ed25519_share_counts() {
     let mut registry = InMemoryKeyRegistry::new();
     let kp = affidavit::ed25519_witness::WitnessKeyPair::generate();
-    let kid = register(&mut registry, AlgorithmId::Ed25519, PublicKeyMaterial::Ed25519(kp.public().to_vec()), "ed");
+    let kid = register(
+        &mut registry,
+        AlgorithmId::Ed25519,
+        PublicKeyMaterial::Ed25519(kp.public().to_vec()),
+        "ed",
+    );
     let input = b"common signing input";
     let share = SignatureShare {
         key_id: kid,
@@ -342,7 +437,12 @@ fn quorum_ed25519_share_counts() {
 fn quorum_es256k_share_counts() {
     let mut registry = InMemoryKeyRegistry::new();
     let signing = WitnessSigningKey::from_seed(&[7u8; 32]).expect("seed");
-    let kid = register(&mut registry, AlgorithmId::Es256k, PublicKeyMaterial::Es256kSec1(signing.public_key_sec1().to_vec()), "k1");
+    let kid = register(
+        &mut registry,
+        AlgorithmId::Es256k,
+        PublicKeyMaterial::Es256kSec1(signing.public_key_sec1().to_vec()),
+        "k1",
+    );
     let input = b"common signing input";
     let share = SignatureShare {
         key_id: kid,
@@ -364,14 +464,17 @@ fn quorum_es256k_share_counts() {
 #[test]
 fn certified_receipt_uppercase_hash_refused() {
     let signing = es_signer(0x31);
-    let certified = certify_paid_delivery_payload(&"cd".repeat(32), "subject-a", &signing).expect("certify");
+    let certified =
+        certify_paid_delivery_payload(&"cd".repeat(32), "subject-a", &signing).expect("certify");
     let mut wire = serde_json::to_value(&certified.receipt).expect("receipt serializes");
     let upper = wire["receipt_hash"].as_str().expect("hex").to_uppercase();
     wire["receipt_hash"] = serde_json::Value::String(upper);
     match serde_json::from_value::<affidavit::crypto_trust_verify::CryptoStandingReceipt>(wire) {
         Err(_) => {}
         Ok(receipt) => match receipt.verify() {
-            Err(affidavit::crypto_trust_verify::StandingReceiptError::ReceiptHashMismatch { .. }) => {}
+            Err(affidavit::crypto_trust_verify::StandingReceiptError::ReceiptHashMismatch {
+                ..
+            }) => {}
             other => panic!("ATTACK WORKED (uppercase hash admitted): {other:?}"),
         },
     }
@@ -397,7 +500,8 @@ fn certified_receipt_envelope_swap_refused() {
     let signing = es_signer(0x33);
     let payload_a = "aa".repeat(32);
     let payload_b = "bb".repeat(32);
-    let mut a = certify_paid_delivery_payload(&payload_a, "subject-a", &signing).expect("certify a");
+    let mut a =
+        certify_paid_delivery_payload(&payload_a, "subject-a", &signing).expect("certify a");
     let b = certify_paid_delivery_payload(&payload_b, "subject-a", &signing).expect("certify b");
     a.receipt = b.receipt; // the swap
     match verify_certified_paid_delivery(&a, &payload_a, "subject-a") {
@@ -412,10 +516,21 @@ fn certified_receipt_envelope_swap_refused() {
 #[test]
 fn certified_receipt_commitment_binds_envelope_bytes() {
     let signing = es_signer(0x34);
-    let a = certify_paid_delivery_payload(&"cc".repeat(32), "subject-a", &signing).expect("certify");
-    let commitment = blake3::hash(a.envelope.signing_input_checked().expect("canonicalizes").as_slice()).to_hex().to_string();
+    let a =
+        certify_paid_delivery_payload(&"cc".repeat(32), "subject-a", &signing).expect("certify");
+    let commitment = blake3::hash(
+        a.envelope
+            .signing_input_checked()
+            .expect("canonicalizes")
+            .as_slice(),
+    )
+    .to_hex()
+    .to_string();
     assert_eq!(a.receipt.envelope_commitment, commitment);
-    assert_eq!(a.receipt.subject, build_canonical_subject(&"cc".repeat(32), "subject-a"));
+    assert_eq!(
+        a.receipt.subject,
+        build_canonical_subject(&"cc".repeat(32), "subject-a")
+    );
 }
 
 // ---------------------------------------------------------------
@@ -444,8 +559,9 @@ fn es256k_high_s_signature_refused() {
 /// n = 0xFFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFE BAAEDCE6 AF48A03B BFD25E8C D0364141.
 fn flip_to_high_s(sig64: &[u8; 64]) -> [u8; 64] {
     const N_MINUS_1: [u8; 32] = [
-        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
-        0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36, 0x41, 0x40,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFE, 0xBA, 0xAE, 0xDC, 0xE6, 0xAF, 0x48, 0xA0, 0x3B, 0xBF, 0xD2, 0x5E, 0x8C, 0xD0, 0x36,
+        0x41, 0x40,
     ];
     let s = &sig64[32..];
     // n - s computed as a 32-byte big-int subtraction with borrow; the +1

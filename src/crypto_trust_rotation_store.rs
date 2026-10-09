@@ -112,16 +112,10 @@ pub enum RotationStoreError {
     /// The line is not a valid store envelope (unparsable JSON, missing
     /// fields, or content that cannot canonicalize).
     #[error("rotation store line {line}: not a valid store envelope: {message}")]
-    Serialization {
-        line: u64,
-        message: String,
-    },
+    Serialization { line: u64, message: String },
     /// The line's format stamp is not [`STORE_FORMAT`].
     #[error("rotation store line {line}: foreign format stamp {found:?}: expected {STORE_FORMAT}")]
-    WrongFormat {
-        line: u64,
-        found: String,
-    },
+    WrongFormat { line: u64, found: String },
     /// The line's record no longer verifies: its signed digest does not
     /// match its content, or its `new_key_id` does not match the successor
     /// public material stored beside it. Either way the line was tampered
@@ -131,10 +125,7 @@ pub enum RotationStoreError {
     /// The line's record cannot be verified at all (structurally broken
     /// signature the provider refuses, or a canonicalization refusal).
     #[error("rotation store line {line}: record verification failed: {message}")]
-    Verification {
-        line: u64,
-        message: String,
-    },
+    Verification { line: u64, message: String },
 }
 
 /// Maps the rotation module's refusals onto the store's line-named
@@ -147,7 +138,9 @@ fn map_verify_err(err: RotationError, line: u64, kid: &str) -> RotationStoreErro
                 kid: kid.to_string(),
             }
         }
-        RotationError::Serialization(message) => RotationStoreError::Serialization { line, message },
+        RotationError::Serialization(message) => {
+            RotationStoreError::Serialization { line, message }
+        }
         other => RotationStoreError::Verification {
             line,
             message: other.to_string(),
@@ -207,7 +200,9 @@ impl RotationStore {
             Ok(false) => {
                 return Err(RotationStoreError::Verification {
                     line,
-                    message: String::from("verify_rotation reported false for the supplied material"),
+                    message: String::from(
+                        "verify_rotation reported false for the supplied material",
+                    ),
                 })
             }
             Err(err) => return Err(map_verify_err(err, line, &record.new_key_id)),
@@ -218,14 +213,15 @@ impl RotationStore {
             successor_public_es256: successor_public_es256.to_vec(),
             successor_public_mldsa65: successor_public_mldsa65.to_vec(),
         };
-        let value = serde_json::to_value(&envelope).map_err(|e| {
-            RotationStoreError::Serialization {
+        let value =
+            serde_json::to_value(&envelope).map_err(|e| RotationStoreError::Serialization {
                 line,
                 message: e.to_string(),
-            }
+            })?;
+        let canonical = jcs(&value).map_err(|e| RotationStoreError::Serialization {
+            line,
+            message: e.to_string(),
         })?;
-        let canonical = jcs(&value)
-            .map_err(|e| RotationStoreError::Serialization { line, message: e.to_string() })?;
         self.append_line(canonical.as_bytes())?;
         Ok(line)
     }
@@ -237,14 +233,13 @@ impl RotationStore {
     /// [`RotationStoreError::Io`] refusal (a missing history is not an
     /// empty one).
     pub fn load(&self) -> Result<Vec<VerifiedRotation>, RotationStoreError> {
-        let text = std::fs::read_to_string(&self.path).map_err(|e| {
-            RotationStoreError::Io(format!("read {}: {e}", self.path.display()))
-        })?;
+        let text = std::fs::read_to_string(&self.path)
+            .map_err(|e| RotationStoreError::Io(format!("read {}: {e}", self.path.display())))?;
         let mut verified = Vec::new();
         for (index, line_text) in text.lines().enumerate() {
             let line = index as u64 + 1;
-            let envelope: RotationStoreEnvelope = serde_json::from_str(line_text)
-                .map_err(|e| RotationStoreError::Serialization {
+            let envelope: RotationStoreEnvelope =
+                serde_json::from_str(line_text).map_err(|e| RotationStoreError::Serialization {
                     line,
                     message: e.to_string(),
                 })?;
@@ -273,9 +268,7 @@ impl RotationStore {
                         ),
                     })
                 }
-                Err(err) => {
-                    return Err(map_verify_err(err, line, &envelope.record.new_key_id))
-                }
+                Err(err) => return Err(map_verify_err(err, line, &envelope.record.new_key_id)),
             }
         }
         Ok(verified)
@@ -289,7 +282,10 @@ impl RotationStore {
         kid: &str,
     ) -> Result<Option<VerifiedRotation>, RotationStoreError> {
         let records = self.load()?;
-        Ok(records.into_iter().rev().find(|v| v.record.new_key_id == kid))
+        Ok(records
+            .into_iter()
+            .rev()
+            .find(|v| v.record.new_key_id == kid))
     }
 
     /// The newest record attesting what replaced `kid` (matches
@@ -299,7 +295,10 @@ impl RotationStore {
         kid: &str,
     ) -> Result<Option<VerifiedRotation>, RotationStoreError> {
         let records = self.load()?;
-        Ok(records.into_iter().rev().find(|v| v.record.old_key_id == kid))
+        Ok(records
+            .into_iter()
+            .rev()
+            .find(|v| v.record.old_key_id == kid))
     }
 
     /// 1-based line number the NEXT append would occupy (0 lines -> 1).
@@ -329,8 +328,9 @@ impl RotationStore {
             .map_err(|e| RotationStoreError::Io(format!("open {}: {e}", self.path.display())))?;
         file.write_all(body)
             .map_err(|e| RotationStoreError::Io(format!("write {}: {e}", self.path.display())))?;
-        file.write_all(b"\n")
-            .map_err(|e| RotationStoreError::Io(format!("write newline {}: {e}", self.path.display())))?;
+        file.write_all(b"\n").map_err(|e| {
+            RotationStoreError::Io(format!("write newline {}: {e}", self.path.display()))
+        })?;
         file.sync_data()
             .map_err(|e| RotationStoreError::Io(format!("sync {}: {e}", self.path.display())))?;
         Ok(())
@@ -343,9 +343,7 @@ mod tests {
     use crate::crypto_trust_canonical::DOMAIN_TAG as CANONICAL_DOMAIN_TAG;
     use crate::crypto_trust_es256::Es256SigningKey;
     use crate::crypto_trust_keys::KeyId;
-    use crate::crypto_trust_pqc::{
-        ml_dsa65_from_seed, HybridSecret, ML_DSA_65_SIGNATURE_LEN,
-    };
+    use crate::crypto_trust_pqc::{ml_dsa65_from_seed, HybridSecret, ML_DSA_65_SIGNATURE_LEN};
     use crate::crypto_trust_rotation::rotate_es256_to_hybrid;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -381,9 +379,7 @@ mod tests {
         }
     }
 
-    fn successor_pks(
-        secret: &crate::crypto_trust_pqc::HybridSecret,
-    ) -> (Vec<u8>, Vec<u8>) {
+    fn successor_pks(secret: &crate::crypto_trust_pqc::HybridSecret) -> (Vec<u8>, Vec<u8>) {
         (
             secret.es256.public_key_sec1(),
             ml_dsa65_from_seed(&secret.mldsa65_seed).public,
@@ -393,16 +389,14 @@ mod tests {
     /// One honest ceremony: `old_seed`'s CLASSICAL key rotates to THE hybrid
     /// successor at `at`.
     fn ceremony(old_seed: &[u8; 32], at: u64) -> RotationRecord {
-        rotate_es256_to_hybrid(&old_key(old_seed), &hybrid_secret(), at)
-            .expect("admitted rotation")
+        rotate_es256_to_hybrid(&old_key(old_seed), &hybrid_secret(), at).expect("admitted rotation")
     }
 
     /// A SECOND, distinct hybrid successor (own ES256 + ML-DSA-65 seeds) so
     /// tests can exercise successor-identity refusals honestly.
     fn other_hybrid_secret() -> HybridSecret {
         HybridSecret {
-            es256: Es256SigningKey::from_seed(&OTHER_HYBRID_ES_SEED)
-                .expect("valid p256 scalar"),
+            es256: Es256SigningKey::from_seed(&OTHER_HYBRID_ES_SEED).expect("valid p256 scalar"),
             mldsa65_seed: OTHER_HYBRID_ML_SEED,
         }
     }
@@ -424,10 +418,7 @@ mod tests {
     /// JSON value. The rewritten file stays one-object-per-line JSON.
     fn rewrite_line(path: &Path, line_no: u64, mutate: impl FnOnce(&mut serde_json::Value)) {
         let text = file_text(path);
-        let mut lines: Vec<String> = text
-            .lines()
-            .map(std::string::ToString::to_string)
-            .collect();
+        let mut lines: Vec<String> = text.lines().map(std::string::ToString::to_string).collect();
         let mut value: serde_json::Value =
             serde_json::from_str(&lines[(line_no - 1) as usize]).expect("parse line");
         mutate(&mut value);
@@ -448,7 +439,11 @@ mod tests {
             .append(&record, &es_pk, &ml_pk)
             .expect("honest record appends");
         assert_eq!(line, 1, "first append occupies line 1");
-        assert!(store.path().is_file(), "store file created at {:?}", store.path());
+        assert!(
+            store.path().is_file(),
+            "store file created at {:?}",
+            store.path()
+        );
 
         let records = store.load().expect("store loads");
         assert_eq!(records.len(), 1);
@@ -510,7 +505,10 @@ mod tests {
         let err = store
             .append(&truncated, &es_pk, &ml_pk)
             .expect_err("undecodable signature must be refused");
-        assert!(matches!(err, RotationStoreError::Tampered { .. }), "got {err:?}");
+        assert!(
+            matches!(err, RotationStoreError::Tampered { .. }),
+            "got {err:?}"
+        );
 
         assert!(!store.path().exists(), "nothing was persisted");
         let _ = std::fs::remove_dir_all(&dir);
@@ -619,18 +617,14 @@ mod tests {
         assert_eq!(latest.record, r2);
 
         // Unknown kids answer None, not an error.
-        assert!(
-            store
-                .latest_for_successor("afk1_missingkey000000")
-                .expect("load")
-                .is_none()
-        );
-        assert!(
-            store
-                .latest_for_predecessor("afk1_missingkey000000")
-                .expect("load")
-                .is_none()
-        );
+        assert!(store
+            .latest_for_successor("afk1_missingkey000000")
+            .expect("load")
+            .is_none());
+        assert!(store
+            .latest_for_predecessor("afk1_missingkey000000")
+            .expect("load")
+            .is_none());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -807,12 +801,8 @@ mod tests {
             serde_json::from_value(line["successor_public_es256"].clone()).expect("es bytes")
         };
         rewrite_line(&path, 2, |value| {
-            value["successor_public_es256"] = serde_json::Value::Array(
-                first_es
-                    .iter()
-                    .map(|&b| serde_json::json!(b))
-                    .collect(),
-            );
+            value["successor_public_es256"] =
+                serde_json::Value::Array(first_es.iter().map(|&b| serde_json::json!(b)).collect());
         });
         let err = store.load().expect_err("swapped material must refuse");
         assert!(
@@ -865,7 +855,8 @@ mod tests {
         // (a) Line 2 is not JSON at all.
         {
             let mut file = OpenOptions::new().append(true).open(&path).expect("open");
-            file.write_all(b"not json at all\n").expect("write junk line");
+            file.write_all(b"not json at all\n")
+                .expect("write junk line");
         }
         let err = store.load().expect_err("unparsable line must refuse");
         assert!(
@@ -941,7 +932,9 @@ mod tests {
         // Same total length (the fixed-length hybrid split still succeeds),
         // broken DER structure in the classical half: the provider refuses.
         rewrite_line(&path, 1, |value| {
-            let sig = value["record"]["successor_signature"][0].as_u64().expect("byte");
+            let sig = value["record"]["successor_signature"][0]
+                .as_u64()
+                .expect("byte");
             value["record"]["successor_signature"][0] = serde_json::json!(sig ^ 0xFF);
         });
         let err = store.load().expect_err("broken DER must be refused");
@@ -984,7 +977,10 @@ mod tests {
         // domain tag must equal the canonicalization module's and the
         // rotation ceremony's plane tag.
         assert_eq!(DOMAIN_TAG, CANONICAL_DOMAIN_TAG);
-        assert_eq!(DOMAIN_TAG, crate::crypto_trust_rotation::ROTATION_DOMAIN_TAG);
+        assert_eq!(
+            DOMAIN_TAG,
+            crate::crypto_trust_rotation::ROTATION_DOMAIN_TAG
+        );
         // The successor identity the store indexes by IS the trust-plane
         // key id format (afk1_ + 16 hex chars).
         let kid = KeyId::from_fingerprint(&crate::crypto_trust_keys::KeyFingerprint([7u8; 32]));

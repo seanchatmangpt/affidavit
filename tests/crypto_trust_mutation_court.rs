@@ -22,7 +22,7 @@
 use affidavit::crypto_trust_envelope::{NonceJournal, SignatureEnvelope, ENVELOPE_VERSION};
 use affidavit::crypto_trust_es256::Es256SigningKey;
 use affidavit::crypto_trust_keys::{
-    fingerprint_public_key, AlgorithmId, CustodianIdentity, CryptoProfile, InMemoryKeyRegistry,
+    fingerprint_public_key, AlgorithmId, CryptoProfile, CustodianIdentity, InMemoryKeyRegistry,
     KeyId, KeyOrigin, KeyRecord, KeyRegistry, PublicKeyMaterial, RegistryError,
 };
 use affidavit::crypto_trust_lifecycle::RevocationList;
@@ -78,11 +78,7 @@ fn record_for(subject: &str, algorithm: AlgorithmId, public_key: PublicKeyMateri
 }
 
 /// A fresh, in-window envelope for `record` at `profile`.
-fn envelope_for(
-    record: &KeyRecord,
-    profile: CryptoProfile,
-    nonce: [u8; 16],
-) -> SignatureEnvelope {
+fn envelope_for(record: &KeyRecord, profile: CryptoProfile, nonce: [u8; 16]) -> SignatureEnvelope {
     SignatureEnvelope {
         version: ENVELOPE_VERSION.to_string(),
         algorithm: record.algorithm,
@@ -133,7 +129,9 @@ fn crypto_trust_mutation_court_engine_accessors_surface_registered_state() {
 
 #[test]
 fn crypto_trust_mutation_court_every_admitted_algorithm_verifies_its_own_signature() {
-    use affidavit::crypto_trust_pqc::{ml_dsa65_from_seed, ML_DSA_65_SEED_LEN, SLH_DSA_128S_SEED_LEN};
+    use affidavit::crypto_trust_pqc::{
+        ml_dsa65_from_seed, ML_DSA_65_SEED_LEN, SLH_DSA_128S_SEED_LEN,
+    };
 
     // -- ML-DSA-65 --
     let mldsa_seed = [0xA5u8; ML_DSA_65_SEED_LEN];

@@ -90,7 +90,9 @@ fn json_value_rec(depth: u32) -> proptest::strategy::BoxedStrategy<Value> {
     }
     prop_oneof![
         json_leaf().boxed(),
-        prop::collection::vec(json_value_rec(depth - 1), 0..6).prop_map(Value::Array).boxed(),
+        prop::collection::vec(json_value_rec(depth - 1), 0..6)
+            .prop_map(Value::Array)
+            .boxed(),
         prop::collection::vec((json_string(), json_value_rec(depth - 1)), 0..6)
             .prop_map(|pairs| Value::Object(pairs.into_iter().collect()))
             .boxed(),

@@ -16,7 +16,7 @@ use crate::crypto_trust_canonical::digest;
 use crate::crypto_trust_envelope::{NonceJournal, SignatureEnvelope, ENVELOPE_VERSION};
 use crate::crypto_trust_es256::{Es256SigningKey, DOMAIN_TAG};
 use crate::crypto_trust_keys::{
-    fingerprint_public_key, AlgorithmId, CustodianIdentity, CryptoProfile, InMemoryKeyRegistry,
+    fingerprint_public_key, AlgorithmId, CryptoProfile, CustodianIdentity, InMemoryKeyRegistry,
     KeyId, KeyOrigin, KeyRecord, KeyRegistry, PublicKeyMaterial,
 };
 use crate::crypto_trust_lifecycle::RevocationList;
@@ -250,7 +250,9 @@ pub fn verify_certified_paid_delivery(
         .ok_or_else(|| VerifyRefusal::Provider("signature is not valid hex".to_string()))?;
     let verdict = engine.verify_envelope(&certified.envelope, &signature)?;
     if verdict.standing != CryptographicStanding::Valid {
-        return Err(VerifyRefusal::InvalidSignature(certified.envelope.key_id.0.clone()));
+        return Err(VerifyRefusal::InvalidSignature(
+            certified.envelope.key_id.0.clone(),
+        ));
     }
     Ok(())
 }
