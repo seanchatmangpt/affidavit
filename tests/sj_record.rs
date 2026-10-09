@@ -118,12 +118,12 @@ fn tampered_commit_sha_refuses_as_event_claim_mismatch() {
         .unwrap()
         .finalize()
         .unwrap();
-    let mut attacked = record.clone();
+    let attacked = record.clone();
     let json = attacked.to_json().unwrap();
 
     // Flip one hex digit of the commit sha inside the serialized document.
-    let needle = format!("\"commits\":[\"{}\"", format!("1{}", "c".repeat(39)));
-    let flipped = format!("\"commits\":[\"{}\"", format!("1{}", "d".repeat(39)));
+    let needle = format!("\"commits\":[\"1{}\"", "c".repeat(39));
+    let flipped = format!("\"commits\":[\"1{}\"", "d".repeat(39));
     assert!(json.contains(&needle));
     let tampered = json.replacen(&needle, &flipped, 1);
     let err = SjRecord::from_json(&tampered).unwrap_err();

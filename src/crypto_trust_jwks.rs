@@ -26,7 +26,7 @@
 //! keys; it never confers authority on the keys it advertises. Refusals are
 //! typed values, never panics. Secret material never enters this module.
 
-use crate::crypto_trust_keys::{AlgorithmId, KeyId, KeyRecord, PublicKeyMaterial};
+use crate::crypto_trust_keys::{AlgorithmId, KeyRecord, PublicKeyMaterial};
 
 /// Typed refusal of the JWKS export boundary.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -181,6 +181,9 @@ pub fn export_jwks(records: &[KeyRecord]) -> Result<serde_json::Value, JwksError
 mod tests {
     use super::*;
 
+    /// Only the feature-gated export courts use this decoder; gating it the
+    /// same way keeps it dead-code-clean under every feature combination.
+    #[cfg(any(feature = "secp256k1", feature = "ed25519"))]
     pub(crate) fn decode_b64url(s: &str) -> Vec<u8> {
         const ALPHABET: &[u8; 64] =
             b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -202,7 +205,7 @@ mod tests {
         out
     }
 
-    use crate::crypto_trust_keys::{fingerprint_public_key, CustodianIdentity, KeyOrigin};
+    use crate::crypto_trust_keys::{fingerprint_public_key, CustodianIdentity, KeyId, KeyOrigin};
 
     fn record(alg: AlgorithmId, public_key: PublicKeyMaterial, tag: u8) -> KeyRecord {
         let fingerprint = fingerprint_public_key(alg, &public_key);
@@ -238,10 +241,7 @@ mod tests {
     fn base64url_matches_jose_annex_a_vector() {
         // RFC 7515 Appendix A PKCS#7 message prefix is a standard no-pad
         // base64url exercise.
-        assert_eq!(
-            b64url(&[0x00, 0x01, 0x02, 0x03, 0x04, 0x05]),
-            "AAECAwQF"
-        );
+        assert_eq!(b64url(&[0x00, 0x01, 0x02, 0x03, 0x04, 0x05]), "AAECAwQF");
     }
 
     #[test]
@@ -250,7 +250,11 @@ mod tests {
         let signing = crate::crypto_trust_es256::Es256SigningKey::from_seed(&[9u8; 32])
             .expect("valid scalar seed");
         let sec1 = signing.public_key_sec1();
-        let rec = record(AlgorithmId::Es256, PublicKeyMaterial::Es256Sec1(sec1.clone()), 1);
+        let rec = record(
+            AlgorithmId::Es256,
+            PublicKeyMaterial::Es256Sec1(sec1.clone()),
+            1,
+        );
         let jwk = export_jwk(&rec).expect("ES256 exports");
         assert_eq!(jwk["kty"], "EC");
         assert_eq!(jwk["crv"], "P-256");
@@ -282,9 +286,8 @@ mod tests {
         assert_eq!(jwk["alg"], "ES256K");
         assert_eq!(jwk["kid"], rec.id.to_string());
         // x must equal the compressed point's X coordinate byte-for-byte.
-        let decoded_x = crate::crypto_trust_jwks::tests::decode_b64url(
-            jwk["x"].as_str().expect("x string"),
-        );
+        let decoded_x =
+            crate::crypto_trust_jwks::tests::decode_b64url(jwk["x"].as_str().expect("x string"));
         assert_eq!(decoded_x, compressed[1..33].to_vec());
     }
 
@@ -294,7 +297,11 @@ mod tests {
         // Real Ed25519 key from the witness module (same dalek stack).
         let kp = crate::ed25519_witness::WitnessKeyPair::generate();
         let raw = kp.public().to_vec();
-        let rec = record(AlgorithmId::Ed25519, PublicKeyMaterial::Ed25519(raw.clone()), 3);
+        let rec = record(
+            AlgorithmId::Ed25519,
+            PublicKeyMaterial::Ed25519(raw.clone()),
+            3,
+        );
         let jwk = export_jwk(&rec).expect("Ed25519 exports");
         assert_eq!(jwk["kty"], "OKP");
         assert_eq!(jwk["crv"], "Ed25519");
@@ -325,7 +332,9 @@ mod tests {
         );
         assert_eq!(
             export_jwk(&hybrid),
-            Err(JwksError::UnsupportedAlgorithm("ES256+ML-DSA-65".to_string()))
+            Err(JwksError::UnsupportedAlgorithm(
+                "ES256+ML-DSA-65".to_string()
+            ))
         );
         let slh = record(
             AlgorithmId::SlhDsa128s,
@@ -351,7 +360,11 @@ mod tests {
             export_jwk(&bad_es256),
             Err(JwksError::MalformedPublicKey(_, _))
         ));
-        let bad_ed = record(AlgorithmId::Ed25519, PublicKeyMaterial::Ed25519(vec![1u8; 31]), 8);
+        let bad_ed = record(
+            AlgorithmId::Ed25519,
+            PublicKeyMaterial::Ed25519(vec![1u8; 31]),
+            8,
+        );
         assert!(matches!(
             export_jwk(&bad_ed),
             Err(JwksError::MalformedPublicKey(_, _))

@@ -254,7 +254,7 @@ fn lock_is_stale(body: Option<&str>, mtime_age: Option<Duration>, now_unix: u64)
             return now_unix.saturating_sub(acquired) >= LOCK_STALE_SECONDS;
         }
     }
-    mtime_age.map_or(false, |age| age >= Duration::from_secs(LOCK_STALE_SECONDS))
+    mtime_age.is_some_and(|age| age >= Duration::from_secs(LOCK_STALE_SECONDS))
 }
 
 /// A held transition lock. Drop removes the lock file — but only if the
@@ -300,11 +300,7 @@ fn acquire_lock_within(path: &Path, timeout: Duration) -> Result<FileLock, Nonce
     let deadline = Instant::now() + timeout;
     let mut backoff = Duration::from_millis(1);
     loop {
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&lock)
-        {
+        match OpenOptions::new().write(true).create_new(true).open(&lock) {
             Ok(mut file) => {
                 let token = format!("acquired={}\npid={}\n", unix_now(), std::process::id());
                 file.write_all(token.as_bytes())?;
@@ -313,7 +309,9 @@ fn acquire_lock_within(path: &Path, timeout: Duration) -> Result<FileLock, Nonce
             Err(err) if err.kind() == ErrorKind::AlreadyExists => {
                 let body = std::fs::read_to_string(&lock).ok();
                 let mtime_age = std::fs::metadata(&lock).ok().and_then(|meta| {
-                    meta.modified().ok().and_then(|modified| modified.elapsed().ok())
+                    meta.modified()
+                        .ok()
+                        .and_then(|modified| modified.elapsed().ok())
                 });
                 if lock_is_stale(body.as_deref(), mtime_age, unix_now()) {
                     // Steal. Racing thieves that lose the remove simply
@@ -438,10 +436,8 @@ impl DiskNonceJournal {
             }
         }
         let line = format!(
-
             "{{\"kid\":{},\"nonce\":\"{}\",\"at\":{}}}\n",
             serde_json::to_string(kid).unwrap_or_else(|_| "\"\"".to_string()),
-
             hex_encode(nonce),
             at
         );
@@ -521,10 +517,8 @@ impl DiskNonceJournal {
         for (key, (kid, at)) in &self.entries {
             let nonce_hex = key.rsplit(':').next().unwrap_or("");
             let line = format!(
-
                 "{{\"kid\":{},\"nonce\":\"{}\",\"at\":{}}}\n",
                 serde_json::to_string(kid).unwrap_or_else(|_| "\"\"".to_string()),
-
                 nonce_hex,
                 at
             );
@@ -542,10 +536,8 @@ impl DiskNonceJournal {
 
     fn header_line() -> String {
         format!(
-
             "{{\"format\":\"{}\",\"domain\":\"{}\",\"replay_key\":\"{}\",\"window_seconds\":{}}}",
             JOURNAL_FORMAT, DOMAIN_TAG, REPLAY_KEY, DEFAULT_WINDOW_SECONDS
-
         )
     }
 

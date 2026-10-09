@@ -269,7 +269,7 @@ fn lock_is_stale(body: Option<&str>, mtime_age: Option<Duration>, now_unix: u64)
             return now_unix.saturating_sub(acquired) >= LOCK_STALE_SECONDS;
         }
     }
-    mtime_age.map_or(false, |age| age >= Duration::from_secs(LOCK_STALE_SECONDS))
+    mtime_age.is_some_and(|age| age >= Duration::from_secs(LOCK_STALE_SECONDS))
 }
 
 /// A held transition lock. Drop removes the lock file — but only if the
@@ -324,7 +324,9 @@ fn acquire_lock_within(path: &Path, timeout: Duration) -> Result<FileLock, Persi
             Err(err) if err.kind() == ErrorKind::AlreadyExists => {
                 let body = fs::read_to_string(&lock).ok();
                 let mtime_age = fs::metadata(&lock).ok().and_then(|meta| {
-                    meta.modified().ok().and_then(|modified| modified.elapsed().ok())
+                    meta.modified()
+                        .ok()
+                        .and_then(|modified| modified.elapsed().ok())
                 });
                 if lock_is_stale(body.as_deref(), mtime_age, unix_now()) {
                     // Steal. Racing thieves that lose the remove simply
@@ -822,8 +824,16 @@ mod tests {
         );
         // Unparsable/missing bodies fall back to mtime age, fail-closed.
         assert!(!lock_is_stale(Some(""), Some(Duration::from_secs(1)), NOW));
-        assert!(lock_is_stale(Some(""), Some(Duration::from_secs(LOCK_STALE_SECONDS)), NOW));
-        assert!(!lock_is_stale(Some("garbage"), Some(Duration::from_secs(1)), NOW));
+        assert!(lock_is_stale(
+            Some(""),
+            Some(Duration::from_secs(LOCK_STALE_SECONDS)),
+            NOW
+        ));
+        assert!(!lock_is_stale(
+            Some("garbage"),
+            Some(Duration::from_secs(1)),
+            NOW
+        ));
         assert!(lock_is_stale(
             Some("garbage"),
             Some(Duration::from_secs(LOCK_STALE_SECONDS)),
@@ -875,7 +885,10 @@ mod tests {
                 "the thief's token is what is on file"
             );
         }
-        assert!(!lock.exists(), "drop removes the lock its holder still owns");
+        assert!(
+            !lock.exists(),
+            "drop removes the lock its holder still owns"
+        );
 
         // And through the public transition: a stale lock does not block a
         // record; the guard acquires, transitions, and cleans up.
@@ -909,7 +922,9 @@ mod tests {
         let dir = scratch_dir("symlink");
         let path = ledger_in(&dir);
         let mut ledger = NonceLedgerFile::open_or_create(&path).expect("opens");
-        ledger.record(KID_A, nonce(1), 100, 600).expect("seed record");
+        ledger
+            .record(KID_A, nonce(1), 100, 600)
+            .expect("seed record");
 
         // Attack: a symlink planted at a staging path pointing at a victim
         // file. The stage open runs create_new(true), so the pre-placed name

@@ -561,6 +561,15 @@ mod tests {
     }
 
     /// A fresh, in-window envelope naming `kid`.
+    /// The domain-separated digest of a subject string — the exact law
+    /// `certify_signed` enforces against `env.subject_digest`.
+    fn subject_bound(subject: &str) -> [u8; 32] {
+        crate::crypto_trust_canonical::digest(
+            crate::crypto_trust_verify::DOMAIN_TAG,
+            &[subject.as_bytes()],
+        )
+    }
+
     fn envelope(kid: &KeyId, nonce: [u8; 16]) -> SignatureEnvelope {
         SignatureEnvelope {
             version: ENVELOPE_VERSION.to_string(),
@@ -573,8 +582,8 @@ mod tests {
             nonce,
             not_before: NOW - 1_000,
             expires_at: NOW + 1_000,
-            subject_digest: [0x22; 32],
-            audience: "affidavit.verifier".to_string(),
+            subject_digest: subject_bound("subject-a"),
+            audience: "affidavit.seal".to_string(),
         }
     }
 
@@ -596,7 +605,7 @@ mod tests {
         let env = envelope(&record.id, [tag; 16]);
         let signature = signing.sign(&env.signing_input_checked().expect("canonical pre-image"));
         engine_with(&record)
-            .certify(&env, &signature, "subject-a")
+            .certify_signed(&env, &signature, "subject-a", &signing)
             .expect("VALID verdict mints a receipt")
     }
 
