@@ -859,9 +859,9 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 
 [[package]]
 name = "chicago-tdd-tools"
-version = "26.6.121"
+version = "26.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71c28192f85de9e12d5abfed7c4cb82ab4fbe5cd52a0d151d252cd6170229660"
+checksum = "9c2a73444d211e0137bf7de7a6cc19e327e1a25a44fbd0b7ea641385844ef758"
 dependencies = [
  "chicago-tdd-tools-proc-macros",
  "chrono",
@@ -874,19 +874,19 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror 2.0.21",
  "tokio",
- "toml 0.8.23",
+ "toml 1.1.2+spec-1.1.0",
  "uuid",
 ]
 
 [[package]]
 name = "chicago-tdd-tools-proc-macros"
-version = "26.6.121"
+version = "26.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b924dfbfd54a6fe85b4ac8bc2031d7bee0217377deaf538e4964cb0c5105177"
+checksum = "c4eba308a1e96b15e633982aa534ae8da3e221971debfc1042841c60a3942db4"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
