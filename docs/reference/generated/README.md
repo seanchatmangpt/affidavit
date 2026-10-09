@@ -22,14 +22,23 @@ python3 /Users/sac/ggen-marketplace/scripts/gen_doc_surface.py code /Users/sac/a
 doc-hdit audit /tmp/hdit/affidavit.inputs.after.json
 ```
 
-Last audit (v3 surface, 308 modules, 2684 items):
+Last certify (v4 surface, 356 modules, 3643 public-surface items; 2026-10-09):
 
 | gate        | value  | threshold |
 | ----------- | ------ | --------- |
-| S_coverage  | 0.9966 | >= 0.9000 |
-| Phi_halluc  | 0.0027 | <= 0.0010 |
-| Q_density   | 0.9973 | >= 0.6500 |
+| S_coverage  | 0.9806 | >= 0.9000 |
+| Phi_halluc  | 0.0001 | <= 0.0010 |
+| Q_density   | 0.9999 | >= 0.6500 |
 
-Phi_halluc exceeds threshold from 3 pre-existing prose spans in
-`docs/archive/DOD_BENCHMARKING.md`, `docs/roadmap/W2-doctor-self-healing.md`
-and `docs/WASM.md` — outside this generated tree.
+Verdict ACCEPTED — chained receipt in `docs/doc-hdit.receipts.jsonl`
+(subject `668585cebc70bf62…`, chain head `4268a731860f6349…`); details in
+`docs/sjira/v26.10.8/DOC-HDIT-CERTIFY-RECEIPT.md`.
+
+Extractor: fleet pin `f51d81ac4f7e4119dff950327237effee4968f4aa9aba52c7d62c5362f441fa9`
+(`gen_doc_surface.py` @ ggen-marketplace `b99942bdb`; BLAKE3 receipt identity
+`1b5d967679c730756a18addedea9a6e829b949d6aee9aefef939896370a56038`) — the
+original campaign pin `4c862576ab…` was superseded 2026-10-09 by R34/R43
+(`PIN-ROTATION-LEDGER.md`, no live-standing receipts on the old pin).
+Residual Phi mass: 2 `has_param` claims (`initialize`/`shutdown` LSP
+protocol method names in `docs/integrations/LSP_MAX_INTEGRATION_CODE_TEMPLATES.md`
+— protocol strings, not repo symbols; 0.0001 <= 0.001, disclosed).
