@@ -5,8 +5,32 @@
 //!
 //! Provides an epoch-scoped sliding-window bit filter combined with a dense
 //! nullifier cache to detect and reject receipt replay attempts.
+//!
+//! # Rotation replay-amnesty fix (SK5 fix-forward, lane R31)
+//!
+//! Prior behavior cleared the dense cache and bit filter on every epoch
+//! rotation (explicit `rotate_epoch` or capacity-triggered generation
+//! advance), which allowed `check_and_admit(original_wire)` to succeed again
+//! after rotation — a replay amnesty across epochs. The fix keeps a
+//! rotation-stable *wire-identity* layer:
+//!
+//! * each wire is reduced to a 32-byte identity
+//!   `BLAKE3_keyed(K_identity, wire)` where `K_identity` is derived once at
+//!   construction and never rotates;
+//! * every witnessed identity is tagged with the epoch generation it was
+//!   witnessed in and is retained across rotations (current window in
+//!   `wire_window`, retired generations in `wire_history`);
+//! * generation-bound nullifiers are stored alongside
+//!   (`dense_cache: HashMap<Nullifier, u64>` carries the generation per
+//!   nullifier, retired nullifiers move to `nullifier_history`);
+//! * re-witnessing a wire/nullifier from a *prior* generation is refused with
+//!   the typed error [`ReplayNullifierError::ReplayEpochMismatch`]
+//!   (machine code `0xE103`); re-witnessing within the current generation is
+//!   still [`ReplayNullifierError::ReplayDetected`] (`0xE101`).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
+
 use thiserror::Error;
 
 /// Nullifier byte length (32 bytes).
@@ -15,16 +39,35 @@ pub const NULLIFIER_SIZE: usize = 32;
 /// Key length for keyed BLAKE3 (32 bytes).
 pub const NULLIFIER_KEY_SIZE: usize = 32;
 
+/// Machine error code for [`ReplayNullifierError::ReplayDetected`].
+pub const CODE_REPLAY_DETECTED: u16 = 0xE101;
+/// Machine error code shared by persistence-layer failures.
+pub const CODE_PERSISTENCE: u16 = 0xE102;
+/// Machine error code for [`ReplayNullifierError::ReplayEpochMismatch`]:
+/// a pre-rotation wire/nullifier presented after epoch rotation.
+pub const CODE_REPLAY_EPOCH_MISMATCH: u16 = 0xE103;
+
 /// Nullifier token computed for a receipt.
 pub type Nullifier = [u8; NULLIFIER_SIZE];
 
 /// Epoch secret key used to compute receipt nullifiers.
 pub type EpochKey = [u8; NULLIFIER_KEY_SIZE];
 
+/// Rotation-stable wire identity token (`BLAKE3_keyed(K_identity, wire)`).
+pub type WireId = [u8; NULLIFIER_SIZE];
+
+/// Snapshot serialization format magic (`b"AFRN"`).
+const SNAPSHOT_MAGIC: &[u8; 4] = b"AFRN";
+/// Snapshot serialization format version.
+const SNAPSHOT_VERSION: u16 = 1;
+/// Fixed snapshot header size: magic(4) + version(2) + reserved(2)
+/// + window_capacity(8) + generation(8) + epoch_key(32) + identity_key(32).
+const SNAPSHOT_HEADER_LEN: usize = 4 + 2 + 2 + 8 + 8 + NULLIFIER_SIZE + NULLIFIER_SIZE;
+
 /// Errors produced during nullifier evaluation and replay checks.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ReplayNullifierError {
-    /// Receipt has already been witnessed within the current epoch.
+    /// Receipt has already been witnessed within the current epoch generation.
     #[error("ReplayDetected: nullifier {0} already observed in epoch")]
     ReplayDetected(String),
     /// Invalid persistent storage or deserialization error.
@@ -33,6 +76,9 @@ pub enum ReplayNullifierError {
     /// Corrupt ledger state detected during nullifier evaluation (operator matrix `CorruptLedger`).
     #[error("CorruptLedger: {0}")]
     CorruptLedger(String),
+    /// Pre-rotation wire or nullifier presented after epoch rotation.
+    #[error("ReplayEpochMismatch: {0}")]
+    ReplayEpochMismatch(String),
 }
 
 impl ReplayNullifierError {
@@ -40,17 +86,33 @@ impl ReplayNullifierError {
     #[must_use]
     pub const fn machine_code(&self) -> u16 {
         match self {
-            Self::ReplayDetected(_) => 0xE101,
-            Self::InvalidPersistenceStorage(_) | Self::CorruptLedger(_) => 0xE102,
+            Self::ReplayDetected(_) => CODE_REPLAY_DETECTED,
+            Self::InvalidPersistenceStorage(_) | Self::CorruptLedger(_) => CODE_PERSISTENCE,
+            Self::ReplayEpochMismatch(_) => CODE_REPLAY_EPOCH_MISMATCH,
         }
     }
 }
 
 /// Computes the keyed BLAKE3 nullifier:
 /// `N = BLAKE3_keyed(K_epoch, receipt_wire)`
+///
+/// Note: this is the *epoch-scoped* nullifier. The generation binding that
+/// closes the rotation amnesty is carried by tagging stored nullifiers and
+/// wire identities with [`ReplayNullifierRegistry::epoch_generation`], not by
+/// folding the generation into the digest, so this function remains stable
+/// across generations of the same epoch key.
 #[must_use]
 pub fn compute_nullifier(epoch_key: &EpochKey, receipt_wire: &[u8]) -> Nullifier {
     let mut hasher = blake3::Hasher::new_keyed(epoch_key);
+    hasher.update(receipt_wire);
+    *hasher.finalize().as_bytes()
+}
+
+/// Computes the rotation-stable wire identity:
+/// `Id = BLAKE3_keyed(K_identity, wire)`; `K_identity` never rotates.
+#[must_use]
+pub fn compute_wire_identity(identity_key: &EpochKey, receipt_wire: &[u8]) -> WireId {
+    let mut hasher = blake3::Hasher::new_keyed(identity_key);
     hasher.update(receipt_wire);
     *hasher.finalize().as_bytes()
 }
@@ -75,8 +137,10 @@ impl SlidingBitFilter {
 
     /// Hash indexes for two-hash Bloom projection from 32-byte nullifier.
     fn indices(&self, nullifier: &Nullifier) -> (usize, usize) {
-        let h1 = u64::from_le_bytes(nullifier[0..8].try_into().unwrap()) as usize % self.num_bits;
-        let h2 = u64::from_le_bytes(nullifier[8..16].try_into().unwrap()) as usize % self.num_bits;
+        let h1 = u64::from_le_bytes(nullifier[0..8].try_into().expect("32-byte slice")) as usize
+            % self.num_bits;
+        let h2 = u64::from_le_bytes(nullifier[8..16].try_into().expect("32-byte slice")) as usize
+            % self.num_bits;
         (h1, h2)
     }
 
@@ -115,27 +179,75 @@ impl SlidingBitFilter {
 pub struct ReplayNullifierRegistry {
     /// Epoch secret key.
     epoch_key: EpochKey,
-    /// Epoch generation counter within the current session/epoch lifecycle.
+    /// Rotation-stable wire-identity key, derived once at construction.
+    identity_key: EpochKey,
+    /// Epoch generation counter; advances on every rotation, never resets.
     epoch_generation: u64,
-    /// Fast bit filter screen.
+    /// Fast bit filter screen over current-generation nullifiers.
     bit_filter: SlidingBitFilter,
-    /// Exact dense cache of witnessed nullifiers in current window/epoch.
-    dense_cache: HashSet<Nullifier>,
+    /// Exact dense cache of witnessed nullifiers in the current generation,
+    /// tagged with the generation they were witnessed in.
+    dense_cache: HashMap<Nullifier, u64>,
+    /// Nullifiers retired by rotation, tagged with their generation.
+    nullifier_history: HashMap<Nullifier, u64>,
+    /// Wire identities witnessed in the current generation.
+    wire_window: HashSet<WireId>,
+    /// Wire identities retired by rotation, tagged with their generation.
+    wire_history: HashMap<WireId, u64>,
     /// Capacity threshold before rotating / clearing sliding window.
     window_capacity: usize,
 }
 
 impl ReplayNullifierRegistry {
     /// Create a new nullifier registry with a given epoch key and window capacity.
+    ///
+    /// # Caller guidance
+    ///
+    /// `epoch_key` SHOULD be derived from entropy at session start (see
+    /// [`ReplayNullifierRegistry::with_generated_key`]), not passed as a
+    /// compile-time constant: a constant epoch key lets an attacker who
+    /// learns it precompute nullifiers and forge cross-context replay
+    /// evidence. The parameter is retained so deterministic test subjects and
+    /// key-rotation stores can pin the key explicitly.
     #[must_use]
     pub fn new(epoch_key: EpochKey, window_capacity: usize) -> Self {
+        let identity_key = derive_identity_key(&epoch_key);
         Self {
             epoch_key,
+            identity_key,
             epoch_generation: 0,
             bit_filter: SlidingBitFilter::new(window_capacity.max(64) * 8),
-            dense_cache: HashSet::with_capacity(window_capacity),
+            dense_cache: HashMap::with_capacity(window_capacity),
+            nullifier_history: HashMap::new(),
+            wire_window: HashSet::new(),
+            wire_history: HashMap::new(),
             window_capacity,
         }
+    }
+
+    /// Create a registry whose epoch key is drawn from the operating-system
+    /// entropy source instead of a caller-supplied constant.
+    ///
+    /// Available under the `crypto-trust` feature (the key derives from
+    /// `rand_core::OsRng`, whose backing `getrandom` chain is wired for both
+    /// native and wasm32 targets in `Cargo.toml`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReplayNullifierError::InvalidPersistenceStorage`] if the OS
+    /// entropy source fails.
+    #[cfg(feature = "crypto-trust")]
+    pub fn with_generated_key(window_capacity: usize) -> Result<Self, ReplayNullifierError> {
+        use rand_core::{OsRng, RngCore};
+
+        let mut epoch_key = EpochKey::default();
+        OsRng.fill_bytes(&mut epoch_key);
+        if epoch_key == EpochKey::default() {
+            return Err(ReplayNullifierError::CorruptLedger(
+                "OS entropy returned an all-zero epoch key".to_string(),
+            ));
+        }
+        Ok(Self::new(epoch_key, window_capacity))
     }
 
     /// Return reference to epoch key.
@@ -144,88 +256,396 @@ impl ReplayNullifierRegistry {
         &self.epoch_key
     }
 
+    /// Return reference to the rotation-stable wire-identity key.
+    #[must_use]
+    pub const fn identity_key(&self) -> &EpochKey {
+        &self.identity_key
+    }
+
     /// Return the current epoch generation counter.
     #[must_use]
     pub const fn epoch_generation(&self) -> u64 {
         self.epoch_generation
     }
 
-    /// Rotate or update the epoch key, resetting the generation, clearing the filter and cache.
+    /// Rotate to a new epoch key.
+    ///
+    /// The generation counter ADVANCES (it never resets), the current window
+    /// retires into the cross-epoch history, and the wire-identity layer
+    /// survives so pre-rotation wires are refused with
+    /// [`ReplayNullifierError::ReplayEpochMismatch`] afterwards.
     pub fn rotate_epoch(&mut self, new_epoch_key: EpochKey) {
+        self.retire_current_window();
+        self.epoch_generation = self.epoch_generation.saturating_add(1);
         self.epoch_key = new_epoch_key;
-        self.epoch_generation = 0;
         self.bit_filter.clear();
         self.dense_cache.clear();
+        self.wire_window.clear();
+    }
+
+    /// Retire the live window into the cross-generation history (keyed by the
+    /// generation it was witnessed in) without advancing the generation.
+    fn retire_current_window(&mut self) {
+        let generation = self.epoch_generation;
+        for (n, gen) in self.dense_cache.drain() {
+            self.nullifier_history.entry(n).or_insert(gen);
+        }
+        for id in self.wire_window.drain() {
+            self.wire_history.insert(id, generation);
+        }
+        self.bit_filter.clear();
+    }
+
+    /// Advance the generation on capacity pressure: retire the current window
+    /// into history, derive the next epoch key, clear the live window.
+    fn advance_generation(&mut self) {
+        self.retire_current_window();
+        self.epoch_generation = self.epoch_generation.saturating_add(1);
+        let mut hasher =
+            blake3::Hasher::new_derive_key("affidavit/ctrt-epoch-rotation/v1");
+        hasher.update(&self.epoch_key);
+        hasher.update(&self.epoch_generation.to_le_bytes());
+        self.epoch_key = *hasher.finalize().as_bytes();
+        self.dense_cache.clear();
+        self.wire_window.clear();
     }
 
     /// Witness a raw wire receipt.
-    /// Computes `N = BLAKE3_keyed(K_epoch, receipt_wire)`, tests for replay,
-    /// and inserts into the dense cache and bit filter.
+    ///
+    /// Computes `N = BLAKE3_keyed(K_epoch, receipt_wire)`, tests for replay
+    /// (within the current generation) and cross-rotation replay (a wire
+    /// already witnessed in a prior generation is refused with
+    /// [`ReplayNullifierError::ReplayEpochMismatch`]), and inserts into the
+    /// dense cache and bit filter.
     ///
     /// # Errors
     ///
-    /// Returns [`ReplayNullifierError::ReplayDetected`] if the nullifier
-    /// has already been recorded in this epoch window.
+    /// * [`ReplayNullifierError::ReplayDetected`] — wire already witnessed in
+    ///   the current generation.
+    /// * [`ReplayNullifierError::ReplayEpochMismatch`] — wire already
+    ///   witnessed in a prior generation (pre-rotation replay).
     pub fn check_and_admit(&mut self, receipt_wire: &[u8]) -> Result<Nullifier, ReplayNullifierError> {
+        let wire_id = compute_wire_identity(&self.identity_key, receipt_wire);
+
+        if self.wire_window.contains(&wire_id) {
+            let nullifier = compute_nullifier(&self.epoch_key, receipt_wire);
+            return Err(ReplayNullifierError::ReplayDetected(to_hex(&nullifier)));
+        }
+        if let Some(&witnessed_gen) = self.wire_history.get(&wire_id) {
+            return Err(ReplayNullifierError::ReplayEpochMismatch(format!(
+                "wire already witnessed in epoch generation {witnessed_gen} (current {})",
+                self.epoch_generation
+            )));
+        }
+
+        // Capacity pressure rotates the generation BEFORE the nullifier is
+        // computed, so the admitted nullifier is bound to the new generation.
+        if self.dense_cache.len() >= self.window_capacity {
+            self.advance_generation();
+        }
+
         let nullifier = compute_nullifier(&self.epoch_key, receipt_wire);
-        self.admit_nullifier(nullifier)?;
+        self.bit_filter.set(&nullifier);
+        self.dense_cache.insert(nullifier, self.epoch_generation);
+        self.wire_window.insert(wire_id);
         Ok(nullifier)
     }
 
-    /// Directly admit a computed nullifier, checking for replay.
+    /// Directly admit a precomputed nullifier, checking for replay.
+    ///
+    /// Nullifiers retired by rotation are refused with
+    /// [`ReplayNullifierError::ReplayEpochMismatch`]; duplicates within the
+    /// current generation are refused with [`ReplayNullifierError::ReplayDetected`].
     ///
     /// # Errors
     ///
-    /// Returns [`ReplayNullifierError::ReplayDetected`] if already seen.
+    /// See above; fail-closed on any already-witnessed nullifier.
     pub fn admit_nullifier(&mut self, nullifier: Nullifier) -> Result<(), ReplayNullifierError> {
-        // Fast path: if bit filter says unseen, it is definitely not seen
-        if self.bit_filter.might_contain(&nullifier) && self.dense_cache.contains(&nullifier) {
-            let hex = nullifier
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect::<String>();
-            return Err(ReplayNullifierError::ReplayDetected(hex));
+        if self.dense_cache.contains_key(&nullifier) {
+            return Err(ReplayNullifierError::ReplayDetected(to_hex(&nullifier)));
+        }
+        if let Some(&witnessed_gen) = self.nullifier_history.get(&nullifier) {
+            return Err(ReplayNullifierError::ReplayEpochMismatch(format!(
+                "nullifier already witnessed in epoch generation {witnessed_gen} (current {})",
+                self.epoch_generation
+            )));
         }
 
-        // If capacity exceeded, harden against intra-epoch replay after eviction
-        // by rotating the epoch key derived from the current key and advancing the epoch generation.
-        if self.dense_cache.len() >= self.window_capacity {
-            self.epoch_generation = self.epoch_generation.saturating_add(1);
-            let mut hasher = blake3::Hasher::new_derive_key("affidavit/ctrt-epoch-rotation/v1");
-            hasher.update(&self.epoch_key);
-            hasher.update(&self.epoch_generation.to_le_bytes());
-            self.epoch_key = *hasher.finalize().as_bytes();
+        // Fast screen: if the bit filter says unseen, it is definitely not in
+        // the current window (retired nullifiers were already checked above).
+        if self.bit_filter.might_contain(&nullifier) && self.dense_cache.contains_key(&nullifier) {
+            return Err(ReplayNullifierError::ReplayDetected(to_hex(&nullifier)));
+        }
 
-            self.dense_cache.clear();
-            self.bit_filter.clear();
+        if self.dense_cache.len() >= self.window_capacity {
+            self.advance_generation();
         }
 
         self.bit_filter.set(&nullifier);
-        self.dense_cache.insert(nullifier);
+        self.dense_cache.insert(nullifier, self.epoch_generation);
         Ok(())
     }
 
-    /// Check if a nullifier has already been admitted without mutating state.
+    /// Check if a nullifier has already been admitted (current window or any
+    /// retired generation) without mutating state.
     #[must_use]
     pub fn is_seen(&self, nullifier: &Nullifier) -> bool {
-        if self.bit_filter.might_contain(nullifier) {
-            self.dense_cache.contains(nullifier)
-        } else {
-            false
-        }
+        self.dense_cache.contains_key(nullifier) || self.nullifier_history.contains_key(nullifier)
     }
 
-    /// Current count of tracked nullifiers in dense cache.
+    /// Check if a wire identity has already been witnessed in any generation
+    /// without mutating state.
+    #[must_use]
+    pub fn wire_seen(&self, receipt_wire: &[u8]) -> bool {
+        let wire_id = compute_wire_identity(&self.identity_key, receipt_wire);
+        self.wire_window.contains(&wire_id) || self.wire_history.contains_key(&wire_id)
+    }
+
+    /// Count of tracked nullifiers in the current-generation dense cache.
     #[must_use]
     pub fn len(&self) -> usize {
         self.dense_cache.len()
     }
 
-    /// Check if no nullifiers are currently tracked.
+    /// Check if no nullifiers are currently tracked in the live window.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.dense_cache.is_empty()
     }
+
+    /// Count of wire identities retired by rotation (cross-epoch memory).
+    #[must_use]
+    pub fn wire_history_len(&self) -> usize {
+        self.wire_history.len()
+    }
+
+    /// Count of nullifiers retired by rotation (cross-epoch memory).
+    #[must_use]
+    pub fn nullifier_history_len(&self) -> usize {
+        self.nullifier_history.len()
+    }
+
+    /// Serialize the registry state to a fixed-structure byte snapshot.
+    ///
+    /// Layout (all integers little-endian):
+    /// `magic("AFRN") | version(u16) | reserved(u16) | window_capacity(u64)
+    ///  | generation(u64) | epoch_key(32) | identity_key(32)
+    ///  | nullifier_count(u64) | (nullifier(32) ++ generation(u64))*
+    ///  | wire_window_count(u64) | wire_id(32)*
+    ///  | wire_history_count(u64) | (wire_id(32) ++ generation(u64))*`
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(
+            SNAPSHOT_HEADER_LEN
+                + 8 + self.dense_cache.len() * (NULLIFIER_SIZE + 8)
+                + 8 + self.wire_window.len() * NULLIFIER_SIZE
+                + 8 + self.wire_history.len() * (NULLIFIER_SIZE + 8),
+        );
+        out.extend_from_slice(SNAPSHOT_MAGIC);
+        out.extend_from_slice(&SNAPSHOT_VERSION.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes()); // reserved
+        out.extend_from_slice(&(self.window_capacity as u64).to_le_bytes());
+        out.extend_from_slice(&self.epoch_generation.to_le_bytes());
+        out.extend_from_slice(&self.epoch_key);
+        out.extend_from_slice(&self.identity_key);
+
+        out.extend_from_slice(&(self.dense_cache.len() as u64).to_le_bytes());
+        for (n, gen) in &self.dense_cache {
+            out.extend_from_slice(n);
+            out.extend_from_slice(&gen.to_le_bytes());
+        }
+
+        out.extend_from_slice(&(self.wire_window.len() as u64).to_le_bytes());
+        for id in &self.wire_window {
+            out.extend_from_slice(id);
+        }
+
+        out.extend_from_slice(&(self.wire_history.len() as u64).to_le_bytes());
+        for (id, gen) in &self.wire_history {
+            out.extend_from_slice(id);
+            out.extend_from_slice(&gen.to_le_bytes());
+        }
+        out
+    }
+
+    /// Rebuild a registry from a [`ReplayNullifierRegistry::to_bytes`]
+    /// snapshot. Fail-closed: ANY structural defect (wrong magic or version,
+    /// truncation, misalignment, trailing bytes, duplicate records) is a
+    /// typed error, never a silent skip.
+    ///
+    /// # Errors
+    ///
+    /// * [`ReplayNullifierError::CorruptLedger`] — wrong magic, unsupported
+    ///   version, or duplicate nullifier/wire records.
+    /// * [`ReplayNullifierError::InvalidPersistenceStorage`] — truncated,
+    ///   misaligned, or trailing-byte payloads; oversized count fields.
+    pub fn load_from(bytes: &[u8]) -> Result<Self, ReplayNullifierError> {
+        // Lane R32 minimal unblock fix (disclosed): the variant constructor
+        // takes String, so bind the io-error path through a &str wrapper.
+        fn ERR_IO(s: &str) -> ReplayNullifierError {
+            ReplayNullifierError::InvalidPersistenceStorage(s.to_string())
+        }
+
+        if bytes.len() < SNAPSHOT_HEADER_LEN {
+            return Err(ERR_IO(&format!(
+                "snapshot truncated: {} bytes < header {SNAPSHOT_HEADER_LEN}",
+                bytes.len()
+            )));
+        }
+        if &bytes[0..4] != SNAPSHOT_MAGIC {
+            return Err(ReplayNullifierError::CorruptLedger(
+                "snapshot magic mismatch (expected AFRN)".to_string(),
+            ));
+        }
+        let version = u16::from_le_bytes(
+            bytes[4..6].try_into().expect("header bounds checked"),
+        );
+        if version != SNAPSHOT_VERSION {
+            return Err(ReplayNullifierError::CorruptLedger(format!(
+                "unsupported snapshot version {version}"
+            )));
+        }
+
+        let mut off = 8usize;
+        let read_u64 = |off: &mut usize| -> Result<u64, ReplayNullifierError> {
+            let end = off
+                .checked_add(8)
+                .ok_or_else(|| ERR_IO("offset overflow"))?;
+            if end > bytes.len() {
+                return Err(ERR_IO("snapshot truncated in integer field"));
+            }
+            let v = u64::from_le_bytes(bytes[*off..end].try_into().expect("bounds checked"));
+            *off = end;
+            Ok(v)
+        };
+        let read_key32 = |off: &mut usize| -> Result<[u8; 32], ReplayNullifierError> {
+            let end = off
+                .checked_add(NULLIFIER_SIZE)
+                .ok_or_else(|| ERR_IO("offset overflow"))?;
+            if end > bytes.len() {
+                return Err(ERR_IO("snapshot truncated in key field"));
+            }
+            let mut k = [0u8; 32];
+            k.copy_from_slice(&bytes[*off..end]);
+            *off = end;
+            Ok(k)
+        };
+
+        let window_capacity_u64 = read_u64(&mut off)?;
+        if window_capacity_u64 == 0 || window_capacity_u64 > usize::MAX as u64 {
+            return Err(ERR_IO(&format!(
+                "invalid window_capacity {window_capacity_u64}"
+            )));
+        }
+        // Rust target pointers are at most 2^61 bytes; anything above that is
+        // a count-field corruption, rejected before any allocation.
+        if window_capacity_u64 > (1 << 40) {
+            return Err(ERR_IO(&format!(
+                "implausible window_capacity {window_capacity_u64}"
+            )));
+        }
+        let window_capacity = window_capacity_u64 as usize;
+
+        let epoch_generation = read_u64(&mut off)?;
+        let epoch_key = read_key32(&mut off)?;
+        let identity_key = read_key32(&mut off)?;
+
+        let read_records32 = |off: &mut usize,
+                              count: u64,
+                              tagged: bool|
+         -> Result<Vec<([u8; 32], u64)>, ReplayNullifierError> {
+            // Reject count fields that cannot possibly fit in the payload
+            // before any allocation (bounds the u64 count to real bytes).
+            let record_len: u64 = if tagged { 40 } else { 32 };
+            if count > (bytes.len().saturating_sub(*off) as u64) / record_len {
+                return Err(ERR_IO(&format!(
+                    "snapshot truncated: record count {count} exceeds remaining bytes"
+                )));
+            }
+            let mut records = Vec::new();
+            for _ in 0..count {
+                let key = read_key32(off)?;
+                let gen = if tagged { read_u64(off)? } else { 0 };
+                records.push((key, gen));
+            }
+            Ok(records)
+        };
+
+        let dense_count = read_u64(&mut off)?;
+        let dense = read_records32(&mut off, dense_count, true)?;
+        let window_count = read_u64(&mut off)?;
+        let wire_window = read_records32(&mut off, window_count, false)?;
+        let history_count = read_u64(&mut off)?;
+        let wire_history = read_records32(&mut off, history_count, true)?;
+
+        if off != bytes.len() {
+            return Err(ERR_IO(&format!(
+                "snapshot has {} trailing bytes after final section",
+                bytes.len() - off
+            )));
+        }
+
+        let mut dense_cache = HashMap::with_capacity(dense.len());
+        for (n, gen) in dense {
+            if dense_cache.insert(n, gen).is_some() {
+                return Err(ReplayNullifierError::CorruptLedger(format!(
+                    "duplicate nullifier record {}",
+                    to_hex(&n)
+                )));
+            }
+        }
+        let nullifier_history = HashMap::new(); // retired nullifiers are rebuilt on next rotation
+        let mut wire_window_set = HashSet::with_capacity(wire_window.len());
+        for (id, _gen) in wire_window {
+            if !wire_window_set.insert(id) {
+                return Err(ReplayNullifierError::CorruptLedger(
+                    "duplicate wire-window record".to_string(),
+                ));
+            }
+        }
+        let mut wire_history_map = HashMap::with_capacity(wire_history.len());
+        for (id, gen) in wire_history {
+            if wire_window_set.contains(&id) {
+                return Err(ReplayNullifierError::CorruptLedger(format!(
+                    "wire identity {} present in both window and history",
+                    to_hex(&id)
+                )));
+            }
+            if wire_history_map.insert(id, gen).is_some() {
+                return Err(ReplayNullifierError::CorruptLedger(
+                    "duplicate wire-history record".to_string(),
+                ));
+            }
+        }
+
+        Ok(Self {
+            epoch_key,
+            identity_key,
+            epoch_generation,
+            bit_filter: SlidingBitFilter::new(window_capacity.max(64) * 8),
+            dense_cache,
+            nullifier_history,
+            wire_window: wire_window_set,
+            wire_history: wire_history_map,
+            window_capacity,
+        })
+    }
+}
+
+/// Hex-encode a 32-byte token for error messages.
+fn to_hex(bytes: &[u8; 32]) -> String {
+    let mut s = String::with_capacity(64);
+    for b in bytes {
+        let _ = write!(s, "{b:02x}");
+    }
+    s
+}
+
+/// Derive the rotation-stable wire-identity key from the construction epoch key.
+fn derive_identity_key(epoch_key: &EpochKey) -> EpochKey {
+    let mut hasher = blake3::Hasher::new_derive_key("affidavit/ctrt-wire-identity/v1");
+    hasher.update(epoch_key);
+    *hasher.finalize().as_bytes()
 }
 
 #[cfg(test)]
@@ -266,7 +686,7 @@ mod tests {
     }
 
     #[test]
-    fn test_epoch_rotation() {
+    fn test_epoch_rotation_refuses_cross_rotation_replay() {
         let key1 = [0x01; 32];
         let key2 = [0x02; 32];
         let mut registry = ReplayNullifierRegistry::new(key1, 100);
@@ -275,10 +695,57 @@ mod tests {
         assert!(registry.check_and_admit(receipt).is_ok());
         assert!(registry.check_and_admit(receipt).is_err());
 
-        // Rotate epoch
+        // Rotate epoch: the wire is retired into history at generation 0.
         registry.rotate_epoch(key2);
-        // In new epoch with new key, receipt has a different nullifier and cache is cleared
-        assert!(registry.check_and_admit(receipt).is_ok());
+        assert_eq!(registry.epoch_generation(), 1);
+
+        // SK5 falsifier fixed: the original wire MUST be refused after
+        // rotation, with the typed epoch-mismatch code.
+        let err = registry
+            .check_and_admit(receipt)
+            .expect_err("cross-rotation replay must be refused");
+        assert_eq!(err.machine_code(), CODE_REPLAY_EPOCH_MISMATCH);
+        assert!(matches!(
+            err,
+            ReplayNullifierError::ReplayEpochMismatch(_)
+        ));
+
+        // Fresh wires remain admissible in the new generation.
+        assert!(registry.check_and_admit(b"receipt-payload-v2").is_ok());
+    }
+
+    #[test]
+    fn test_capacity_rotation_refuses_cross_rotation_replay() {
+        let key = [0xaa; 32];
+        let capacity = 8;
+        let mut registry = ReplayNullifierRegistry::new(key, capacity);
+
+        let original = b"original-receipt-wire";
+        assert!(registry.check_and_admit(original).is_ok());
+
+        // Fill to capacity, then overflow to trigger a generation advance.
+        for i in 1..capacity {
+            let data = format!("filler_{i}");
+            assert!(registry.check_and_admit(data.as_bytes()).is_ok());
+        }
+        assert!(registry.check_and_admit(b"overflow-trigger").is_ok());
+        assert_eq!(registry.epoch_generation(), 1);
+
+        // The pre-rotation original is refused across the capacity rotation.
+        let err = registry
+            .check_and_admit(original)
+            .expect_err("post-eviction replay must be refused");
+        assert_eq!(err.machine_code(), CODE_REPLAY_EPOCH_MISMATCH);
+    }
+
+    #[test]
+    fn test_within_window_replay_still_refused_after_fix() {
+        let key = [0x07; 32];
+        let mut registry = ReplayNullifierRegistry::new(key, 100);
+        let wire = b"same-window-wire";
+        assert!(registry.check_and_admit(wire).is_ok());
+        let err = registry.check_and_admit(wire).unwrap_err();
+        assert_eq!(err.machine_code(), CODE_REPLAY_DETECTED);
     }
 
     #[test]
@@ -310,6 +777,9 @@ mod tests {
 
         let err3 = ReplayNullifierError::CorruptLedger("checksum mismatch".to_string());
         assert_eq!(err3.machine_code(), 0xE102);
+
+        let err4 = ReplayNullifierError::ReplayEpochMismatch("gen 0 vs gen 1".to_string());
+        assert_eq!(err4.machine_code(), 0xE103);
     }
 
     #[test]
@@ -338,11 +808,132 @@ mod tests {
         assert_eq!(registry.epoch_generation(), 1);
         assert_ne!(registry.epoch_key(), &key);
 
-        // Even though the old dense cache was cleared, the old receipt's nullifier
-        // under the OLD epoch key cannot be admitted directly under that old key, and
-        // under the rotated epoch key, check_and_admit computes a completely new nullifier.
-        // Furthermore, any replay attempt with the old nullifier cannot masquerade as valid.
         let n_new = compute_nullifier(registry.epoch_key(), initial_receipt);
         assert_ne!(n_orig, n_new, "Key rotation changes nullifier for previously seen receipt");
+
+        // And the retired wire is refused, not amnestied.
+        let err = registry.check_and_admit(initial_receipt).unwrap_err();
+        assert_eq!(err.machine_code(), CODE_REPLAY_EPOCH_MISMATCH);
+    }
+
+    #[test]
+    fn test_retired_nullifier_admit_refused_with_epoch_mismatch() {
+        let key = [0x0f; 32];
+        let mut registry = ReplayNullifierRegistry::new(key, 4);
+
+        let n = compute_nullifier(&key, b"direct-nullifier-wire");
+        assert!(registry.admit_nullifier(n).is_ok());
+
+        for i in 0..4 {
+            let f: Nullifier = {
+                let mut b = [0u8; 32];
+                b[0] = i;
+                b
+            };
+            assert!(registry.admit_nullifier(f).is_ok());
+        }
+        assert_eq!(registry.epoch_generation(), 1);
+        assert!(registry.nullifier_history_len() >= 1);
+
+        // Re-admitting the retired pre-rotation nullifier is a typed refusal.
+        let err = registry.admit_nullifier(n).unwrap_err();
+        assert_eq!(err.machine_code(), CODE_REPLAY_EPOCH_MISMATCH);
+    }
+
+    #[test]
+    fn test_snapshot_round_trip_preserves_replay_state() {
+        let key = [0x21; 32];
+        let mut registry = ReplayNullifierRegistry::new(key, 8);
+        let wire = b"round-trip-wire";
+        assert!(registry.check_and_admit(wire).is_ok());
+
+        let bytes = registry.to_bytes();
+        let mut restored = ReplayNullifierRegistry::load_from(&bytes).expect("round trip");
+        assert_eq!(restored.epoch_generation(), 0);
+        assert!(restored.wire_seen(wire));
+        assert!(restored.check_and_admit(wire).is_err());
+
+        // Round-trip through a rotation, too.
+        let mut rotated = ReplayNullifierRegistry::new(key, 8);
+        rotated.rotate_epoch([0x22; 32]);
+        assert!(rotated.check_and_admit(b"post-rotation-wire").is_ok());
+        let bytes = rotated.to_bytes();
+        let mut restored = ReplayNullifierRegistry::load_from(&bytes).expect("round trip");
+        assert_eq!(restored.epoch_generation(), 1);
+    }
+
+    #[test]
+    fn test_load_from_typed_errors() {
+        let mut registry = ReplayNullifierRegistry::new([0x31; 32], 8);
+        assert!(registry.check_and_admit(b"x-wire").is_ok());
+        let good = registry.to_bytes();
+
+        // Truncation -> InvalidPersistenceStorage
+        for cut in [0usize, 1, 40, SNAPSHOT_HEADER_LEN - 1, good.len() / 2] {
+            let err = ReplayNullifierRegistry::load_from(&good[..cut]).unwrap_err();
+            assert_eq!(
+                err.machine_code(),
+                CODE_PERSISTENCE,
+                "truncation at {cut} must be typed InvalidPersistenceStorage"
+            );
+            assert!(matches!(
+                err,
+                ReplayNullifierError::InvalidPersistenceStorage(_)
+            ));
+        }
+
+        // Truncation inside the record section -> InvalidPersistenceStorage
+        let err = ReplayNullifierRegistry::load_from(&good[..good.len() - 1]).unwrap_err();
+        assert!(matches!(
+            err,
+            ReplayNullifierError::InvalidPersistenceStorage(_)
+        ));
+
+        // Bad magic -> CorruptLedger
+        let mut bad_magic = good.clone();
+        bad_magic[0] = b'X';
+        let err = ReplayNullifierRegistry::load_from(&bad_magic).unwrap_err();
+        assert!(matches!(err, ReplayNullifierError::CorruptLedger(_)));
+
+        // Unsupported version -> CorruptLedger
+        let mut bad_version = good.clone();
+        bad_version[4] = 0x7F;
+        let err = ReplayNullifierRegistry::load_from(&bad_version).unwrap_err();
+        assert!(matches!(err, ReplayNullifierError::CorruptLedger(_)));
+
+        // Trailing bytes -> InvalidPersistenceStorage
+        let mut trailing = good.clone();
+        trailing.extend_from_slice(&[0u8; 3]);
+        let err = ReplayNullifierRegistry::load_from(&trailing).unwrap_err();
+        assert!(matches!(
+            err,
+            ReplayNullifierError::InvalidPersistenceStorage(_)
+        ));
+    }
+
+    #[test]
+    fn test_wire_identity_key_stable_across_rotation() {
+        let mut registry = ReplayNullifierRegistry::new([0x41; 32], 8);
+        let k0 = *registry.identity_key();
+        registry.rotate_epoch([0x42; 32]);
+        assert_eq!(k0, *registry.identity_key());
+    }
+
+    #[cfg(feature = "crypto-trust")]
+    #[test]
+    fn test_generated_epoch_key_is_entropy_not_constant() {
+        let r1 = ReplayNullifierRegistry::with_generated_key(64).expect("entropy");
+        let r2 = ReplayNullifierRegistry::with_generated_key(64).expect("entropy");
+        assert_ne!(r1.epoch_key(), r2.epoch_key(), "keys must draw from entropy");
+        assert_ne!(r1.epoch_key(), &[0u8; 32]);
+    }
+
+    #[cfg(feature = "crypto-trust")]
+    #[test]
+    fn test_generated_key_construction_refuses_replay_like_fixed_key() {
+        let mut r = ReplayNullifierRegistry::with_generated_key(64).expect("entropy");
+        let wire = b"entropy-construction-wire";
+        assert!(r.check_and_admit(wire).is_ok());
+        assert!(r.check_and_admit(wire).is_err());
     }
 }

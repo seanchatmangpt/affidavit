@@ -142,6 +142,12 @@ fn test_multithreaded_concurrent_access_and_epoch_rollover_races() {
                         let mut count = dup_counter.lock().unwrap();
                         *count += 1;
                     }
+                    // Cross-rotation wire replays are now refused with the
+                    // typed epoch-mismatch code (SK5 fix-forward, lane R31).
+                    Err(ReplayNullifierError::ReplayEpochMismatch(_)) => {
+                        let mut count = dup_counter.lock().unwrap();
+                        *count += 1;
+                    }
                     Err(e) => panic!("Unexpected error: {e}"),
                 }
             }
@@ -264,14 +270,18 @@ fn test_sliding_window_eviction_vulnerability_boundary_analysis() {
     let evictor_receipt = b"evictor_receipt";
     registry.check_and_admit(evictor_receipt).expect("evictor admit");
 
-    // SKEPTIC FINDING: target_receipt is now evicted and CAN BE REPLAYED within the SAME epoch!
+    // FIXED (SK5 fix-forward, lane R31): target_receipt was retired into the
+    // cross-epoch wire history at eviction, so its replay is REFUSED with the
+    // typed epoch-mismatch code — the former eviction amnesty is closed.
     let replay_after_eviction = registry.check_and_admit(target_receipt);
     println!(
         "Adversarial observation: Replay after capacity eviction result: {:?}",
         replay_after_eviction
     );
-    assert!(
-        replay_after_eviction.is_ok(),
-        "Eviction boundary causes replay vulnerability within the same epoch if window clears"
-    );
+    match replay_after_eviction {
+        Err(ReplayNullifierError::ReplayEpochMismatch(_)) => {}
+        other => panic!(
+            "Eviction-boundary replay must be refused as ReplayEpochMismatch, got: {other:?}"
+        ),
+    }
 }
