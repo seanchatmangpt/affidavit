@@ -59,10 +59,38 @@ pub type WireId = [u8; NULLIFIER_SIZE];
 /// Snapshot serialization format magic (`b"AFRN"`).
 const SNAPSHOT_MAGIC: &[u8; 4] = b"AFRN";
 /// Snapshot serialization format version.
-const SNAPSHOT_VERSION: u16 = 1;
+///
+/// v2 (this version) serializes `nullifier_history` — the retired-nullifier
+/// layer that enforces cross-generation refusal. v1 snapshots are REFUSED on
+/// load (fail-closed): a v1 snapshot silently dropped `nullifier_history`, so
+/// it cannot enforce epoch binding — see [`ReplayNullifierRegistry::load_from`].
+const SNAPSHOT_VERSION: u16 = 2;
 /// Fixed snapshot header size: magic(4) + version(2) + reserved(2)
 /// + window_capacity(8) + generation(8) + epoch_key(32) + identity_key(32).
 const SNAPSHOT_HEADER_LEN: usize = 4 + 2 + 2 + 8 + 8 + NULLIFIER_SIZE + NULLIFIER_SIZE;
+
+/// Length of the HMAC-BLAKE3 authentication tag prepended to a sealed
+/// snapshot ([`ReplayNullifierRegistry::seal`] /
+/// [`ReplayNullifierRegistry::unseal`]).
+pub const SNAPSHOT_MAC_LEN: usize = 32;
+
+/// Compute the HMAC-BLAKE3 tag over a snapshot body. BLAKE3 in keyed mode is
+/// a proper MAC (PRF); the key is a persistence-authentication key, distinct
+/// from both the epoch key and the wire-identity key.
+fn snapshot_mac(mac_key: &[u8; NULLIFIER_KEY_SIZE], body: &[u8]) -> [u8; NULLIFIER_SIZE] {
+    let mut hasher = blake3::Hasher::new_keyed(mac_key);
+    hasher.update(body);
+    *hasher.finalize().as_bytes()
+}
+
+/// Constant-time equality for 32-byte tags.
+fn tags_equal(a: &[u8; NULLIFIER_SIZE], b: &[u8; NULLIFIER_SIZE]) -> bool {
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
 
 /// Errors produced during nullifier evaluation and replay checks.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -425,21 +453,28 @@ impl ReplayNullifierRegistry {
         self.nullifier_history.len()
     }
 
-    /// Serialize the registry state to a fixed-structure byte snapshot.
+    /// Serialize the registry state to a fixed-structure byte snapshot (v2).
     ///
     /// Layout (all integers little-endian):
     /// `magic("AFRN") | version(u16) | reserved(u16) | window_capacity(u64)
     ///  | generation(u64) | epoch_key(32) | identity_key(32)
     ///  | nullifier_count(u64) | (nullifier(32) ++ generation(u64))*
     ///  | wire_window_count(u64) | wire_id(32)*
-    ///  | wire_history_count(u64) | (wire_id(32) ++ generation(u64))*`
+    ///  | wire_history_count(u64) | (wire_id(32) ++ generation(u64))*
+    ///  | nullifier_history_count(u64) | (nullifier(32) ++ generation(u64))*`
+    ///
+    /// v2 serializes `nullifier_history` (v1 dropped it, which broke
+    /// cross-generation refusal across process restarts — SX4). At-rest
+    /// authentication is provided by [`ReplayNullifierRegistry::seal`],
+    /// not by this method.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(
             SNAPSHOT_HEADER_LEN
                 + 8 + self.dense_cache.len() * (NULLIFIER_SIZE + 8)
                 + 8 + self.wire_window.len() * NULLIFIER_SIZE
-                + 8 + self.wire_history.len() * (NULLIFIER_SIZE + 8),
+                + 8 + self.wire_history.len() * (NULLIFIER_SIZE + 8)
+                + 8 + self.nullifier_history.len() * (NULLIFIER_SIZE + 8),
         );
         out.extend_from_slice(SNAPSHOT_MAGIC);
         out.extend_from_slice(&SNAPSHOT_VERSION.to_le_bytes());
@@ -465,7 +500,59 @@ impl ReplayNullifierRegistry {
             out.extend_from_slice(id);
             out.extend_from_slice(&gen.to_le_bytes());
         }
+
+        // v2: the retired-nullifier history (cross-generation refusal layer).
+        out.extend_from_slice(&(self.nullifier_history.len() as u64).to_le_bytes());
+        for (n, gen) in &self.nullifier_history {
+            out.extend_from_slice(n);
+            out.extend_from_slice(&gen.to_le_bytes());
+        }
         out
+    }
+
+    /// Seal the snapshot with an HMAC-BLAKE3 authentication tag:
+    /// `tag(32) ++ body`. The `mac_key` MUST be distinct from both the epoch
+    /// key and the wire-identity key.
+    #[must_use]
+    pub fn seal(&self, mac_key: &[u8; NULLIFIER_KEY_SIZE]) -> Vec<u8> {
+        let body = self.to_bytes();
+        let mut out = Vec::with_capacity(SNAPSHOT_MAC_LEN + body.len());
+        out.extend_from_slice(&snapshot_mac(mac_key, &body));
+        out.extend_from_slice(&body);
+        out
+    }
+
+    /// Open a [`ReplayNullifierRegistry::seal`]ed snapshot. Fail-closed:
+    /// * truncated envelope (below `tag + header`) →
+    ///   [`ReplayNullifierError::InvalidPersistenceStorage`]
+    /// * HMAC mismatch (forged or truncated body) →
+    ///   [`ReplayNullifierError::CorruptLedger`] (constant-time tag compare)
+    ///
+    /// # Errors
+    ///
+    /// Any structural defect in the sealed body surfaces as the typed error
+    /// from [`ReplayNullifierRegistry::load_from`].
+    pub fn unseal(
+        bytes: &[u8],
+        mac_key: &[u8; NULLIFIER_KEY_SIZE],
+    ) -> Result<Self, ReplayNullifierError> {
+        if bytes.len() < SNAPSHOT_MAC_LEN + SNAPSHOT_HEADER_LEN {
+            return Err(ReplayNullifierError::InvalidPersistenceStorage(format!(
+                "sealed snapshot truncated: {} bytes < tag {SNAPSHOT_MAC_LEN} + header {SNAPSHOT_HEADER_LEN}",
+                bytes.len()
+            )));
+        }
+        let (tag_bytes, body) = bytes.split_at(SNAPSHOT_MAC_LEN);
+        let mut tag = [0u8; NULLIFIER_SIZE];
+        tag.copy_from_slice(tag_bytes);
+        let expected = snapshot_mac(mac_key, body);
+        if !tags_equal(&expected, &tag) {
+            return Err(ReplayNullifierError::CorruptLedger(
+                "snapshot authentication failed (HMAC-BLAKE3 tag mismatch: forged or truncated)"
+                    .to_string(),
+            ));
+        }
+        Self::load_from(body)
     }
 
     /// Rebuild a registry from a [`ReplayNullifierRegistry::to_bytes`]
@@ -478,7 +565,8 @@ impl ReplayNullifierRegistry {
     /// * [`ReplayNullifierError::CorruptLedger`] — wrong magic, unsupported
     ///   version, or duplicate nullifier/wire records.
     /// * [`ReplayNullifierError::InvalidPersistenceStorage`] — truncated,
-    ///   misaligned, or trailing-byte payloads; oversized count fields.
+    ///   misaligned, or trailing-byte payloads; oversized count fields;
+    ///   v1 snapshots (cannot enforce epoch binding — refuse, regenerate).
     pub fn load_from(bytes: &[u8]) -> Result<Self, ReplayNullifierError> {
         // Lane R32 minimal unblock fix (disclosed): the variant constructor
         // takes String, so bind the io-error path through a &str wrapper.
@@ -500,6 +588,15 @@ impl ReplayNullifierRegistry {
         let version = u16::from_le_bytes(
             bytes[4..6].try_into().expect("header bounds checked"),
         );
+        if version == 1 {
+            // Fail-closed (SX4): v1 snapshots silently dropped
+            // nullifier_history, so a reloaded registry could not enforce
+            // cross-generation refusal. Refuse rather than re-admit.
+            return Err(ReplayNullifierError::InvalidPersistenceStorage(
+                "v1 snapshot cannot enforce epoch binding; regenerate"
+                    .to_string(),
+            ));
+        }
         if version != SNAPSHOT_VERSION {
             return Err(ReplayNullifierError::CorruptLedger(format!(
                 "unsupported snapshot version {version}"
@@ -577,6 +674,8 @@ impl ReplayNullifierRegistry {
         let wire_window = read_records32(&mut off, window_count, false)?;
         let history_count = read_u64(&mut off)?;
         let wire_history = read_records32(&mut off, history_count, true)?;
+        let nullifier_history_count = read_u64(&mut off)?;
+        let nullifier_history = read_records32(&mut off, nullifier_history_count, true)?;
 
         if off != bytes.len() {
             return Err(ERR_IO(&format!(
@@ -594,7 +693,20 @@ impl ReplayNullifierRegistry {
                 )));
             }
         }
-        let nullifier_history = HashMap::new(); // retired nullifiers are rebuilt on next rotation
+        let mut nullifier_history_map = HashMap::with_capacity(nullifier_history.len());
+        for (n, gen) in nullifier_history {
+            if dense_cache.contains_key(&n) {
+                return Err(ReplayNullifierError::CorruptLedger(format!(
+                    "nullifier {} present in both window and history",
+                    to_hex(&n)
+                )));
+            }
+            if nullifier_history_map.insert(n, gen).is_some() {
+                return Err(ReplayNullifierError::CorruptLedger(
+                    "duplicate nullifier-history record".to_string(),
+                ));
+            }
+        }
         let mut wire_window_set = HashSet::with_capacity(wire_window.len());
         for (id, _gen) in wire_window {
             if !wire_window_set.insert(id) {
@@ -618,13 +730,20 @@ impl ReplayNullifierRegistry {
             }
         }
 
+        // Rebuild the bit-filter screen from the restored live window so the
+        // fast path stays effective after a reload.
+        let mut bit_filter = SlidingBitFilter::new(window_capacity.max(64) * 8);
+        for n in dense_cache.keys() {
+            bit_filter.set(n);
+        }
+
         Ok(Self {
             epoch_key,
             identity_key,
             epoch_generation,
-            bit_filter: SlidingBitFilter::new(window_capacity.max(64) * 8),
+            bit_filter,
             dense_cache,
-            nullifier_history,
+            nullifier_history: nullifier_history_map,
             wire_window: wire_window_set,
             wire_history: wire_history_map,
             window_capacity,
@@ -909,6 +1028,77 @@ mod tests {
             err,
             ReplayNullifierError::InvalidPersistenceStorage(_)
         ));
+    }
+
+    #[test]
+    fn test_v1_snapshot_refused_fail_closed() {
+        // Hand-build a v1 (version field = 1) header over a valid v2 body
+        // shape: v1 must be refused, not silently accepted with an empty
+        // nullifier_history.
+        let mut registry = ReplayNullifierRegistry::new([0x77; 32], 8);
+        assert!(registry.check_and_admit(b"v1-wire").is_ok());
+        let mut v1 = registry.to_bytes();
+        v1[4] = 1; // version field: v1
+        let err = ReplayNullifierRegistry::load_from(&v1).unwrap_err();
+        assert!(matches!(
+            err,
+            ReplayNullifierError::InvalidPersistenceStorage(_)
+        ));
+        assert!(
+            err.to_string()
+                .contains("v1 snapshot cannot enforce epoch binding; regenerate"),
+            "v1 refusal must name the reason, got: {err}"
+        );
+    }
+
+    /// SX4-A: rotate → to_bytes/load_from → re-admit the pre-rotation wire
+    /// must REFUSE with 0xE103. The retired-nullifier layer must survive the
+    /// persistence round trip (v1 dropped it; v2 serializes it).
+    #[test]
+    fn test_sx4a_rotate_save_load_readmit_refused() {
+        let mut registry = ReplayNullifierRegistry::new([0x88; 32], 8);
+        let wire = b"sx4a-pre-rotation-wire";
+        assert!(registry.check_and_admit(wire).is_ok());
+        registry.rotate_epoch([0x89; 32]);
+        assert!(registry.nullifier_history_len() >= 1);
+
+        let bytes = registry.to_bytes();
+        let mut restored = ReplayNullifierRegistry::load_from(&bytes).expect("round trip");
+        assert_eq!(restored.nullifier_history_len(), registry.nullifier_history_len());
+        let err = restored
+            .check_and_admit(wire)
+            .expect_err("cross-generation replay after reload must be refused");
+        assert_eq!(err.machine_code(), CODE_REPLAY_EPOCH_MISMATCH);
+    }
+
+    /// SX4-E: a forged byte in the sealed snapshot body (here: a generation
+    /// byte in the wire-history section) must surface CorruptLedger via the
+    /// HMAC-BLAKE3 tag check — never silent acceptance.
+    #[test]
+    fn test_sx4e_forged_body_byte_is_corrupt_ledger() {
+        let mac_key = [0x5Eu8; 32];
+        let mut registry = ReplayNullifierRegistry::new([0x8A; 32], 8);
+        assert!(registry.check_and_admit(b"sx4e-wire").is_ok());
+        registry.rotate_epoch([0x8B; 32]);
+        let sealed = registry.seal(&mac_key);
+
+        // Forge a generation byte near the tail (wire-history/nullifier-history
+        // region) without re-tagging.
+        let mut forged = sealed.clone();
+        let last = forged.len() - 1;
+        forged[last] ^= 0x01;
+        let err = ReplayNullifierRegistry::unseal(&forged, &mac_key).unwrap_err();
+        assert!(matches!(err, ReplayNullifierError::CorruptLedger(_)));
+        assert_eq!(err.machine_code(), CODE_PERSISTENCE);
+
+        // A truncated body must also fail the authentication check.
+        let err = ReplayNullifierRegistry::unseal(&sealed[..sealed.len() - 1], &mac_key)
+            .unwrap_err();
+        assert!(matches!(err, ReplayNullifierError::CorruptLedger(_)));
+
+        // The honest sealed snapshot still round-trips and refuses replay.
+        let restored = ReplayNullifierRegistry::unseal(&sealed, &mac_key).expect("round trip");
+        assert!(restored.wire_seen(b"sx4e-wire"));
     }
 
     #[test]
