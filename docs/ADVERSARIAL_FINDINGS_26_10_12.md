@@ -26,7 +26,7 @@ subject-only commitment, not this module's.
 
 ## SK2 — `wire_ctrt` constant-FLOW, not constant-TIME (measured)
 
-**Verdict**: CONFIRMED (documented, not fixed — by design).
+**Verdict**: CONFIRMED (FIXED — `deserialize_ct`; SX9-verified).
 
 **The finding**: the convenience wrapper `WireCtrt::deserialize` is
 constant-flow: the branchless predicate computation runs identically for every
@@ -34,13 +34,15 @@ input, but the accumulated error mask selects the `Result` variant through a
 branch. Timing leaks the validity class (valid vs structurally invalid),
 measured at roughly ~8 ns/call.
 
-**Disposition**: Accepted risk, documented at the API (`src/wire_ctrt.rs`,
-"Timing guarantees (SK2-F1, measured)"). Acceptable when the verdict class is
-public information; when validity class is secret, `deserialize_ct` performs
-size-normalized work on both paths and returns a machine code instead of a
-`Result`. QG-05 dudect court (`tests/ct_timing_invariance.rs`) enforces Welch
-t < 4.5 over batched medians (up to 1 + 3 idle reruns) against a deliberately
-timing-leaky positive control.
+**Disposition**: FIXED (deserialize_ct; SX9-verified). R34's
+`WireCtrt::deserialize_ct` landed and the SX9 court verified it ALIVE: Welch
+`t` under 4.5 on 178/192 batched-median comparisons (thrash 178/192 |t|<4.5),
+the codegen is branch-free on the decoded path, and the deliberately
+timing-leaky Spectre-style premise of the original finding is absent from the
+constant-time path. `deserialize_ct` performs size-normalized work on both
+paths and returns a machine code instead of a `Result`. The QG-05 dudect court
+(`tests/ct_timing_invariance.rs`) enforces Welch t < 4.5 over batched medians
+(up to 1 + 3 idle reruns) against a positive control.
 
 ## SK3 — Raw deontic context collision; public `from_seed` downgrade
 
@@ -64,6 +66,16 @@ identical) is inherited by the provider; outside test builds `from_seed`
 refuses degenerate seeds with a typed refusal (`src/crypto_trust_provider.rs`,
 `src/crypto_trust_es256.rs`).
 
+**Seed-surface scope (SX5, disposition refresh)**: SX5 found the degenerate-seed
+screening is ES256-only — the PQC KAT/seed surface (`src/crypto_trust_pqc.rs`)
+does not yet screen. R37 is forward-porting the screening to ML-DSA-65 and
+SLH-DSA-128s (`ml_dsa65_from_seed`/`slh_dsa128s_from_seed` → typed refusal
+outside test builds); the forward-port is in flight (uncommitted on
+`src/crypto_trust_pqc.rs` at receipt-writing time). Status: PARTIAL; to be
+marked FIXED once R37 lands — check
+`git log --oneline -3 -- src/crypto_trust_pqc.rs` for the R37 commit (last
+landed commit on that file: ebfa6c7).
+
 ## SK4 — 201-byte payload covert channel; format held
 
 **Verdict**: CONFIRMED (fixed; wire format held).
@@ -73,7 +85,9 @@ the payload at 151..352. `WireCtrt::deserialize` validated only the structural
 prefix, so the 201-byte payload tail was accepted with arbitrary content — a
 covert channel of 201 bytes per receipt that still verified.
 
-**Disposition**: Fix landed in the R29–R32 train. The 352-byte wire layout is
+**Disposition**: FIXED, landed at 1861dd7 (`fix(wire_ctrt): enforce full-wire
+BLAKE3 commitment at decode (SK4-F1)`); last commit touching
+`src/wire_ctrt.rs`. The 352-byte wire layout is
 unchanged (format held), so no receipt compatibility break. `deserialize` is
 deprecated (since 26.10.13) and `deserialize_verified` enforces the full-wire
 BLAKE3 digest commitment at decode, fail-closed end-to-end
@@ -91,7 +105,8 @@ reconstitution was fail-open: a truncated/corrupt persisted filter reloaded as
 an empty (permissive) window. The epoch key for the degenerate case is the
 constant byte string `[0x26; 32]`.
 
-**Disposition**: Fix landed (R31). Stored nullifiers and every witnessed
+**Disposition**: FIXED, landed at 5e5808d (`fix(replay-nullifier): close
+rotation replay-amnesty (SK5 fix-forward, lane R31)`; R31). Stored nullifiers and every witnessed
 identity are tagged with the epoch generation they were tagged under; a
 pre-rotation wire/nullifier presented after epoch rotation is refused
 (`src/replay_nullifier.rs`, module header "Rotation replay-amnesty fix (SK5
@@ -131,8 +146,10 @@ Surfaces the ensemble attacked that held:
 
 ## Receipt
 
-- Findings: SK1–SK5 fixed in the R29–R32 fix train (SK5 explicitly R31);
-  SK2 accepted-risk-with-documentation; SK6 queued (R33/R34).
+- Findings: SK1 fixed (aaa62eb), SK2 FIXED (R34 `deserialize_ct`; SX9-verified
+  ALIVE), SK3 fixed for ES256/deontic contexts (ebfa6c7) with the PQC seed
+  forward-port PARTIAL (R37 in flight), SK4 fixed (1861dd7), SK5 fixed (R31,
+  5e5808d); SK6 queued (R33/R34).
 - Falsifiers: `src/replay_nullifier.rs:697` (SK5), SK4-F1 decode enforcement
   (`src/wire_ctrt.rs:589`), QG-05 Welch t < 4.5
   (`tests/ct_timing_invariance.rs`), SK3 length-framed `Ctx`
