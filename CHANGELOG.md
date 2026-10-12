@@ -2,6 +2,24 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.10.6] — 2026-10-11
+
+**Theme: Sovereign PQC modulus, 352B CTRT wire, zero-ambient ODB.** Tagged
+`v26.10.6`; crate version now aligned to the tag (was 26.10.5).
+
+### Added
+- **ctdd ledger verbs** in the PQC kernel: numeric error codes
+  (`0xE001`–`0xE409`) with deontic binding, exercised by the ledger-verb
+  courts (`eeda22b`).
+- **WASM-safe lib gating**: wasm-incompatible modules gated behind native-only
+  features so the lib target builds clean under `wasm32` targets.
+- **Machine-code registry**: numeric machine-code registry surface alongside
+  the named-op registry.
+- **STRATA-SPEC surface**: STRATA-SPEC conformance surface documented and
+  pinned.
+- **QG-01 / QG-05 gates**: QG-01 (imports==∅ for the wasm module) and QG-05
+  (dudect constant-time courts) landed in the qualification ladder.
+
 ## [26.9.30] — 2026-10-01
 
 **Theme: release-identity bump.** No behavioural change to the verifier or the
