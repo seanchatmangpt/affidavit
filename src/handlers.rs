@@ -131,6 +131,201 @@ fn print_json_or<F: FnOnce()>(
 // EMISSION CLUSTER
 // ============================================================================
 
+/// Hex-decode exactly 64 hex chars into a 32-byte digest, or None.
+fn decode_hex_32(s: &str) -> Option<[u8; 32]> {
+    if s.len() != 64 {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for (i, chunk) in s.as_bytes().chunks_exact(2).enumerate() {
+        let hi = (chunk[0] as char).to_digit(16)?;
+        let lo = (chunk[1] as char).to_digit(16)?;
+        out[i] = ((hi << 4) | lo) as u8;
+    }
+    Some(out)
+}
+
+/// Format a typed nullifier refusal with its machine code for the response
+/// envelope (e.g. `Anti-replay refusal [0xE103 ReplayEpochMismatch]: ...`).
+fn format_nullifier_refusal(e: crate::replay_nullifier::ReplayNullifierError) -> String {
+    format!(
+        "Anti-replay refusal [0x{:04X} {}]: {e}",
+        e.machine_code(),
+        match &e {
+            crate::replay_nullifier::ReplayNullifierError::ReplayDetected(_) => "ReplayDetected",
+            crate::replay_nullifier::ReplayNullifierError::InvalidPersistenceStorage(_) => {
+                "InvalidPersistenceStorage"
+            }
+            crate::replay_nullifier::ReplayNullifierError::CorruptLedger(_) => "CorruptLedger",
+            crate::replay_nullifier::ReplayNullifierError::ReplayEpochMismatch(_) => {
+                "ReplayEpochMismatch"
+            }
+        }
+    )
+}
+
+/// Load (or generate on first run) the snapshot-authentication key from
+/// `state_dir/nullifiers.key` (32 bytes, mode 0600 on unix). The key is
+/// distinct from the epoch key and the wire-identity key: it only ever
+/// authenticates the AFRN snapshot at rest.
+///
+/// Under `AFFI_NULLIFIER_DETERMINISTIC_KEY=1` a fixed compat key is returned
+/// so deterministic test subjects get stable sealed snapshots; like the
+/// deterministic epoch key it must never ship.
+fn load_or_create_nullifier_mac_key(
+    state_dir: &std::path::Path,
+) -> std::result::Result<[u8; 32], NounVerbError> {
+    let deterministic = std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY")
+        .is_some_and(|v| v == "1");
+    if deterministic {
+        return Ok([0x5Eu8; 32]);
+    }
+
+    let key_path = state_dir.join("nullifiers.key");
+    if key_path.exists() {
+        let bytes = std::fs::read(&key_path).map_err(|e| {
+            to_noun_verb(AffidavitError::Execution(format!(
+                "Anti-replay key file unreadable [0xE102 InvalidPersistenceStorage]: {e}"
+            )))
+        })?;
+        if bytes.len() != 32 {
+            return Err(to_noun_verb(AffidavitError::Execution(format!(
+                "Anti-replay key file malformed [0xE102 InvalidPersistenceStorage]: expected 32 bytes, got {}",
+                bytes.len()
+            ))));
+        }
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&bytes);
+        return Ok(key);
+    }
+
+    #[cfg(feature = "crypto-trust")]
+    let key: [u8; 32] = {
+        use rand_core::{OsRng, RngCore};
+        let mut k = [0u8; 32];
+        OsRng.fill_bytes(&mut k);
+        k
+    };
+    #[cfg(not(feature = "crypto-trust"))]
+    let key: [u8; 32] = blake3::hash(b"affidavit/nullifier-mac-key/no-crypto-trust").into();
+
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .mode(0o600)
+            .open(&key_path)
+            .map_err(|e| {
+                to_noun_verb(AffidavitError::Execution(format!(
+                    "Anti-replay key file unwritable [0xE102 InvalidPersistenceStorage]: {e}"
+                )))
+            })?;
+        f.write_all(&key).map_err(|e| {
+            to_noun_verb(AffidavitError::Execution(format!(
+                "Anti-replay key file write failed [0xE102 InvalidPersistenceStorage]: {e}"
+            )))
+        })?;
+    }
+    #[cfg(not(unix))]
+    std::fs::write(&key_path, &key).map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!(
+            "Anti-replay key file write failed [0xE102 InvalidPersistenceStorage]: {e}"
+        )))
+    })?;
+
+    Ok(key)
+}
+
+/// Load the nullifier registry from `state_dir/nullifiers.bin` (or start fresh
+/// if absent — lawful first run), enforce anti-replay on `wire` via
+/// `check_and_admit`, and persist the full registry snapshot back to disk.
+///
+/// Fail-closed: corrupt/truncated persistence surfaces typed
+/// [`crate::replay_nullifier::ReplayNullifierError::InvalidPersistenceStorage`]
+/// / [`crate::replay_nullifier::ReplayNullifierError::CorruptLedger`] errors;
+/// replay refusals surface with machine codes 0xE101/0xE103. Nothing is
+/// silently swallowed.
+fn emit_ctrt_nullifier_enforced(
+    wire: &[u8; 352],
+    state_dir: &std::path::Path,
+) -> std::result::Result<[u8; 32], NounVerbError> {
+    let nullifier_dir = state_dir;
+    std::fs::create_dir_all(nullifier_dir).map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!(
+            "Anti-replay persistence unavailable: {e}"
+        )))
+    })?;
+    let nullifier_path = nullifier_dir.join("nullifiers.bin");
+
+    // Epoch key: OS entropy via with_generated_key; the historical constant is
+    // kept only behind AFFI_NULLIFIER_DETERMINISTIC_KEY=1 (documented compat
+    // path for tests/determinism — must never ship).
+    let deterministic = std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY")
+        .is_some_and(|v| v == "1");
+    let mut registry = if deterministic {
+        crate::replay_nullifier::ReplayNullifierRegistry::new(
+            [0x26u8; 32],
+            10_000,
+        )
+    } else {
+        #[cfg(feature = "crypto-trust")]
+        {
+            crate::replay_nullifier::ReplayNullifierRegistry::with_generated_key(10_000)
+            .map_err(|e| to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e))))?
+        }
+        #[cfg(not(feature = "crypto-trust"))]
+        {
+            crate::replay_nullifier::ReplayNullifierRegistry::new([0x26u8; 32], 10_000)
+        }
+    };
+
+    // Snapshot authentication key: distinct from both the epoch key and the
+    // wire-identity key, file-persistent (`.affi/nullifiers.key`, mode 0600)
+    // so sealed snapshots remain loadable across runs.
+    let mac_key = load_or_create_nullifier_mac_key(nullifier_dir)?;
+
+    // Restore persisted state through the authenticated snapshot API.
+    // Missing file = fresh registry (lawful first run). Anything unreadable,
+    // unauthenticated (forged/truncated), or structurally corrupt fails
+    // closed with a typed error — nothing silently skipped.
+    if nullifier_path.exists() {
+        let bytes = std::fs::read(&nullifier_path).map_err(|e| {
+            to_noun_verb(AffidavitError::Execution(format!(
+                "Anti-replay persistence unreadable [0xE102 InvalidPersistenceStorage]: {e}"
+            )))
+        })?;
+        registry =
+            crate::replay_nullifier::ReplayNullifierRegistry::unseal(&bytes, &mac_key)
+                .map_err(|e| {
+                    to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e)))
+                })?;
+    }
+
+    let nullifier = registry
+        .check_and_admit(wire)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e))))?;
+
+    // Persist the HMAC-sealed typed snapshot (atomically via temp+rename);
+    // a failed persistence write is surfaced, never swallowed.
+    let snapshot = registry.seal(&mac_key);
+    let tmp_path = nullifier_dir.join("nullifiers.bin.tmp");
+    std::fs::write(&tmp_path, &snapshot).map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!(
+            "Anti-replay persistence write failed [0xE102 InvalidPersistenceStorage]: {e}"
+        )))
+    })?;
+    std::fs::rename(&tmp_path, &nullifier_path).map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!(
+            "Anti-replay persistence commit failed [0xE102 InvalidPersistenceStorage]: {e}"
+        )))
+    })?;
+
+    Ok(nullifier)
+}
+
 /// `affi receipt emit` — append one operation-event to the working receipt,
 /// or emit a 352B CTRT wire receipt with nullifier anti-replay enforcement.
 pub fn emit(r#type: String, object: String, payload: String, format: Option<String>) -> Result<()> {
@@ -156,38 +351,28 @@ pub fn emit(r#type: String, object: String, payload: String, format: Option<Stri
         );
         let wire = ctrt.serialize();
 
-        // Nullifier anti-replay enforcement
-        let nullifier_dir = std::path::Path::new(".affi");
-        let _ = std::fs::create_dir_all(nullifier_dir);
-        let nullifier_path = nullifier_dir.join("nullifiers.bin");
-        let epoch_key: [u8; 32] = [0x26u8; 32];
-        let mut registry = crate::replay_nullifier::ReplayNullifierRegistry::new(epoch_key, 10_000);
-
-        if nullifier_path.exists() {
-            if let Ok(existing) = std::fs::read(&nullifier_path) {
-                for chunk in existing.chunks_exact(32) {
-                    if let Ok(n) = chunk.try_into() {
-                        let _ = registry.admit_nullifier(n);
-                    }
-                }
-            }
-        }
-
-        let nullifier = registry.check_and_admit(&wire).map_err(|e| {
-            to_noun_verb(AffidavitError::Execution(format!("Anti-replay refusal: {e}")))
-        })?;
-
-        use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&nullifier_path)
-        {
-            let _ = f.write_all(&nullifier);
-        }
+        // Nullifier anti-replay enforcement (fail-closed):
+        // - missing snapshot file = fresh registry (lawful first run)
+        // - corrupt/truncated snapshot surfaces typed persistence errors
+        //   (InvalidPersistenceStorage / CorruptLedger) — never silently dropped
+        // - refusals surface to the caller with their machine code in the
+        //   response envelope (0xE101 ReplayDetected, 0xE103 ReplayEpochMismatch)
+        // - epoch key drawn from OS entropy (with_generated_key); the historical
+        //   constant key survives only behind the AFFI_NULLIFIER_DETERMINISTIC_KEY=1
+        //   compat path (documented, tests/determinism opt-in only — must not ship)
+        let nullifier =
+            emit_ctrt_nullifier_enforced(&wire, std::path::Path::new(".affi"))?;
 
         let out_path = format!("receipt_{}.ctrt", to_hex(&nullifier[..8]));
         std::fs::write(&out_path, &wire).map_err(io_err)?;
+        // Digest sidecar (SK4-F1 ingest threading): records the full-wire
+        // BLAKE3 digest at emission so the verify handler can decode through
+        // `deserialize_verified`. This is a co-located corruption-detection
+        // channel, NOT an authenticated/tamper-proof channel — an adversary
+        // who can rewrite the .ctrt can rewrite the sidecar. An adversarial
+        // tamper-evidence channel is UNSUPPORTED here and out of lane scope.
+        let sidecar_path = format!("{out_path}.digest");
+        std::fs::write(&sidecar_path, to_hex(&ctrt.digest())).map_err(io_err)?;
         outln!("emitted CTRT wire receipt -> {} (nullifier: {})", out_path, to_hex(&nullifier));
         return Ok(());
     }
@@ -572,7 +757,24 @@ pub fn verify(
     // Check if the file is a 352B CTRT wire receipt
     if let Ok(bytes) = std::fs::read(&receipt) {
         if bytes.len() == crate::wire_ctrt::CTRT_WIRE_SIZE && &bytes[0..4] == &crate::wire_ctrt::CTRT_MAGIC {
-            match crate::wire_ctrt::WireCtrt::deserialize(&bytes) {
+            // SK4-F1 digest threading: prefer `deserialize_verified` when a
+            // digest sidecar (<receipt>.digest, hex, written at emission) is
+            // available. The sidecar is a co-located corruption-detection
+            // channel, not an authenticated channel — tamper evidence would
+            // require a digest from an out-of-band trusted source (UNSUPPORTED
+            // in this call path). Without a sidecar there is genuinely no
+            // expected digest, so plain `deserialize` remains, acknowledging
+            // the deprecation and the SK4 finding: the payload tail
+            // (151..352) is NOT commitment-checked on this path.
+            let expected_digest: Option<[u8; 32]> = std::fs::read_to_string(format!("{receipt}.digest"))
+                .ok()
+                .and_then(|s| decode_hex_32(s.trim()));
+            let parse_result = match expected_digest {
+                Some(digest) => crate::wire_ctrt::WireCtrt::deserialize_verified(&bytes, &digest)
+                    .map_err(|e| e.to_string()),
+                None => crate::wire_ctrt::WireCtrt::deserialize(&bytes).map_err(|e| e.to_string()),
+            };
+            match parse_result {
                 Ok(wire_receipt) => {
                     let d = wire_receipt.digest();
                     if format.as_deref() == Some("json") {
@@ -8426,5 +8628,245 @@ mod ocel_quality_tests {
             3
         );
         assert_eq!(remediate_payload["causal_chain"][1]["files_changed"], 15);
+    }
+}
+
+#[cfg(test)]
+mod nullifier_handler_tests {
+    use super::*;
+
+    /// Tests mutate the process-global AFFI_NULLIFIER_DETERMINISTIC_KEY env var;
+    /// serialize them so parallel test threads cannot interleave.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    const WIRE_A: [u8; 352] = [0xA5u8; 352];
+    const WIRE_B: [u8; 352] = [0x5Au8; 352];
+
+    fn temp_state_dir(tag: &str) -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix(&format!("affi_r36_{tag}_"))
+            .tempdir()
+            .expect("tempdir")
+    }
+
+    fn set_deterministic_compat(on: bool) {
+        if on {
+            std::env::set_var("AFFI_NULLIFIER_DETERMINISTIC_KEY", "1");
+        } else {
+            std::env::remove_var("AFFI_NULLIFIER_DETERMINISTIC_KEY");
+        }
+    }
+
+    /// Run `f` with the deterministic compat key forced on, holding the env
+    /// lock for the whole body so parallel tests cannot interleave env writes.
+    fn with_deterministic_compat<T>(f: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        set_deterministic_compat(true);
+        let out = f();
+        set_deterministic_compat(false);
+        out
+    }
+
+    /// 1. First run: missing snapshot = fresh registry; admit succeeds; a typed
+    /// AFRN snapshot is persisted.
+    #[test]
+    fn test_emit_ctrt_first_run_fresh_registry_persists_snapshot() {
+        with_deterministic_compat(|| {
+        let dir = temp_state_dir("fresh");
+        set_deterministic_compat(true);
+        let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+        assert_ne!(n1, [0u8; 32]);
+        let bytes = std::fs::read(dir.path().join("nullifiers.bin")).expect("snapshot exists");
+        // Sealed envelope: HMAC-BLAKE3 tag(32) ++ body; body carries the AFRN
+        // typed snapshot header — not raw 32B nullifier appends.
+        assert!(
+            bytes.len() > 36 && &bytes[32..36] == b"AFRN",
+            "sealed snapshot = tag(32) ++ AFRN body, got {} bytes",
+            bytes.len()
+        );
+        });
+    }
+
+    /// 2. Persistence roundtrip through the handler path: second call with the
+    /// same wire is refused as ReplayDetected (0xE101) because the snapshot
+    /// restored the seen-wire state.
+    #[test]
+    fn test_emit_ctrt_replay_refused_across_handler_invocations() {
+        with_deterministic_compat(|| {
+        let dir = temp_state_dir("replay");
+        set_deterministic_compat(true);
+        emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+        let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
+            .expect_err("replay must be refused");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("0xE101") && msg.to_lowercase().contains("replaydetected"),
+            "envelope must carry the 0xE101 machine code, got: {msg}"
+        );
+        });
+    }
+
+    /// 3. Distinct wires admit independently across handler invocations
+    /// (roundtrip preserves distinctness).
+    #[test]
+    fn test_emit_ctrt_roundtrip_admits_distinct_wires() {
+        with_deterministic_compat(|| {
+        let dir = temp_state_dir("distinct");
+        set_deterministic_compat(true);
+        let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("A ok");
+        let n2 = emit_ctrt_nullifier_enforced(&WIRE_B, dir.path()).expect("B ok");
+        assert_ne!(n1, n2);
+        });
+    }
+
+    /// 4. Truncated snapshot fails CLOSED — the HMAC-BLAKE3 tag over the
+    /// truncated body no longer matches, surfacing CorruptLedger
+    /// (0xE102) in the envelope. The handler must never silently skip a
+    /// partial tail or start fresh.
+    #[test]
+    fn test_emit_ctrt_truncated_snapshot_fails_closed() {
+        with_deterministic_compat(|| {
+            let dir = temp_state_dir("trunc");
+            emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+            let path = dir.path().join("nullifiers.bin");
+            let bytes = std::fs::read(&path).expect("snapshot");
+            std::fs::write(&path, &bytes[..bytes.len() - 1]).expect("truncate");
+            let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
+                .expect_err("truncated persistence must fail closed");
+            let msg = err.to_string();
+            assert!(
+                msg.to_lowercase().contains("corruptledger"),
+                "truncation must fail the MAC check as CorruptLedger, got: {msg}"
+            );
+        });
+    }
+
+    /// 5. Corrupt magic fails CLOSED with CorruptLedger, not a fresh registry.
+    #[test]
+    fn test_emit_ctrt_corrupt_magic_fails_closed() {
+        with_deterministic_compat(|| {
+            let dir = temp_state_dir("corrupt");
+            emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+            let path = dir.path().join("nullifiers.bin");
+            let mut bytes = std::fs::read(&path).expect("snapshot");
+            bytes[0] = b'X';
+            std::fs::write(&path, &bytes).expect("corrupt magic");
+            let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
+                .expect_err("corrupt ledger must fail closed");
+            let msg = err.to_string();
+            assert!(
+                msg.to_lowercase().contains("corruptledger"),
+                "envelope must carry CorruptLedger, got: {msg}"
+            );
+        });
+    }
+
+    /// 6. The snapshot-authentication key file is created on first run,
+    /// mode 0600 on unix, 32 bytes, and reused (not regenerated) on later
+    /// runs — otherwise sealed snapshots from an earlier run would be
+    /// unloadable. Runs with the compat env OFF: the deterministic compat
+    /// path intentionally uses a constant MAC key and no keyfile.
+    #[test]
+    fn test_emit_ctrt_mac_keyfile_created_and_reused() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        set_deterministic_compat(false);
+        let dir = temp_state_dir("keyfile");
+        emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+        let key_path = dir.path().join("nullifiers.key");
+        let key1 = std::fs::read(&key_path).expect("key file exists after first run");
+        assert_eq!(key1.len(), 32, "MAC key is 32 bytes");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&key_path)
+                .expect("key metadata")
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600, "key file must be 0600, got {mode:o}");
+        }
+        emit_ctrt_nullifier_enforced(&WIRE_B, dir.path()).expect("second admit ok");
+        let key2 = std::fs::read(&key_path).expect("key still present");
+        assert_eq!(key1, key2, "key must be reused across runs, not regenerated");
+    }
+
+    /// 7. SX4-E at the handler boundary: a forged generation byte inside the
+    /// persisted snapshot (body tampered without re-tagging) must be refused
+    /// as CorruptLedger — the tampered snapshot must not silently load into a
+    /// fresh-permissive registry.
+    #[test]
+    fn test_emit_ctrt_forged_generation_byte_fails_closed() {
+        with_deterministic_compat(|| {
+            let dir = temp_state_dir("forge");
+            emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+            let path = dir.path().join("nullifiers.bin");
+            let mut bytes = std::fs::read(&path).expect("snapshot");
+            let last = bytes.len() - 1;
+            bytes[last] ^= 0x01; // forge a tail (history-section) byte
+            std::fs::write(&path, &bytes).expect("write forged snapshot");
+            let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
+                .expect_err("forged snapshot must fail closed");
+            let msg = err.to_string();
+            assert!(
+                msg.to_lowercase().contains("corruptledger"),
+                "forgery must surface CorruptLedger, got: {msg}"
+            );
+        });
+    }
+
+    /// 8. SX4-B: two handler invocations over the same wire in the same state
+    /// dir — the second must REFUSE with the typed replay code, because the
+    /// full registry state (dense + wire + histories) survives via the
+    /// authenticated snapshot.
+    #[test]
+    fn test_sx4b_two_handler_invocations_same_wire_refused() {
+        with_deterministic_compat(|| {
+            let dir = temp_state_dir("sx4b");
+            emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+            let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
+                .expect_err("second invocation must refuse");
+            assert_eq!(err.to_string().contains("0xE101"), true);
+        });
+    }
+}
+
+#[cfg(test)]
+mod ctrt_verify_digest_tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_hex_32_roundtrip() {
+        let d = [0x1Fu8; 32];
+        assert_eq!(decode_hex_32(&to_hex(&d)), Some(d));
+        assert_eq!(decode_hex_32("xyz"), None);
+        assert_eq!(decode_hex_32(&"ab".repeat(31)), None);
+    }
+
+    #[test]
+    fn test_verify_accepts_sidecar_digest_path() {
+        // Full wire digest committed at emission, verified through
+        // deserialize_verified when the sidecar is present.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let ctrt = crate::wire_ctrt::WireCtrt::new(
+            [1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32], 1, 1,
+            crate::wire_ctrt::VerdictStatus::Accepted, [0u8; crate::wire_ctrt::CTRT_PAYLOAD_SIZE],
+        );
+        let wire = ctrt.serialize();
+        let path = dir.path().join("receipt_x.ctrt");
+        std::fs::write(&path, &wire).expect("wire");
+        std::fs::write(dir.path().join("receipt_x.ctrt.digest"), to_hex(&ctrt.digest()))
+            .expect("sidecar");
+        let bytes = std::fs::read(&path).expect("read");
+        let digest = decode_hex_32(
+            std::fs::read_to_string(dir.path().join("receipt_x.ctrt.digest")).expect("read").trim(),
+        )
+        .expect("digest");
+        assert!(crate::wire_ctrt::WireCtrt::deserialize_verified(&bytes, &digest).is_ok());
+
+        // Flipped payload byte with the original sidecar digest -> 0xE005.
+        let mut tampered = wire;
+        tampered[200] ^= 0xFF;
+        let err = crate::wire_ctrt::WireCtrt::deserialize_verified(&tampered, &digest)
+            .expect_err("tampered wire must refuse");
+        assert_eq!(err.machine_code(), 0xE005);
     }
 }
