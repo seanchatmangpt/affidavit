@@ -15,7 +15,35 @@
 //! - `chain_hash = b.chain_hash` (the tip's chain hash — the linkage the next fold checks)
 //! - `run_id`, `timestamp_ms`, `name`, `prev_self_hash` = `b`'s (tip identity)
 //! - `total_ticks`, `wall_ms` = saturating sums
-//! - `outcome`, `thermal` = max (fail-closed); `budget_met` = AND; flags = OR
+//! - `outcome` = severity-ordered join (see the outcome lattice below); `thermal` = max;
+//!   `budget_met` = AND; flags = OR
+//!
+//! ## Outcome severity lattice (SX3-F1)
+//!
+//! The wire keeps small integer outcome tags, but the tags are NOT severity-ordered
+//! (`Fail = 1` while `Skip = 2`, so numeric `max` let a Skip mask a Fail). The fold
+//! therefore joins on an explicit severity rank:
+//!
+//! | outcome tag | meaning  | severity rank |
+//! |-------------|----------|---------------|
+//! | 0           | Pass     | 0 (lowest)    |
+//! | 2           | Skip     | 1             |
+//! | 3           | Error    | 2             |
+//! | 4           | Refused  | 3             |
+//! | 1           | Fail     | 4 (highest)   |
+//!
+//! `fold_outcome(a, b)` = the operand with the greater severity rank; on equal ranks it
+//! keeps `a` (the earlier/left operand). This is a join-semilattice on the rank order
+//! (max with left-biased ties), so the fold remains associative and the folded outcome
+//! is independent of grouping. `CtrtReceipt::from_bytes` refuses any outcome byte
+//! outside `0..=4` (`InvalidEnum`) so out-of-domain tags can never enter the lattice.
+//!
+//! ## Court identity is BYTE-rendered (SX3-F3)
+//!
+//! Court/receipt identity is the raw byte rendering of the name field. No Unicode
+//! normalization is applied: the NFC and NFD encodings of the same visual identity are
+//! DISTINCT courts by design (their BLAKE3 subject hashes differ — measured in SX3).
+//! Canonicalization is the issuer's duty, performed before encoding, never at fold time.
 //! - `subject_hash`, `metadata_digest`, `positive_control` = XOR accumulators
 //!   (associative combining; ordering/mandate enforcement lives in the linkage gate)
 //!
@@ -230,6 +258,12 @@ impl CtrtReceipt {
         let wall_ms = u64::from_le_bytes(body[B_WALL_MS..B_WALL_MS + 8].try_into().unwrap());
         let thermal = body[B_THERMAL];
         let outcome = body[B_OUTCOME];
+        if outcome > 4 {
+            return Err(TrajectoryFoldError::InvalidEnum {
+                field: "outcome",
+                found: outcome,
+            });
+        }
         let budget_met = match body[B_BUDGET] {
             0 => false,
             1 => true,
@@ -327,6 +361,34 @@ impl CtrtReceipt {
     }
 }
 
+/// Severity rank of an outcome tag (SX3-F1). Higher rank wins the fold join.
+///
+/// `Pass = 0 < Skip = 2 < Error = 3 < Refused = 4 < Fail = 1` — the wire tags are not
+/// severity-ordered (`Fail` is tag 1), so every comparison goes through this table.
+/// Domain is `0..=4`; enforced by `CtrtReceipt::from_bytes`.
+#[must_use]
+pub const fn outcome_severity(outcome: u8) -> u8 {
+    match outcome {
+        0 => 0, // Pass
+        1 => 4, // Fail (highest)
+        2 => 1, // Skip
+        3 => 2, // Error
+        _ => 3, // 4 => Refused
+    }
+}
+
+/// Severity-ordered outcome join: the operand with the greater severity rank; ties keep
+/// the earlier operand `a`. Associative (a max-semilattice on [`outcome_severity`] with
+/// left-biased ties).
+#[must_use]
+pub fn fold_outcome(a: u8, b: u8) -> u8 {
+    if outcome_severity(a) >= outcome_severity(b) {
+        a
+    } else {
+        b
+    }
+}
+
 /// Associative binary operator (R_A ⊕ R_B) for folding trajectory receipts.
 ///
 /// 1. Checks parent hash linkage: `b.parent_receipt_hash == a.chain_hash`
@@ -371,8 +433,9 @@ pub fn fold_receipts(a: &CtrtReceipt, b: &CtrtReceipt) -> Result<CtrtReceipt, Tr
         FLAG_FAIL_CLOSED
     };
 
-    // Outcome: worst-case / fail-closed propagation
-    let folded_outcome = a.outcome.max(b.outcome);
+    // Outcome: severity-ordered join (SX3-F1) — numeric max would let Skip (tag 2)
+    // mask Fail (tag 1).
+    let folded_outcome = fold_outcome(a.outcome, b.outcome);
     let folded_thermal = a.thermal.max(b.thermal);
     let folded_budget = a.budget_met && b.budget_met;
 
@@ -522,5 +585,78 @@ mod tests {
 
         let err_verdict = TrajectoryFoldError::IncompatibleVerdict;
         assert_eq!(err_verdict.machine_code(), 0xE202);
+    }
+
+    // ── SX3-F1: severity-ordered outcome fold ───────────────────────────────
+
+    fn with_outcome(mut r: CtrtReceipt, outcome: u8) -> CtrtReceipt {
+        r.outcome = outcome;
+        let encoded = r.encode().expect("valid encode");
+        r.chain_hash.copy_from_slice(&encoded[COURT_RECEIPT_V1_LEN..]);
+        r
+    }
+
+    #[test]
+    fn test_fail_does_not_mask_to_skip() {
+        // Fail (tag 1) folded with Skip (tag 2) must keep Fail: numeric max let
+        // Skip=2 mask Fail=1; the severity join must not.
+        let fail = with_outcome(create_test_receipt([0u8; 32], 12, 1, "fail_step"), 1);
+        let skip = with_outcome(create_test_receipt(fail.chain_hash, 13, 1, "skip_step"), 2);
+
+        let folded = fold_receipts(&fail, &skip).expect("fold");
+        assert_eq!(folded.outcome, 1, "Fail must survive the fold");
+
+        // The same chain with only a Skip outcome folds to a DIFFERENT receipt.
+        let skip_only_1 = with_outcome(create_test_receipt([0u8; 32], 12, 1, "fail_step"), 2);
+        let skip_only_2 = with_outcome(create_test_receipt(skip_only_1.chain_hash, 13, 1, "skip_step"), 2);
+        let folded_skip_only = fold_receipts(&skip_only_1, &skip_only_2).expect("fold");
+        assert_eq!(folded_skip_only.outcome, 2);
+        assert_ne!(folded, folded_skip_only);
+
+        // Full severity ranking of the join.
+        assert_eq!(fold_outcome(0, 2), 2); // Pass < Skip
+        assert_eq!(fold_outcome(2, 3), 3); // Skip < Error
+        assert_eq!(fold_outcome(3, 4), 4); // Error < Refused
+        assert_eq!(fold_outcome(4, 1), 1); // Refused < Fail
+        assert_eq!(fold_outcome(1, 0), 1); // Fail beats Pass
+        assert_eq!(fold_outcome(2, 2), 2); // tie keeps earlier
+    }
+
+    #[test]
+    fn test_from_bytes_outcome_out_of_domain_refuses() {
+        // encode() does not validate outcome, so the encoded wire is
+        // digest-consistent and the ONLY failing gate is the outcome domain check.
+        let r = with_outcome(create_test_receipt([0u8; 32], 5, 1, "bad_outcome"), 255);
+        let wire = r.encode().expect("encode");
+
+        let err = CtrtReceipt::from_bytes(&wire).expect_err("outcome 255 must refuse");
+        assert_eq!(
+            err,
+            TrajectoryFoldError::InvalidEnum {
+                field: "outcome",
+                found: 255
+            }
+        );
+    }
+
+    #[test]
+    fn test_fold_associative_severity_mixed_chain() {
+        // Severity-mixed 3-chain: Fail(1), Skip(2), Refused(4).
+        let r1 = with_outcome(create_test_receipt([0u8; 32], 100, 10, "s1"), 1);
+        let r2 = with_outcome(create_test_receipt(r1.chain_hash, 200, 20, "s2"), 2);
+        let r3 = with_outcome(create_test_receipt(r2.chain_hash, 300, 30, "s3"), 4);
+
+        let r12 = fold_receipts(&r1, &r2).expect("fold 1+2");
+        assert_eq!(r12.outcome, 1, "Fail survives first pair");
+        let lhs = fold_receipts(&r12, &r3).expect("fold (1+2)+3");
+
+        let r23 = fold_receipts(&r2, &r3).expect("fold 2+3");
+        assert_eq!(r23.outcome, 4, "Refused beats Skip in the suffix");
+        let rhs = fold_receipts(&r1, &r23).expect("fold 1+(2+3)");
+
+        assert_eq!(lhs, rhs, "associativity under severity-mixed outcomes");
+        assert_eq!(lhs.outcome, 1, "Fail is the severity maximum");
+        assert_eq!(lhs.total_ticks, 600);
+        assert_eq!(lhs.chain_hash, r3.chain_hash);
     }
 }

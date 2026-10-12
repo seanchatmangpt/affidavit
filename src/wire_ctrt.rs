@@ -15,6 +15,10 @@
 //! - elapsed_cycles: `u64 LE` (142..150)
 //! - verdict_status: `u8` (150)
 //! - payload & metadata: `[u8; 201]` (151..352)
+//!
+//! Court identity is BYTE-rendered: no Unicode normalization is applied, so NFC and
+//! NFD encodings of the same visual identity are distinct courts by design
+//! (SX3-F3); canonicalization is the issuer's duty before encoding.
 
 use thiserror::Error;
 
