@@ -23,7 +23,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use affidavit::crypto_trust_pqc::{ml_dsa65_from_seed, ml_dsa65_sign, ML_DSA_65_SEED_LEN};
-use affidavit::wire_ctrt::{WireCtrt, VerdictStatus, CTRT_PAYLOAD_SIZE, CTRT_WIRE_SIZE};
+use affidavit::wire_ctrt::{
+    deserialize_ct, VerdictStatus, WireCtrt, WireCtrtBody, CTRT_PAYLOAD_SIZE, CTRT_WIRE_SIZE,
+};
 
 /// Welch t pass threshold (same law as nato/timing.rs `T_THRESHOLD`).
 const T_THRESHOLD: f64 = 4.5;
@@ -238,29 +240,37 @@ impl MlDsaFixture {
 
 // --- Tests -----------------------------------------------------------------
 
-/// Court 1: `wire_ctrt::deserialize` must not leak the magic/verdict class.
+/// Court 1: the constant-time decode core `wire_ctrt::deserialize_ct` must
+/// not leak the magic/verdict validity class. Both classes perform identical
+/// work: all fields are copied into a caller-fixed-size `WireCtrtBody` and a
+/// machine code is returned instead of a size-varying `Result`.
 #[test]
 fn qg05_ctrt_deserialize_timing_invariance() {
     let samples = samples_from_env(100_000);
     let rec = ctrt_record(0);
     // Warmup: page in the hot path, pre-fault allocations.
+    let mut body = WireCtrtBody::default();
+    let mut code = 0u16;
     for _ in 0..2000 {
-        let a = WireCtrt::deserialize(&rec);
-        let b = WireCtrt::deserialize(&ctrt_class_input(1, 1));
-        std::hint::black_box((a.is_ok(), b.is_err()));
+        code ^= deserialize_ct(&mut body, &rec);
+        code ^= deserialize_ct(&mut body, &ctrt_class_input(1, 1));
+        std::hint::black_box((code, body.execution_ticks));
     }
 
+    // Each measurement call owns a fresh fixed-size `WireCtrtBody` (a plain
+    // Default struct — no allocation, same work per class), so the closure is
+    // `Clone` as `court` requires; previously it captured `&mut body`, which
+    // is not Clone (E0277). dudect methodology unchanged.
     let attempts = court(samples, 64, |class| {
+        let mut body = WireCtrtBody::default();
         let bytes = ctrt_class_input(class, 0);
-        match WireCtrt::deserialize(&bytes) {
-            Ok(c) => c.execution_ticks,
-            Err(_) => 0xDEAD_BEEF,
-        }
+        let code = deserialize_ct(&mut body, &bytes);
+        u64::from(code) | body.execution_ticks
     });
     let t = *attempts.last().expect("at least one attempt");
     assert!(
         passes(t),
-        "QG-05 FAIL: wire_ctrt::deserialize leaks timing class (attempts {:?})",
+        "QG-05 FAIL: wire_ctrt::deserialize_ct leaks timing class (attempts {:?})",
         attempts
     );
 }
@@ -270,7 +280,7 @@ fn qg05_ctrt_deserialize_timing_invariance() {
 fn qg05_ml_dsa65_sign_timing_invariance() {
     let samples = samples_from_env(100_000);
     let fx = MlDsaFixture::new();
-    let kp = ml_dsa65_from_seed(&fx.seed);
+    let kp = ml_dsa65_from_seed(&fx.seed).expect("pqc fixture key pair");
     let subj0 = [0xA5u8; 32];
     let subj1 = {
         let mut s = [0x5Au8; 32];
