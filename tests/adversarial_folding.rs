@@ -1,5 +1,6 @@
 use affidavit::trajectory_folding::{
-    fold_receipts, CtrtReceipt, TrajectoryFoldError, COURT_RECORD_LEN, COURT_RECEIPT_V1_LEN,
+    fold_outcome, fold_receipts, CtrtReceipt, TrajectoryFoldError, COURT_RECORD_LEN,
+    COURT_RECEIPT_V1_LEN,
 };
 
 fn create_receipt(
@@ -69,9 +70,43 @@ fn test_monoidal_associativity_ticks_wall_and_properties() {
     assert_eq!(wall_ab_c, wall_a_bc);
     assert_eq!(wall_ab_c, 120);
 
-    // 3. Outcomes (semilattice max): max(max(0, 1), 2) == max(0, max(1, 2))
-    assert_eq!(r_ab.outcome.max(r_c.outcome), r_a.outcome.max(r_bc.outcome));
-    assert_eq!(r_ab.outcome.max(r_c.outcome), 2);
+    // 3. Outcomes (severity-ordered join, SX3-F1): the numeric wire tags are not
+    //    severity-ordered (Fail = tag 1 outranks Skip = tag 2), so the join is
+    //    `fold_outcome`, not `u8::max`. A=Pass(0), B=Fail(1), C=Skip(2):
+    //    join(join(0,1),2) == join(0,join(1,2)) == Fail (1) — Fail masks Skip.
+    assert_eq!(
+        fold_outcome(r_ab.outcome, r_c.outcome),
+        fold_outcome(r_a.outcome, r_bc.outcome)
+    );
+    assert_eq!(fold_outcome(r_ab.outcome, r_c.outcome), 1);
+
+    // 6. Full-field associativity of the fold operator itself (R29 law): the folded
+    //    receipt is the root-anchored summary speaking for the chain tip, so
+    //    (A ⊕ B) ⊕ C == A ⊕ (B ⊕ C) must hold on EVERY field, not just accumulators.
+    let ab_c = fold_receipts(&r_ab, &r_c).expect("fold (A⊕B)⊕C");
+    let a_bc = fold_receipts(&r_a, &r_bc).expect("fold A⊕(B⊕C)");
+    assert_eq!(ab_c.flags, a_bc.flags);
+    assert_eq!(ab_c.subject_hash, a_bc.subject_hash);
+    assert_eq!(ab_c.parent_receipt_hash, a_bc.parent_receipt_hash);
+    assert_eq!(ab_c.timestamp_ms, a_bc.timestamp_ms);
+    assert_eq!(ab_c.run_id, a_bc.run_id);
+    assert_eq!(ab_c.total_ticks, a_bc.total_ticks);
+    assert_eq!(ab_c.wall_ms, a_bc.wall_ms);
+    assert_eq!(ab_c.thermal, a_bc.thermal);
+    assert_eq!(ab_c.outcome, a_bc.outcome);
+    assert_eq!(ab_c.budget_met, a_bc.budget_met);
+    assert_eq!(ab_c.positive_control, a_bc.positive_control);
+    assert_eq!(ab_c.metadata_digest, a_bc.metadata_digest);
+    assert_eq!(ab_c.prev_self_hash, a_bc.prev_self_hash);
+    assert_eq!(ab_c.name, a_bc.name);
+    assert_eq!(ab_c.chain_hash, a_bc.chain_hash);
+    // Root-anchored, tip-speaking: parent from A, chain from C.
+    assert_eq!(ab_c.parent_receipt_hash, r_a.parent_receipt_hash);
+    assert_eq!(ab_c.chain_hash, r_c.chain_hash);
+    // Tip-derived identity fields come from C, not concatenations.
+    assert_eq!(ab_c.name, r_c.name);
+    assert_eq!(ab_c.run_id, r_c.run_id);
+    assert_eq!(ab_c.timestamp_ms, r_c.timestamp_ms);
 
     // 4. Budget met (boolean conjunction): (true && true) && false == true && (true && false)
     assert_eq!(r_ab.budget_met && r_c.budget_met, r_a.budget_met && r_bc.budget_met);
