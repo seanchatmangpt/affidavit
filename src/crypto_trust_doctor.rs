@@ -285,7 +285,16 @@ pub fn pqc_selftest_finding() -> Finding {
     let seed = doctor_fixture("ml-dsa-65-seed");
     let msg = doctor_fixture("ml-dsa-65-message");
     let rnd = doctor_fixture("ml-dsa-65-rnd");
-    let key = ml_dsa65_from_seed(&seed);
+    let key = match ml_dsa65_from_seed(&seed) {
+        Ok(k) => k,
+        Err(e) => {
+            return Finding::fail(
+                PQC_SELFTEST_CHECK_ID,
+                format!("ML-DSA-65 self-test key derivation refused: {e}"),
+                "The crypto-trust feature is compromised or miscompiled; do not trust plane signatures until resolved",
+            )
+        }
+    };
     match ml_dsa65_sign(&seed, &msg, &rnd) {
         Ok(sig) => {
             // Round-trip: the exact (message, signature) pair must verify.

@@ -55,8 +55,8 @@ fn test_deontic_context_string_construction_canonical() {
 
 #[test]
 fn test_deontic_signature_validation_with_matching_context() {
-    let seed = [0xA5u8; ML_DSA_65_SEED_LEN];
-    let kp = ml_dsa65_from_seed(&seed);
+    let seed = ndseed(0xA5, ML_DSA_65_SEED_LEN);
+    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
     let msg = b"STRATA sovereign covenant receipt: deontic obligation certified";
 
     let context = DeonticContext::new("DEFENSE-ZONE-PACIFIC", [0x42u8; 32], 9901);
@@ -84,8 +84,8 @@ fn test_deontic_signature_validation_with_matching_context() {
 
 #[test]
 fn test_deontic_fail_closed_rejection_on_mismatched_jurisdiction() {
-    let seed = [0xB2u8; ML_DSA_65_SEED_LEN];
-    let kp = ml_dsa65_from_seed(&seed);
+    let seed = ndseed(0xB2, ML_DSA_65_SEED_LEN);
+    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
     let msg = b"classified payload scoped strictly to JURISDICTION-FED";
 
     let auth_context = DeonticContext::new("JURISDICTION-FED", [0x77u8; 32], 123);
@@ -103,8 +103,8 @@ fn test_deontic_fail_closed_rejection_on_mismatched_jurisdiction() {
 
 #[test]
 fn test_deontic_fail_closed_rejection_on_mismatched_constraint_hash() {
-    let seed = [0xC3u8; ML_DSA_65_SEED_LEN];
-    let kp = ml_dsa65_from_seed(&seed);
+    let seed = ndseed(0xC3, ML_DSA_65_SEED_LEN);
+    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
     let msg = b"payload subject to specific constraint hash set";
 
     let auth_hash = [0x55u8; 32];
@@ -133,8 +133,8 @@ fn test_deontic_fail_closed_rejection_on_mismatched_constraint_hash() {
 
 #[test]
 fn test_deontic_fail_closed_rejection_on_mismatched_epoch() {
-    let seed = [0xD4u8; ML_DSA_65_SEED_LEN];
-    let kp = ml_dsa65_from_seed(&seed);
+    let seed = ndseed(0xD4, ML_DSA_65_SEED_LEN);
+    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
     let msg = b"lease-bounded authorization ticket";
 
     let epoch_initial = 1_000_000u64;
@@ -164,8 +164,8 @@ fn test_deontic_fail_closed_rejection_on_mismatched_epoch() {
 
 #[test]
 fn test_deontic_fail_closed_rejection_on_corrupted_signature() {
-    let seed = [0xE5u8; ML_DSA_65_SEED_LEN];
-    let kp = ml_dsa65_from_seed(&seed);
+    let seed = ndseed(0xE5, ML_DSA_65_SEED_LEN);
+    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
     let msg = b"signature corruption detection probe";
 
     let context = DeonticContext::new("JURISDICTION-PROOF", [0x88u8; 32], 77);
@@ -182,8 +182,8 @@ fn test_deontic_fail_closed_rejection_on_corrupted_signature() {
 
 #[test]
 fn test_deontic_fail_closed_rejection_on_corrupted_message() {
-    let seed = [0xF6u8; ML_DSA_65_SEED_LEN];
-    let kp = ml_dsa65_from_seed(&seed);
+    let seed = ndseed(0xF6, ML_DSA_65_SEED_LEN);
+    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
     let msg = b"authentic original message";
 
     let context = DeonticContext::new("JURISDICTION-TAMPER", [0x99u8; 32], 88);
@@ -250,4 +250,17 @@ fn test_deontic_enforce_context_match_all_fields() {
     // Epoch mismatch
     let c_diff_e = DeonticContext::new("ALPHA", [0x01; 32], 11);
     assert_eq!(enforce_deontic_context_match(&c1, &c_diff_e).unwrap_err().machine_code(), 0xE301);
+}
+
+/// SX5-F2 un-degenerated fixture seed: `b` repeated, with the first byte
+/// perturbed so the seed escapes the degenerate-seed refused set (all-same-
+/// byte or all-but-one-byte). No extra entropy claim: still a fixed fixture.
+#[allow(dead_code)]
+fn ndseed<const N: usize>(b: u8, _n: usize) -> [u8; N] {
+    let mut s = [b; N];
+    s[0] ^= 0x80;
+    if b == 0 {
+        s[1] = 1;
+    }
+    s
 }

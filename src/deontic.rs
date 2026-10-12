@@ -486,7 +486,7 @@ mod tests {
         // Cross-verification under the framed contexts must REFUSE: sign
         // under framed A, verify under framed B.
         let seed = [0x77u8; ML_DSA_65_SEED_LEN];
-        let kp = ml_dsa65_from_seed(&seed);
+        let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
         let msg = b"sk3 collision repro";
         let sig = sign_with_context_raw(&kp.seed, msg, &ctx_a).expect("sign under framed A");
         let res = verify_with_deontic_context_raw(&kp.public, msg, &sig, &ctx_b);
@@ -497,7 +497,7 @@ mod tests {
     #[test]
     fn test_signature_validation_with_matching_context() {
         let seed = [0x33u8; ML_DSA_65_SEED_LEN];
-        let kp = ml_dsa65_from_seed(&seed);
+        let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
         let msg = b"certified sovereign transaction log entry";
 
         let context = DeonticContext::new("GLOBAL-DEFENSE-ZONE", [0x7Cu8; 32], 888);
@@ -514,7 +514,7 @@ mod tests {
     #[test]
     fn test_fail_closed_rejection_on_mismatched_jurisdiction() {
         let seed = [0x44u8; ML_DSA_65_SEED_LEN];
-        let kp = ml_dsa65_from_seed(&seed);
+        let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
         let msg = b"payload to test jurisdiction domain separation";
 
         let sign_context = DeonticContext::new("JURISDICTION-ALPHA", [0xAAu8; 32], 500);
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn test_fail_closed_rejection_on_mismatched_constraint_hash() {
         let seed = [0x55u8; ML_DSA_65_SEED_LEN];
-        let kp = ml_dsa65_from_seed(&seed);
+        let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
         let msg = b"payload to test deontic constraint hash domain separation";
 
         let hash_a = [0x11u8; 32];
@@ -556,7 +556,7 @@ mod tests {
     #[test]
     fn test_fail_closed_rejection_on_mismatched_epoch() {
         let seed = [0x66u8; ML_DSA_65_SEED_LEN];
-        let kp = ml_dsa65_from_seed(&seed);
+        let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
         let msg = b"payload to test lease epoch domain separation";
 
         let sign_context = DeonticContext::new("JURISDICTION-SHARED", [0x99u8; 32], 100);

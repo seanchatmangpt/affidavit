@@ -99,7 +99,7 @@ fn envelope_for(record: &KeyRecord, profile: CryptoProfile, nonce: [u8; 16]) -> 
 
 #[test]
 fn crypto_trust_mutation_court_engine_accessors_surface_registered_state() {
-    let signing = Es256SigningKey::from_seed(&[0x11u8; 32]).expect("valid scalar seed");
+    let signing = Es256SigningKey::from_seed(&ndseed(0x11, 32)).expect("valid scalar seed");
     let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
     let record = record_for(SUBJECT, AlgorithmId::Es256, public);
     let mut engine = engine_with(record.clone());
@@ -134,8 +134,8 @@ fn crypto_trust_mutation_court_every_admitted_algorithm_verifies_its_own_signatu
     };
 
     // -- ML-DSA-65 --
-    let mldsa_seed = [0xA5u8; ML_DSA_65_SEED_LEN];
-    let mldsa_kp = ml_dsa65_from_seed(&mldsa_seed);
+    let mldsa_seed = ndseed(0xA5, ML_DSA_65_SEED_LEN);
+    let mldsa_kp = ml_dsa65_from_seed(&mldsa_seed).expect("pqc fixture key pair");
     let mldsa_record = record_for(
         SUBJECT,
         AlgorithmId::MlDsa65,
@@ -150,8 +150,8 @@ fn crypto_trust_mutation_court_every_admitted_algorithm_verifies_its_own_signatu
     assert_eq!(verdict.standing, CryptographicStanding::Valid);
 
     // -- SLH-DSA-SHA2-128s --
-    let slh_seeds = [0x5Au8; SLH_DSA_128S_SEED_LEN];
-    let slh_kp = slh_dsa128s_from_seed(&slh_seeds);
+    let slh_seeds = ndseed(0x5A, SLH_DSA_128S_SEED_LEN);
+    let slh_kp = slh_dsa128s_from_seed(&slh_seeds).expect("pqc fixture key pair");
     let slh_record = record_for(
         SUBJECT,
         AlgorithmId::SlhDsa128s,
@@ -167,11 +167,11 @@ fn crypto_trust_mutation_court_every_admitted_algorithm_verifies_its_own_signatu
 
     // -- Hybrid ES256 + ML-DSA-65 (signature is JSON of both halves) --
     let hybrid = HybridSecret {
-        es256: Es256SigningKey::from_seed(&[0x77u8; 32]).expect("valid p256 scalar"),
+        es256: Es256SigningKey::from_seed(&ndseed(0x77, 32)).expect("valid p256 scalar"),
         mldsa65_seed: [0x66u8; ML_DSA_65_SEED_LEN],
     };
     let es256_public = hybrid.es256.public_key_sec1();
-    let mldsa_public = ml_dsa65_from_seed(&hybrid.mldsa65_seed).public;
+    let mldsa_public = ml_dsa65_from_seed(&hybrid.mldsa65_seed).expect("pqc fixture key pair").public;
     let hybrid_record = record_for(
         SUBJECT,
         AlgorithmId::HybridEs256MlDsa65,
@@ -271,4 +271,17 @@ fn crypto_trust_mutation_court_linkage_refuses_a_foreign_envelope_commitment() {
         }
         other => panic!("commitment tamper must refuse, got {other:?}"),
     }
+}
+
+/// SX5-F2 un-degenerated fixture seed: `b` repeated, with the first byte
+/// perturbed so the seed escapes the degenerate-seed refused set (all-same-
+/// byte or all-but-one-byte). No extra entropy claim: still a fixed fixture.
+#[allow(dead_code)]
+fn ndseed<const N: usize>(b: u8, _n: usize) -> [u8; N] {
+    let mut s = [b; N];
+    s[0] ^= 0x80;
+    if b == 0 {
+        s[1] = 1;
+    }
+    s
 }

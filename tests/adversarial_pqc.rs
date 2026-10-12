@@ -267,8 +267,8 @@ fn test_x_wing_cross_protocol_key_injection() {
 
 #[test]
 fn test_ml_dsa_65_1bit_perturbed_wire_token_sweep() {
-    let seed = [0x42u8; ML_DSA_65_SEED_LEN];
-    let kp = ml_dsa65_from_seed(&seed);
+    let seed = ndseed(0x42, ML_DSA_65_SEED_LEN);
+    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
     let msg = b"fips-204-ml-dsa-65-adversarial-test-payload";
     let rnd = [0x19u8; 32];
 
@@ -335,8 +335,8 @@ fn test_ml_dsa_65_1bit_perturbed_wire_token_sweep() {
 
 #[test]
 fn test_slh_dsa_128s_1bit_perturbed_wire_token_sweep() {
-    let seeds = [0x7Bu8; SLH_DSA_128S_SEED_LEN];
-    let kp = slh_dsa128s_from_seed(&seeds);
+    let seeds = ndseed(0x7B, SLH_DSA_128S_SEED_LEN);
+    let kp = slh_dsa128s_from_seed(&seeds).expect("pqc fixture key pair");
     let msg = b"fips-205-slh-dsa-128s-adversarial-test-payload";
 
     let sig = slh_dsa128s_sign(&kp.seeds, msg).expect("honest signing");
@@ -412,8 +412,8 @@ fn test_adversarial_pqc_deontic_context_binding_and_machine_codes() {
         CODE_ML_KEM_DECAPSULATION_FAILURE,
     };
 
-    let seed = [0x99u8; ML_DSA_65_SEED_LEN];
-    let kp = ml_dsa65_from_seed(&seed);
+    let seed = ndseed(0x99, ML_DSA_65_SEED_LEN);
+    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
     let msg = b"adversarial pqc deontic binding test message";
     let ctx = DeonticContext::new("DEFENSE-SPEC-01", [0x7Au8; 32], 2026);
 
@@ -435,4 +435,17 @@ fn test_adversarial_pqc_deontic_context_binding_and_machine_codes() {
     let oracle_err = verify_formal_oracle_consensus(true, false).unwrap_err();
     assert_eq!(oracle_err.machine_code(), CODE_FORMAL_ORACLE_DIVERGENCE);
     assert_eq!(CODE_FORMAL_ORACLE_DIVERGENCE, 0xE303);
+}
+
+/// SX5-F2 un-degenerated fixture seed: `b` repeated, with the first byte
+/// perturbed so the seed escapes the degenerate-seed refused set (all-same-
+/// byte or all-but-one-byte). No extra entropy claim: still a fixed fixture.
+#[allow(dead_code)]
+fn ndseed<const N: usize>(b: u8, _n: usize) -> [u8; N] {
+    let mut s = [b; N];
+    s[0] ^= 0x80;
+    if b == 0 {
+        s[1] = 1;
+    }
+    s
 }

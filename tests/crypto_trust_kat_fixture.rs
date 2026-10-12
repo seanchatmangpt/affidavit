@@ -27,15 +27,36 @@
 //! message chain in pure Python (BLAKE3 + the domain-separated layout) and
 //! verifies the ES256 signatures and public-key derivations with the system
 //! openssl.
+//!
+//! # Why the derivation chain is re-derived here
+//!
+//! `src/crypto_trust_kat.rs` gates its seed-derivation helpers
+//! (`generate_corpus`, `build_vector`, `kat_seed32`, ...) behind
+//! `#[cfg(test)]` — test key material is deliberately not shipped in the
+//! public API. Integration test targets compile the library *without*
+//! `cfg(test)`, so this suite cannot call `generate_corpus` directly.
+//! Instead it carries a local, independent re-derivation of the exact chain
+//! (same domain-separated digest layout, same provider calls), cited per
+//! item to its source in `src/crypto_trust_kat.rs`. This is the same role
+//! the Python verifier plays: a second derivation identity whose disagreement
+//! with the committed fixture fires the
+//! `regeneration_reproduces_committed_fixture` drift tripwire.
 
 use std::fs;
 use std::path::PathBuf;
 
-use affidavit::crypto_trust_canonical::{jcs, DOMAIN_TAG, ENVELOPE_VERSION};
+use affidavit::crypto_trust_canonical::{digest, jcs, DOMAIN_TAG, ENVELOPE_VERSION};
+use affidavit::crypto_trust_es256::Es256SigningKey;
 use affidavit::crypto_trust_kat::{
-    export_json, generate_corpus, import_json, verify_corpus, KAT_ALGORITHM_REGISTRY,
-    KAT_DOMAIN_TAG, KAT_ENVELOPE_VERSION, KAT_SCHEMA_VERSION,
+    export_json, import_json, verify_corpus, KatVector, KAT_ALGORITHM_REGISTRY, KAT_DOMAIN_TAG,
+    KAT_ENVELOPE_VERSION, KAT_SCHEMA_VERSION,
 };
+use affidavit::crypto_trust_pqc::{
+    hybrid_sign, ml_dsa65_from_seed, ml_dsa65_sign, slh_dsa128s_from_seed, slh_dsa128s_sign,
+    HybridSecret, ML_DSA_65_SEED_LEN, SLH_DSA_128S_SEED_LEN,
+};
+use affidavit::secp256k1_witness::WitnessSigningKey;
+use ed25519_dalek::SigningKey as Ed25519SigningKey;
 use serde_json::{json, Value};
 
 const FIXTURE_RELPATH: &str = "fixtures/crypto_trust_kat.json";

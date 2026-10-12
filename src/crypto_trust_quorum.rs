@@ -297,14 +297,14 @@ mod tests {
     fn mldsa_pair(seed_byte: u8) -> MlDsa65KeyPair {
         let mut seed = [0x22u8; ML_DSA_65_SEED_LEN];
         seed[0] = seed_byte;
-        ml_dsa65_from_seed(&seed)
+        ml_dsa65_from_seed(&seed).expect("pqc fixture key pair")
     }
 
     /// A real SLH-DSA-SHA2-128s fixture key from a distinct seed triplet.
     fn slh_pair(seed_byte: u8) -> SlhDsa128sKeyPair {
         let mut seeds = [0x33u8; 48];
         seeds[0] = seed_byte;
-        slh_dsa128s_from_seed(&seeds)
+        slh_dsa128s_from_seed(&seeds).expect("pqc fixture key pair")
     }
 
     /// Registers a real key record (material + fingerprint + DISTINCT
@@ -692,7 +692,7 @@ mod tests {
         let hybrid_kid = {
             let material = PublicKeyMaterial::Hybrid {
                 es256: secret.es256.public_key_sec1(),
-                mldsa65: ml_dsa65_from_seed(&secret.mldsa65_seed).public,
+                mldsa65: ml_dsa65_from_seed(&secret.mldsa65_seed).expect("pqc fixture key pair").public,
             };
             register(
                 &mut registry,
