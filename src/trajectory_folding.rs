@@ -1,8 +1,38 @@
 //! Trajectory folding: associative binary operator (R_A ⊕ R_B) over 352-byte CTRT receipts.
 //!
-//! Monotonically folds ticks, cycles/wall time, and Merkle root while enforcing
-//! strict parent hash linkage: `B.parent_receipt_hash == BLAKE3(A)`.
+//! Monotonically folds ticks, cycles/wall time, and subject/metadata accumulators while
+//! enforcing strict parent hash linkage: `B.parent_receipt_hash == A.chain_hash`.
 //! Emits a folded 352-byte CTRT boundary receipt.
+//!
+//! ## Fold semantics (associative over contiguous chains)
+//!
+//! The gate `b.parent_receipt_hash == a.chain_hash` is unchanged; tamper detection is
+//! preserved because any relinked/substituted interior receipt changes its chain hash,
+//! which cascades to the known tip hash. To make the operator associative, the folded
+//! receipt is a *summary anchored at the chain root that speaks for the chain tip*:
+//!
+//! - `parent_receipt_hash = a.parent_receipt_hash` (the chain root's parent)
+//! - `chain_hash = b.chain_hash` (the tip's chain hash — the linkage the next fold checks)
+//! - `run_id`, `timestamp_ms`, `name`, `prev_self_hash` = `b`'s (tip identity)
+//! - `total_ticks`, `wall_ms` = saturating sums
+//! - `outcome`, `thermal` = max (fail-closed); `budget_met` = AND; flags = OR
+//! - `subject_hash`, `metadata_digest`, `positive_control` = XOR accumulators
+//!   (associative combining; ordering/mandate enforcement lives in the linkage gate)
+//!
+//! ## Known limitations
+//!
+//! - **Folded receipts are summaries, not standalone records**: because `chain_hash`
+//!   aliases the tip's hash, `CtrtReceipt::from_bytes` on a folded receipt returns
+//!   `DigestMismatch` by design. Verify folded output against the independently known
+//!   tip hash, or retain the tip receipt.
+//! - **Saturating accumulation**: `total_ticks`/`wall_ms` use `saturating_add`; overflow
+//!   silently clamps to `u64::MAX` with no flag (the 352-byte wire layout has no spare
+//!   field). Sums are associative only below the saturation point.
+//! - **Unsigned domain**: folding operates on unsigned chains only; negative/credited
+//!   quantities are unrepresentable. Enforcement that folded output binds only to the
+//!   original subject chain is the sealer's subject-only commitment, not this module's.
+//! - Names longer than `NAME_MAX` bytes are truncated at the last UTF-8 char boundary
+//!   at or below `NAME_MAX` (never mid-character).
 
 use thiserror::Error;
 
@@ -301,9 +331,11 @@ impl CtrtReceipt {
 ///
 /// 1. Checks parent hash linkage: `b.parent_receipt_hash == a.chain_hash`
 ///    (where `a.chain_hash == BLAKE3(A.parent || A.encoded[..304])`).
-/// 2. Monotonically sums total ticks and wall_ms (cycles/time).
-/// 3. Combines Merkle roots: `folded.subject_hash = BLAKE3(a.subject_hash || b.subject_hash)`.
-/// 4. Retains `b.run_id`, `b.timestamp_ms`, worst-case outcome, and `b.metadata_digest`.
+/// 2. Monotonically sums total ticks and wall_ms (saturating; see module limitations).
+/// 3. XOR-accumulates subject, metadata, and positive-control digests (associative).
+/// 4. Anchors at the root (`parent = a.parent`) and speaks for the tip
+///    (`chain_hash = b.chain_hash`); retains `b.run_id`, `b.timestamp_ms`, `b.name`,
+///    `b.prev_self_hash`, worst-case outcome/thermal, AND-ed budget, OR-ed flags.
 /// 5. Emits the folded 352-byte CTRT boundary receipt.
 pub fn fold_receipts(a: &CtrtReceipt, b: &CtrtReceipt) -> Result<CtrtReceipt, TrajectoryFoldError> {
     if b.parent_receipt_hash != a.chain_hash {
@@ -313,50 +345,45 @@ pub fn fold_receipts(a: &CtrtReceipt, b: &CtrtReceipt) -> Result<CtrtReceipt, Tr
         });
     }
 
-    // Monotonic accumulation of ticks and wall_ms
+    // Monotonic accumulation of ticks and wall_ms (saturating; see module limitations)
     let folded_ticks = a.total_ticks.saturating_add(b.total_ticks);
     let folded_wall_ms = a.wall_ms.saturating_add(b.wall_ms);
 
-    // Merkle root combination over subjects
-    let mut subject_hasher = blake3::Hasher::new();
-    subject_hasher.update(&a.subject_hash);
-    subject_hasher.update(&b.subject_hash);
-    let folded_subject: [u8; 32] = *subject_hasher.finalize().as_bytes();
+    // Associative XOR accumulation over subjects, metadata, and positive control.
+    // Ordering and mandate enforcement is carried by the parent-linkage gate, not
+    // by these combining digests.
+    let mut folded_subject = a.subject_hash;
+    let mut folded_metadata = a.metadata_digest;
+    let mut positive_control = a.positive_control;
+    for (acc, next) in [
+        (&mut folded_subject, &b.subject_hash),
+        (&mut folded_metadata, &b.metadata_digest),
+        (&mut positive_control, &b.positive_control),
+    ] {
+        for (x, y) in acc.iter_mut().zip(next.iter()) {
+            *x ^= y;
+        }
+    }
 
-    // Combined metadata digest
-    let mut meta_hasher = blake3::Hasher::new();
-    meta_hasher.update(&a.metadata_digest);
-    meta_hasher.update(&b.metadata_digest);
-    let folded_metadata: [u8; 32] = *meta_hasher.finalize().as_bytes();
+    let flags = if (a.flags & FLAG_POSITIVE_CONTROL != 0) || (b.flags & FLAG_POSITIVE_CONTROL != 0) {
+        FLAG_POSITIVE_CONTROL | FLAG_FAIL_CLOSED
+    } else {
+        FLAG_FAIL_CLOSED
+    };
 
     // Outcome: worst-case / fail-closed propagation
     let folded_outcome = a.outcome.max(b.outcome);
     let folded_thermal = a.thermal.max(b.thermal);
     let folded_budget = a.budget_met && b.budget_met;
 
-    // Positive control combination
-    let mut positive_control = [0u8; 32];
-    let flags = if (a.flags & FLAG_POSITIVE_CONTROL != 0) || (b.flags & FLAG_POSITIVE_CONTROL != 0) {
-        let mut ctrl_hasher = blake3::Hasher::new();
-        ctrl_hasher.update(&a.positive_control);
-        ctrl_hasher.update(&b.positive_control);
-        positive_control = *ctrl_hasher.finalize().as_bytes();
-        FLAG_POSITIVE_CONTROL | FLAG_FAIL_CLOSED
-    } else {
-        FLAG_FAIL_CLOSED
-    };
+    // Tip identity: keeps the folded summary associative. Concatenating names or
+    // re-deriving chain hashes here would make the operator grouping-dependent.
+    let name = truncate_to_char_boundary(&b.name, NAME_MAX);
 
-    let folded_name = format!("folded({}+{})", a.name, b.name);
-    let name = if folded_name.len() > NAME_MAX {
-        folded_name[..NAME_MAX].to_string()
-    } else {
-        folded_name
-    };
-
-    let mut folded = CtrtReceipt {
+    let folded = CtrtReceipt {
         flags,
         subject_hash: folded_subject,
-        parent_receipt_hash: a.parent_receipt_hash, // Root parent of the chain
+        parent_receipt_hash: a.parent_receipt_hash, // Chain root's parent
         timestamp_ms: b.timestamp_ms,
         run_id: b.run_id,
         total_ticks: folded_ticks,
@@ -366,15 +393,26 @@ pub fn fold_receipts(a: &CtrtReceipt, b: &CtrtReceipt) -> Result<CtrtReceipt, Tr
         budget_met: folded_budget,
         positive_control,
         metadata_digest: folded_metadata,
-        prev_self_hash: a.chain_hash,
+        prev_self_hash: b.prev_self_hash,
         name,
-        chain_hash: [0u8; 32],
+        // Speaks for the chain tip: the next fold's linkage gate checks against this.
+        chain_hash: b.chain_hash,
     };
 
-    let encoded = folded.encode()?;
-    folded.chain_hash.copy_from_slice(&encoded[COURT_RECEIPT_V1_LEN..COURT_RECORD_LEN]);
-
     Ok(folded)
+}
+
+/// Truncate to at most `max` bytes without splitting a UTF-8 character:
+/// floors to the last char boundary at or below `max`.
+fn truncate_to_char_boundary(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        return s.to_string();
+    }
+    let mut end = max;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    s[..end].to_string()
 }
 
 /// Helper to hex encode a byte slice.
@@ -430,12 +468,36 @@ mod tests {
         assert_eq!(r12.total_ticks, 300);
         assert_eq!(r12.wall_ms, 30);
         assert_eq!(r12.parent_receipt_hash, r1.parent_receipt_hash);
+        let lhs = fold_receipts(&r12, &r3).expect("fold (1+2)+3");
 
-        // Fold r12 and r3: note r3's parent is r2.chain_hash.
-        // In a true chain, folding contiguous intervals preserves monotonicity and linkage.
-        let folded_all = fold_receipts(&r2, &r3).expect("fold 2+3");
-        assert_eq!(folded_all.total_ticks, 500);
-        assert_eq!(folded_all.wall_ms, 50);
+        // r1 ⊕ (r2 ⊕ r3)
+        let r23 = fold_receipts(&r2, &r3).expect("fold 2+3");
+        let rhs = fold_receipts(&r1, &r23).expect("fold 1+(2+3)");
+
+        // Associativity over a contiguous 3-chain: both groupings must agree exactly.
+        assert_eq!(lhs, rhs);
+        assert_eq!(lhs.total_ticks, 600);
+        assert_eq!(lhs.wall_ms, 60);
+        assert_eq!(lhs.parent_receipt_hash, r1.parent_receipt_hash);
+        assert_eq!(lhs.chain_hash, r3.chain_hash);
+    }
+
+    #[test]
+    fn test_fold_name_multibyte_no_panic() {
+        // Multibyte (emoji) names: truncation must not slice mid-character.
+        let r1 = create_test_receipt([0u8; 32], 10, 1, "🚀🚀🚀🚀🚀幸");
+        let r2 = create_test_receipt(r1.chain_hash, 20, 2, "幸rel");
+        let folded = fold_receipts(&r1, &r2).expect("fold");
+        assert!(folded.name.len() <= NAME_MAX);
+        // The folded name is the tip's name, already boundary-safe.
+        assert_eq!(folded.name, "幸rel");
+
+        // Direct check of the boundary-flooring helper on a multibyte string.
+        let s = "あ".repeat(60); // 180 bytes, all 3-byte chars
+        let t = truncate_to_char_boundary(&s, NAME_MAX);
+        assert!(t.len() <= NAME_MAX);
+        assert!(s.starts_with(&t));
+        assert!(t.chars().all(|c| c == 'あ'));
     }
 
     #[test]
