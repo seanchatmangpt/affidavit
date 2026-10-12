@@ -84,3 +84,8 @@ mutants.out.old/
 # ggen-v2 runtime receipts (append-only chain-hash logs from local ggen runs;
 # nondeterministic — regenerated on every sync, never a source of truth)
 /.ggen-v2/
+
+# affi runtime state: nullifier store (epoch-scoped, regenerated per run)
+/.affi/
+# contract-digest probe sidecars
+*.ctrt.digest
