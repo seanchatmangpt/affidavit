@@ -19,6 +19,11 @@ All notable changes to the Affidavit provenance layer are documented here.
   pinned.
 - **QG-01 / QG-05 gates**: QG-01 (imports==∅ for the wasm module) and QG-05
   (dudect constant-time courts) landed in the qualification ladder.
+- **Replay nullifier rotation binding** (SK5 fix-forward, `5e5808d`):
+  rotation replay-amnesty closed — wires reduce to rotation-stable
+  identities; pre-rotation re-presentation after `rotate_epoch` refuses
+  with `ReplayEpochMismatch` (`0xE103`); typed AFRN v1 snapshot
+  persistence (`to_bytes`/`load_from`) fail closed on corruption.
 
 ### Post-tag adversarial hardening (2026-10-11, after `v26.10.6`)
 
