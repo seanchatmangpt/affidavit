@@ -572,3 +572,15 @@ MIT OR Apache-2.0
 
 **Last Updated:** 2026-09-06  
 **Maintained by:** Sean Chatman (xpointsh@gmail.com)
+
+## Annealing Doctrine (repo clauses)
+
+Global law: [[entropic-annealing-doctrine]]. Repo-specific clauses:
+
+- **Affi is the sovereign CLI** — the CTRT wire codec, ML-DSA-65 signing,
+  dossier emit/inspect, and all court-receipt verbs live here; CTT stays
+  lib-only. No clap/bin surface returns to chicago-tdd-tools.
+- **Every court needs a vacuity sweep** — no receipt without a positive
+  control that must fire.
+- **Skeptic/audit lanes do not grade their own builders** — verification
+  receipts come from lanes that did not write the code under test.
