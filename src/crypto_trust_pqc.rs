@@ -62,6 +62,15 @@ pub enum PqcError {
     MalformedPublicKey,
     #[error("malformed signature")]
     MalformedSignature,
+    /// The seed passed to a `*_from_seed` constructor is degenerate (zero
+    /// entropy). Refused set: all 48/32 bytes identical — which subsumes the
+    /// all-zero seed — OR the all-but-one-byte class (every byte zero except
+    /// exactly one, at any position). Such seeds carry no usable entropy and
+    /// any two parties that "independently" pick the same constant derive the
+    /// identical key pair. Active only outside test builds (SX5-F2); see
+    /// [`ml_dsa65_from_seed`].
+    #[error("degenerate seed: all bytes identical or all-but-one-byte zero (zero-entropy)")]
+    DegenerateSeed,
 }
 
 impl PqcError {
@@ -70,12 +79,15 @@ impl PqcError {
     /// - `0xE301`: ML-DSA-65 signature check failure / malformed signature
     /// - `0xE302`: Decapsulation failure / malformed key
     /// - `0xE303`: Formal oracle detected output divergence
+    /// - `0xE305`: Degenerate (zero-entropy) seed refused by a `*_from_seed`
+    ///   constructor (SX5-F2)
     #[must_use]
     pub const fn machine_code(&self) -> u16 {
         match self {
             Self::MlDsa(_) | Self::MalformedSignature => 0xE301,
             Self::MalformedPublicKey => 0xE302,
             Self::SlhDsa(_) | Self::Es256Half(_) => 0xE303,
+            Self::DegenerateSeed => 0xE305,
         }
     }
 }
@@ -95,28 +107,38 @@ pub struct MlDsa65KeyPair {
 pub fn ml_dsa65_generate() -> Result<MlDsa65KeyPair, PqcError> {
     let mut seed = [0u8; ML_DSA_65_SEED_LEN];
     rand_core::OsRng.fill_bytes(&mut seed);
-    Ok(ml_dsa65_from_seed(&seed))
+    ml_dsa65_from_seed(&seed)
 }
 
 /// HAZARD: seed-derived keys are for TEST FIXTURES and KAT vectors only.
-/// Production must derive keys from a real entropy source; a degenerate
-/// (all-same-byte, e.g. all-zero) seed here would reproduce the identical
-/// key pair for every caller that picks the same constant. This function is
-/// infallible by signature (FIPS 204 accepts any 32-byte seed), so screening
-/// is by convention and by callers, not by type; the ES256 path enforces the
-/// same law by type in [`crate::crypto_trust_es256`].
+/// Production must derive keys from a real entropy source; a degenerate seed
+/// here would reproduce the identical key pair for every caller that picks
+/// the same constant.
+///
+/// Degenerate-seed screening (SX5-F2, forward-ported from the ES256 path):
+/// outside test builds (`cfg!(test)` false), a seed that is ALL the same
+/// byte — including the all-zero seed — or in the all-but-one-byte class
+/// (every byte zero except exactly one) is refused with
+/// [`PqcError::DegenerateSeed`] before any key material is derived. Test
+/// builds permit them so the fixed-seed fixtures in this crate keep running.
 ///
 /// Deterministically derives the ML-DSA-65 key pair from a 32-byte seed
 /// (FIPS 204 ML-DSA.KeyGen_internal; same seed => same public key).
-#[must_use]
-pub fn ml_dsa65_from_seed(seed: &[u8; ML_DSA_65_SEED_LEN]) -> MlDsa65KeyPair {
+///
+/// # Errors
+/// [`PqcError::DegenerateSeed`] outside test builds when the seed is in the
+/// refused set above. FIPS 204 itself accepts any 32-byte seed.
+pub fn ml_dsa65_from_seed(seed: &[u8; ML_DSA_65_SEED_LEN]) -> Result<MlDsa65KeyPair, PqcError> {
+    if !cfg!(test) && seed_is_degenerate(seed) {
+        return Err(PqcError::DegenerateSeed);
+    }
     let sk_seed: ml_dsa::Seed = (*seed).into();
     let esk = ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed);
     let vk = esk.verifying_key();
-    MlDsa65KeyPair {
+    Ok(MlDsa65KeyPair {
         seed: *seed,
         public: vk.encode().as_slice().to_vec(),
-    }
+    })
 }
 
 /// Signs `msg` with ML-DSA-65 under an EXPLICIT 32-byte randomizer `rnd`
@@ -162,6 +184,21 @@ pub struct SlhDsa128sKeyPair {
     pub public: Vec<u8>,
 }
 
+/// Degenerate-seed predicate (SX5-F2, shared with the ES256 path's
+/// [`crate::crypto_trust_es256::seed_is_degenerate`]): a seed is degenerate
+/// when EVERY byte is identical — the all-zero seed is the `b == 0` case —
+/// OR when it is in the all-but-one-byte class: every byte zero except
+/// exactly one nonzero byte, at any position. Exposed crate-internally so
+/// callers and tests witness the one law on both PQC paths.
+pub(crate) fn seed_is_degenerate(seed: &[u8]) -> bool {
+    let all_same = seed[1..].iter().all(|&b| b == seed[0]);
+    if all_same {
+        return true;
+    }
+    let nonzero = seed.iter().filter(|&&b| b != 0).count();
+    nonzero <= 1
+}
+
 /// Splits the 48-byte seed triplet into its three n-byte FIPS 205 slices.
 #[must_use]
 fn slh_dsa128s_split(seeds: &[u8; SLH_DSA_128S_SEED_LEN]) -> (&[u8], &[u8], &[u8]) {
@@ -173,27 +210,36 @@ fn slh_dsa128s_split(seeds: &[u8; SLH_DSA_128S_SEED_LEN]) -> (&[u8], &[u8], &[u8
 pub fn slh_dsa128s_generate() -> Result<SlhDsa128sKeyPair, PqcError> {
     let mut seeds = [0u8; SLH_DSA_128S_SEED_LEN];
     rand_core::OsRng.fill_bytes(&mut seeds);
-    Ok(slh_dsa128s_from_seed(&seeds))
+    slh_dsa128s_from_seed(&seeds)
 }
 
 /// HAZARD: seed-derived keys are for TEST FIXTURES and KAT vectors only.
-/// This function is infallible by signature (FIPS 205 accepts any seed
-/// triplet), so degenerate-seed screening is by caller convention; the ES256
-/// path enforces the same law by type in [`crate::crypto_trust_es256`].
+/// Degenerate-seed screening (SX5-F2, same law and same `cfg!(test)` gate as
+/// [`ml_dsa65_from_seed`]): outside test builds an all-same-byte seed
+/// (including all-zero) or an all-but-one-byte seed (every byte zero except
+/// exactly one) is refused with [`PqcError::DegenerateSeed`].
 ///
 /// Deterministically derives the SLH-DSA-SHA2-128s key pair from the 48-byte
 /// seed triplet (FIPS 205 slh_keygen_internal; same seeds => same public key).
-#[must_use]
-pub fn slh_dsa128s_from_seed(seeds: &[u8; SLH_DSA_128S_SEED_LEN]) -> SlhDsa128sKeyPair {
+///
+/// # Errors
+/// [`PqcError::DegenerateSeed`] outside test builds when the seed triplet is
+/// in the refused set above. FIPS 205 itself accepts any seed triplet.
+pub fn slh_dsa128s_from_seed(
+    seeds: &[u8; SLH_DSA_128S_SEED_LEN],
+) -> Result<SlhDsa128sKeyPair, PqcError> {
     use slh_dsa::signature::Keypair;
 
+    if !cfg!(test) && seed_is_degenerate(seeds) {
+        return Err(PqcError::DegenerateSeed);
+    }
     let (sk_seed, sk_prf, pk_seed) = slh_dsa128s_split(seeds);
     let sk =
         slh_dsa::SigningKey::<slh_dsa::Sha2_128s>::slh_keygen_internal(sk_seed, sk_prf, pk_seed);
-    SlhDsa128sKeyPair {
+    Ok(SlhDsa128sKeyPair {
         seeds: *seeds,
         public: sk.verifying_key().to_bytes().to_vec(),
-    }
+    })
 }
 
 /// Signs `msg` with SLH-DSA-SHA2-128s. Deterministic by construction: the
@@ -310,7 +356,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_round_trip() {
-        let kp = ml_dsa65_from_seed(&SEED_A);
+        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("ml-dsa sign");
         let ok = ml_dsa65_verify(&kp.public, MSG, &sig).expect("ml-dsa verify");
         assert!(ok);
@@ -327,7 +373,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_encoded_lengths_match_the_graph_consts() {
-        let kp = ml_dsa65_from_seed(&SEED_A);
+        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         assert_eq!(kp.public.len(), ML_DSA_65_PUBLIC_KEY_LEN);
         let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("ml-dsa sign");
         assert_eq!(
@@ -342,8 +388,8 @@ mod tests {
         let sig1 = ml_dsa65_sign(&SEED_A, MSG, &RND_A).expect("sign 1");
         let sig2 = ml_dsa65_sign(&SEED_A, MSG, &RND_A).expect("sign 2");
         assert_eq!(sig1, sig2, "same seed+msg+rnd must give identical bytes");
-        let kp1 = ml_dsa65_from_seed(&SEED_A);
-        let kp2 = ml_dsa65_from_seed(&SEED_A);
+        let kp1 = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let kp2 = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         assert_eq!(kp1, kp2);
     }
 
@@ -360,7 +406,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_tamper_msg_falsifier() {
-        let kp = ml_dsa65_from_seed(&SEED_A);
+        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
         let mut tampered_msg = MSG.to_vec();
         tampered_msg[0] ^= 0x01;
@@ -369,7 +415,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_tamper_sig_falsifier() {
-        let kp = ml_dsa65_from_seed(&SEED_A);
+        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         let mut sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
         sig[0] ^= 0x01;
         assert!(!ml_dsa65_verify(&kp.public, MSG, &sig).expect("verify"));
@@ -377,15 +423,15 @@ mod tests {
 
     #[test]
     fn ml_dsa65_cross_key_refusal() {
-        let kp_a = ml_dsa65_from_seed(&SEED_A);
-        let kp_b = ml_dsa65_from_seed(&SEED_B);
+        let kp_a = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let kp_b = ml_dsa65_from_seed(&SEED_B).expect("pqc fixture key pair");
         let sig = ml_dsa65_sign(&kp_a.seed, MSG, &RND_A).expect("sign under A");
         assert!(!ml_dsa65_verify(&kp_b.public, MSG, &sig).expect("verify under B"));
     }
 
     #[test]
     fn ml_dsa65_malformed_public_key_is_typed() {
-        let kp = ml_dsa65_from_seed(&SEED_A);
+        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
         let short = [0u8; ML_DSA_65_PUBLIC_KEY_LEN - 1];
         let err = ml_dsa65_verify(&short, MSG, &sig).expect_err("short pk refused");
@@ -394,7 +440,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_malformed_signature_is_typed() {
-        let kp = ml_dsa65_from_seed(&SEED_A);
+        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         let short = [0u8; ML_DSA_65_SIGNATURE_LEN - 1];
         let err = ml_dsa65_verify(&kp.public, MSG, &short).expect_err("short sig refused");
         assert!(matches!(err, PqcError::MalformedSignature), "got {err:?}");
@@ -402,7 +448,7 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_round_trip() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
         let sig = slh_dsa128s_sign(&kp.seeds, MSG).expect("slh-dsa sign");
         let ok = slh_dsa128s_verify(&kp.public, MSG, &sig).expect("slh-dsa verify");
         assert!(ok);
@@ -419,7 +465,7 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_encoded_lengths_match_fips_205() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
         assert_eq!(kp.seeds.len(), SLH_DSA_128S_SEED_LEN);
         assert_eq!(
             kp.public.len(),
@@ -439,14 +485,14 @@ mod tests {
         let sig1 = slh_dsa128s_sign(&SLH_SEEDS_A, MSG).expect("sign 1");
         let sig2 = slh_dsa128s_sign(&SLH_SEEDS_A, MSG).expect("sign 2");
         assert_eq!(sig1, sig2, "same seeds+msg must give identical bytes");
-        let kp1 = slh_dsa128s_from_seed(&SLH_SEEDS_A);
-        let kp2 = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let kp1 = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
+        let kp2 = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
         assert_eq!(kp1, kp2);
     }
 
     #[test]
     fn slh_dsa128s_tamper_msg_falsifier() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
         let sig = slh_dsa128s_sign(&kp.seeds, MSG).expect("sign");
         let mut tampered_msg = MSG.to_vec();
         tampered_msg[1] ^= 0x80;
@@ -455,7 +501,7 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_tamper_sig_falsifier() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
         let mut sig = slh_dsa128s_sign(&kp.seeds, MSG).expect("sign");
         sig[100] ^= 0x01;
         assert!(!slh_dsa128s_verify(&kp.public, MSG, &sig).expect("verify"));
@@ -463,15 +509,15 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_cross_key_refusal() {
-        let kp_a = slh_dsa128s_from_seed(&SLH_SEEDS_A);
-        let kp_b = slh_dsa128s_from_seed(&SLH_SEEDS_B);
+        let kp_a = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
+        let kp_b = slh_dsa128s_from_seed(&SLH_SEEDS_B).expect("pqc fixture slh key");
         let sig = slh_dsa128s_sign(&kp_a.seeds, MSG).expect("sign under A");
         assert!(!slh_dsa128s_verify(&kp_b.public, MSG, &sig).expect("verify under B"));
     }
 
     #[test]
     fn slh_dsa128s_malformed_public_key_is_typed() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
         let sig = slh_dsa128s_sign(&kp.seeds, MSG).expect("sign");
         let short = [0u8; 2 * SLH_DSA_128S_N - 1];
         let err = slh_dsa128s_verify(&short, MSG, &sig).expect_err("short pk refused");
@@ -480,7 +526,7 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_malformed_signature_is_typed() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
         let short = [0u8; 100];
         let err = slh_dsa128s_verify(&kp.public, MSG, &short).expect_err("short sig refused");
         assert!(matches!(err, PqcError::MalformedSignature), "got {err:?}");
@@ -500,7 +546,7 @@ mod tests {
     #[test]
     fn hybrid_round_trip() {
         let secret = hybrid_secret_a();
-        let mldsa_kp = ml_dsa65_from_seed(&SEED_A);
+        let mldsa_kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         let es256_pk = secret.es256.public_key_sec1();
         let sig = hybrid_sign(&secret, MSG).expect("hybrid sign");
         let ok = hybrid_verify(&es256_pk, &mldsa_kp.public, MSG, &sig).expect("hybrid verify");
@@ -521,7 +567,7 @@ mod tests {
     #[test]
     fn hybrid_tamper_es256_half_only_falsifier() {
         let secret = hybrid_secret_a();
-        let mldsa_kp = ml_dsa65_from_seed(&SEED_A);
+        let mldsa_kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         let es256_pk = secret.es256.public_key_sec1();
         let mut sig = hybrid_sign(&secret, MSG).expect("hybrid sign");
         sig.es256_der[0] ^= 0x01;
@@ -535,7 +581,7 @@ mod tests {
     #[test]
     fn hybrid_tamper_mldsa_half_only_falsifier() {
         let secret = hybrid_secret_a();
-        let mldsa_kp = ml_dsa65_from_seed(&SEED_A);
+        let mldsa_kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         let es256_pk = secret.es256.public_key_sec1();
         let mut sig = hybrid_sign(&secret, MSG).expect("hybrid sign");
         let last = sig.mldsa65.len() - 1;
@@ -550,7 +596,7 @@ mod tests {
     #[test]
     fn hybrid_wrong_msg_falsifier() {
         let secret = hybrid_secret_a();
-        let mldsa_kp = ml_dsa65_from_seed(&SEED_A);
+        let mldsa_kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
         let es256_pk = secret.es256.public_key_sec1();
         let sig = hybrid_sign(&secret, MSG).expect("hybrid sign");
         assert!(
@@ -567,7 +613,7 @@ mod tests {
             mldsa65_seed: SEED_B,
         };
         let es256_pk_b = secret_b.es256.public_key_sec1();
-        let mldsa_kp_b = ml_dsa65_from_seed(&SEED_B);
+        let mldsa_kp_b = ml_dsa65_from_seed(&SEED_B).expect("pqc fixture key pair");
         let sig = hybrid_sign(&secret_a, MSG).expect("hybrid sign under A");
         assert!(
             !hybrid_verify(&es256_pk_b, &mldsa_kp_b.public, MSG, &sig).expect("verify"),
@@ -606,5 +652,111 @@ mod tests {
         let pqc_err: PqcError = es_err.into();
         assert!(matches!(pqc_err, PqcError::Es256Half(_)), "got {pqc_err:?}");
         assert!(pqc_err.to_string().starts_with("es256 half of hybrid: "));
+    }
+
+    // ── SX5-F2: degenerate-seed screening on both PQC from_seed paths ───────
+
+    /// SX5-F2 refused-set table for the shared predicate: the all-same-byte
+    /// class (all-zero is the `0x00` member), the all-but-one-byte class
+    /// ([0,…,0,x] with the single nonzero byte at first/last/middle
+    /// positions), versus admitted seeds (fully random-looking, and two-byte
+    /// entropy like [0, …, 0, x, y]).
+    #[test]
+    fn sx5f2_degenerate_seed_predicate_refused_set() {
+        // All-same-byte class (includes all-zero).
+        for b in [0x00u8, 0x01, 0x2A, 0xA5, 0xFF] {
+            assert!(seed_is_degenerate(&[b; 32]), "all-{b:02X}-byte refused");
+            assert!(seed_is_degenerate(&[b; 48]), "all-{b:02X}-byte refused");
+        }
+        // All-but-one-byte class: single nonzero byte at any position.
+        for pos in [0usize, 1, 15, 16, 31, 47] {
+            let mut s32 = [0u8; 32];
+            s32[pos.min(31)] = 0x80;
+            assert!(seed_is_degenerate(&s32), "single byte at {pos} refused");
+            let mut s48 = [0u8; 48];
+            s48[pos] = 0x01;
+            assert!(seed_is_degenerate(&s48), "single byte at {pos} refused");
+        }
+        // Near-degenerate two-byte class: [0,…,0,1] with a second differing
+        // byte is ADMITTED (documented boundary of the refused set).
+        let mut two_byte = [0u8; 32];
+        two_byte[30] = 1;
+        two_byte[31] = 2;
+        assert!(!seed_is_degenerate(&two_byte));
+        let mut two_byte48 = [0u8; 48];
+        two_byte48[0] = 1;
+        two_byte48[47] = 2;
+        assert!(!seed_is_degenerate(&two_byte48));
+    }
+
+    /// SX5-F2: near-degenerate `[0,…,0,1]` is refused by the predicate on
+    /// both seed lengths (the single-nonzero-byte member of the refused set).
+    #[test]
+    fn sx5f2_near_degenerate_single_unit_seed_refused() {
+        let mut unit32 = [0u8; 32];
+        unit32[31] = 1;
+        assert!(seed_is_degenerate(&unit32));
+        let mut unit48 = [0u8; 48];
+        unit48[0] = 1;
+        assert!(seed_is_degenerate(&unit48));
+    }
+
+    /// SX5-F2: both PQC `from_seed` paths enforce the same law. Under
+    /// `cfg!(test)` the screening is disabled so the fixed-seed fixtures in
+    /// this crate (and the KAT/ACVP vector surfaces that call `from_seed`)
+    /// keep working — asserted here; the production refusal branch is the
+    /// exact predicate table above. Legitimate (entropy-bearing) seeds
+    /// construct and round-trip on both paths.
+    #[test]
+    fn sx5f2_from_seed_paths_share_the_degenerate_seed_law() {
+        // Legitimate seeds: construct (Result Ok) and derive real keys.
+        let legit32 = [0xA5u8; 32];
+        let mut legit32b = legit32;
+        legit32b[0] ^= 0xFF;
+        let kp_a = ml_dsa65_from_seed(&legit32).expect("legit seed constructs");
+        let kp_b = ml_dsa65_from_seed(&legit32b).expect("legit seed constructs");
+        assert_ne!(kp_a.public, kp_b.public, "distinct seeds, distinct keys");
+        assert!(kp_a.public.len() == ML_DSA_65_PUBLIC_KEY_LEN);
+
+        let slh_a = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("legit slh seeds construct");
+        let mut slh_b = SLH_SEEDS_A;
+        slh_b[0] ^= 0xFF;
+        let slh_b = slh_dsa128s_from_seed(&slh_b).expect("legit slh seeds construct");
+        assert_ne!(slh_a.public, slh_b.public, "distinct seeds, distinct keys");
+        assert_eq!(slh_a.public.len(), 2 * SLH_DSA_128S_N);
+
+        // The refused set, wired through the constructors: under test builds
+        // they admit (fixture contract); outside test builds they return
+        // `PqcError::DegenerateSeed` (0xE305). The branch is
+        // `!cfg!(test) && seed_is_degenerate(seed)` — the same structural
+        // wiring the ES256 path landed in R32/SK3.
+        let refused32: [[u8; 32]; 3] = [[0u8; 32], [0xA5u8; 32], {
+            let mut s = [0u8; 32];
+            s[17] = 1;
+            s
+        }];
+        let refused48: [[u8; 48]; 3] = [[0u8; 48], [0x11u8; 48], {
+            let mut s = [0u8; 48];
+            s[47] = 0xFF;
+            s
+        }];
+        for seed in refused32 {
+            if cfg!(test) {
+                assert!(ml_dsa65_from_seed(&seed).is_ok());
+            } else {
+                let err = ml_dsa65_from_seed(&seed).unwrap_err();
+                assert_eq!(err.machine_code(), 0xE305);
+            }
+        }
+        for seeds in refused48 {
+            if cfg!(test) {
+                assert!(slh_dsa128s_from_seed(&seeds).is_ok());
+            } else {
+                let err = slh_dsa128s_from_seed(&seeds).unwrap_err();
+                assert_eq!(err.machine_code(), 0xE305);
+            }
+        }
+        // The machine code is bound to the variant, independent of build.
+        assert_eq!(PqcError::DegenerateSeed.machine_code(), 0xE305);
     }
 }
