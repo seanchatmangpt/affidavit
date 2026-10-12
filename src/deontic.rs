@@ -128,8 +128,8 @@ impl DeonticContext {
         }
     }
 
-    /// Construct domain-separated context string:
-    /// `Ctx = "STRATA:" || Jurisdiction || DeonticConstraintHash || LeaseEpoch`
+    /// Construct domain-separated context string (length-framed):
+    /// `Ctx = "STRATA:" || u32le(len)||Jurisdiction || u32le(len)||Hash || u32le(len)||Epoch`
     ///
     /// # Errors
     /// Returns [`DeonticError::ContextTooLong`] if total length exceeds 255 bytes.
@@ -161,12 +161,60 @@ pub fn construct_deontic_context(
     )
 }
 
-/// Constructs domain-separated context string from raw byte slices:
-/// `Ctx = "STRATA:" || Jurisdiction || DeonticConstraintHash || LeaseEpoch`
+/// Constructs domain-separated context string from raw byte slices, framed:
+///
+/// ```text
+/// Ctx = "STRATA:"
+///     || u32le(len(Jurisdiction)) || Jurisdiction
+///     || u32le(len(Hash))         || DeonticConstraintHash
+///     || u32le(len(Epoch))        || Epoch
+/// ```
+///
+/// The u32 little-endian length prefix before each variable-length field makes
+/// the encoding prefix-free over field tuples: distinct `(jurisdiction, hash,
+/// epoch)` tuples cannot concatenate to the same byte string (SK3 collision
+/// falsification closed; regression-witnessed in this module's tests).
 ///
 /// # Errors
 /// Returns [`DeonticError::ContextTooLong`] if total byte length exceeds 255 bytes.
 pub fn construct_deontic_context_raw(
+    jurisdiction: &[u8],
+    deontic_constraint_hash: &[u8],
+    lease_epoch: &[u8],
+) -> Result<Vec<u8>, DeonticError> {
+    let total_len = STRATA_CTX_PREFIX.len()
+        + 4
+        + jurisdiction.len()
+        + 4
+        + deontic_constraint_hash.len()
+        + 4
+        + lease_epoch.len();
+    if total_len > MAX_ML_DSA_CONTEXT_LEN {
+        return Err(DeonticError::ContextTooLong(total_len));
+    }
+    let mut ctx = Vec::with_capacity(total_len);
+    ctx.extend_from_slice(STRATA_CTX_PREFIX);
+    ctx.extend_from_slice(&(jurisdiction.len() as u32).to_le_bytes());
+    ctx.extend_from_slice(jurisdiction);
+    ctx.extend_from_slice(&(deontic_constraint_hash.len() as u32).to_le_bytes());
+    ctx.extend_from_slice(deontic_constraint_hash);
+    ctx.extend_from_slice(&(lease_epoch.len() as u32).to_le_bytes());
+    ctx.extend_from_slice(lease_epoch);
+    Ok(ctx)
+}
+
+/// HAZARD: unframed legacy form — DO NOT USE in new code.
+///
+/// `Ctx = "STRATA:" || Jurisdiction || DeonticConstraintHash || LeaseEpoch`
+/// is a raw concatenation of variable-length fields, so DISTINCT field tuples
+/// collide: e.g. `(jur=b"AB", hash=[], epoch=[1,2,3,4,5,6,7,8])` and
+/// `(jur=b"A", hash=[b'B'], epoch=[1,2,3,4,5,6,7,8])` both yield
+/// `"STRATA:AB" || epoch`, and a signature bound under one tuple verifies
+/// under the other (SK3 falsification). Retained only for replaying
+/// legacy-serialized contexts; every new context MUST go through
+/// [`construct_deontic_context_raw`] (length-prefixed framing).
+#[doc(hidden)]
+pub fn construct_deontic_context_unframed(
     jurisdiction: &[u8],
     deontic_constraint_hash: &[u8],
     lease_epoch: &[u8],
@@ -376,15 +424,18 @@ mod tests {
         let ctx = construct_deontic_context(jurisdiction, &constraint_hash, epoch)
             .expect("context construction succeeds");
 
-        // Format: "STRATA:" || Jurisdiction || DeonticConstraintHash || LeaseEpoch
+        // Format: "STRATA:" || u32le(len)||Jur || u32le(len)||Hash || u32le(len)||Epoch
         let mut expected = Vec::new();
         expected.extend_from_slice(b"STRATA:");
+        expected.extend_from_slice(&6u32.to_le_bytes());
         expected.extend_from_slice(b"US-FED");
+        expected.extend_from_slice(&32u32.to_le_bytes());
         expected.extend_from_slice(&[0x5Au8; 32]);
+        expected.extend_from_slice(&8u32.to_le_bytes());
         expected.extend_from_slice(&42u64.to_be_bytes());
 
         assert_eq!(ctx, expected);
-        assert_eq!(ctx.len(), 7 + 6 + 32 + 8);
+        assert_eq!(ctx.len(), 7 + 4 + 6 + 4 + 32 + 4 + 8);
     }
 
     #[test]
@@ -394,10 +445,53 @@ mod tests {
 
         let bytes = ctx_obj.to_context_bytes().expect("valid context bytes");
         assert!(bytes.starts_with(b"STRATA:"));
-        assert!(bytes[7..].starts_with(b"EU-GDPR-COURT"));
+        // Framed: u32le(12) then the jurisdiction, then framed hash and epoch.
+        assert_eq!(&bytes[7..11], &13u32.to_le_bytes());
+        assert!(bytes[11..].starts_with(b"EU-GDPR-COURT"));
 
         let tail_epoch = &bytes[bytes.len() - 8..];
         assert_eq!(tail_epoch, &1024u64.to_be_bytes());
+    }
+
+    /// SK3 falsification regression: the raw deontic context was an unframed
+    /// concatenation of variable-length fields, so distinct
+    /// `(jurisdiction, hash, epoch)` tuples collided on identical context
+    /// bytes and a signature bound under one tuple cross-verified under the
+    /// other. With u32le length framing the two tuples now yield DIFFERENT
+    /// context bytes and cross-verification is REFUSED (0xE301).
+    #[test]
+    fn test_sk3_raw_context_collision_is_closed() {
+        let epoch8 = [1u8, 2, 3, 4, 5, 6, 7, 8];
+        // A: jurisdiction "AB", empty hash, epoch bytes.
+        // B: jurisdiction "A", hash "B", same epoch bytes.
+        // Unframed, both concatenate to "STRATA:AB" || epoch8.
+        let ctx_a =
+            construct_deontic_context_raw(b"AB", &[], &epoch8).expect("context A constructs");
+        let ctx_b =
+            construct_deontic_context_raw(b"A", &[b'B'], &epoch8).expect("context B constructs");
+
+        assert_ne!(
+            ctx_a, ctx_b,
+            "framed contexts for distinct field tuples must differ"
+        );
+
+        // The legacy unframed form (doc(hidden), hazard-documented) still
+        // exhibits the collision — pinned so the hazard claim is non-vacuous.
+        let unframed_a = construct_deontic_context_unframed(b"AB", &[], &epoch8)
+            .expect("unframed context A constructs");
+        let unframed_b = construct_deontic_context_unframed(b"A", &[b'B'], &epoch8)
+            .expect("unframed context B constructs");
+        assert_eq!(unframed_a, unframed_b);
+
+        // Cross-verification under the framed contexts must REFUSE: sign
+        // under framed A, verify under framed B.
+        let seed = [0x77u8; ML_DSA_65_SEED_LEN];
+        let kp = ml_dsa65_from_seed(&seed);
+        let msg = b"sk3 collision repro";
+        let sig = sign_with_context_raw(&kp.seed, msg, &ctx_a).expect("sign under framed A");
+        let res = verify_with_deontic_context_raw(&kp.public, msg, &sig, &ctx_b);
+        assert!(res.is_err(), "cross-verification on distinct tuples must be refused");
+        assert_eq!(res.unwrap_err().machine_code(), 0xE301);
     }
 
     #[test]

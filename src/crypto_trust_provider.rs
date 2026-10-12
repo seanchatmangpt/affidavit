@@ -165,9 +165,23 @@ impl SoftwareEs256Provider {
         })
     }
 
-    /// Deterministically derive the software key from `seed` under `id`
-    /// (tests and KAT vectors; production uses [`generate`]).
+    /// HAZARD: seed-derived keys are for TEST FIXTURES and KAT vectors only;
+    /// production uses [`SoftwareEs256Provider::generate`].
+    ///
+    /// Deterministically derive the software key from `seed` under `id`.
+    ///
+    /// Degenerate-seed screening (SK3) is inherited from
+    /// [`Es256SigningKey::from_seed`]: outside test builds, an all-same-byte
+    /// (including all-zero) seed is refused with
+    /// [`ProviderRefusal::Provider`] carrying the
+    /// [`Es256Error::DegenerateSeed`] reason before any key material is
+    /// derived.
     pub fn from_seed(id: KeyId, seed: &[u8; 32]) -> Result<Self, ProviderRefusal> {
+        if !cfg!(test) && crate::crypto_trust_es256::seed_is_degenerate(seed) {
+            return Err(ProviderRefusal::Provider(
+                "degenerate seed: all 32 bytes identical (zero-entropy)".to_string(),
+            ));
+        }
         Ok(SoftwareEs256Provider {
             id,
             key: Es256SigningKey::from_seed(seed)?,
@@ -214,6 +228,28 @@ mod tests {
     fn provider() -> SoftwareEs256Provider {
         SoftwareEs256Provider::from_seed(KeyId("afk1_provider-test-1".to_string()), &[7u8; 32])
             .expect("seed provider")
+    }
+
+    /// SK3: the provider shares the crate's one degenerate-seed law. Test
+    /// builds permit fixed fixtures (asserted here); production builds refuse
+    /// all-same-byte seeds with a typed `ProviderRefusal`.
+    #[test]
+    fn test_provider_from_seed_degenerate_seed_law() {
+        let id = || KeyId("afk1_provider-degenerate".to_string());
+        // Test-build contract: degenerate non-zero seeds still construct
+        // (fixtures). All-zero is refused on both paths (invalid P-256 scalar).
+        let degenerate = [0xA5u8; 32];
+        if cfg!(test) {
+            assert!(SoftwareEs256Provider::from_seed(id(), &degenerate).is_ok());
+        } else {
+            assert!(SoftwareEs256Provider::from_seed(id(), &degenerate).is_err());
+        }
+        assert!(SoftwareEs256Provider::from_seed(id(), &[0u8; 32]).is_err());
+        // The shared predicate behind the production refusal.
+        assert!(crate::crypto_trust_es256::seed_is_degenerate(&[0xEEu8; 32]));
+        let mut non_degenerate = [0x11u8; 32];
+        non_degenerate[0] = 0x12;
+        assert!(!crate::crypto_trust_es256::seed_is_degenerate(&non_degenerate));
     }
 
     fn envelope_for(kid: KeyId) -> SignatureEnvelope {

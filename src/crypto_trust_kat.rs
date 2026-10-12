@@ -8,6 +8,13 @@
 //! the golden literals embedded in this file. Every value is a real computed literal:
 //! bytes are bytes.
 //!
+//! Seed-surface law (SK3): vector GENERATION — [`build_vector`],
+//! [`generate_corpus`], and the deterministic seed-derivation chain — is a
+//! `#[cfg(test)]`-only surface. Test/fixture key material is not shipped in
+//! non-test builds. Verification (`verify_vector`, `verify_corpus`,
+//! `import_json`/`export_json`) stays public: a cross-runtime verifier only
+//! ever needs to CHECK signatures, never to re-derive the fixture keys.
+//!
 //! Determinism chain (every link graph-bound):
 //! - domain tag: `KAT_DOMAIN_TAG` (ctp:policy-v1 ctp:domainTag);
 //! - key seeds: `digest(KAT_DOMAIN_TAG, ["ctp.kat.seed", role, index_be])`;
@@ -119,6 +126,7 @@ pub enum KatError {
     Serialization(String),
 }
 
+#[cfg(test)]
 /// The rendered registry as `(algorithm name, rust variant)` pairs, in graph
 /// order. The registry is machine-rendered by kat.rq as `name|variant` per
 /// `@@` group, so `split_once('|')` cannot fail on an admitted render; the
@@ -130,6 +138,7 @@ fn registry_entries() -> impl Iterator<Item = (&'static str, &'static str)> {
         .map(|group| group.split_once('|').unwrap_or((group, "")))
 }
 
+#[cfg(test)]
 /// Lowercase-hex encoding (the corpus wire form; the optional `hex` crate is
 /// feature-gated elsewhere in this crate, so the plane carries its own).
 fn hex_encode(bytes: &[u8]) -> String {
@@ -156,6 +165,7 @@ fn hex_decode(hex: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+#[cfg(test)]
 /// Deterministic key seed for `index` and algorithm `role`, domain-separated
 /// through the trust-plane digest under the rendered domain tag.
 fn kat_seed32(index: usize, role: &str) -> [u8; 32] {
@@ -169,6 +179,7 @@ fn kat_seed32(index: usize, role: &str) -> [u8; 32] {
     )
 }
 
+#[cfg(test)]
 /// Deterministic explicit ML-DSA-65 signing randomizer for `index`.
 fn kat_mldsa_rnd(index: usize) -> [u8; 32] {
     digest(
@@ -180,6 +191,7 @@ fn kat_mldsa_rnd(index: usize) -> [u8; 32] {
     )
 }
 
+#[cfg(test)]
 /// Deterministic SLH-DSA seed triplet for `index`: three 16-byte slices of
 /// counter-indexed digests, laid out `sk_seed || sk_prf || pk_seed`.
 fn kat_slh_seeds(index: usize) -> [u8; SLH_DSA_128S_SEED_LEN] {
@@ -198,6 +210,7 @@ fn kat_slh_seeds(index: usize) -> [u8; SLH_DSA_128S_SEED_LEN] {
     seeds
 }
 
+#[cfg(test)]
 /// Deterministic signed message for `index`.
 fn kat_message(index: usize) -> Vec<u8> {
     digest(
@@ -221,6 +234,7 @@ fn hybrid_es256_der_len(signature: &[u8]) -> Option<usize> {
     Some(2 + usize::from(len_byte))
 }
 
+#[cfg(test)]
 /// Builds the single vector for `algorithm` at registry position `index`.
 /// Deterministic: the same graph registry always yields the same bytes.
 pub fn build_vector(index: usize, algorithm: &str) -> Result<KatVector, KatError> {
@@ -334,6 +348,7 @@ pub fn build_vector(index: usize, algorithm: &str) -> Result<KatVector, KatError
     Ok(vector)
 }
 
+#[cfg(test)]
 /// Generates the full corpus: exactly one real vector per rendered registry
 /// entry, in graph order. Fully deterministic — the same graph always yields
 /// byte-identical corpora on any runtime (witnessed against the embedded

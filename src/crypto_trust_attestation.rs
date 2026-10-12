@@ -280,6 +280,10 @@ pub fn verify_attestation(
             Err(AttestationError::BadSignature)
         }
         Err(Es256Error::P256(detail)) => Err(AttestationError::Serialization(detail)),
+        // DegenerateSeed fires only on `from_seed` (key derivation), never on
+        // the verification path — structurally unreachable here; mapped so the
+        // match stays total. (Lane R32 minimal unblock fix, disclosed.)
+        Err(Es256Error::DegenerateSeed) => Err(AttestationError::BadSignature),
     }
 }
 

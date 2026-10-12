@@ -98,6 +98,14 @@ pub fn ml_dsa65_generate() -> Result<MlDsa65KeyPair, PqcError> {
     Ok(ml_dsa65_from_seed(&seed))
 }
 
+/// HAZARD: seed-derived keys are for TEST FIXTURES and KAT vectors only.
+/// Production must derive keys from a real entropy source; a degenerate
+/// (all-same-byte, e.g. all-zero) seed here would reproduce the identical
+/// key pair for every caller that picks the same constant. This function is
+/// infallible by signature (FIPS 204 accepts any 32-byte seed), so screening
+/// is by convention and by callers, not by type; the ES256 path enforces the
+/// same law by type in [`crate::crypto_trust_es256`].
+///
 /// Deterministically derives the ML-DSA-65 key pair from a 32-byte seed
 /// (FIPS 204 ML-DSA.KeyGen_internal; same seed => same public key).
 #[must_use]
@@ -168,6 +176,11 @@ pub fn slh_dsa128s_generate() -> Result<SlhDsa128sKeyPair, PqcError> {
     Ok(slh_dsa128s_from_seed(&seeds))
 }
 
+/// HAZARD: seed-derived keys are for TEST FIXTURES and KAT vectors only.
+/// This function is infallible by signature (FIPS 205 accepts any seed
+/// triplet), so degenerate-seed screening is by caller convention; the ES256
+/// path enforces the same law by type in [`crate::crypto_trust_es256`].
+///
 /// Deterministically derives the SLH-DSA-SHA2-128s key pair from the 48-byte
 /// seed triplet (FIPS 205 slh_keygen_internal; same seeds => same public key).
 #[must_use]
