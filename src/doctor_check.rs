@@ -142,8 +142,17 @@ pub trait DoctorCheck: Send + Sync + 'static {
 ///
 /// let findings: Vec<_> = DOCTOR_CHECKS.iter().map(|c| c.run()).collect();
 /// ```
+/// All registered [`DoctorCheck`] implementations, collected at link time
+/// (host). On wasm32 the linkme linker-section mechanism is unavailable, so the
+/// registry degrades to an empty slice and `run_all()` returns no findings.
+#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice]
 pub static DOCTOR_CHECKS: [&'static dyn DoctorCheck];
+
+/// wasm32 fallback: linkme `distributed_slice` needs linker sections that
+/// wasm-ld does not provide, so registrations are compiled out.
+#[cfg(target_arch = "wasm32")]
+pub const DOCTOR_CHECKS: &[&'static dyn DoctorCheck] = &[];
 
 // ---------------------------------------------------------------------------
 // Built-in checks
@@ -163,6 +172,7 @@ impl DoctorCheck for GenesisVersionCheck {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _GENESIS_CHECK: &dyn DoctorCheck = &GenesisVersionCheck;
 
@@ -195,6 +205,7 @@ impl DoctorCheck for AfffiDirCheck {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _AFFI_DIR_CHECK: &dyn DoctorCheck = &AfffiDirCheck;
 
@@ -230,6 +241,7 @@ impl DoctorCheck for CompletionsCheck {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _COMPLETIONS_CHECK: &dyn DoctorCheck = &CompletionsCheck;
 

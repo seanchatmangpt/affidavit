@@ -1,0 +1,5 @@
+# QG-01 (lane G1b): getrandom 0.3/0.4 wasm_js backend requires this cfg at compile
+# time on wasm32-unknown-unknown. Scoped to the wasm target so host builds are
+# unaffected (target rustflags take precedence over build.rustflags; none are set).
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg", 'getrandom_backend="wasm_js"']

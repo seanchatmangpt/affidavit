@@ -64,6 +64,10 @@ fn io_err(e: std::io::Error) -> NounVerbError {
     to_noun_verb(AffidavitError::Io(e))
 }
 
+fn to_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 // ============================================================================
 // Utility: load receipts from a path (file or directory of .json files)
 // ============================================================================
@@ -127,8 +131,67 @@ fn print_json_or<F: FnOnce()>(
 // EMISSION CLUSTER
 // ============================================================================
 
-/// `affi receipt emit` — append one operation-event to the working receipt.
+/// `affi receipt emit` — append one operation-event to the working receipt,
+/// or emit a 352B CTRT wire receipt with nullifier anti-replay enforcement.
 pub fn emit(r#type: String, object: String, payload: String, format: Option<String>) -> Result<()> {
+    if format.as_deref() == Some("ctrt") {
+        let parent_hash: [u8; 32] = blake3::hash(r#type.as_bytes()).into();
+        let court_id: [u8; 32] = blake3::hash(object.as_bytes()).into();
+        let subject_merkle_root: [u8; 32] = blake3::hash(payload.as_bytes()).into();
+        let compiler_binary_digest: [u8; 32] = [0x5au8; 32];
+        let mut pl = [0u8; crate::wire_ctrt::CTRT_PAYLOAD_SIZE];
+        let p_bytes = payload.as_bytes();
+        let copy_len = p_bytes.len().min(pl.len());
+        pl[..copy_len].copy_from_slice(&p_bytes[..copy_len]);
+
+        let ctrt = crate::wire_ctrt::WireCtrt::new(
+            parent_hash,
+            court_id,
+            subject_merkle_root,
+            compiler_binary_digest,
+            1,
+            1,
+            crate::wire_ctrt::VerdictStatus::Accepted,
+            pl,
+        );
+        let wire = ctrt.serialize();
+
+        // Nullifier anti-replay enforcement
+        let nullifier_dir = std::path::Path::new(".affi");
+        let _ = std::fs::create_dir_all(nullifier_dir);
+        let nullifier_path = nullifier_dir.join("nullifiers.bin");
+        let epoch_key: [u8; 32] = [0x26u8; 32];
+        let mut registry = crate::replay_nullifier::ReplayNullifierRegistry::new(epoch_key, 10_000);
+
+        if nullifier_path.exists() {
+            if let Ok(existing) = std::fs::read(&nullifier_path) {
+                for chunk in existing.chunks_exact(32) {
+                    if let Ok(n) = chunk.try_into() {
+                        let _ = registry.admit_nullifier(n);
+                    }
+                }
+            }
+        }
+
+        let nullifier = registry.check_and_admit(&wire).map_err(|e| {
+            to_noun_verb(AffidavitError::Execution(format!("Anti-replay refusal: {e}")))
+        })?;
+
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&nullifier_path)
+        {
+            let _ = f.write_all(&nullifier);
+        }
+
+        let out_path = format!("receipt_{}.ctrt", to_hex(&nullifier[..8]));
+        std::fs::write(&out_path, &wire).map_err(io_err)?;
+        outln!("emitted CTRT wire receipt -> {} (nullifier: {})", out_path, to_hex(&nullifier));
+        return Ok(());
+    }
+
     // comma-separated object list (interface glue lives here, in the hand seam,
     // because the thin wrapper projection cannot carry adaptation logic).
     let objects: Vec<String> = object.split(',').map(|s| s.trim().to_string()).collect();
@@ -506,6 +569,45 @@ pub fn verify(
     _profile: Option<String>,
     _strict: Option<bool>,
 ) -> Result<()> {
+    // Check if the file is a 352B CTRT wire receipt
+    if let Ok(bytes) = std::fs::read(&receipt) {
+        if bytes.len() == crate::wire_ctrt::CTRT_WIRE_SIZE && &bytes[0..4] == &crate::wire_ctrt::CTRT_MAGIC {
+            match crate::wire_ctrt::WireCtrt::deserialize(&bytes) {
+                Ok(wire_receipt) => {
+                    let d = wire_receipt.digest();
+                    if format.as_deref() == Some("json") {
+                        let out = serde_json::json!({
+                            "verdict": "ACCEPT",
+                            "type": "CTRT-352B",
+                            "digest": to_hex(&d),
+                            "execution_ticks": wire_receipt.execution_ticks,
+                            "elapsed_cycles": wire_receipt.elapsed_cycles,
+                            "status": wire_receipt.verdict_status as u8,
+                        });
+                        outln!("{}", serde_json::to_string_pretty(&out).map_err(|e| to_noun_verb(AffidavitError::Execution(e.to_string())))?);
+                    } else {
+                        eprintln!("verdict: ACCEPT [CTRT-352B] — wire receipt valid (digest: {})", to_hex(&d));
+                    }
+                    return Ok(());
+                }
+                Err(e) => {
+                    if format.as_deref() == Some("json") {
+                        let out = serde_json::json!({
+                            "verdict": "REJECT",
+                            "type": "CTRT-352B",
+                            "reason": e.to_string(),
+                        });
+                        outln!("{}", serde_json::to_string_pretty(&out).map_err(|e2| to_noun_verb(AffidavitError::Execution(e2.to_string())))?);
+                    } else {
+                        eprintln!("verdict: REJECT [CTRT-352B] — {}", e);
+                    }
+                    use crate::diag::exit_codes;
+                    std::process::exit(exit_codes::REJECT);
+                }
+            }
+        }
+    }
+
     let (code, verdict) = adapt(crate::cli::verify(&receipt))?;
     use crate::diag::exit_codes;
     // Transport contract (ARDPRD §6, witnessed by tests/cli_dispatch.rs): the
@@ -7920,6 +8022,227 @@ pub fn envelope_export(sealed_file: String, format: Option<String>) -> Result<()
 /// compiled into this binary (default features).
 #[cfg(not(feature = "crypto-trust"))]
 pub fn envelope_export(_sealed_file: String, _format: Option<String>) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+// ============================================================================
+// DOSSIER CLUSTER (NATO STANAG 4107 / CTT-DOSSIER-v1)
+// ============================================================================
+
+#[cfg(feature = "crypto-trust")]
+fn load_ctt_signer() -> Result<chicago_tdd_tools::ledger::signing::signer::Signer> {
+    use chicago_tdd_tools::ledger::signing::keys::KeyStore;
+    use chicago_tdd_tools::ledger::signing::signer::Signer;
+    let key = KeyStore::new().load_or_create().map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!("KeyStore custody failure: {e}")))
+    })?;
+    Signer::from_signing_key(key).map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!("Signer derivation failure: {e}")))
+    })
+}
+
+#[cfg(feature = "crypto-trust")]
+pub fn dossier_emit(
+    receipts_dir: String,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    use chicago_tdd_tools::ledger::dossier_wire::{dossier_json, write_output, DEFAULT_DOSSIER_OUT};
+    use chicago_tdd_tools::ledger::signing::{dossier_subject, key_id};
+    use chicago_tdd_tools::nato::court::Verdict;
+    use chicago_tdd_tools::nato::dossier_court::{dossier_admits, dossier_root_checked};
+    use chicago_tdd_tools::nato::receipt::{ControlResult, CourtReceipt};
+
+    let p = std::path::Path::new(&receipts_dir);
+    if !p.is_dir() {
+        return Err(to_noun_verb(AffidavitError::Execution(format!(
+            "receipts dir {receipts_dir} is missing or not a directory; prerequisite: run NATO courts"
+        ))));
+    }
+
+    let mut receipts = Vec::with_capacity(20);
+    for i in 1..=20u8 {
+        let file_path = p.join(format!("N{i:02}.json"));
+        let bytes = std::fs::read(&file_path).map_err(io_err)?;
+        let text = String::from_utf8(bytes).map_err(|e| {
+            to_noun_verb(AffidavitError::Execution(format!("{}: UTF-8 decode failed: {e}", file_path.display())))
+        })?;
+        let receipt = CourtReceipt::from_json(&text).map_err(|e| {
+            to_noun_verb(AffidavitError::Validation(format!("{}: Malformed receipt: {e:?}", file_path.display())))
+        })?;
+        receipts.push(receipt);
+    }
+
+    if receipts.len() != 20 {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "expected 20 court receipts, found {}",
+            receipts.len()
+        ))));
+    }
+
+    if !dossier_admits(&receipts) {
+        let bad: Vec<String> = receipts
+            .iter()
+            .filter(|r| {
+                r.verdict != Verdict::Pass
+                    || !matches!(r.positive_control, ControlResult::MutantCaught { .. })
+            })
+            .map(|r| format!("N{:02}.json", r.court_id.id_number()))
+            .collect();
+        return Err(to_noun_verb(AffidavitError::AdmissionRefused(format!(
+            "dossier admission refused: courts without Pass+MutantCaught: {}",
+            bad.join(", ")
+        ))));
+    }
+
+    let root = dossier_root_checked(&receipts).map_err(|e| {
+        to_noun_verb(AffidavitError::Validation(format!("Dossier root computation failed: {e:?}")))
+    })?;
+
+    let signer = load_ctt_signer()?;
+    let signature = signer.sign(&dossier_subject(&root));
+    let kid = key_id(&signer.public_key());
+    let value = dossier_json(&receipts, &root, &kid, &signature).map_err(|e| {
+        to_noun_verb(AffidavitError::Execution(format!("Dossier JSON construction failed: {e}")))
+    })?;
+
+    let out_path = out.unwrap_or_else(|| DEFAULT_DOSSIER_OUT.to_string());
+    let bytes = serde_json::to_vec_pretty(&value).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    if let Some(parent) = std::path::Path::new(&out_path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    write_output(&out_path, &bytes).map_err(|e| to_noun_verb(AffidavitError::Execution(e)))?;
+
+    if format.as_deref() == Some("json") {
+        let obj = serde_json::json!({
+            "ok": true,
+            "cmd": "dossier emit",
+            "receipts": receipts.len(),
+            "merkle_root": to_hex(&root),
+            "out": out_path,
+        });
+        outln!("{}", serde_json::to_string_pretty(&obj).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?);
+    } else {
+        outln!("emitted NATO STANAG 4107 dossier -> {} (Merkle root: {})", out_path, to_hex(&root));
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "crypto-trust"))]
+pub fn dossier_emit(
+    _receipts_dir: String,
+    _out: Option<String>,
+    _format: Option<String>,
+) -> Result<()> {
+    Err(to_noun_verb(AffidavitError::Execution(
+        "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
+    )))
+}
+
+#[cfg(feature = "crypto-trust")]
+pub fn dossier_inspect(
+    path: String,
+    verify_pqc_signature: Option<String>,
+    assert_merkle_root: bool,
+    format: Option<String>,
+) -> Result<()> {
+    use chicago_tdd_tools::ledger::dossier_wire::{
+        decode_receipts, parse_key_id, parse_root, parse_signature, DossierJson, DOSSIER_FORMAT,
+    };
+    use chicago_tdd_tools::ledger::signing::{dossier_subject, key_id};
+    use chicago_tdd_tools::nato::dossier_court::dossier_root;
+
+    let raw = std::fs::read(&path).map_err(io_err)?;
+    let doc: DossierJson = serde_json::from_slice(&raw).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+
+    if doc.format != DOSSIER_FORMAT {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "unsupported dossier format {:?}, expected {:?}",
+            doc.format, DOSSIER_FORMAT
+        ))));
+    }
+
+    let receipts = decode_receipts(&doc.court_receipts).map_err(|e| to_noun_verb(AffidavitError::Validation(e)))?;
+    if receipts.len() != 20 {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "dossier holds {} court receipts, expected 20",
+            receipts.len()
+        ))));
+    }
+
+    let recomputed = dossier_root(&receipts);
+    let stored = parse_root(&doc.merkle_root).map_err(|e| to_noun_verb(AffidavitError::Validation(e)))?;
+
+    if stored != recomputed {
+        return Err(to_noun_verb(AffidavitError::Validation(format!(
+            "merkle root mismatch: stored {} recomputed {}",
+            to_hex(&stored),
+            to_hex(&recomputed)
+        ))));
+    }
+
+    let mut sig_verified: Option<bool> = None;
+    if let Some(alg) = verify_pqc_signature {
+        if alg != "ML-DSA-65" {
+            return Err(to_noun_verb(AffidavitError::Validation(format!(
+                "unsupported PQC signature algorithm {alg:?}; only ML-DSA-65 is implemented"
+            ))));
+        }
+
+        let sig = parse_signature(&doc.signature).map_err(|e| to_noun_verb(AffidavitError::Validation(e)))?;
+        let signer = load_ctt_signer()?;
+        let pk = signer.public_key();
+        let kid_stored = parse_key_id(&doc.key_id).map_err(|e| to_noun_verb(AffidavitError::Validation(e)))?;
+        let kid_ok = key_id(&pk) == kid_stored;
+        let ok = kid_ok && chicago_tdd_tools::ledger::signing::signer::Signer::verify(&pk, &dossier_subject(&recomputed), &sig);
+        sig_verified = Some(ok);
+
+        if !ok {
+            return Err(to_noun_verb(AffidavitError::VerificationFailed(format!(
+                "ML-DSA-65 signature verification failed (key_id {})",
+                doc.key_id
+            ))));
+        }
+    }
+
+    if format.as_deref() == Some("json") {
+        let out = serde_json::json!({
+            "ok": true,
+            "cmd": "dossier inspect",
+            "format": doc.format,
+            "receipts": receipts.len(),
+            "merkle_root": to_hex(&recomputed),
+            "assert_merkle_root": assert_merkle_root,
+            "signature_verified": sig_verified,
+        });
+        outln!("{}", serde_json::to_string_pretty(&out).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?);
+    } else {
+        outln!(
+            "format {} ok; receipts: {}; merkle_root: {} (assert_merkle_root={}); ML-DSA-65 signature verified: {}",
+            doc.format,
+            receipts.len(),
+            to_hex(&recomputed),
+            assert_merkle_root,
+            match sig_verified {
+                Some(true) => "true",
+                Some(false) => "false",
+                None => "not requested",
+            }
+        );
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "crypto-trust"))]
+pub fn dossier_inspect(
+    _path: String,
+    _verify_pqc_signature: Option<String>,
+    _assert_merkle_root: bool,
+    _format: Option<String>,
+) -> Result<()> {
     Err(to_noun_verb(AffidavitError::Execution(
         "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
     )))

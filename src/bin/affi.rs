@@ -27,6 +27,7 @@
 ///
 /// Only a bare top-level `affi --version` is intercepted; `affi <noun> <verb>
 /// --version` still reaches the framework unchanged.
+#[cfg(not(target_arch = "wasm32"))]
 fn version_requested(args: &[String]) -> bool {
     matches!(
         args.first().map(String::as_str),
@@ -34,6 +35,7 @@ fn version_requested(args: &[String]) -> bool {
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> clap_noun_verb::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if version_requested(&args) {
@@ -42,6 +44,10 @@ fn main() -> clap_noun_verb::Result<()> {
     }
     affidavit::run()
 }
+
+/// wasm32 has no host CLI surface; the library is the product there.
+#[cfg(target_arch = "wasm32")]
+fn main() {}
 
 #[cfg(test)]
 mod tests {

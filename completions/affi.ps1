@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 92, Registry nouns: 9
+# Source: src/registry.rs — Registry verbs: 98, Registry nouns: 10
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `. /path/to/completions/affi.ps1` to your $PROFILE.
@@ -13,6 +13,12 @@
 $script:AffiCompletions = [ordered]@{
     'affi' = [ordered]@{
         'doctor' = 'Run environment and receipt-store health checks; optionally apply safe fixes'
+    }
+    'dossier' = [ordered]@{
+        'emit' = 'Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)'
+        'inspect' = 'Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature'
+        'seal' = 'Seal a directory of 352-byte court records into a signed sealed-dossier wire file'
+        'verify' = 'Verify a sealed-dossier wire file against the local ML-DSA-65 key store'
     }
     'ecosystem' = [ordered]@{
         'certify' = 'Federate sealed member standing receipts into one quorum-scored receipt'
@@ -56,6 +62,7 @@ $script:AffiCompletions = [ordered]@{
         'bus-factor' = 'Compute the bus factor for each object in the chain based on contributor events'
         'catalog' = 'Index a directory of receipts into a local catalog for fast search and lookup'
         'causality-chain' = 'Build a causality chain graph linking events by causal relationships'
+        'chain-verify' = 'Replay the BLAKE3 receipt chain across all court records in a directory'
         'conformance' = 'Check a receipt against custom conformance rules or a named profile'
         'coverage-analysis' = 'Measure what fraction of defined event types appear in the receipt'
         'dependency-matrix' = 'Build an object-to-object dependency matrix from co-occurrence in receipt events'
@@ -109,6 +116,7 @@ $script:AffiCompletions = [ordered]@{
         'test' = 'Run the built-in receipt self-test suite to validate the local installation'
         'timeline' = 'Render a temporal timeline of events ordered by sequence number'
         'trend-analysis' = 'Compute rolling trends over event frequency, latency, and error rates across receipts'
+        'validate' = 'Validate one 352-byte CTRT court receipt record (file or stdin)'
         'variance' = 'Measure variance in event timing and payload size across a collection of receipts'
         'verify' = 'Run the 7-stage certify pipeline against a receipt (exit 0=ACCEPT, 2=REJECT)'
         'verify-compliance' = 'Check evidence presence for a compliance framework (evidence present/absent — not a legal determination)'

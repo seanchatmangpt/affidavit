@@ -22,6 +22,20 @@ pub mod diagnose;
 pub mod diff;
 pub mod doctor;
 pub mod dora_metrics;
+pub mod dossier_emit;
+pub mod dossier_inspect;
+
+// Phase D M2: native port of the excised `ctdd_ledger` verbs. Feature-gated:
+// the wire/domain law lives in `chicago-tdd-tools`, compiled in only when
+// the `ctdd` feature is admitted.
+#[cfg(feature = "ctdd")]
+pub mod dossier_seal;
+#[cfg(feature = "ctdd")]
+pub mod dossier_verify;
+#[cfg(feature = "ctdd")]
+pub mod receipt_chain_verify;
+#[cfg(feature = "ctdd")]
+pub mod receipt_validate;
 pub mod ecosystem_certify;
 pub mod ecosystem_verify;
 pub mod emit;

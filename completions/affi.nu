@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 92, Registry nouns: 9
+# Source: src/registry.rs — Registry verbs: 98, Registry nouns: 10
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `source /path/to/completions/affi.nu` to your config.nu.
@@ -12,13 +12,14 @@
 def "nu-complete affi nouns" [] {
     [
         {value: "affi", description: "1 verbs"}
+        {value: "dossier", description: "4 verbs"}
         {value: "ecosystem", description: "2 verbs"}
         {value: "envelope", description: "4 verbs"}
         {value: "errc", description: "4 verbs"}
         {value: "evidence", description: "4 verbs"}
         {value: "guide", description: "1 verbs"}
         {value: "keys", description: "5 verbs"}
-        {value: "receipt", description: "69 verbs"}
+        {value: "receipt", description: "71 verbs"}
         {value: "standing", description: "2 verbs"}
     ]
 }
@@ -28,6 +29,12 @@ def "nu-complete affi verbs" [context: string] {
     match $noun {
         "affi" => [
             {value: "doctor", description: "Run environment and receipt-store health checks; optionally apply safe fixes"}
+        ]
+        "dossier" => [
+            {value: "emit", description: "Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)"}
+            {value: "inspect", description: "Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature"}
+            {value: "seal", description: "Seal a directory of 352-byte court records into a signed sealed-dossier wire file"}
+            {value: "verify", description: "Verify a sealed-dossier wire file against the local ML-DSA-65 key store"}
         ]
         "ecosystem" => [
             {value: "certify", description: "Federate sealed member standing receipts into one quorum-scored receipt"}
@@ -71,6 +78,7 @@ def "nu-complete affi verbs" [context: string] {
             {value: "bus-factor", description: "Compute the bus factor for each object in the chain based on contributor events"}
             {value: "catalog", description: "Index a directory of receipts into a local catalog for fast search and lookup"}
             {value: "causality-chain", description: "Build a causality chain graph linking events by causal relationships"}
+            {value: "chain-verify", description: "Replay the BLAKE3 receipt chain across all court records in a directory"}
             {value: "conformance", description: "Check a receipt against custom conformance rules or a named profile"}
             {value: "coverage-analysis", description: "Measure what fraction of defined event types appear in the receipt"}
             {value: "dependency-matrix", description: "Build an object-to-object dependency matrix from co-occurrence in receipt events"}
@@ -124,6 +132,7 @@ def "nu-complete affi verbs" [context: string] {
             {value: "test", description: "Run the built-in receipt self-test suite to validate the local installation"}
             {value: "timeline", description: "Render a temporal timeline of events ordered by sequence number"}
             {value: "trend-analysis", description: "Compute rolling trends over event frequency, latency, and error rates across receipts"}
+            {value: "validate", description: "Validate one 352-byte CTRT court receipt record (file or stdin)"}
             {value: "variance", description: "Measure variance in event timing and payload size across a collection of receipts"}
             {value: "verify", description: "Run the 7-stage certify pipeline against a receipt (exit 0=ACCEPT, 2=REJECT)"}
             {value: "verify-compliance", description: "Check evidence presence for a compliance framework (evidence present/absent — not a legal determination)"}

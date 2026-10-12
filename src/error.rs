@@ -1,3 +1,17 @@
+//! Error types for the Affidavit provenance layer.
+//!
+//! ## Operator error-code matrix: PQC naming deltas (0xE301-0xE303)
+//!
+//! The operator matrix names map onto the two `PqcError` definitions in this
+//! crate as follows. Names were NOT mass-renamed; this table is the mapping of
+//! record.
+//!
+//! | Code | Operator matrix name | Actual variant(s) |
+//! |------|----------------------|-------------------|
+//! | `0xE301` | Signing / Verification | `error::PqcError::Signing`, `error::PqcError::Verification`; `crypto_trust_pqc::PqcError::MlDsa`, `::MalformedSignature`; `deontic::DeonticError::SignatureOrContextMismatch` family |
+//! | `0xE302` | Encapsulation | `error::PqcError::Encapsulation`; `crypto_trust_pqc::PqcError::MalformedPublicKey`; `deontic::DeonticError::MlKemDecapsulationFailure` |
+//! | `0xE303` | Chain | `error::PqcError::Chain`; `crypto_trust_pqc::PqcError::SlhDsa`, `::Es256Half`; `deontic::DeonticError::FormalOracleDivergence` |
+
 use thiserror::Error;
 
 /// Errors raised while building or validating OCEL events.
@@ -63,6 +77,22 @@ pub enum PqcError {
     /// Underlying chain error.
     #[error("Chain error: {0}")]
     Chain(#[from] ChainError),
+}
+
+impl PqcError {
+    /// Return the canonical numeric machine code corresponding to this PQC error.
+    ///
+    /// - `0xE301`: ML-DSA-65 signature check failure / signing failure
+    /// - `0xE302`: KEM encapsulation / decapsulation failure
+    /// - `0xE303`: Formal oracle detected output divergence / chain failure
+    #[must_use]
+    pub const fn machine_code(&self) -> u16 {
+        match self {
+            Self::Verification(_) | Self::Signing(_) => 0xE301,
+            Self::Encapsulation(_) => 0xE302,
+            Self::Chain(_) => 0xE303,
+        }
+    }
 }
 
 /// Errors in the discovery or Petri net mining pipeline.

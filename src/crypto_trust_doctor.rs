@@ -130,6 +130,7 @@ impl DoctorCheck for StoreIntegrityCheck {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _STORE_INTEGRITY_CHECK: &dyn DoctorCheck = &StoreIntegrityCheck;
 
@@ -183,6 +184,7 @@ impl DoctorCheck for Es256SelftestCheck {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _ES256_SELFTEST_CHECK: &dyn DoctorCheck = &Es256SelftestCheck;
 
@@ -267,6 +269,7 @@ impl DoctorCheck for EnvelopeLawCheck {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _ENVELOPE_LAW_CHECK: &dyn DoctorCheck = &EnvelopeLawCheck;
 
@@ -340,6 +343,7 @@ impl DoctorCheck for PqcSelftestCheck {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _PQC_SELFTEST_CHECK: &dyn DoctorCheck = &PqcSelftestCheck;
 

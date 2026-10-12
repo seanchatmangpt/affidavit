@@ -28,7 +28,7 @@ In complex systems, "honesty" is often undecidable. `affidavit` shifts the burde
 *   🏛️ **Evidence Federation:** Certify receipt-bound standing, cross-repo quorums, and formal ERRC transformations — see [`docs/FEDERATION.md`](docs/FEDERATION.md).
 *   🔍 **Deep Introspection:** Auto-generate DFG/Petri models from receipts *(behind the `discovery` feature; see Feature status below)*.
 *   🛡️ **Chaos Engineering:** Built-in mutation testing to stress-test your verifiers *(behind the `mutation` feature; see Feature status below)*.
-*   🤖 **Intelligent CLI:** 92 canonical verbs, ontology-driven help, and powerful ad-hoc querying.
+*   🤖 **Intelligent CLI:** 98 canonical verbs, ontology-driven help, and powerful ad-hoc querying.
 
 ---
 
@@ -70,6 +70,25 @@ gating feature matrix at the v26.10.8 fleet tag:
 (see [`AGENTS.md`](AGENTS.md) §1), not oversights: broadening one without an
 observed integration proof would manufacture a green that means nothing. Closing
 these out is tracked as ROADMAP P1-7.
+
+### The `ctdd` Feature (Chicago TDD courts, v26.10.11)
+
+The `ctdd` feature gate pulls in the Chicago TDD court surface — six verbs for
+sealing and verifying receipts and dossiers through `chicago-tdd-tools`:
+
+- `affi receipt validate` — Run the certify pipeline against a receipt file.
+- `affi receipt chain-verify` — Recompute the BLAKE3 rolling hash across the full event chain.
+- `affi dossier seal` — Seal a dossier into a content-addressed BLAKE3 chain.
+- `affi dossier verify` — Verify a sealed dossier to an ACCEPT/REJECT verdict.
+- `affi dossier emit` — Append a new operation-event to a dossier.
+- `affi dossier inspect` — Print dossier structure and commitment details.
+
+Dependency note: this builds against `chicago-tdd-tools` 26.10.11 via a local
+`[patch.crates-io]` path pin (unpublished). Build with:
+
+```bash
+cargo build --features ctdd
+```
 
 ### The "Golden Run" in 30 Seconds
 Run the end-to-end smoke test to see `affidavit` in action:
@@ -220,7 +239,7 @@ Each receipt passes through a rigorous validation gauntlet:
 
 ## 💻 CLI Surface
 
-Affidavit ships **92 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
+Affidavit ships **98 canonical verbs** across 11 groups, backed by a compile-time static registry (`src/registry.rs`) that is the authoritative single source of truth for help, completions, and documentation. The registry, the `#[verb]` projections under `src/verbs/`, and the authoritative ontology (`ontology/affi-cli.ttl`) are held in agreement by parity tests, so none of the three can drift.
 
 Shell completions ship for five shells — bash, zsh, fish, PowerShell (`completions/affi.ps1`), and Nushell (`completions/affi.nu`) — generated from the verb registry by `scripts/generate_completions.py` and drift-enforced by `tests/completions_drift.rs`.
 

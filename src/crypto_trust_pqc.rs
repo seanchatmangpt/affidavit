@@ -64,6 +64,22 @@ pub enum PqcError {
     MalformedSignature,
 }
 
+impl PqcError {
+    /// Return the canonical numeric machine code corresponding to this PQC error.
+    ///
+    /// - `0xE301`: ML-DSA-65 signature check failure / malformed signature
+    /// - `0xE302`: Decapsulation failure / malformed key
+    /// - `0xE303`: Formal oracle detected output divergence
+    #[must_use]
+    pub const fn machine_code(&self) -> u16 {
+        match self {
+            Self::MlDsa(_) | Self::MalformedSignature => 0xE301,
+            Self::MalformedPublicKey => 0xE302,
+            Self::SlhDsa(_) | Self::Es256Half(_) => 0xE303,
+        }
+    }
+}
+
 // ── ML-DSA-65 (FIPS 204) ────────────────────────────────────────────────────
 
 /// ML-DSA-65 key pair held as the 32-byte seed (the preferred FIPS 204

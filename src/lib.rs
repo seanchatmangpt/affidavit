@@ -121,6 +121,7 @@ pub mod federation;
 pub mod fixture_db;
 /// GALL-007 evidence-only twelve-gate Chicago crown certification.
 pub mod gall;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod handlers;
 
 #[cfg(feature = "lsp")]
@@ -147,6 +148,7 @@ pub mod predict_maximalist;
 
 pub mod tracing;
 pub mod types;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod verbs;
 pub mod verifier;
 
@@ -156,6 +158,15 @@ pub mod output;
 #[cfg(feature = "crypto-trust")]
 pub mod sj_record;
 pub mod standing;
+
+pub mod replay_nullifier;
+pub mod wire_ctrt;
+#[cfg(feature = "crypto-trust")]
+pub mod deontic;
+
+/// Native port of the excised `ctdd_ledger` CLI verbs (Phase D M2).
+#[cfg(feature = "ctdd")]
+pub mod ctdd_cli;
 
 pub mod diff;
 pub mod visualize;
@@ -280,12 +291,17 @@ pub mod gpu_verifier;
 #[path = "1000x_auto_remediate_dx.rs"]
 pub mod auto_remediate;
 
+#[cfg(feature = "git-provenance")]
+pub mod git_merkle;
+pub mod trajectory_folding;
+
 /// Main entry point for the `affi` CLI application.
 ///
 /// # Errors
 ///
 /// Returns an error if command-line arguments are invalid or if the
 /// requested operation fails.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn run() -> clap_noun_verb::Result<()> {
     clap_noun_verb::run()
 }

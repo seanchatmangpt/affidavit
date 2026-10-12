@@ -123,8 +123,6 @@ required-features = ["discovery"]
 
 [dependencies]
 # --- CORE INFRASTRUCTURE (Always Mandatory) ---
-clap-noun-verb = "26.6"
-clap-noun-verb-macros = "26.6"
 linkme = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -136,7 +134,7 @@ regex = "1"
 
 # --- FEATURE-GATED ECOSYSTEM INTEGRATIONS ---
 # Phase 1: Inspection & catalog
-chicago-tdd-tools = { version = "26.6", optional = true }
+chicago-tdd-tools = { version = "26.10.11", optional = true, features = ["ledger", "nato"] }
 glob = { version = "0.3", optional = true }
 
 # Phase 2: Process Discovery & LSP
@@ -185,6 +183,14 @@ p256 = { version = "0.13.2", optional = true }
 ml-dsa = { version = "0.1.1", optional = true }
 slh-dsa = { version = "=0.2.0-rc.5", optional = true }
 rand_core = { version = "0.6", features = ["getrandom"], optional = true }
+
+# FIPS 203 and Hybrid Post-Quantum KEM
+ml-kem = { version = "0.3.2", optional = true, features = ["hazmat"] }
+x-wing = { version = "0.1.1", optional = true, features = ["hazmat"] }
+
+# Formally verified oracles for defense qualification (Cryspen / Inria Euridice/F*)
+libcrux-ml-dsa = { version = "0.0.10", optional = true, default-features = false }
+libcrux-ml-kem = { version = "0.0.10", optional = true, default-features = false }
 
 # --- Advanced witness capability set (accumulator / quorum / ZK / causal DAG) ---
 # Sparse Merkle tree state accumulator (BLAKE3): O(log n) inclusion AND absence
@@ -246,9 +252,20 @@ wasmtime = { version = "25.0", default-features = false, features = [
 # Formally verified, decidable authority-policy evaluation (AWS Cedar).
 cedar-policy = { version = "4.0", optional = true }
 
+# Git provenance: in-process tree traversal, commit signing, and refs/notes
+gix-object = { version = "0.45", default-features = false, optional = true }
+gix-odb = { version = "0.64", default-features = false, optional = true }
+gix-hash = { version = "0.15", default-features = false, optional = true }
+gix-actor = { version = "0.33", default-features = false, optional = true }
+
 # Secure Enclave signing adapter (macOS; Security.framework, non-exportable P-256).
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = { version = "3.7", optional = true }
+
+# CLI framework — host-only (wasm32 lib builds exclude it; Phase D sovereignty split).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+clap-noun-verb = "26.6"
+clap-noun-verb-macros = "26.6"
 
 # GPU Acceleration (1000X)
 wgpu = { version = "0.19", optional = true }
@@ -277,7 +294,7 @@ criterion = { version = "0.8", features = ["html_reports"] }
 quickcheck = "1"
 quickcheck_macros = "1"
 tokio = { version = "1", features = ["full"] }
-chicago-tdd-tools = { version = "26.6" }
+chicago-tdd-tools = { version = "26.10.11" }
 # Path-only: dev-dependencies without a version are stripped from the published
 # package, so crates.io never sees (or resolves) the real `wasm4pm`, whose
 # `=0.2.100` wasm-bindgen pin cannot coexist with wgpu 30 (`^0.2.127`) and made
@@ -299,7 +316,7 @@ default = ["core"]
 core = ["wasm4pm-compat"]
 
 # Phase 1: Inspection tools (diff, visualize, catalog).
-inspection = ["chicago-tdd-tools", "glob", "colored"]
+inspection = ["dep:chicago-tdd-tools", "glob", "colored"]
 
 # Phase 2: Process Discovery (model, conform, predict).
 # `wasm4pm` is now a plain marker feature (no crates.io dependency behind it): the
@@ -334,6 +351,14 @@ metrics = ["otel", "prometheus", "opentelemetry-prometheus"]
 json-output = []
 # Enables the interactive REPL shell.
 shell = ["rustyline", "tokio", "shlex"]
+# Native port of the excised `ctdd_ledger` CLI verbs (Phase D M2). The
+# wire/domain law (352-byte CTRT records, chain replay, dossier sealing,
+# ML-DSA-65 sealing, LedgerExitCode classes) lives entirely in
+# chicago-tdd-tools; affi owns only filesystem traversal and verb plumbing.
+# NOTE: CTT 26.10.11 is not published on crates.io; the version req plus the
+# [patch.crates-io] path pin at the bottom of this manifest point the edge at
+# the local checkout until it is published.
+ctdd = ["dep:chicago-tdd-tools"]
 # Rich UI elements like progress bars and colors.
 ui = ["colored", "indicatif"]
 
@@ -348,9 +373,22 @@ gpu = ["wgpu", "bytemuck", "pollster"]
 # Cryptographic trust plane: keys, custody, canonicalization, signature
 # envelopes, signing providers, verification -> cryptographic standing.
 # Manufactured from ggen-marketplace affidavit-trust-plane-pack via `ggen sync run`.
-crypto-trust = ["dep:signature", "dep:p256", "dep:ml-dsa", "dep:slh-dsa", "dep:rand_core", "ed25519", "secp256k1"]
-# Backward-compatible explicit PQC surface used by the exact-head crypto court.
-pqc = ["crypto-trust"]
+crypto-trust = [
+  "dep:signature",
+  "dep:p256",
+  "dep:ml-dsa",
+  "dep:slh-dsa",
+  "dep:ml-kem",
+  "dep:x-wing",
+  "dep:rand_core",
+  "ed25519",
+  "secp256k1",
+  "dep:chicago-tdd-tools"
+]
+# Dedicated feature gate for formally verified oracles
+pqc-verified-oracle = ["dep:libcrux-ml-dsa", "dep:libcrux-ml-kem"]
+# PQC umbrella: trust plane plus verified oracle
+pqc = ["crypto-trust", "pqc-verified-oracle"]
 # OPTIONAL certified-receipts upgrade for paid-delivery receipts: signs the
 # canonical "affidavit-paid-delivery/v1|<subject>|<payload_hash_hex>" subject
 # through the existing certify_signed path. The chain rule itself stays the
@@ -425,6 +463,9 @@ advanced-crypto = [
 ]
 # Parallel-session single-file trust plane (unreachable WIP) — gated verbatim, pending consolidation.
 
+# Git provenance: in-process tree traversal, commit signing, and refs/notes dossier
+git-provenance = ["dep:gix-object", "dep:gix-odb", "dep:gix-hash", "dep:gix-actor"]
+
 # 1000X Innovation Hardening
 # Automatic code remediation based on policy violations.
 # `tracing` is required: src/1000x_auto_remediate_dx.rs:37 imports it.
@@ -478,11 +519,20 @@ dev = ["all"]
 # pulls in a large transitive surface for an optional mutation feature; keep the
 # bounded stub until that version/feature boundary is intentionally graduated.
 clnrm-core = { path = "stubs/clnrm-core" }
+chicago-tdd-tools = { path = "/Users/sac/chicago-tdd-tools" }
 
 # CI/test latency: optimize crypto dependency compute without changing first-party dev checks.
 [profile.dev.package.ml-dsa]
 opt-level = 3
 [profile.dev.package.slh-dsa]
+opt-level = 3
+[profile.dev.package.ml-kem]
+opt-level = 3
+[profile.dev.package.x-wing]
+opt-level = 3
+[profile.dev.package.libcrux-ml-dsa]
+opt-level = 3
+[profile.dev.package.libcrux-ml-kem]
 opt-level = 3
 [profile.dev.package.p256]
 opt-level = 3
@@ -505,7 +555,24 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
+[profile.wasm-release]
+inherits = "release"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = "z"
+
 [[bench]]
 name = "crypto_trust_bench"
 harness = false
 required-features = ["crypto-trust"]
+
+# QG-01 (lane G1b): getrandom on wasm32-unknown-unknown.
+# 0.2 needs "js"; 0.3/0.4 need "wasm_js" plus `--cfg getrandom_backend="wasm_js"`
+# (set in .cargo/config.toml). Renamed entries still unify features onto the
+# transitive getrandom chains (rand_core 0.6 -> 0.2, rand 0.9 -> 0.3, rand 0.10 -> 0.4).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }
+getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }

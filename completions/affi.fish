@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 92, Registry nouns: 9
+# Source: src/registry.rs — Registry verbs: 98, Registry nouns: 10
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 
 # --- helper predicates -------------------------------------------------------
@@ -13,7 +13,7 @@ function __affi_no_noun
     set -l toks (commandline -opc)
     for t in $toks[2..-1]
         switch $t
-            case affi ecosystem envelope errc evidence guide keys receipt standing
+            case affi dossier ecosystem envelope errc evidence guide keys receipt standing
                 return 1
         end
     end
@@ -35,7 +35,7 @@ function __affi_no_verb
     set -l found_noun 0
     for t in $toks[2..-1]
         switch $t
-            case affi ecosystem envelope errc evidence guide keys receipt standing
+            case affi dossier ecosystem envelope errc evidence guide keys receipt standing
             set found_noun 1
             case '*'
             if test $found_noun -eq 1
@@ -49,18 +49,26 @@ end
 # --- Nouns -------------------------------------------------------------------
 
 complete -c affi -f -n '__affi_no_noun' -a affi -d '1 verbs'
+complete -c affi -f -n '__affi_no_noun' -a dossier -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a ecosystem -d '2 verbs'
 complete -c affi -f -n '__affi_no_noun' -a envelope -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a errc -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a evidence -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a guide -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a keys -d '5 verbs'
-complete -c affi -f -n '__affi_no_noun' -a receipt -d '69 verbs'
+complete -c affi -f -n '__affi_no_noun' -a receipt -d '71 verbs'
 complete -c affi -f -n '__affi_no_noun' -a standing -d '2 verbs'
 
 # --- affi verbs ------------------------------------------------------
 
 complete -c affi -f -n '__affi_using_noun affi; and __affi_no_verb' -a doctor -d 'Run environment and receipt-store health checks; optionally apply safe fixes'
+
+# --- dossier verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a emit -d 'Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)'
+complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a inspect -d 'Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature'
+complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a seal -d 'Seal a directory of 352-byte court records into a signed sealed-dossier wire file'
+complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a verify -d 'Verify a sealed-dossier wire file against the local ML-DSA-65 key store'
 
 # --- ecosystem verbs ------------------------------------------------------
 
@@ -111,6 +119,7 @@ complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a audit 
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a bus-factor -d 'Compute the bus factor for each object in the chain based on contributor events'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a catalog -d 'Index a directory of receipts into a local catalog for fast search and lookup'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a causality-chain -d 'Build a causality chain graph linking events by causal relationships'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a chain-verify -d 'Replay the BLAKE3 receipt chain across all court records in a directory'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a conformance -d 'Check a receipt against custom conformance rules or a named profile'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a coverage-analysis -d 'Measure what fraction of defined event types appear in the receipt'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a dependency-matrix -d 'Build an object-to-object dependency matrix from co-occurrence in receipt events'
@@ -164,6 +173,7 @@ complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a tech-d
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a test -d 'Run the built-in receipt self-test suite to validate the local installation'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a timeline -d 'Render a temporal timeline of events ordered by sequence number'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a trend-analysis -d 'Compute rolling trends over event frequency, latency, and error rates across receipts'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a validate -d 'Validate one 352-byte CTRT court receipt record (file or stdin)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a variance -d 'Measure variance in event timing and payload size across a collection of receipts'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a verify -d 'Run the 7-stage certify pipeline against a receipt (exit 0=ACCEPT, 2=REJECT)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a verify-compliance -d 'Check evidence presence for a compliance framework (evidence present/absent — not a legal determination)'

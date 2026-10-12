@@ -2071,3 +2071,60 @@ affi:EnvelopeExportFormatArg a cnv:Argument ;
     cnv:argumentAbout "Export wire form: json (the CTP-ENVELOPE-v1 envelope document, the default) or sa2a (the SA2A-C2-APPROVAL-v1 approval document, JCS-canonical); any other value is REFUSED_UNSUPPORTED" ;
     cnv:valueType "String" ;
     cnv:required "false" .
+
+# ============================================================================
+# DOSSIER NOUN — surface `affi dossier <verb>` (NATO STANAG 4107 cluster).
+# emit/inspect shipped v26.10.5 undeclared (pre-existing gap; surfaced by the
+# registry projection court once the Phase D M2 ctdd verbs compiled in).
+# seal/verify/emit/inspect are behind the `crypto-trust`/`ctdd` features.
+# ============================================================================
+
+affi:DossierNoun a cnv:Noun ;
+    cnv:hasNounName "dossier" ;
+    cnv:nounAbout "Seal, verify, emit, and inspect NATO STANAG 4107 court dossiers" ;
+    cnv:hasVerbs (
+        affi:DossierEmitVerb
+        affi:DossierInspectVerb
+        affi:DossierSealVerb
+        affi:DossierVerifyVerb
+    ) .
+
+affi:DossierEmitVerb a cnv:Verb ;
+    cnv:hasVerbName "emit" ;
+    cnv:verbAbout "Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)" ;
+    cnv:belongsToNoun affi:DossierNoun ;
+    cnv:returnType "()" .
+
+affi:DossierInspectVerb a cnv:Verb ;
+    cnv:hasVerbName "inspect" ;
+    cnv:verbAbout "Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature" ;
+    cnv:belongsToNoun affi:DossierNoun ;
+    cnv:returnType "()" .
+
+affi:DossierSealVerb a cnv:Verb ;
+    cnv:hasVerbName "seal" ;
+    cnv:verbAbout "Seal a directory of 352-byte court records into a signed sealed-dossier wire file" ;
+    cnv:belongsToNoun affi:DossierNoun ;
+    cnv:returnType "()" .
+
+affi:DossierVerifyVerb a cnv:Verb ;
+    cnv:hasVerbName "verify" ;
+    cnv:verbAbout "Verify a sealed-dossier wire file against the local ML-DSA-65 key store" ;
+    cnv:belongsToNoun affi:DossierNoun ;
+    cnv:returnType "()" .
+
+# ============================================================================
+# CTDD LEDGER VERBS on the receipt noun (Phase D M2, feature `ctdd`).
+# ============================================================================
+
+affi:ReceiptValidateVerb a cnv:Verb ;
+    cnv:hasVerbName "validate" ;
+    cnv:verbAbout "Validate one 352-byte CTRT court receipt record (file or stdin)" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" .
+
+affi:ReceiptChainVerifyVerb a cnv:Verb ;
+    cnv:hasVerbName "chain-verify" ;
+    cnv:verbAbout "Replay the BLAKE3 receipt chain across all court records in a directory" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" .

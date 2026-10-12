@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 92);
+//! assert_eq!(verb_count(), 98);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -636,6 +636,58 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["doctor", "health", "check", "diagnose", "environment", "fix"],
     )
     .with_example("affi affi doctor --receipts ./receipts --fix"),
+    // ── Dossier cluster (NATO STANAG 4107) — Phase D M2 ctdd port ──────────
+    // emit/inspect shipped v26.10.5 with no REGISTRY row (pre-existing gap;
+    // the projection court surfaced it once the ctdd verbs compiled in).
+    VerbEntry::new(
+        "emit",
+        "dossier",
+        VerbGroup::Attestation,
+        "Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)",
+        &["dossier", "nato", "stanag", "emit", "court"],
+    )
+    .with_example("affi dossier emit --receipts-dir docs/receipts --out dossier.json"),
+    VerbEntry::new(
+        "inspect",
+        "dossier",
+        VerbGroup::Attestation,
+        "Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature",
+        &["dossier", "nato", "stanag", "inspect", "merkle", "pqc"],
+    )
+    .with_example("affi dossier inspect dossier.json --verify-pqc-signature ML-DSA-65"),
+    VerbEntry::new(
+        "seal",
+        "dossier",
+        VerbGroup::Attestation,
+        "Seal a directory of 352-byte court records into a signed sealed-dossier wire file",
+        &["dossier", "seal", "merkle", "chain", "court"],
+    )
+    .with_example("affi dossier seal ./records --output sealed.bin"),
+    VerbEntry::new(
+        "verify",
+        "dossier",
+        VerbGroup::Attestation,
+        "Verify a sealed-dossier wire file against the local ML-DSA-65 key store",
+        &["dossier", "verify", "merkle", "tamper", "pqc"],
+    )
+    .with_example("affi dossier verify sealed.bin"),
+    // ── ctdd ledger verbs (feature `ctdd`) ─────────────────────────────────
+    VerbEntry::new(
+        "validate",
+        "receipt",
+        VerbGroup::Core,
+        "Validate one 352-byte CTRT court receipt record (file or stdin)",
+        &["validate", "ctrt", "record", "court", "ledger"],
+    )
+    .with_example("affi receipt validate record.ctrt"),
+    VerbEntry::new(
+        "chain-verify",
+        "receipt",
+        VerbGroup::Core,
+        "Replay the BLAKE3 receipt chain across all court records in a directory",
+        &["chain", "verify", "ledger", "replay", "court"],
+    )
+    .with_example("affi receipt chain-verify ./records"),
     VerbEntry::new(
         "search",
         "guide",
@@ -917,7 +969,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 92; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify) + 3 keys lifecycle verbs (keys import/revoke/rotate, wave 1 lane 4) + 4 evidence verbs (evidence journal/crl-publish/crl-apply/heads, wave 2 lane 1) + 2 envelope verbs (envelope list/export, wave 3)
+        let expected = 98; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify) + 3 keys lifecycle verbs (keys import/revoke/rotate, wave 1 lane 4) + 4 evidence verbs (evidence journal/crl-publish/crl-apply/heads, wave 2 lane 1) + 2 envelope verbs (envelope list/export, wave 3) + 6 dossier-cluster/ctdd verbs (Phase D M2: dossier emit/inspect registry rows + dossier seal/verify + receipt validate/chain-verify)
         assert_eq!(
             verb_count(),
             expected,
