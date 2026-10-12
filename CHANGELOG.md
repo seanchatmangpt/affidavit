@@ -20,6 +20,27 @@ All notable changes to the Affidavit provenance layer are documented here.
 - **QG-01 / QG-05 gates**: QG-01 (imports==∅ for the wasm module) and QG-05
   (dudect constant-time courts) landed in the qualification ladder.
 
+### Post-tag adversarial hardening (2026-10-11, after `v26.10.6`)
+
+Adversarial-review fix stream landed after the tag (commits `aaa62eb`…
+`1dfe7a2`); findings receipt: `ec5a091`, dispositions: `08b421d` (lane A179).
+
+- **Trajectory fold associativity + panic fix** (SK1 fix-forward, `aaa62eb`,
+  `0b650a5`, R29): char-safe truncation, associative severity-ordered outcome
+  fold with an outcome-domain check (`c0d4549`), fold law asserted in the
+  monoidal associativity test.
+- **Wire digest enforcement** (SK4, `1861dd7`): full-wire BLAKE3 commitment
+  enforced at CTRT decode; fail-closed nullifier enforcement and digest
+  threading through handlers (R36, `153a730`).
+- **Nullifier epoch binding** (R38, `1e2e840`, SX4 close): AFRN v2 snapshot
+  serializes `nullifier_history` in an HMAC-sealed envelope.
+- **Deontic framed contexts** (SK3 fix-forward, `ebfa6c7`): framed deontic
+  contexts, degenerate-seed screening, KAT seed surface closed.
+- **Seed screening on both PQC paths** (SX5-F2, `1a16e25`): degenerate-seed
+  screening forward-ported to both PQC `from_seed` paths.
+- **ct_timing court** (BAT1-1, `1dfe7a2`): `ct_timing_invariance` closure
+  `Clone` bound fix and keypair `Result` expect removal.
+
 ## [26.9.30] — 2026-10-01
 
 **Theme: release-identity bump.** No behavioural change to the verifier or the
