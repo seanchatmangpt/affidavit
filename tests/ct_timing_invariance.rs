@@ -1,3 +1,5 @@
+#![cfg(feature = "crypto-trust")]
+
 //! QG-05: constant-time (dudect) timing-invariance court.
 //!
 //! Real-collaborator harness (Chicago style — no mocks): measures actual
