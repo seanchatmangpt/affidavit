@@ -55,9 +55,17 @@ fn sha256_known_answer_vectors() {
         let mut s = Sha256::init();
         Sha256::absorb(&mut s, msg);
         let got = Sha256::finish(s);
-            let expect = sha2::Sha256::digest(msg);
+        // Assert against the published FIPS 180-4 vector (hex), the sha2
+        // dev-dep, and that the hex constant is a well-formed 32-byte digest.
+        let expect = sha2::Sha256::digest(msg);
         assert_eq!(got.as_bytes(), &expect[..], "KAT for {:?} bytes", msg.len());
-        let _ = hex;
+        let mut expect_hex = String::with_capacity(64);
+        for b in expect.iter() {
+            use core::fmt::Write as _;
+            let _ = write!(expect_hex, "{b:02x}");
+        }
+        assert_eq!(&expect_hex, hex, "published FIPS vector for {:?} bytes", msg.len());
+        assert_eq!(hex.len(), 64);
     }
 }
 

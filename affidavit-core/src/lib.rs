@@ -7,9 +7,9 @@
 //! thing in the system to compromise. So this core has:
 //!
 //! * **No dependencies.** Nothing to audit, nothing to be broken by an upstream
-//!   release. (Pointedly: the sibling `affidavit` crate currently does not
-//!   compile because one published dependency, `wasm4pm-compat 26.6.13`, fails
-//!   under nightly. A verifier with an empty `[dependencies]` cannot fail that
+//!   release. (Pointedly: the sibling `affidavit` crate carries a published
+//!   dependency pin, `wasm4pm-compat =26.8.7`, that a future upstream release
+//!   could break. A verifier with an empty `[dependencies]` cannot fail that
 //!   way.)
 //! * **No `std`, no `alloc` on the verify path.** [`verify`] runs over a
 //!   borrowed `&[Event]` and allocates nothing, so it works in a WASM sandbox,
@@ -94,9 +94,6 @@ pub use crypto_verify::SignatureEnvelope;
 
 #[cfg(feature = "alloc")]
 pub use chain::{ChainBuilder, OwnedEvent, Receipt};
-
-#[cfg(feature = "alloc")]
-pub use accumulator::{MmrAccumulator, MmrError, MmrProof};
 
 #[cfg(feature = "alloc")]
 pub use mining::{DirectlyFollowsGraph, Trace};

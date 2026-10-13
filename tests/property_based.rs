@@ -3,8 +3,8 @@
 //! Implementation of Quickcheck Arbitrary instances for the Receipt type system
 //! and exhaustive property tests for decidability and tamper-detection.
 //!
-//! This file is a self-contained property testing suite designed to be moved
-//! to `tests/property_based.rs` once validated.
+//! This is the validated suite, living at its permanent home
+//! `tests/property_based.rs` in the `affidavit` crate's integration tests.
 
 use affidavit::chain::{recompute_chain, ChainAssembler, FORMAT_VERSION};
 use affidavit::types::{Blake3Hash, ObjectRef, OperationEvent, Receipt};

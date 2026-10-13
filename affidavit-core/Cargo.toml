@@ -20,7 +20,7 @@ alloc = []
 # NOTE: there is intentionally no [dependencies] section. That is the whole
 # point — a trust-critical verifier with ZERO supply-chain surface, so it cannot
 # be broken by a bad upstream crate the way the sibling `affidavit` crate
-# currently is (its build is blocked by wasm4pm-compat 26.6.13).
+# can be (its root pin is `wasm4pm-compat =26.8.7`).
 
 # Standalone workspace root: isolates this crate from any ancestor directory so
 # it builds and tests even though the sibling `affidavit` crate cannot.

@@ -2,6 +2,12 @@
 //! `src/receipt_chain.rs` (`chain_from_frame` / `OcelCausalReceipt::chain`),
 //! adapted to this crate's [`ChainHasher`]-generic design.
 //!
+//! **Status: fixture-only.** The sole consumer of this module is the
+//! FM-CHAIN-009 byte-exactness golden fixture court
+//! (`tests/bcinr_fm_chain_009.rs`), which proves byte compatibility with
+//! graphlaw's committed receipts. It is not wired into any production verify
+//! path; do not grow public API here without a consumer.
+//!
 //! The rule (byte-exact with graphlaw, which is itself a verbatim port of
 //! `bcinr-powl-receipt 26.7.28`):
 //!

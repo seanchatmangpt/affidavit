@@ -178,12 +178,12 @@ curl https://crates.io/api/v1/crates/affidavit
 
 ## Documentation
 
-- [README.md](README.md) — Getting started and CLI surface
-- [ARDPRD.md](ARDPRD.md) — Product & architecture requirements (PRD/ARD)
-- [CHANGELOG.md](CHANGELOG.md) — Version history
-- [STATUS.md](STATUS.md) — Phase 1 completion summary
-- [INTEGRATIONS.md](INTEGRATIONS.md) — Library integrations and features
-- [src/lib.rs](src/lib.rs) — Module documentation
+- [README.md](../../README.md) — Getting started and CLI surface
+- [ARDPRD.md](../../docs/archive/ARDPRD.md) — Product & architecture requirements (PRD/ARD)
+- [CHANGELOG.md](../../CHANGELOG.md) — Version history
+- [STATUS.md](../../STATUS.md) — Phase 1 completion summary
+- [INTEGRATIONS.md](../../docs/integrations/INTEGRATIONS.md) — Library integrations and features
+- [src/lib.rs](../../src/lib.rs) — Module documentation
 
 ---
 
@@ -199,8 +199,8 @@ curl https://crates.io/api/v1/crates/affidavit
 
 Licensed under either of:
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
 
