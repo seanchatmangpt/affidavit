@@ -527,10 +527,7 @@ mod tests {
         assert_eq!(r["version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(r["abi_version"], ABI_VERSION);
         assert_eq!(r["format_version"], "core/v1");
-        assert_eq!(
-            r["genesis_seed"],
-            format!("affidavit-v{}-genesis", env!("CARGO_PKG_VERSION"))
-        );
+        assert_eq!(r["genesis_seed"], "affidavit-v26.9.28-genesis");
         assert_eq!(r["ops"].as_array().unwrap().len(), OPS.len());
     }
 

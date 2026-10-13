@@ -136,9 +136,14 @@ def mint() -> None:
         _shutil.rmtree(work, ignore_errors=True)
 
 
+# The genesis seed is frozen to the deployed wasm generation (v26.9.28), not
+# derived from the crate version — bump deliberately with a migration note if
+# the genesis law ever changes.
+FROZEN_GENESIS_SEED = "affidavit-v26.9.28-genesis"
+
+
 def check_genesis() -> None:
-    version = admit_version()
-    expected = "affidavit-v{0}-genesis".format(version)
+    expected = FROZEN_GENESIS_SEED
     failures = []
     for relative in WEB_FILES:
         path = os.path.join(REPO, relative)

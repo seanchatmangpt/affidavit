@@ -18,11 +18,15 @@ use crate::types::{canonical_bytes, Blake3Hash, OperationEvent, Receipt};
 /// Format version stamped into assembled receipts.
 pub const FORMAT_VERSION: &str = "core/v1";
 
-/// Genesis seed for the rolling chain hash. Binds chains to this release.
+/// Genesis seed for the rolling chain hash. Binds chains to the genesis law,
+/// not to the crate version.
 ///
-/// Built from the package version at compile time so the seed always matches
-/// the running binary. Cross-version receipt verification is expected to fail.
-const GENESIS_SEED_STR: &str = concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis");
+/// Frozen at the deployed wasm generation (v26.9.28) so receipts emitted by a
+/// wasm built at one crate version remain verifiable by `affi` at any other
+/// version. If the genesis law ever changes, bump this literal deliberately
+/// and ship a migration note: every receipt minted under the previous seed
+/// will no longer verify against the new genesis link.
+const GENESIS_SEED_STR: &str = "affidavit-v26.9.28-genesis";
 pub const GENESIS_SEED: &[u8] = GENESIS_SEED_STR.as_bytes();
 
 /// Default on-disk path for the in-progress working receipt.
@@ -286,6 +290,23 @@ mod tests {
             }],
             payload_commitment: Blake3Hash::from_bytes(payload),
         }
+    }
+
+    #[test]
+    fn genesis_seed_is_frozen_not_version_derived() {
+        // Regression: the seed was once concat!("affidavit-v", CARGO_PKG_VERSION,
+        // "-genesis"), which broke cross-version receipt verification. It must
+        // stay pinned to the deployed wasm generation regardless of crate version.
+        assert_eq!(
+            std::str::from_utf8(GENESIS_SEED).unwrap(),
+            "affidavit-v26.9.28-genesis",
+            "genesis seed must be the frozen literal, independent of CARGO_PKG_VERSION"
+        );
+        assert_eq!(
+            genesis_hash().as_hex(),
+            Blake3Hash::from_bytes(b"affidavit-v26.9.28-genesis").as_hex(),
+            "genesis link derives from the frozen seed literal"
+        );
     }
 
     #[test]
