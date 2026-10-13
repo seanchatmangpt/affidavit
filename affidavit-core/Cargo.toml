@@ -25,3 +25,12 @@ alloc = []
 # Standalone workspace root: isolates this crate from any ancestor directory so
 # it builds and tests even though the sibling `affidavit` crate cannot.
 [workspace]
+
+[dev-dependencies]
+# Byte-exactness proof against graphlaw's committed FM-CHAIN-009 golden
+# fixture requires the exact hash graphlaw hardcodes (BLAKE3) and the exact
+# canonical meta JSON the emission path serializes. Both stay OUT of the
+# zero-dependency core: they are test-only supply-chain surface.
+blake3 = "1"
+serde_json = "1"
+hex = "0.4"
