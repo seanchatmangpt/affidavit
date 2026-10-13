@@ -38,19 +38,78 @@ impl ChainHasher for Blake3Chain {
 
 /// Canonical serialization of the admission meta tuple the emission path
 /// hashes: `serde_json::to_vec(&(&andon, &object_ids, &obligation_count))`.
-fn meta_json(object_ids: &[&str]) -> Vec<u8> {
+fn meta_json(object_ids: &[String]) -> Vec<u8> {
     let owned: Vec<String> = object_ids.iter().map(|s| (*s).to_string()).collect();
     serde_json::to_vec(&("Green", owned, 0u32)).expect("meta json")
 }
 
-/// The committed fixture head's payload/prev/chain hex, verbatim from
-/// graphlaw's embedded `RECORD_JSON`.
-const PAYLOAD_HEX: &str =
-    "f40496e7ee9c1588465aa3ea26eaf8c6219629d5d757ce00889308f1685eebba";
-const PREV_HEX: &str =
-    "95512fa2468019bda479d1197357e283f63df5599d059972b06de3a8fcc4d642";
-const CHAIN_HEX: &str =
-    "d04c6d081c74e114e5abe7b46d8aee78d884d589be642d02a84a4df32811c1f4";
+/// Pin of this repo's fixture copy
+/// `tests/fixtures/fm_chain_009.json` (graphlaw canonical + header comments).
+/// Any one-sided edit of the fixture fails `fixture_pin_detects_cross_repo_drift`.
+const PIN_SHA256: &str = "4f3c42aa0c561bc143af61e3715aec2f73ed1a1249e45e6113a9880e368a4875";
+
+const FIXTURE_PATH: &str = "tests/fixtures/fm_chain_009.json";
+
+/// Load the pinned fixture (JSON body after the `//` pin-header comments).
+fn fixture() -> serde_json::Value {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE_PATH);
+    let bytes = std::fs::read(&path).expect("fixture file readable");
+    use sha2::{Digest as _, Sha256};
+    assert_eq!(
+        hex::encode(Sha256::digest(&bytes)),
+        PIN_SHA256,
+        "fixture drift: {FIXTURE_PATH} changed; if intentional, re-pin PIN_SHA256 AND keep graphlaw's tests/fixtures/fm_chain_009.json byte-identical in its JSON body"
+    );
+    let text = String::from_utf8(bytes).expect("fixture is utf-8");
+    let json = text
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    serde_json::from_str(&json).expect("fixture JSON body parses")
+}
+
+fn payload_hex() -> String {
+    fixture()["payload_hash_hex"]
+        .as_str()
+        .expect("payload_hash_hex")
+        .to_string()
+}
+
+fn prev_hex() -> String {
+    fixture()["prev_chain_hash_hex"]
+        .as_str()
+        .expect("prev_chain_hash_hex")
+        .to_string()
+}
+
+fn chain_hex() -> String {
+    fixture()["chain_hash_hex"]
+        .as_str()
+        .expect("chain_hash_hex")
+        .to_string()
+}
+
+fn object_ids() -> Vec<String> {
+    fixture()["object_ids"]
+        .as_array()
+        .expect("object_ids")
+        .iter()
+        .map(|v| v.as_str().expect("object id str").to_string())
+        .collect()
+}
+
+#[test]
+fn fixture_pin_detects_cross_repo_drift() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE_PATH);
+    let bytes = std::fs::read(&path).expect("fixture file readable");
+    use sha2::{Digest as _, Sha256};
+    assert_eq!(
+        hex::encode(Sha256::digest(&bytes)),
+        PIN_SHA256,
+        "FM-CHAIN-009 fixture edited without re-pinning in both repos"
+    );
+}
 
 fn decode32(hex_str: &str) -> Digest {
     let raw = hex::decode(hex_str).expect("fixture hex");
@@ -59,16 +118,16 @@ fn decode32(hex_str: &str) -> Digest {
 
 #[test]
 fn fm_chain_009_golden_fixture_is_byte_exact() {
-    let payload = decode32(PAYLOAD_HEX);
-    let prev = decode32(PREV_HEX);
-    let meta = meta_json(&["law:f40496e7ee9c1588"]);
+    let payload = decode32(&payload_hex());
+    let prev = decode32(&prev_hex());
+    let meta = meta_json(&object_ids());
 
     let frame = bcinr_admission_frame::<Blake3Chain>(&payload, &prev, &meta, 0, 0, 0, 0);
     let recomputed = bcinr_chain_from_frame::<Blake3Chain>(&prev, &frame);
 
     assert_eq!(
         hex::encode(recomputed.as_bytes()),
-        CHAIN_HEX,
+        chain_hex(),
         "affidavit-core port must reproduce graphlaw's committed FM-CHAIN-009 head"
     );
 }
@@ -105,16 +164,16 @@ fn chaining_zero_frames_is_the_identity() {
 
 #[test]
 fn tampering_any_fixture_byte_changes_the_head() {
-    let prev = decode32(PREV_HEX);
-    let meta = meta_json(&["law:f40496e7ee9c1588"]);
+    let prev = decode32(&prev_hex());
+    let meta = meta_json(&object_ids());
 
-    let mut payload_bytes = *decode32(PAYLOAD_HEX).as_bytes();
+    let mut payload_bytes = *decode32(&payload_hex()).as_bytes();
     payload_bytes[0] ^= 0x01;
     let tampered_payload = Digest(payload_bytes);
 
     let honest = {
         let frame =
-            bcinr_admission_frame::<Blake3Chain>(&decode32(PAYLOAD_HEX), &prev, &meta, 0, 0, 0, 0);
+            bcinr_admission_frame::<Blake3Chain>(&decode32(&payload_hex()), &prev, &meta, 0, 0, 0, 0);
         bcinr_chain_from_frame::<Blake3Chain>(&prev, &frame)
     };
     let forged = {
@@ -126,7 +185,7 @@ fn tampering_any_fixture_byte_changes_the_head() {
 
     assert_ne!(
         hex::encode(forged.as_bytes()),
-        CHAIN_HEX,
+        chain_hex(),
         "forged head must not match the committed fixture chain hash"
     );
     assert_ne!(forged, honest, "one flipped payload byte must move the head");
@@ -134,9 +193,9 @@ fn tampering_any_fixture_byte_changes_the_head() {
 
 #[test]
 fn tampering_propagates_through_every_later_link() {
-    let prev = decode32(PREV_HEX);
-    let meta = meta_json(&["law:f40496e7ee9c1588"]);
-    let payload = decode32(PAYLOAD_HEX);
+    let prev = decode32(&prev_hex());
+    let meta = meta_json(&object_ids());
+    let payload = decode32(&payload_hex());
 
     let f1 = bcinr_admission_frame::<Blake3Chain>(&payload, &prev, &meta, 0, 0, 0, 0);
     let h1 = bcinr_chain_from_frame::<Blake3Chain>(&prev, &f1);
