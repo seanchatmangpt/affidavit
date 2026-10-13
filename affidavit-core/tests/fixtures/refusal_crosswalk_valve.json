@@ -1,0 +1,108 @@
+{
+  "pin_note": "Byte-pinned copy of the refusal-vocabulary-pack crosswalk columns affidavit consumes: VALVE_CROSSWALK (6 strata-valve classes -> ash_a2a classes) and A2A_WIRE_CROSSWALK (transport-native atoms -> classes, designated wire code -32000), plus the declared ash_a2a class universe and affidavit's own RejectReason adjudication. Source of truth: packs/refusal-vocabulary-pack/ontology.ttl -> generated/crosswalk.rs (ggen sync run). Repair the sibling pack first, then re-pin here in the same dependency-closed transition; the drift court (tests/strata_refusal_crosswalk_seam.rs) fails on any other order.",
+  "source_of_truth": "/Users/sac/ggen-marketplace/packs/refusal-vocabulary-pack/generated/crosswalk.rs",
+  "declared_ash_a2a_classes": [
+    "blocked_resource",
+    "blocked_unknown",
+    "refused_authority",
+    "refused_bounds",
+    "refused_capability",
+    "refused_consequence",
+    "refused_falsifier",
+    "refused_identity",
+    "refused_meta_rigor",
+    "refused_namespace",
+    "refused_plan",
+    "refused_profile",
+    "refused_provenance",
+    "refused_receipt",
+    "refused_rule",
+    "refused_shacl",
+    "refused_structure",
+    "unsupported_profile"
+  ],
+  "valve_mappings": [
+    {
+      "valve_name": "malformed_frame",
+      "valve_module": "Strata.Valve.Refusals.MalformedFrame",
+      "valve_atom": null,
+      "ash_a2a_class": "refused_structure",
+      "rationale": "Wire shape wrong: unparsable/non-compliant frame header -> refused_structure (same class as erlmcp 1066/1021)."
+    },
+    {
+      "valve_name": "fuel_exhausted",
+      "valve_module": "Strata.Valve.Refusals.FuelExhausted",
+      "valve_atom": null,
+      "ash_a2a_class": "refused_bounds",
+      "rationale": "Declared fuel lease (a resource bound) exhausted -> refused_bounds (same class as erlmcp 1056/1068)."
+    },
+    {
+      "valve_name": "parent_discontinuity",
+      "valve_module": "Strata.Valve.Refusals.ParentDiscontinuity",
+      "valve_atom": null,
+      "ash_a2a_class": "refused_receipt",
+      "rationale": "Parent digest cannot be re-anchored to the active register -> refused_receipt (receipt/replay anchoring failure, same family as erlmcp 1012)."
+    },
+    {
+      "valve_name": "arena_failure",
+      "valve_module": "Strata.Valve.Refusals.ArenaFailure",
+      "valve_atom": null,
+      "ash_a2a_class": "refused_consequence",
+      "rationale": "Arena effect completed without its lawful 256-bit consequence receipt -> refused_consequence (same family as erlmcp 1049/1060)."
+    },
+    {
+      "valve_name": "window_run_capacity",
+      "valve_module": "knhk_hooks.erl",
+      "valve_atom": "run.len > 8",
+      "ash_a2a_class": "refused_bounds",
+      "rationale": "Window capacity guard run.len > 8 (declared bound breached) -> refused_bounds."
+    },
+    {
+      "valve_name": "window_tau_capacity",
+      "valve_module": "knhk_epoch.erl",
+      "valve_atom": "tau > 8",
+      "ash_a2a_class": "refused_bounds",
+      "rationale": "Window capacity guard tau > 8 (declared bound breached) -> refused_bounds."
+    }
+  ],
+  "a2a_wire_mappings": [
+    {
+      "a2a_atom": "server_busy",
+      "ash_a2a_class": "blocked_resource",
+      "json_rpc_code": -32000,
+      "rationale": "Capacity outage on the A2A transport -> blocked_resource at the spec-reserved server-implementation code -32000 (transport/plug.ex wire_error/1)."
+    },
+    {
+      "a2a_atom": "rate_limited",
+      "ash_a2a_class": "refused_bounds",
+      "json_rpc_code": -32000,
+      "rationale": "Declared rate bound breached -> refused_bounds at the designated -32000 wire code."
+    }
+  ],
+  "affidavit_reject_reasons": {
+    "wrong_profile": {
+      "ash_a2a_class": "refused_profile",
+      "rationale": "The profile tag did not equal PROFILE: a profile-law violation, same class family as unsupported_profile/refused_profile."
+    },
+    "chain_hash_mismatch": {
+      "ash_a2a_class": "refused_receipt",
+      "rationale": "Recomputed chain hash diverges from the stored one: receipt/replay anchoring failure, the same family as valve parent_discontinuity -> refused_receipt."
+    },
+    "seq_not_contiguous": {
+      "ash_a2a_class": "refused_structure",
+      "rationale": "Event seq is not contiguous from 0: the payload's ordering shape is wrong, same class as valve malformed_frame -> refused_structure."
+    },
+    "duplicate_event_id": {
+      "ash_a2a_class": "refused_identity",
+      "rationale": "Two events share an event_id: two identities that must be distinct collide — the verbatim refused_identity class description."
+    },
+    "empty_event_type": {
+      "ash_a2a_class": "refused_structure",
+      "rationale": "Empty event_type field: payload shape wrong (missing field), same class as refused_structure."
+    },
+    "zero_commitment": {
+      "ash_a2a_class": "refused_consequence",
+      "rationale": "Commitment is the all-zero digest: an event recorded without its lawful 256-bit consequence commitment, same family as arena_failure -> refused_consequence."
+    }
+  }
+}
