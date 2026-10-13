@@ -286,7 +286,6 @@ fn e2e_visualize_rejects_tampered_receipt_ac10() {
 }
 
 #[test]
-#[ignore = "Skip until 'visualize' is implemented in the binary"]
 fn e2e_visualize_success_json() {
     let dir = TempDir::new().unwrap();
     let receipt_path = dir.path().join("r.json");
