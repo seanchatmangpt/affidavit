@@ -68,13 +68,12 @@ refuses degenerate seeds with a typed refusal (`src/crypto_trust_provider.rs`,
 
 **Seed-surface scope (SX5, disposition refresh)**: SX5 found the degenerate-seed
 screening is ES256-only — the PQC KAT/seed surface (`src/crypto_trust_pqc.rs`)
-does not yet screen. R37 is forward-porting the screening to ML-DSA-65 and
+does not yet screen. R37 forward-ported the screening to ML-DSA-65 and
 SLH-DSA-128s (`ml_dsa65_from_seed`/`slh_dsa128s_from_seed` → typed refusal
-outside test builds); the forward-port is in flight (uncommitted on
-`src/crypto_trust_pqc.rs` at receipt-writing time). Status: PARTIAL; to be
-marked FIXED once R37 lands — check
-`git log --oneline -3 -- src/crypto_trust_pqc.rs` for the R37 commit (last
-landed commit on that file: ebfa6c7).
+outside test builds). Status: FIXED, landed at 1a16e25
+(`fix(pqc): SX5-F2 degenerate-seed screening forward-ported to both PQC
+from_seed paths`; last commit touching `src/crypto_trust_pqc.rs` at
+receipt-refresh time 2026-10-13).
 
 ## SK4 — 201-byte payload covert channel; format held
 
@@ -148,8 +147,9 @@ Surfaces the ensemble attacked that held:
 
 - Findings: SK1 fixed (aaa62eb), SK2 FIXED (R34 `deserialize_ct`; SX9-verified
   ALIVE), SK3 fixed for ES256/deontic contexts (ebfa6c7) with the PQC seed
-  forward-port PARTIAL (R37 in flight), SK4 fixed (1861dd7), SK5 fixed (R31,
-  5e5808d); SK6 queued (R33/R34).
+  forward-port FIXED (R37, 1a16e25), SK4 fixed (1861dd7), SK5 fixed (R31,
+  5e5808d); SK6 queued (R33/R34) — not landed as of 2026-10-13 (no SK6 commit
+  in `git log --all --grep=SK6`, no SK6 fix marker in `src/` or `tests/`).
 - Falsifiers: `src/replay_nullifier.rs:697` (SK5), SK4-F1 decode enforcement
   (`src/wire_ctrt.rs:589`), QG-05 Welch t < 4.5
   (`tests/ct_timing_invariance.rs`), SK3 length-framed `Ctx`

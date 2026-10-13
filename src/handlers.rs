@@ -8315,7 +8315,8 @@ pub fn dossier_emit(
     if let Some(parent) = std::path::Path::new(&out_path).parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    write_output(&out_path, &bytes).map_err(|e| to_noun_verb(AffidavitError::Execution(e)))?;
+    write_output(&out_path, &bytes)
+        .map_err(|e| to_noun_verb(AffidavitError::Execution(format!("{e}"))))?;
 
     if format.as_deref() == Some("json") {
         let obj = serde_json::json!({
@@ -8366,7 +8367,8 @@ pub fn dossier_inspect(
         ))));
     }
 
-    let receipts = decode_receipts(&doc.court_receipts).map_err(|e| to_noun_verb(AffidavitError::Validation(e)))?;
+    let receipts = decode_receipts(&doc.court_receipts)
+        .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("{e}"))))?;
     if receipts.len() != 20 {
         return Err(to_noun_verb(AffidavitError::Validation(format!(
             "dossier holds {} court receipts, expected 20",
@@ -8375,7 +8377,8 @@ pub fn dossier_inspect(
     }
 
     let recomputed = dossier_root(&receipts);
-    let stored = parse_root(&doc.merkle_root).map_err(|e| to_noun_verb(AffidavitError::Validation(e)))?;
+    let stored = parse_root(&doc.merkle_root)
+        .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("{e}"))))?;
 
     if stored != recomputed {
         return Err(to_noun_verb(AffidavitError::Validation(format!(
@@ -8393,10 +8396,12 @@ pub fn dossier_inspect(
             ))));
         }
 
-        let sig = parse_signature(&doc.signature).map_err(|e| to_noun_verb(AffidavitError::Validation(e)))?;
+        let sig = parse_signature(&doc.signature)
+            .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("{e}"))))?;
         let signer = load_ctt_signer()?;
         let pk = signer.public_key();
-        let kid_stored = parse_key_id(&doc.key_id).map_err(|e| to_noun_verb(AffidavitError::Validation(e)))?;
+        let kid_stored = parse_key_id(&doc.key_id)
+            .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("{e}"))))?;
         let kid_ok = key_id(&pk) == kid_stored;
         let ok = kid_ok && chicago_tdd_tools::ledger::signing::signer::Signer::verify(&pk, &dossier_subject(&recomputed), &sig);
         sig_verified = Some(ok);

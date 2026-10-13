@@ -102,6 +102,10 @@ required-features = ["discovery"]
 name = "seal_sj_record"
 required-features = ["crypto-trust"]
 
+[[test]]
+name = "ct_timing_invariance"
+required-features = ["ct_timing_invariance"]
+
 [[bench]]
 name = "receipt_operations"
 harness = false
@@ -389,6 +393,9 @@ crypto-trust = [
 pqc-verified-oracle = ["dep:libcrux-ml-dsa", "dep:libcrux-ml-kem"]
 # PQC umbrella: trust plane plus verified oracle
 pqc = ["crypto-trust", "pqc-verified-oracle"]
+# QG-05 constant-time invariance court: timing harness over the wire decoder
+# and the deterministic ML-DSA-65 signer (tests/ct_timing_invariance.rs).
+ct_timing_invariance = ["crypto-trust"]
 # OPTIONAL certified-receipts upgrade for paid-delivery receipts: signs the
 # canonical "affidavit-paid-delivery/v1|<subject>|<payload_hash_hex>" subject
 # through the existing certify_signed path. The chain rule itself stays the
