@@ -61,6 +61,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+pub mod bcinr;
 pub mod chain;
 pub mod crypto_verify;
 pub mod digest;

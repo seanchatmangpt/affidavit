@@ -13,7 +13,10 @@ pub const FORMAT_VERSION: &str = "core/v1";
 /// Genesis seed. Derived from this crate's version, never typed, so a receipt
 /// only verifies under the exact release that assembled it (root bug B4). The
 /// root crate's release-identity tests hold this version equal to `affi`'s.
-pub const GENESIS_SEED: &str = concat!("affidavit-v", env!("CARGO_PKG_VERSION"), "-genesis");
+/// Frozen at the deployed wasm generation (v26.9.28) so receipts stay
+/// verifiable across crate versions; bump deliberately with a migration note
+/// if the genesis law ever changes.
+pub const GENESIS_SEED: &str = "affidavit-v26.9.28-genesis";
 
 const HASH_HEX_LEN: usize = 64;
 
@@ -340,10 +343,11 @@ mod tests {
     }
 
     #[test]
-    fn genesis_seed_is_derived_from_the_package_version() {
+    fn genesis_seed_is_frozen_not_version_derived() {
         assert_eq!(
             GENESIS_SEED,
-            format!("affidavit-v{}-genesis", env!("CARGO_PKG_VERSION"))
+            "affidavit-v26.9.28-genesis",
+            "seed is frozen to the deployed wasm generation, independent of CARGO_PKG_VERSION"
         );
     }
 

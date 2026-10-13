@@ -32,10 +32,7 @@ fn exports_the_abi_and_reports_its_release_identity() {
     let caps = h.call(json!({"op": "capabilities"}));
     assert_eq!(caps["ok"], true);
     assert_eq!(caps["version"], env!("CARGO_PKG_VERSION"));
-    assert_eq!(
-        caps["genesis_seed"],
-        format!("affidavit-v{}-genesis", env!("CARGO_PKG_VERSION"))
-    );
+    assert_eq!(caps["genesis_seed"], "affidavit-v26.9.28-genesis");
 }
 
 #[test]
@@ -75,7 +72,7 @@ fn rejects_a_tampered_receipt_with_the_exact_reason_affi_gives() {
     assert_eq!(v["accepted"], false);
     assert_eq!(
         v["reason"],
-        "chain_integrity: chain hash mismatch: stored b7a0246a375790945da54b2279c7af65e5168fccb62dffeb81e102e9573a9d5b, recomputed 396876ab17fa2b0d11885ce63e26998601473ba3bd1539e8348cb84e61983e5a"
+        "chain_integrity: chain hash mismatch: stored d6cd5e0c07671707d34d5e65c42964a82f06776b93d0e33457b5a6dcf7765be0, recomputed 1f1d040c94289281daa2c13b18d4cda9b1a28c59ba323285febc20971f461d7a"
     );
 }
 

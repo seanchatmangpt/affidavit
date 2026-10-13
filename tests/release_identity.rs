@@ -47,15 +47,17 @@ fn the_binary_reports_the_affidavit_version_not_the_framework_version() {
 }
 
 #[test]
-fn the_genesis_seed_tracks_the_package_version() {
-    // The seed is derived, never typed. If someone replaces the `concat!` with
-    // a literal, this fails at the next version bump instead of silently
-    // producing receipts that no other build can verify.
+fn the_genesis_seed_is_frozen_not_version_derived() {
+    // The seed was once derived from CARGO_PKG_VERSION, which broke cross-version
+    // receipt verification by design (a wasm minted at v26.9.28 could not be
+    // verified by affi v26.10.6). It is now frozen at the deployed wasm
+    // generation; bump deliberately with a migration note if the genesis law
+    // ever changes.
     let seed = std::str::from_utf8(affidavit::chain::GENESIS_SEED).expect("seed is UTF-8");
     assert_eq!(
         seed,
-        format!("affidavit-v{PKG_VERSION}-genesis"),
-        "GENESIS_SEED must be derived from CARGO_PKG_VERSION (bug B4)"
+        "affidavit-v26.9.28-genesis",
+        "GENESIS_SEED must be the frozen literal, independent of CARGO_PKG_VERSION {PKG_VERSION}"
     );
 }
 
@@ -95,7 +97,9 @@ fn the_browser_verifier_uses_the_same_genesis_seed_as_the_binary() {
     // browser verifier rejected every receipt the binary produced. Nothing
     // caught it because the web lane's only gate is `tsc --noEmit`, which
     // cannot know what the Rust seed is. This test can.
-    let expected = format!("affidavit-v{PKG_VERSION}-genesis");
+    // The seed is frozen at the deployed wasm generation, so the browser lane
+    // carries the same frozen literal regardless of the crate version.
+    let expected = "affidavit-v26.9.28-genesis";
     for relative in ["/web/lib/verify-client.ts", "/web/app/visualizer/model.ts"] {
         let path = format!("{}{relative}", env!("CARGO_MANIFEST_DIR"));
         let Ok(source) = fs::read_to_string(&path) else {

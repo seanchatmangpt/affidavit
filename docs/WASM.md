@@ -192,8 +192,11 @@ release's own verifier and the wasm crate's version to equal `affi`'s, so a
 version bump cannot leave either behind.
 
 **Regenerate the fixture on every version bump** with `just golden-mint`
-(script: `scripts/golden_receipt.py mint`; the genesis seed is
-`affidavit-v<version>-genesis`). It executes exactly the documented sequence —
+(script: `scripts/golden_receipt.py mint`). The genesis seed is frozen at
+`affidavit-v26.9.28-genesis` — the deployed wasm generation — so receipts stay
+verifiable across crate versions; it is no longer re-derived from the release
+version on each bump. Bump it deliberately, with a migration note, only if the
+genesis law itself ever changes. It executes exactly the documented sequence —
 emit three events (`build`/`compile step`, `test`/`unit tests`,
 `deploy`/`ship it`), assemble with the new `affi`, copy to
 `golden_receipt.json`, and `sed 's/"test"/"tampered"/'` a copy to
