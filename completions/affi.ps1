@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 98, Registry nouns: 10
+# Source: src/registry.rs — Registry verbs: 101, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `. /path/to/completions/affi.ps1` to your $PROFILE.
@@ -13,6 +13,9 @@
 $script:AffiCompletions = [ordered]@{
     'affi' = [ordered]@{
         'doctor' = 'Run environment and receipt-store health checks; optionally apply safe fixes'
+    }
+    'certificate' = [ordered]@{
+        'fre-902' = 'Generates self-authenticating electronic records affidavit under FRE 902(14)'
     }
     'dossier' = [ordered]@{
         'emit' = 'Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)'
@@ -51,6 +54,9 @@ $script:AffiCompletions = [ordered]@{
         'list' = 'List registered key records: kid, algorithm, fingerprint, custodian'
         'revoke' = 'Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store'
         'rotate' = 'Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store'
+    }
+    'legal-hold' = [ordered]@{
+        'status' = 'Audits local OCEL and CTRT event chains to certify FRCP 37(e) evidentiary hold integrity'
     }
     'receipt' = [ordered]@{
         'anomaly-detect' = 'Detect anomalous events in the receipt chain using statistical outlier analysis'
@@ -124,6 +130,9 @@ $script:AffiCompletions = [ordered]@{
         'verify-sla' = 'Verify that receipt events satisfy defined SLA thresholds and time windows'
         'visualize' = 'Generate an interactive HTML or SVG visualization of the receipt chain'
         'why' = 'Explain in plain language why a receipt was rejected, with stage-by-stage remediation steps'
+    }
+    'restitution' = [ordered]@{
+        'calculate' = 'Computes liquidated avoided-cost distributions under Restatement of Restitution § 42'
     }
     'standing' = [ordered]@{
         'certify' = 'Seal a standing claim over an admitted receipt (affidavit/standing/v2)'

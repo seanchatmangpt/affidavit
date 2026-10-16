@@ -34,6 +34,26 @@ pub const CTRT_VERSION_1: u16 = 1;
 /// Payload & metadata field size in bytes.
 pub const CTRT_PAYLOAD_SIZE: usize = 201;
 
+// --- STATUTORY ANCHOR & DEONTIC MODALITY CONSTANTS (v26.10.16) ---
+
+/// Statutory trigger: Sarbanes-Oxley § 806 Whistleblower Safe Harbor (`SOX_1514A`).
+pub const STATUTORY_ANCHOR_SOX_1514A: [u8; 16] = *b"SOX_1514A\0\0\0\0\0\0\0";
+
+/// Statutory trigger: FRCP 37(e) Mandatory Evidentiary Preservation Hold (`FRCP_37E`).
+pub const STATUTORY_ANCHOR_FRCP_37E: [u8; 16] = *b"FRCP_37E\0\0\0\0\0\0\0\0";
+
+/// Statutory trigger: Constructive Trust Gain-Share Allocation (`GAIN_5050`).
+pub const STATUTORY_ANCHOR_GAIN_5050: [u8; 16] = *b"GAIN_5050\0\0\0\0\0\0\0";
+
+/// Deontic modality: royalty-free tier (<$50M gross annual revenue).
+pub const DEONTIC_PERMITTED: u8 = 0x01;
+
+/// Deontic modality: mandatory 50/50 gain-share distribution (>= $50M revenue).
+pub const DEONTIC_OBLIGATED: u8 = 0x02;
+
+/// Deontic modality: unlicensed invocation detected; statutory legal hold attached.
+pub const DEONTIC_PRESERVATION_HOLD: u8 = 0x03;
+
 /// Errors arising from CTRT wire decoding or validation.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum WireCtrtError {
@@ -209,6 +229,119 @@ impl Default for WireCtrtBody {
     }
 }
 
+/// Packed 352-byte Compact Trust Receipt Token (CTRT) with Statutory Deontic Extension.
+///
+/// Matches the exact memory layout of STRATA-SPEC-26.10.16-CTRT:
+/// - `0..4`: magic `b"CTRT"`
+/// - `4..6`: version `u16 LE`
+/// - `6..38`: parent_receipt_hash `[u8; 32]`
+/// - `38..70`: court_id `[u8; 32]`
+/// - `70..102`: subject_merkle_root `[u8; 32]`
+/// - `102..134`: compiler_binary_digest `[u8; 32]`
+/// - `134..142`: execution_ticks `u64 LE`
+/// - `142..150`: elapsed_cycles `u64 LE`
+/// - `150..151`: verdict_status `u8`
+/// - `151..167`: statutory_anchor `[u8; 16]` (SOX_1514A | FRCP_37E | GAIN_5050)
+/// - `167..175`: tariff_basis_cents `u64 LE` (Restatement of Restitution § 42)
+/// - `175..176`: deontic_modality `u8` (0x01 PERMIT, 0x02 OBLIG, 0x03 HOLD)
+/// - `176..208`: nullifier_commitment `[u8; 32]`
+/// - `208..240`: ocel_event_digest `[u8; 32]`
+/// - `240..352`: pqc_witness_signature `[u8; 112]`
+#[repr(C, packed)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CompactTrustReceiptToken {
+    /// Magic identifier bytes (b"CTRT").
+    pub magic: [u8; 4],
+    /// Wire version (1).
+    pub version: u16,
+    /// 32-byte cryptographic hash of the parent receipt.
+    pub parent_receipt_hash: [u8; 32],
+    /// 32-byte identifier of the issuing court.
+    pub court_id: [u8; 32],
+    /// 32-byte root of the subject Merkle tree.
+    pub subject_merkle_root: [u8; 32],
+    /// 32-byte hash / digest of the executing compiler binary.
+    pub compiler_binary_digest: [u8; 32],
+    /// Execution ticks elapsed.
+    pub execution_ticks: u64,
+    /// Hardware elapsed cycles.
+    pub elapsed_cycles: u64,
+    /// Raw verdict status code (0x01 ACCEPT, 0x02 REJECT).
+    pub verdict_status: u8,
+    // --- Statutory Deontic Extension (Bytes 151..352) ---
+    /// Statutory trigger identifier (SOX_1514A, FRCP_37E, GAIN_5050).
+    pub statutory_anchor: [u8; 16],
+    /// Liquid avoided cloud tariff basis in USD cents.
+    pub tariff_basis_cents: u64,
+    /// Deontic modality: 0x01 PERMITTED, 0x02 OBLIGATED, 0x03 PRESERVATION_HOLD.
+    pub deontic_modality: u8,
+    /// Anti-replay deterministic nullifier commitment.
+    pub nullifier_commitment: [u8; 32],
+    /// Linked IEEE OCEL 2.0 trace digest.
+    pub ocel_event_digest: [u8; 32],
+    /// Truncated ML-DSA-65 witness block.
+    pub pqc_witness_signature: [u8; 112],
+}
+
+impl CompactTrustReceiptToken {
+    /// Convert from packed struct to exact 352-byte wire array.
+    #[must_use]
+    pub fn to_bytes(&self) -> [u8; CTRT_WIRE_SIZE] {
+        let mut out = [0u8; CTRT_WIRE_SIZE];
+        out[0..4].copy_from_slice(&self.magic);
+        out[4..6].copy_from_slice(&self.version.to_le_bytes());
+        out[6..38].copy_from_slice(&self.parent_receipt_hash);
+        out[38..70].copy_from_slice(&self.court_id);
+        out[70..102].copy_from_slice(&self.subject_merkle_root);
+        out[102..134].copy_from_slice(&self.compiler_binary_digest);
+        out[134..142].copy_from_slice(&self.execution_ticks.to_le_bytes());
+        out[142..150].copy_from_slice(&self.elapsed_cycles.to_le_bytes());
+        out[150] = self.verdict_status;
+        out[151..167].copy_from_slice(&self.statutory_anchor);
+        out[167..175].copy_from_slice(&self.tariff_basis_cents.to_le_bytes());
+        out[175] = self.deontic_modality;
+        out[176..208].copy_from_slice(&self.nullifier_commitment);
+        out[208..240].copy_from_slice(&self.ocel_event_digest);
+        out[240..352].copy_from_slice(&self.pqc_witness_signature);
+        out
+    }
+
+    /// Decode directly from 352-byte wire slice.
+    pub fn from_bytes(bytes: &[u8; CTRT_WIRE_SIZE]) -> Result<Self, WireCtrtError> {
+        let magic_ok = ct_validate_magic(bytes[0..4].try_into().unwrap());
+        if magic_ok == 0 {
+            let mut magic = [0u8; 4];
+            magic.copy_from_slice(&bytes[0..4]);
+            return Err(WireCtrtError::InvalidMagic(magic));
+        }
+        let version = u16::from_le_bytes([bytes[4], bytes[5]]);
+        if ct_validate_version(version) == 0 {
+            return Err(WireCtrtError::UnsupportedVersion(version));
+        }
+        let verdict_status = bytes[150];
+        if ct_validate_verdict_status(verdict_status) == 0 {
+            return Err(WireCtrtError::InvalidVerdictStatus(verdict_status));
+        }
+        Ok(Self {
+            magic: bytes[0..4].try_into().unwrap(),
+            version,
+            parent_receipt_hash: bytes[6..38].try_into().unwrap(),
+            court_id: bytes[38..70].try_into().unwrap(),
+            subject_merkle_root: bytes[70..102].try_into().unwrap(),
+            compiler_binary_digest: bytes[102..134].try_into().unwrap(),
+            execution_ticks: u64::from_le_bytes(bytes[134..142].try_into().unwrap()),
+            elapsed_cycles: u64::from_le_bytes(bytes[142..150].try_into().unwrap()),
+            verdict_status,
+            statutory_anchor: bytes[151..167].try_into().unwrap(),
+            tariff_basis_cents: u64::from_le_bytes(bytes[167..175].try_into().unwrap()),
+            deontic_modality: bytes[175],
+            nullifier_commitment: bytes[176..208].try_into().unwrap(),
+            ocel_event_digest: bytes[208..240].try_into().unwrap(),
+            pqc_witness_signature: bytes[240..352].try_into().unwrap(),
+        })
+    }
+}
+
 /// A decoded CTRT (Court Receipt Token) structure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WireCtrt {
@@ -291,6 +424,7 @@ impl WireCtrt {
         bytes: &[u8],
         expected_digest: &[u8; 32],
     ) -> Result<Self, WireCtrtError> {
+        #[allow(deprecated)]
         let parsed = Self::deserialize(bytes)?;
         let recomputed = {
             // Recompute over the raw wire bytes (== parsed.serialize() for a
@@ -306,6 +440,51 @@ impl WireCtrt {
             return Err(WireCtrtError::DigestMismatch);
         }
         Ok(parsed)
+    }
+
+    /// Read the statutory deontic metadata from the 201-byte payload.
+    ///
+    /// Offsets inside the 201-byte payload:
+    /// - `0..16`: statutory_anchor (`[u8; 16]`)
+    /// - `16..24`: tariff_basis_cents (`u64 LE`)
+    /// - `24..25`: deontic_modality (`u8`)
+    /// - `25..57`: nullifier_commitment (`[u8; 32]`)
+    /// - `57..89`: ocel_event_digest (`[u8; 32]`)
+    /// - `89..201`: pqc_witness_signature (`[u8; 112]`)
+    #[must_use]
+    pub fn statutory_anchor(&self) -> [u8; 16] {
+        self.payload[0..16].try_into().unwrap()
+    }
+
+    /// Read the liquid avoided cloud compute tariff basis in USD cents.
+    #[must_use]
+    pub fn tariff_basis_cents(&self) -> u64 {
+        u64::from_le_bytes(self.payload[16..24].try_into().unwrap())
+    }
+
+    /// Read the deontic modality byte.
+    #[must_use]
+    pub fn deontic_modality(&self) -> u8 {
+        self.payload[24]
+    }
+
+    /// Read the anti-replay nullifier commitment.
+    #[must_use]
+    pub fn nullifier_commitment(&self) -> [u8; 32] {
+        self.payload[25..57].try_into().unwrap()
+    }
+
+    /// Read the linked IEEE OCEL 2.0 trace event digest.
+    #[must_use]
+    pub fn ocel_event_digest(&self) -> [u8; 32] {
+        self.payload[57..89].try_into().unwrap()
+    }
+
+    /// Convert to packed `CompactTrustReceiptToken`.
+    #[must_use]
+    pub fn to_compact_token(&self) -> CompactTrustReceiptToken {
+        let serialized = self.serialize();
+        CompactTrustReceiptToken::from_bytes(&serialized).expect("WireCtrt is valid CTRT bytes")
     }
 
     /// Parse and validate a 352-byte slice into a `WireCtrt`.

@@ -6,7 +6,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 98, Registry nouns: 10
+# Source: src/registry.rs — Registry verbs: 101, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install (per-user):
@@ -30,6 +30,7 @@ _affi() {
         noun)
             _values 'noun' \
                 'affi[1 verbs]' \
+                'certificate[1 verbs]' \
                 'dossier[4 verbs]' \
                 'ecosystem[2 verbs]' \
                 'envelope[4 verbs]' \
@@ -37,7 +38,9 @@ _affi() {
                 'evidence[4 verbs]' \
                 'guide[1 verbs]' \
                 'keys[5 verbs]' \
+                'legal-hold[1 verbs]' \
                 'receipt[71 verbs]' \
+                'restitution[1 verbs]' \
                 'standing[2 verbs]'
             ;;
         verb)
@@ -45,6 +48,10 @@ _affi() {
                 affi)
                     _values 'verb' \
                         'doctor[Run environment and receipt-store health checks; optionally apply safe fixes]'
+                    ;;
+                certificate)
+                    _values 'verb' \
+                        'fre-902[Generates self-authenticating electronic records affidavit under FRE 902(14)]'
                     ;;
                 dossier)
                     _values 'verb' \
@@ -90,6 +97,10 @@ _affi() {
                         'list[List registered key records\: kid, algorithm, fingerprint, custodian]' \
                         'revoke[Revoke a registered key\: append a tamper-evident revocation entry to the checksummed sidecar beside the key store]' \
                         'rotate[Rotate a registered ES256 key to a freshly generated ES256 successor\: the successor signs the rotation record and its public record joins the store]'
+                    ;;
+                legal-hold)
+                    _values 'verb' \
+                        'status[Audits local OCEL and CTRT event chains to certify FRCP 37(e) evidentiary hold integrity]'
                     ;;
                 receipt)
                     _values 'verb' \
@@ -164,6 +175,10 @@ _affi() {
                         'verify-sla[Verify that receipt events satisfy defined SLA thresholds and time windows]' \
                         'visualize[Generate an interactive HTML or SVG visualization of the receipt chain]' \
                         'why[Explain in plain language why a receipt was rejected, with stage-by-stage remediation steps]'
+                    ;;
+                restitution)
+                    _values 'verb' \
+                        'calculate[Computes liquidated avoided-cost distributions under Restatement of Restitution § 42]'
                     ;;
                 standing)
                     _values 'verb' \

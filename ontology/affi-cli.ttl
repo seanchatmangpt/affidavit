@@ -2128,3 +2128,44 @@ affi:ReceiptChainVerifyVerb a cnv:Verb ;
     cnv:verbAbout "Replay the BLAKE3 receipt chain across all court records in a directory" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" .
+
+# ============================================================================
+# ADVERSARIAL STATUTORY COMPLIANCE & ATTESTATION NOUNS (v26.10.16)
+# ============================================================================
+
+affi:LegalHoldNoun a cnv:Noun ;
+    cnv:hasNounName "legal-hold" ;
+    cnv:nounAbout "FRCP 37(e) evidentiary hold audit, verification, and spoliation detection" ;
+    cnv:hasVerbs affi:LegalHoldStatusVerb .
+
+affi:LegalHoldStatusVerb a cnv:Verb ;
+    cnv:fieldName "legal_hold_status" ;
+    cnv:hasVerbName "status" ;
+    cnv:verbAbout "Audits local OCEL and CTRT event chains to certify FRCP 37(e) evidentiary hold integrity" ;
+    cnv:belongsToNoun affi:LegalHoldNoun ;
+    cnv:returnType "()" .
+
+affi:RestitutionNoun a cnv:Noun ;
+    cnv:hasNounName "restitution" ;
+    cnv:nounAbout "Liquid avoided-cloud compute tariff calculation under Restatement of Restitution § 42" ;
+    cnv:hasVerbs affi:RestitutionCalculateVerb .
+
+affi:RestitutionCalculateVerb a cnv:Verb ;
+    cnv:fieldName "restitution_calculate" ;
+    cnv:hasVerbName "calculate" ;
+    cnv:verbAbout "Computes liquidated avoided-cost distributions under Restatement of Restitution § 42" ;
+    cnv:belongsToNoun affi:RestitutionNoun ;
+    cnv:returnType "()" .
+
+affi:CertificateNoun a cnv:Noun ;
+    cnv:hasNounName "certificate" ;
+    cnv:nounAbout "Self-authenticating electronic record affidavits and evidence certificates" ;
+    cnv:hasVerbs affi:CertificateFre902Verb .
+
+affi:CertificateFre902Verb a cnv:Verb ;
+    cnv:fieldName "certificate_fre_902" ;
+    cnv:hasVerbName "fre-902" ;
+    cnv:verbAbout "Generates self-authenticating electronic records affidavit under FRE 902(14)" ;
+    cnv:belongsToNoun affi:CertificateNoun ;
+    cnv:returnType "()" .
+

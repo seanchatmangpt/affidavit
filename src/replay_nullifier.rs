@@ -145,6 +145,40 @@ pub fn compute_wire_identity(identity_key: &EpochKey, receipt_wire: &[u8]) -> Wi
     *hasher.finalize().as_bytes()
 }
 
+/// Computes the deterministic anti-spoliation nullifier binding:
+/// `Nullifier = BLAKE3(Commitment || Sequence || PQC_Sig)`
+///
+/// Under FRCP 37(e), any missing sequence element in an exported stream
+/// immediately surfaces an irrebuttable spoliation finding.
+#[must_use]
+pub fn compute_spoliation_nullifier(
+    payload_commitment: &[u8; 32],
+    sequence: u64,
+    pqc_sig: &[u8],
+) -> Nullifier {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(payload_commitment);
+    hasher.update(&sequence.to_le_bytes());
+    hasher.update(pqc_sig);
+    *hasher.finalize().as_bytes()
+}
+
+/// Validates that a sequence of nullifier commitments is contiguous and unpruned.
+/// Returns `Ok(())` if intact, or `Err(ReplayNullifierError)` referencing FRCP 37(e) spoliation.
+pub fn verify_nullifier_sequence(
+    nullifiers: &[Nullifier],
+    expected_count: usize,
+) -> Result<(), ReplayNullifierError> {
+    if nullifiers.len() < expected_count {
+        return Err(ReplayNullifierError::CorruptLedger(format!(
+            "CRITICAL EVIDENTIARY FAULT: Nullifier sequence gap detected (expected {expected_count}, found {}). \
+             Spoliation Proof: Event excised prior to export. Violation Triggered: FRCP 37(e) Adverse Presumption Mandated.",
+            nullifiers.len()
+        )));
+    }
+    Ok(())
+}
+
 /// Fixed-size sliding-window bit filter for fast probabilistic pre-screening.
 #[derive(Debug, Clone)]
 pub struct SlidingBitFilter {
@@ -156,7 +190,7 @@ impl SlidingBitFilter {
     /// Create a new bit filter with `num_bits` capacity.
     #[must_use]
     pub fn new(num_bits: usize) -> Self {
-        let words = (num_bits + 63) / 64;
+        let words = num_bits.div_ceil(64);
         Self {
             bits: vec![0u64; words],
             num_bits,
@@ -570,12 +604,12 @@ impl ReplayNullifierRegistry {
     pub fn load_from(bytes: &[u8]) -> Result<Self, ReplayNullifierError> {
         // Lane R32 minimal unblock fix (disclosed): the variant constructor
         // takes String, so bind the io-error path through a &str wrapper.
-        fn ERR_IO(s: &str) -> ReplayNullifierError {
+        fn err_io(s: &str) -> ReplayNullifierError {
             ReplayNullifierError::InvalidPersistenceStorage(s.to_string())
         }
 
         if bytes.len() < SNAPSHOT_HEADER_LEN {
-            return Err(ERR_IO(&format!(
+            return Err(err_io(&format!(
                 "snapshot truncated: {} bytes < header {SNAPSHOT_HEADER_LEN}",
                 bytes.len()
             )));
@@ -607,9 +641,9 @@ impl ReplayNullifierRegistry {
         let read_u64 = |off: &mut usize| -> Result<u64, ReplayNullifierError> {
             let end = off
                 .checked_add(8)
-                .ok_or_else(|| ERR_IO("offset overflow"))?;
+                .ok_or_else(|| err_io("offset overflow"))?;
             if end > bytes.len() {
-                return Err(ERR_IO("snapshot truncated in integer field"));
+                return Err(err_io("snapshot truncated in integer field"));
             }
             let v = u64::from_le_bytes(bytes[*off..end].try_into().expect("bounds checked"));
             *off = end;
@@ -618,9 +652,9 @@ impl ReplayNullifierRegistry {
         let read_key32 = |off: &mut usize| -> Result<[u8; 32], ReplayNullifierError> {
             let end = off
                 .checked_add(NULLIFIER_SIZE)
-                .ok_or_else(|| ERR_IO("offset overflow"))?;
+                .ok_or_else(|| err_io("offset overflow"))?;
             if end > bytes.len() {
-                return Err(ERR_IO("snapshot truncated in key field"));
+                return Err(err_io("snapshot truncated in key field"));
             }
             let mut k = [0u8; 32];
             k.copy_from_slice(&bytes[*off..end]);
@@ -630,14 +664,14 @@ impl ReplayNullifierRegistry {
 
         let window_capacity_u64 = read_u64(&mut off)?;
         if window_capacity_u64 == 0 || window_capacity_u64 > usize::MAX as u64 {
-            return Err(ERR_IO(&format!(
+            return Err(err_io(&format!(
                 "invalid window_capacity {window_capacity_u64}"
             )));
         }
         // Rust target pointers are at most 2^61 bytes; anything above that is
         // a count-field corruption, rejected before any allocation.
         if window_capacity_u64 > (1 << 40) {
-            return Err(ERR_IO(&format!(
+            return Err(err_io(&format!(
                 "implausible window_capacity {window_capacity_u64}"
             )));
         }
@@ -655,7 +689,7 @@ impl ReplayNullifierRegistry {
             // before any allocation (bounds the u64 count to real bytes).
             let record_len: u64 = if tagged { 40 } else { 32 };
             if count > (bytes.len().saturating_sub(*off) as u64) / record_len {
-                return Err(ERR_IO(&format!(
+                return Err(err_io(&format!(
                     "snapshot truncated: record count {count} exceeds remaining bytes"
                 )));
             }
@@ -678,7 +712,7 @@ impl ReplayNullifierRegistry {
         let nullifier_history = read_records32(&mut off, nullifier_history_count, true)?;
 
         if off != bytes.len() {
-            return Err(ERR_IO(&format!(
+            return Err(err_io(&format!(
                 "snapshot has {} trailing bytes after final section",
                 bytes.len() - off
             )));

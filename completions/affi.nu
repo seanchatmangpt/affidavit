@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 98, Registry nouns: 10
+# Source: src/registry.rs — Registry verbs: 101, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `source /path/to/completions/affi.nu` to your config.nu.
@@ -12,6 +12,7 @@
 def "nu-complete affi nouns" [] {
     [
         {value: "affi", description: "1 verbs"}
+        {value: "certificate", description: "1 verbs"}
         {value: "dossier", description: "4 verbs"}
         {value: "ecosystem", description: "2 verbs"}
         {value: "envelope", description: "4 verbs"}
@@ -19,7 +20,9 @@ def "nu-complete affi nouns" [] {
         {value: "evidence", description: "4 verbs"}
         {value: "guide", description: "1 verbs"}
         {value: "keys", description: "5 verbs"}
+        {value: "legal-hold", description: "1 verbs"}
         {value: "receipt", description: "71 verbs"}
+        {value: "restitution", description: "1 verbs"}
         {value: "standing", description: "2 verbs"}
     ]
 }
@@ -29,6 +32,9 @@ def "nu-complete affi verbs" [context: string] {
     match $noun {
         "affi" => [
             {value: "doctor", description: "Run environment and receipt-store health checks; optionally apply safe fixes"}
+        ]
+        "certificate" => [
+            {value: "fre-902", description: "Generates self-authenticating electronic records affidavit under FRE 902(14)"}
         ]
         "dossier" => [
             {value: "emit", description: "Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)"}
@@ -67,6 +73,9 @@ def "nu-complete affi verbs" [context: string] {
             {value: "list", description: "List registered key records: kid, algorithm, fingerprint, custodian"}
             {value: "revoke", description: "Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store"}
             {value: "rotate", description: "Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store"}
+        ]
+        "legal-hold" => [
+            {value: "status", description: "Audits local OCEL and CTRT event chains to certify FRCP 37(e) evidentiary hold integrity"}
         ]
         "receipt" => [
             {value: "anomaly-detect", description: "Detect anomalous events in the receipt chain using statistical outlier analysis"}
@@ -140,6 +149,9 @@ def "nu-complete affi verbs" [context: string] {
             {value: "verify-sla", description: "Verify that receipt events satisfy defined SLA thresholds and time windows"}
             {value: "visualize", description: "Generate an interactive HTML or SVG visualization of the receipt chain"}
             {value: "why", description: "Explain in plain language why a receipt was rejected, with stage-by-stage remediation steps"}
+        ]
+        "restitution" => [
+            {value: "calculate", description: "Computes liquidated avoided-cost distributions under Restatement of Restitution § 42"}
         ]
         "standing" => [
             {value: "certify", description: "Seal a standing claim over an admitted receipt (affidavit/standing/v2)"}

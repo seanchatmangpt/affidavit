@@ -204,9 +204,11 @@ fn stage_verify_commitments(receipt: &Receipt) -> CheckOutcome {
     }
 }
 
-/// Stage 6 (CoreV1 profile): each event has a non-empty event_type and commitment.
+/// Stage 6 (CoreV1 & Statutory Deontic profile): each event has a non-empty
+/// event_type, a valid commitment, and satisfies the Deontic & Anti-Spoliation laws.
 fn stage_evaluate_profile(receipt: &Receipt) -> CheckOutcome {
-    for event in &receipt.events {
+    let mut prev_seq: Option<u64> = None;
+    for (index, event) in receipt.events.iter().enumerate() {
         if event.event_type.trim().is_empty() {
             return CheckOutcome {
                 stage: "evaluate_profile".to_string(),
@@ -220,6 +222,50 @@ fn stage_evaluate_profile(receipt: &Receipt) -> CheckOutcome {
                 passed: false,
                 detail: format!("event {} is missing a commitment", event.id),
             };
+        }
+
+        let is_obligated = event.event_type.starts_with("OBLIGATED:")
+            || event.objects.iter().any(|o| o.id == "deontic:obligated" || o.qualifier.as_deref() == Some("OBLIGATED"));
+
+        // 1. Continuity Law (FRCP 37(e)): When commercial obligation is active,
+        // strictly contiguous monotonic sequence increments are required.
+        if is_obligated {
+            if let Some(prev) = prev_seq {
+                if event.seq != prev + 1 {
+                    return CheckOutcome {
+                        stage: "evaluate_profile".to_string(),
+                        passed: false,
+                        detail: format!(
+                            "REJECT: EVIDENTIARY_CHAIN_GAP_DETECTED (FRCP-37E) at index {index} (expected {}, found {})",
+                            prev + 1,
+                            event.seq
+                        ),
+                    };
+                }
+            }
+        }
+        prev_seq = Some(event.seq);
+
+        // 2. Anti-Pruning Law (ABA Model Rule 3.4(a)): Expunction or deletion events
+        // must reference an authorized licensor revocation seal.
+        let is_deletion = event.event_type == "delete"
+            || event.event_type == "prune"
+            || event.event_type == "expunge";
+        if is_deletion {
+            let has_licensor_revocation = event
+                .objects
+                .iter()
+                .any(|o| o.obj_type == "licensor_revocation_seal" || o.qualifier.as_deref() == Some("authorized_revocation"));
+            if !has_licensor_revocation {
+                return CheckOutcome {
+                    stage: "evaluate_profile".to_string(),
+                    passed: false,
+                    detail: format!(
+                        "REJECT: UNLAWFUL_RECORD_EXPUNCTION (ABA-3.4A): deletion event {} lacks authorized licensor revocation seal",
+                        event.id
+                    ),
+                };
+            }
         }
     }
     CheckOutcome {

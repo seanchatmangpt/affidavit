@@ -880,6 +880,30 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["heads", "audit", "merkle", "transparency", "trust-plane"],
     )
     .with_example("affi evidence heads --journal-file .affi/standing-journal.jsonl"),
+    VerbEntry::new(
+        "status",
+        "legal-hold",
+        VerbGroup::Compliance,
+        "Audits local OCEL and CTRT event chains to certify FRCP 37(e) evidentiary hold integrity",
+        &["legal-hold", "status", "frcp-37e", "spoliation", "compliance"],
+    )
+    .with_example("affi legal-hold status --matter matter-101"),
+    VerbEntry::new(
+        "calculate",
+        "restitution",
+        VerbGroup::Compliance,
+        "Computes liquidated avoided-cost distributions under Restatement of Restitution § 42",
+        &["restitution", "calculate", "tariff", "gain-share", "avoided-cost"],
+    )
+    .with_example("affi restitution calculate --tariff-schedule azure"),
+    VerbEntry::new(
+        "fre-902",
+        "certificate",
+        VerbGroup::Attestation,
+        "Generates self-authenticating electronic records affidavit under FRE 902(14)",
+        &["certificate", "fre-902", "affidavit", "evidence", "attestation"],
+    )
+    .with_example("affi certificate fre-902"),
 ];
 
 /// Look up a verb by `(verb, noun)` pair.
@@ -969,7 +993,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 98; // 67 original + why + fix + affi doctor + guide search + 8 federation courts + 4 trust-plane CLI verbs (keys generate/list, envelope sign/verify) + 3 keys lifecycle verbs (keys import/revoke/rotate, wave 1 lane 4) + 4 evidence verbs (evidence journal/crl-publish/crl-apply/heads, wave 2 lane 1) + 2 envelope verbs (envelope list/export, wave 3) + 6 dossier-cluster/ctdd verbs (Phase D M2: dossier emit/inspect registry rows + dossier seal/verify + receipt validate/chain-verify)
+        let expected = 101; // 98 previous + 3 compliance/attestation verbs (legal-hold status, restitution calculate, certificate fre-902)
         assert_eq!(
             verb_count(),
             expected,

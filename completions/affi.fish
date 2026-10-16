@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 98, Registry nouns: 10
+# Source: src/registry.rs — Registry verbs: 101, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 
 # --- helper predicates -------------------------------------------------------
@@ -13,7 +13,7 @@ function __affi_no_noun
     set -l toks (commandline -opc)
     for t in $toks[2..-1]
         switch $t
-            case affi dossier ecosystem envelope errc evidence guide keys receipt standing
+            case affi certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
                 return 1
         end
     end
@@ -35,7 +35,7 @@ function __affi_no_verb
     set -l found_noun 0
     for t in $toks[2..-1]
         switch $t
-            case affi dossier ecosystem envelope errc evidence guide keys receipt standing
+            case affi certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
             set found_noun 1
             case '*'
             if test $found_noun -eq 1
@@ -49,6 +49,7 @@ end
 # --- Nouns -------------------------------------------------------------------
 
 complete -c affi -f -n '__affi_no_noun' -a affi -d '1 verbs'
+complete -c affi -f -n '__affi_no_noun' -a certificate -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a dossier -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a ecosystem -d '2 verbs'
 complete -c affi -f -n '__affi_no_noun' -a envelope -d '4 verbs'
@@ -56,12 +57,18 @@ complete -c affi -f -n '__affi_no_noun' -a errc -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a evidence -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a guide -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a keys -d '5 verbs'
+complete -c affi -f -n '__affi_no_noun' -a legal-hold -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a receipt -d '71 verbs'
+complete -c affi -f -n '__affi_no_noun' -a restitution -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a standing -d '2 verbs'
 
 # --- affi verbs ------------------------------------------------------
 
 complete -c affi -f -n '__affi_using_noun affi; and __affi_no_verb' -a doctor -d 'Run environment and receipt-store health checks; optionally apply safe fixes'
+
+# --- certificate verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun certificate; and __affi_no_verb' -a fre-902 -d 'Generates self-authenticating electronic records affidavit under FRE 902(14)'
 
 # --- dossier verbs ------------------------------------------------------
 
@@ -107,6 +114,10 @@ complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a import -d
 complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a list -d 'List registered key records: kid, algorithm, fingerprint, custodian'
 complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a revoke -d 'Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store'
 complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a rotate -d 'Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store'
+
+# --- legal-hold verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun legal-hold; and __affi_no_verb' -a status -d 'Audits local OCEL and CTRT event chains to certify FRCP 37(e) evidentiary hold integrity'
 
 # --- receipt verbs ------------------------------------------------------
 
@@ -181,6 +192,10 @@ complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a verify
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a verify-sla -d 'Verify that receipt events satisfy defined SLA thresholds and time windows'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a visualize -d 'Generate an interactive HTML or SVG visualization of the receipt chain'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a why -d 'Explain in plain language why a receipt was rejected, with stage-by-stage remediation steps'
+
+# --- restitution verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun restitution; and __affi_no_verb' -a calculate -d 'Computes liquidated avoided-cost distributions under Restatement of Restitution § 42'
 
 # --- standing verbs ------------------------------------------------------
 

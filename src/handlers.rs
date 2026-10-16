@@ -364,7 +364,7 @@ pub fn emit(r#type: String, object: String, payload: String, format: Option<Stri
             emit_ctrt_nullifier_enforced(&wire, std::path::Path::new(".affi"))?;
 
         let out_path = format!("receipt_{}.ctrt", to_hex(&nullifier[..8]));
-        std::fs::write(&out_path, &wire).map_err(io_err)?;
+        std::fs::write(&out_path, wire).map_err(io_err)?;
         // Digest sidecar (SK4-F1 ingest threading): records the full-wire
         // BLAKE3 digest at emission so the verify handler can decode through
         // `deserialize_verified`. This is a co-located corruption-detection
@@ -756,7 +756,7 @@ pub fn verify(
 ) -> Result<()> {
     // Check if the file is a 352B CTRT wire receipt
     if let Ok(bytes) = std::fs::read(&receipt) {
-        if bytes.len() == crate::wire_ctrt::CTRT_WIRE_SIZE && &bytes[0..4] == &crate::wire_ctrt::CTRT_MAGIC {
+        if bytes.len() == crate::wire_ctrt::CTRT_WIRE_SIZE && bytes[0..4] == crate::wire_ctrt::CTRT_MAGIC {
             // SK4-F1 digest threading: prefer `deserialize_verified` when a
             // digest sidecar (<receipt>.digest, hex, written at emission) is
             // available. The sidecar is a co-located corruption-detection
@@ -772,6 +772,7 @@ pub fn verify(
             let parse_result = match expected_digest {
                 Some(digest) => crate::wire_ctrt::WireCtrt::deserialize_verified(&bytes, &digest)
                     .map_err(|e| e.to_string()),
+                #[allow(deprecated)]
                 None => crate::wire_ctrt::WireCtrt::deserialize(&bytes).map_err(|e| e.to_string()),
             };
             match parse_result {

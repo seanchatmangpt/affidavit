@@ -112,3 +112,9 @@ pub mod verify_family;
 pub mod verify_sla;
 pub mod visualize;
 pub mod why;
+
+// Adversarial statutory compliance & attestation verbs (v26.10.16)
+pub mod legal_hold_status;
+pub mod restitution_calculate;
+pub mod certificate_fre_902;
+
