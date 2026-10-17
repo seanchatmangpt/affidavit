@@ -622,7 +622,7 @@ mod tests {
         assert!(ExternalMlKem768
             .decapsulate(&seed, &out.ciphertext)
             .is_some());
-}
+    }
 
     // ------------------------------------------------------------------
     // CAP-65: pinned-randomness encapsulation KAT.
@@ -640,7 +640,7 @@ mod tests {
     // ------------------------------------------------------------------
     #[test]
     fn cap65_pinned_randomness_encapsulation_kat() {
-        use ml_kem::{B32, DecapsulationKey, MlKem768};
+        use ml_kem::{DecapsulationKey, MlKem768, B32};
 
         let seed = [0x4Cu8; DECAPSULATION_SEED_LEN];
         let dk = DecapsulationKey::<MlKem768>::from_seed(seed.into());
@@ -718,7 +718,9 @@ mod tests {
         // Implicit rejection: Some(pseudorandom ss'), never None.
         let ss_reject = match ExternalMlKem768.decapsulate(&seed, &tampered) {
             Some(ss) => ss,
-            None => panic!("well-formed tampered ct must implicitly reject to a pseudorandom ss, not None"),
+            None => panic!(
+                "well-formed tampered ct must implicitly reject to a pseudorandom ss, not None"
+            ),
         };
         assert_ne!(
             ss_reject, honest_ss,
@@ -744,6 +746,228 @@ mod tests {
         assert!(
             ExternalMlKem768.decapsulate(&seed, &short_ct).is_none(),
             "wrong-length ct must refuse structurally (None), never fabricate a secret"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Register #79 — KEM PKCS#8/SPKI DER round-trip: UNSUPPORTED(dep-feature)
+    // ------------------------------------------------------------------
+    //
+    // ml-kem 0.3.2 gates its PKCS#8/SPKI impls (EncodePublicKey,
+    // DecodePublicKey, AssociatedOid, and the algorithm-OID wiring in
+    // src/pkcs8.rs) behind the crate's `pkcs8` feature:
+    // `#![cfg(feature = "pkcs8")]`. The core dependency line
+    // (affidavit-core/Cargo.toml:35) is
+    // `ml-kem = { version = "0.3.2", default-features = false,
+    // features = ["getrandom"] }` — `pkcs8` is NOT enabled, and this lane
+    // is forbidden from changing the dep line.
+    //
+    // The honest `to_public_key_der() -> from_public_key_der()` byte-exact
+    // round-trip and the swapped-OID / truncated-bitstring refusal arms
+    // therefore CANNOT COMPILE today: the traits do not exist in this
+    // build graph. Per lane law, what compiles today is implemented —
+    // the raw-byte identity control below — and the feature unlock is
+    // filed, not faked.
+    //
+    // Exact one-line dep change to unlock row 79 (lane may NOT apply it):
+    //   affidavit-core/Cargo.toml:35
+    //   ml-kem = { version = "0.3.2", default-features = false, features = ["getrandom", "pkcs8"] }
+    //
+    // Control arm that compiles today (raw `KeyExport::to_bytes` form, the
+    // encoding the adapter and court actually consume): byte-exact
+    // ek re-export identity across from_seed re-derivation.
+    #[test]
+    fn reg79_pkcs8_unsupported_dep_feature_raw_byte_identity_control() {
+        use ml_kem::{DecapsulationKey, KeyExport, MlKem768};
+        let seed = [0x79u8; DECAPSULATION_SEED_LEN];
+        let ek_a: [u8; ENCAPSULATION_KEY_LEN] =
+            DecapsulationKey::<MlKem768>::from_seed(seed.into())
+                .encapsulation_key()
+                .to_bytes()
+                .into();
+        // Independent re-derivation, byte-exact identity.
+        let ek_b: [u8; ENCAPSULATION_KEY_LEN] =
+            DecapsulationKey::<MlKem768>::from_seed(seed.into())
+                .encapsulation_key()
+                .to_bytes()
+                .into();
+        assert_eq!(ek_a, ek_b, "raw ek encoding must be a byte-exact identity");
+    }
+
+    // ------------------------------------------------------------------
+    // Register #80 — cross-parameter-set confusion court (cycle 3/4).
+    //
+    // Wire budgets (FIPS 203, bytes):
+    //   ML-KEM-512:  ek 800,  ct 768,  ss 32
+    //   ML-KEM-768:  ek 1184, ct 1088, ss 32
+    //   ML-KEM-1024: ek 1568, ct 1568, ss 32
+    //
+    // Law under test: [`ExternalMlKem768`] and [`KemCourt`] refuse ALL
+    // wrong-set material at the LENGTH gate — via the adapter's
+    // `try_into` chain, i.e. structurally, BEFORE any lattice work
+    // (before `EncapsulationKey::<MlKem768>::new` / `DecapsulationKey`
+    // are ever constructed). No foreign-set bytes can reach the 768
+    // lattice, because every foreign-set ek/ct length differs from the
+    // 768 budget.
+    //
+    // FO note (named reason, pinned): the FO implicit-rejection arm
+    // (Some(pseudorandom ss), see CAP-66) is a SAME-SET semantics. A
+    // cross-set decapsulation is UNREACHABLE through this adapter:
+    // 512 ct is 768 B and 1024 ct is 1568 B, neither of which is the
+    // 1088 B the `try_into` chain admits, so cross-set decapsulate is
+    // always None (structural refusal), never Some-but-different. The
+    // external crate's typed generics (DecapsulationKey<MlKem512> vs
+    // <MlKem768>) make a same-crate cross-set FO call untypeable at
+    // compile time, so no adapter-independent cross-set FO observation
+    // exists to pin — the length gate is the whole law.
+    // ------------------------------------------------------------------
+
+    /// ML-KEM-512 encapsulation-key size in bytes (FIPS 203).
+    const ML_KEM_512_EK_LEN: usize = 800;
+    /// ML-KEM-512 ciphertext size in bytes.
+    const ML_KEM_512_CT_LEN: usize = 768;
+    /// ML-KEM-1024 encapsulation-key size in bytes.
+    const ML_KEM_1024_EK_LEN: usize = 1568;
+    /// ML-KEM-1024 ciphertext size in bytes.
+    const ML_KEM_1024_CT_LEN: usize = 1568;
+
+    #[test]
+    fn reg80_wire_budgets_pinned_per_parameter_set() {
+        use ml_kem::{DecapsulationKey, KeyExport, MlKem1024, MlKem512, MlKem768};
+        // Same-crate, other-set keys: real external-crate keypairs from
+        // fixed seeds (Chicago: real collaborators, no fixtures). The
+        // encodings are byte-vectors of exactly the pinned budget — this
+        // test pins the budgets themselves against the external crate's
+        // actual serializations.
+        let seed = [0x80u8; DECAPSULATION_SEED_LEN];
+        let ek512: Vec<u8> = DecapsulationKey::<MlKem512>::from_seed(seed.into())
+            .encapsulation_key()
+            .to_bytes()
+            .to_vec();
+        let ek1024: Vec<u8> = DecapsulationKey::<MlKem1024>::from_seed(seed.into())
+            .encapsulation_key()
+            .to_bytes()
+            .to_vec();
+        let ek768: Vec<u8> = DecapsulationKey::<MlKem768>::from_seed(seed.into())
+            .encapsulation_key()
+            .to_bytes()
+            .to_vec();
+        assert_eq!(ek512.len(), ML_KEM_512_EK_LEN);
+        assert_eq!(ek768.len(), ENCAPSULATION_KEY_LEN);
+        assert_eq!(ek1024.len(), ML_KEM_1024_EK_LEN);
+        // Shared secret is 32 B for every set; the seed is 64 B for every
+        // set — length ALONE cannot discriminate those two, only ek/ct
+        // length can. (This is why the court below matters.)
+    }
+
+    #[test]
+    fn reg80_wrong_set_ek_is_length_refused_before_lattice_work() {
+        use ml_kem::{DecapsulationKey, KeyExport, MlKem1024, MlKem512};
+
+        let seed = [0x81u8; DECAPSULATION_SEED_LEN];
+        let ek512: Vec<u8> = DecapsulationKey::<MlKem512>::from_seed(seed.into())
+            .encapsulation_key()
+            .to_bytes()
+            .to_vec();
+        let ek1024: Vec<u8> = DecapsulationKey::<MlKem1024>::from_seed(seed.into())
+            .encapsulation_key()
+            .to_bytes()
+            .to_vec();
+
+        // Adapter arm: the try_into chain refuses structurally (None).
+        assert!(
+            ExternalMlKem768.encapsulate(&ek512).is_none(),
+            "800-byte ML-KEM-512 ek must collapse to None in the try_into chain"
+        );
+        assert!(
+            ExternalMlKem768.encapsulate(&ek1024).is_none(),
+            "1568-byte ML-KEM-1024 ek must collapse to None in the try_into chain"
+        );
+
+        // Court arm: typed refusal, fail-fast, before the external call.
+        let court = KemCourt::new().with_encapsulator(&ExternalMlKem768);
+        assert_eq!(
+            court.judge_encapsulation(&ek512),
+            KemVerdict::Refuse(KemRefusal::BadEncapsulationKeyLength {
+                expected: ENCAPSULATION_KEY_LEN,
+                got: ML_KEM_512_EK_LEN
+            })
+        );
+        assert_eq!(
+            court.judge_encapsulation(&ek1024),
+            KemVerdict::Refuse(KemRefusal::BadEncapsulationKeyLength {
+                expected: ENCAPSULATION_KEY_LEN,
+                got: ML_KEM_1024_EK_LEN
+            })
+        );
+    }
+
+    #[test]
+    fn reg80_wrong_set_ct_is_length_refused_and_ne_implies_cross_set_success() {
+        use ml_kem::{DecapsulationKey, Encapsulate, KeyExport, MlKem1024, MlKem512, MlKem768};
+
+        let seed = [0x82u8; DECAPSULATION_SEED_LEN];
+
+        // Real 512 ct: encapsulate to a REAL ML-KEM-512 key with the
+        // external crate (768 B).
+        let dk512 = DecapsulationKey::<MlKem512>::from_seed(seed.into());
+        let ek512 = dk512.encapsulation_key();
+        let (ct512, _ss512) = ek512.encapsulate();
+        let ct512: Vec<u8> = ct512.as_slice().to_vec();
+        assert_eq!(ct512.len(), ML_KEM_512_CT_LEN);
+
+        // Real 1024 ct (1568 B).
+        let dk1024 = DecapsulationKey::<MlKem1024>::from_seed(seed.into());
+        let ek1024 = dk1024.encapsulation_key();
+        let (ct1024, _ss1024) = ek1024.encapsulate();
+        let ct1024: Vec<u8> = ct1024.as_slice().to_vec();
+        assert_eq!(ct1024.len(), ML_KEM_1024_CT_LEN);
+
+        // A real 768 seed and its own honest ct for the control arm.
+        let dk768 = DecapsulationKey::<MlKem768>::from_seed(seed.into());
+        let ek768 = dk768.encapsulation_key();
+        let (ct768, ss768) = ek768.encapsulate();
+        let ct768: [u8; CIPHERTEXT_LEN] = ct768.as_slice().try_into().unwrap();
+
+        // Adapter: cross-set ct is a structural None — the 768-B and
+        // 1568-B ct never pass the 1088-B try_into, so FO implicit
+        // rejection is unreachable cross-set (see the FO note above).
+        assert!(
+            ExternalMlKem768.decapsulate(&seed, &ct512).is_none(),
+            "768-byte ML-KEM-512 ct must collapse to None"
+        );
+        assert!(
+            ExternalMlKem768.decapsulate(&seed, &ct1024).is_none(),
+            "1568-byte ML-KEM-1024 ct must collapse to None"
+        );
+
+        // Court: typed BadCiphertextLength for both wrong sets.
+        let court = KemCourt::new().with_decapsulator(&ExternalMlKem768);
+        assert_eq!(
+            court.judge_decapsulation(&seed, &ct512),
+            KemVerdict::Refuse(KemRefusal::BadCiphertextLength {
+                expected: CIPHERTEXT_LEN,
+                got: ML_KEM_512_CT_LEN
+            })
+        );
+        assert_eq!(
+            court.judge_decapsulation(&seed, &ct1024),
+            KemVerdict::Refuse(KemRefusal::BadCiphertextLength {
+                expected: CIPHERTEXT_LEN,
+                got: ML_KEM_1024_CT_LEN
+            })
+        );
+
+        // Control: the SAME 32-byte ss size across sets must not imply
+        // cross-set decaps success — the honest same-set path still
+        // succeeds through the identical adapter surface.
+        let honest = ExternalMlKem768
+            .decapsulate(&seed, &ct768)
+            .expect("same-set 768 decaps must succeed");
+        assert_eq!(
+            honest.as_slice(),
+            ss768.as_slice(),
+            "control: same-set adapter path must recover the honest ss"
         );
     }
 }
