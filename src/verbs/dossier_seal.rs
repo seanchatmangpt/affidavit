@@ -11,14 +11,12 @@
 
 //! `dossier seal` verb (rendered).
 
-// [coordinator] gated with the body — default cfg view has no use for them.
 #[cfg(feature = "ctdd")]
 use clap_noun_verb::Result;
 #[cfg(feature = "ctdd")]
 use clap_noun_verb_macros::verb;
 /// Seal a directory of 352-byte court records into a signed sealed-dossier wire file
-// [coordinator] ctdd self-gate restored (ontology lane procedure: template cannot emit gates;
-// these handlers live behind the ctdd feature plane).
+// [coordinator] ctdd self-gate (template cannot emit gates)
 #[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("seal", "dossier")]

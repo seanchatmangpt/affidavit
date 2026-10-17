@@ -11,14 +11,12 @@
 
 //! `dossier verify` verb (rendered).
 
-// [coordinator] gated with the body — default cfg view has no use for them.
 #[cfg(feature = "ctdd")]
 use clap_noun_verb::Result;
 #[cfg(feature = "ctdd")]
 use clap_noun_verb_macros::verb;
 /// Verify a sealed-dossier wire file against the local ML-DSA-65 key store
-// [coordinator] ctdd self-gate restored (ontology lane procedure: template cannot emit gates;
-// these handlers live behind the ctdd feature plane).
+// [coordinator] ctdd self-gate (template cannot emit gates)
 #[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("verify", "dossier")]
