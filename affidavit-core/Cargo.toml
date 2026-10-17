@@ -1,6 +1,6 @@
 [package]
 name = "affidavit-core"
-version = "26.10.16"
+version = "26.10.17"
 edition = "2021"
 rust-version = "1.78"
 description = "no_std, forbid(unsafe) reference verifier for affidavit receipt chains that implements zero cryptographic algorithms: ML-DSA-65 and BLAKE3 arrive as external dependencies."

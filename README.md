@@ -3,7 +3,7 @@
 
 `affidavit` is a deterministic cryptographic provenance engine designed to make the unverifiable unconstructable. It assembles, seals, and certifies append-only, content-addressed BLAKE3 chains of operation-events that provide an immutable record of computational execution.
 
-In v26.10.16, `affidavit` reifies the **Adversarial Legal Ratchet**: embedding post-quantum cryptographic primitives (FIPS 204 ML-DSA-65), statutory anchors (SOX § 1514A, FRCP 37(e), Constructive Trust Gain-Share), and liquid avoided-tariff accounting (Restatement of Restitution § 42) directly into a constant-time 352-byte binary token (CTRT).
+In v26.10.17, `affidavit` reifies the **Adversarial Legal Ratchet**: embedding post-quantum cryptographic primitives (FIPS 204 ML-DSA-65), statutory anchors (SOX § 1514A, FRCP 37(e), Constructive Trust Gain-Share), and liquid avoided-tariff accounting (Restatement of Restitution § 42) directly into a constant-time 352-byte binary token (CTRT).
 
 ---
 
@@ -20,7 +20,7 @@ In complex corporate and technical architectures, subjective honesty is undecida
 
 ---
 
-## 🚀 The v26.10.16 Release: Core Invariants
+## 🚀 The v26.10.17 Release: Core Invariants
 
 - 🛡️ **352-Byte CTRT Token:** Fixed-size packed binary wire format encoding `statutory_anchor`, `tariff_basis_cents`, and `deontic_modality` in bytes `151..352`.
 - 🔐 **FIPS 204/205 PQC signatures:** ML-DSA-65 and SLH-DSA-SHA2-128s (plus
@@ -64,7 +64,7 @@ cargo test --test adversarial_wire_ctrt --test verifier_stages --test adversaria
 
 ---
 
-## 💻 Canonical CLI Surface (101 Verbs)
+## 💻 Canonical CLI Surface (100 Verbs)
 
 Affidavit ships 100 canonical verbs across 11 groups, backed by a compile-time static registry (`src/registry.rs`) held in byte-level agreement with `ontology/affi-cli.ttl`:
 
