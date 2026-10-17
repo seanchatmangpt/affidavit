@@ -3963,10 +3963,12 @@ pub fn monitor(
 
     // Watch mode: use the real FileWatcher when the file-watch feature is enabled.
     let watch_path_str = watch_path.as_deref().unwrap_or("src");
-    outln!("monitor: watching {watch_path_str} (interval: {poll_interval}s) — Ctrl-C to stop");
 
     #[cfg(feature = "file-watch")]
     {
+        outln!(
+            "monitor: watching {watch_path_str} (interval: {poll_interval}s) — Ctrl-C to stop"
+        );
         use crate::quality::file_watcher::FileWatcher;
         let debounce_ms = poll_interval * 1000;
         let mut watcher = adapt(FileWatcher::new(watch_path_str, debounce_ms))?;
