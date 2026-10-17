@@ -640,7 +640,7 @@ mod tests {
     // ------------------------------------------------------------------
     #[test]
     fn cap65_pinned_randomness_encapsulation_kat() {
-        use ml_kem::{B32, DecapsulationKey, KeyExport, MlKem768};
+        use ml_kem::{B32, DecapsulationKey, MlKem768};
 
         let seed = [0x4Cu8; DECAPSULATION_SEED_LEN];
         let dk = DecapsulationKey::<MlKem768>::from_seed(seed.into());
