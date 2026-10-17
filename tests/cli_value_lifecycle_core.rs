@@ -56,7 +56,16 @@ fn run_std(dir: &TempDir, args: &[&str]) -> (i32, String, String) {
 fn emit_events(dir: &TempDir, events: &[(&str, &str, &str)]) {
     for (ty, obj, payload) in events {
         affi(dir)
-            .args(["receipt", "emit", "--type", ty, "--object", obj, "--payload", "-"])
+            .args([
+                "receipt",
+                "emit",
+                "--type",
+                ty,
+                "--object",
+                obj,
+                "--payload",
+                "-",
+            ])
             .write_stdin(*payload)
             .assert()
             .success();
@@ -113,7 +122,16 @@ fn emit_grows_working_receipt_by_one_event_per_call() {
     assert!(!dir.path().join(".affi/working.json").exists());
 
     affi(&dir)
-        .args(["receipt", "emit", "--type", "build", "--object", "repo:main", "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            "build",
+            "--object",
+            "repo:main",
+            "--payload",
+            "-",
+        ])
         .write_stdin("first event payload")
         .assert()
         .success()
@@ -121,7 +139,16 @@ fn emit_grows_working_receipt_by_one_event_per_call() {
     assert_eq!(working_len(&dir), 1, "one emit -> exactly one event");
 
     affi(&dir)
-        .args(["receipt", "emit", "--type", "test", "--object", "suite:unit", "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            "test",
+            "--object",
+            "suite:unit",
+            "--payload",
+            "-",
+        ])
         .write_stdin("second event payload")
         .assert()
         .success()
@@ -142,8 +169,15 @@ fn emit_missing_required_args_is_typed_cli_arg_error_222() {
     let dir = TempDir::new().unwrap();
     let (code, _out, err) = run_std(&dir, &["receipt", "emit"]);
     assert_eq!(code, xc::CLI_ARG_ERROR, "stderr was: {err}");
-    assert_eq!(diag_code(&err), 1502, "full stable code in diagnostic: {err}");
-    assert!(!dir.path().join(".affi/working.json").exists(), "no state written on refusal");
+    assert_eq!(
+        diag_code(&err),
+        1502,
+        "full stable code in diagnostic: {err}"
+    );
+    assert!(
+        !dir.path().join(".affi/working.json").exists(),
+        "no state written on refusal"
+    );
 }
 
 // ===========================================================================
@@ -213,7 +247,10 @@ fn assemble_empty_chain_is_typed_refusal() {
     let (code, _out, err) = run_std(&dir, &["receipt", "assemble", "--out", "never.json"]);
     assert_ne!(code, 0, "empty assemble must fail");
     assert!(err.contains("nothing to assemble"), "stderr: {err}");
-    assert!(err.contains("\"code\":"), "structured diagnostic present: {err}");
+    assert!(
+        err.contains("\"code\":"),
+        "structured diagnostic present: {err}"
+    );
     assert!(
         !dir.path().join("never.json").exists(),
         "refused assemble must not write a receipt"
@@ -263,10 +300,18 @@ fn verify_tampered_receipt_rejects_exit_2() {
 #[test]
 fn verify_garbage_file_is_typed_exec_error_224() {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("garbage.json"), b"\x00\x01not a receipt at all").unwrap();
+    fs::write(
+        dir.path().join("garbage.json"),
+        b"\x00\x01not a receipt at all",
+    )
+    .unwrap();
     let (code, _out, err) = run_std(&dir, &["receipt", "verify", "garbage.json"]);
     assert_eq!(code, xc::CLI_EXEC_ERROR, "stderr: {err}");
-    assert_eq!(diag_code(&err), 1504, "full stable code in diagnostic: {err}");
+    assert_eq!(
+        diag_code(&err),
+        1504,
+        "full stable code in diagnostic: {err}"
+    );
 }
 
 // ===========================================================================
@@ -278,7 +323,10 @@ fn verify_garbage_file_is_typed_exec_error_224() {
 #[test]
 fn show_output_derives_from_actual_chain() {
     let dir = TempDir::new().unwrap();
-    emit_events(&dir, &[("build", "repo:main", "p1"), ("test", "suite:unit", "p2")]);
+    emit_events(
+        &dir,
+        &[("build", "repo:main", "p1"), ("test", "suite:unit", "p2")],
+    );
     assemble_verified(&dir, "s.json");
 
     affi(&dir)
@@ -324,7 +372,10 @@ fn show_missing_file_is_typed_refusal() {
 #[test]
 fn inspect_output_derives_from_actual_chain() {
     let dir = TempDir::new().unwrap();
-    emit_events(&dir, &[("build", "repo:main", "p1"), ("test", "suite:unit", "p2")]);
+    emit_events(
+        &dir,
+        &[("build", "repo:main", "p1"), ("test", "suite:unit", "p2")],
+    );
     assemble_verified(&dir, "i.json");
 
     affi(&dir)
@@ -373,7 +424,10 @@ fn stats_output_derives_from_actual_chain() {
     assemble_verified(&one, "st.json");
 
     let two = TempDir::new().unwrap();
-    emit_events(&two, &[("build", "repo:main", "a"), ("test", "suite:unit", "b")]);
+    emit_events(
+        &two,
+        &[("build", "repo:main", "a"), ("test", "suite:unit", "b")],
+    );
     assemble_verified(&two, "st.json");
 
     let (c1, o1, e1) = run_std(&one, &["receipt", "stats", "st.json"]);
