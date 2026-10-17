@@ -555,6 +555,11 @@ dev = ["all"]
 # pulls in a large transitive surface for an optional mutation feature; keep the
 # bounded stub until that version/feature boundary is intentionally graduated.
 clnrm-core = { path = "stubs/clnrm-core" }
+# Vendored clap-noun-verb 26.6.2 (vendor/clap-noun-verb): sole change vs
+# crates.io is suppression of the framework's print of a unit-returning
+# verb's Value::Null (the stray trailing "null" line on every success
+# path, ROADMAP B13). See vendor/clap-noun-verb/src/cli/registry.rs.
+clap-noun-verb = { path = "vendor/clap-noun-verb" }
 chicago-tdd-tools = { path = "/Users/sac/chicago-tdd-tools" }
 
 # CI/test latency: optimize crypto dependency compute without changing first-party dev checks.
