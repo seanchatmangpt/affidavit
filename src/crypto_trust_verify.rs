@@ -507,7 +507,11 @@ impl VerificationEngine {
 /// Static per-algorithm signature adjudication over the envelope's signed
 /// bytes. Dispatch is on [`AlgorithmId`] (no trait objects); the registered
 /// public-key material must match the envelope's algorithm family exactly —
-/// a mismatch is [`VerifyRefusal::UnknownKey`], not a failed signature.
+/// a variant/claim mismatch with NO adjudicable material is
+/// [`VerifyRefusal::UnknownKey`], while a well-formed signature under
+/// adjudicable material that does not verify DECIDES
+/// [`CryptographicStanding::Invalid`] (AG4: foreign-algorithm bytes under a
+/// matching key decide, they never error-undecidable).
 ///
 /// Hybrid wire form: a hybrid signature travels as the JSON serialization of
 /// its two component signatures ([`HybridSignature`]); the bytes are parsed
@@ -544,8 +548,34 @@ fn verify_signature_bytes(
             hybrid_verify(es256_pk, mldsa65_pk, signing_input, &hybrid)
                 .map_err(|err| VerifyRefusal::Provider(err.to_string()))
         }
+        // AG1 lanes (feature-gated like their witness modules): a
+        // well-formed signature that does not verify is a DECIDED INVALID,
+        // never an error-undecidable — foreign-algorithm signature bytes
+        // under a matching key must decide, because "cannot adjudicate" is
+        // exactly the ambiguity an algorithm-confusion attacker wants.
+        #[cfg(feature = "ed25519")]
+        (PublicKeyMaterial::Ed25519(pk), AlgorithmId::Ed25519) => {
+            let pk: [u8; 32] = match pk.as_slice().try_into() {
+                Ok(pk) => pk,
+                Err(_) => return Ok(false), // malformed registered key: decided invalid
+            };
+            let sig: [u8; 64] = match signature.try_into() {
+                Ok(sig) => sig,
+                Err(_) => return Ok(false), // wrong-length signature: decided invalid
+            };
+            Ok(crate::ed25519_witness::verify_witness(&pk, signing_input, &sig).is_ok())
+        }
+        #[cfg(feature = "secp256k1")]
+        (PublicKeyMaterial::Es256kSec1(pk), AlgorithmId::Es256k) => {
+            let pk: [u8; 33] = match pk.as_slice().try_into() {
+                Ok(pk) => pk,
+                Err(_) => return Ok(false), // malformed registered key: decided invalid
+            };
+            Ok(crate::secp256k1_witness::verify_ecdsa(&pk, signing_input, signature).is_ok())
+        }
         // The registered material and the envelope's algorithm disagree: the
-        // verifier cannot adjudicate under a key it does not have.
+        // verifier cannot adjudicate under key material it does not hold for
+        // this algorithm family.
         _ => Err(VerifyRefusal::UnknownKey(record.id.to_string())),
     }
 }

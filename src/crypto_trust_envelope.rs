@@ -94,6 +94,59 @@ fn hex_encode(bytes: &[u8]) -> String {
     s
 }
 
+/// Detects a repeated TOP-LEVEL member name in raw JSON bytes, returning the
+/// first duplicated name. Serde's derived deserializer cannot do this: it
+/// records fields in order and a later occurrence overwrites the earlier one,
+/// so `{"version":"a","version":"b"}` parses to `"b"` with no trace of the
+/// duplicate. The scanner walks the bytes tracking string literals (with
+/// escape handling) and bracket depth, collects every member name that is
+/// immediately followed by `:` at depth 1, and reports the first name seen
+/// twice. Nested members are untouched: the envelope's only nested values are
+/// fixed-length arrays, and refusing top-level duplicates is the AG4 law.
+fn duplicate_top_level_member(b: &[u8]) -> Option<String> {
+    let mut seen: std::collections::BTreeSet<&[u8]> = std::collections::BTreeSet::new();
+    let mut depth: usize = 0;
+    let mut i = 0usize;
+    while i < b.len() {
+        let c = b[i];
+        match c {
+            b'"' if depth == 1 => {
+                // A string token at depth 1: take its raw span.
+                let start = i + 1;
+                let mut j = start;
+                while j < b.len() {
+                    match b[j] {
+                        b'\\' => j += 2,
+                        b'"' => break,
+                        _ => j += 1,
+                    }
+                }
+                if j >= b.len() {
+                    return None; // unterminated string: serde will refuse.
+                }
+                // A member NAME is a string followed by `:` (outside the
+                // string) — otherwise it is a value.
+                let mut k = j + 1;
+                while k < b.len() && (b[k] as char).is_ascii_whitespace() {
+                    k += 1;
+                }
+                if k < b.len() && b[k] == b':' {
+                    let name = &b[start..j];
+                    if !seen.insert(name) {
+                        return Some(String::from_utf8_lossy(name).into_owned());
+                    }
+                }
+                i = j + 1;
+            }
+            b'{' | b'[' => depth += 1,
+            b'}' | b']' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
 /// Journal key for the graph's replay tuple (ctp:nonce-policy-v1
 /// ctp:replayKey = "kid,nonce"): `kid + ":" + lowercase_hex(nonce)`. The
 /// suffix is unambiguous — lowercase hex digits and `:` are disjoint
@@ -159,11 +212,26 @@ impl SignatureEnvelope {
     }
 
     /// Parse and admit canonical signed bytes. Refusals, typed:
-    /// - [`EnvelopeError::Malformed`] — not JSON, not the envelope shape, or a
-    ///   `nonce`/`subject_digest` array whose length serde rejects (16/32);
+    /// - [`EnvelopeError::Malformed`] — not JSON, not the envelope shape, a
+    ///   `nonce`/`subject_digest` array whose length serde rejects (16/32),
+    ///   or a document with a DUPLICATE top-level member;
     /// - [`EnvelopeError::WrongVersion`] — `version` differs from
     ///   [`ENVELOPE_VERSION`]; the payload carries the refused version.
+    ///
+    /// Duplicate-member law (AG4): the derived serde deserializer silently
+    /// keeps the LAST occurrence of a repeated field, so a document like
+    /// `{"version":"CTP-ENVELOPE-v1","version":"CTP-ENVELOPE-v0",...}` would
+    /// adjudicate as v0 instead of refusing. [`from_bytes`](Self::from_bytes)
+    /// scans the RAW bytes for repeated top-level member names before serde
+    /// ever sees the document and refuses any repeat as
+    /// [`EnvelopeError::Malformed`] — the canonical envelope document has
+    /// exactly the twelve [`ENVELOPE_FIELDS`] members, each exactly once.
     pub fn from_bytes(b: &[u8]) -> Result<Self, EnvelopeError> {
+        if let Some(name) = duplicate_top_level_member(b) {
+            return Err(EnvelopeError::Malformed(format!(
+                "duplicate top-level member \"{name}\""
+            )));
+        }
         let value: serde_json::Value =
             serde_json::from_slice(b).map_err(|e| EnvelopeError::Malformed(e.to_string()))?;
         let envelope: SignatureEnvelope =
