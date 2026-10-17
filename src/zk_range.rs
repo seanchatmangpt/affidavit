@@ -16,7 +16,7 @@ use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 use curve25519_dalek_ng::ristretto::CompressedRistretto;
 use curve25519_dalek_ng::scalar::Scalar;
 use merlin::Transcript;
-use rand_core::RngCore;
+use rand_core::{CryptoRng, RngCore};
 use thiserror::Error;
 
 /// Errors produced by range-proof operations.
@@ -29,6 +29,10 @@ pub enum RangeProofError {
     /// The proof or commitment bytes are malformed.
     #[error("malformed range proof encoding")]
     MalformedEncoding,
+    /// A Pedersen commitment does not open under the supplied
+    /// `(value, blinding)` pair.
+    #[error("pedersen opening mismatch: {0}")]
+    OpeningMismatch(String),
     /// The proof does not verify against the commitment.
     #[error("range proof verification failed")]
     VerificationFailed,
@@ -60,7 +64,7 @@ pub struct RangeWitness {
 /// # Panics
 ///
 /// Never panics on any input value; range violations are typed refusals.
-pub fn prove_range<R: RngCore>(
+pub fn prove_range<R: RngCore + CryptoRng>(
     value: u64,
     bits: usize,
     label: &'static [u8],
@@ -88,9 +92,217 @@ pub fn prove_range<R: RngCore>(
     rng.fill_bytes(&mut blinding_bytes);
     let blinding = Scalar::from_bytes_mod_order(blinding_bytes);
 
-    let (proof, commitment) =
-        RangeProof::prove_single(&gens, &pc_gens, &mut transcript, value, &blinding, bits)
-            .map_err(|e| RangeProofError::Generation(e.to_string()))?;
+    let (proof, commitment) = RangeProof::prove_single_with_rng(
+        &gens,
+        &pc_gens,
+        &mut transcript,
+        value,
+        &blinding,
+        bits,
+        rng,
+    )
+    .map_err(|e| RangeProofError::Generation(e.to_string()))?;
+
+    let mut commitment_bytes = [0u8; 32];
+    commitment_bytes.copy_from_slice(commitment.as_bytes());
+    let blinding_bytes: [u8; 32] = blinding.to_bytes();
+
+    Ok(RangeWitness {
+        commitment: commitment_bytes,
+        blinding: blinding_bytes,
+        proof: proof.to_bytes(),
+        bits,
+    })
+}
+
+/// Derive a deterministic blinding scalar: `blake3(seed || label || value-le)`,
+/// reduced mod the group order. Same `(seed, label, value)` triple always
+/// yields the same scalar, so the resulting range proof is byte-identical
+/// across runs and processes.
+fn seeded_blinding(seed: &[u8; 32], label: &[u8], value: u64) -> Scalar {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(seed);
+    hasher.update(label);
+    hasher.update(&value.to_le_bytes());
+    Scalar::from_bytes_mod_order(hasher.finalize().into())
+}
+
+/// Prove `0 <= value < 2^bits` with a **seeded deterministic blinding**
+/// derived as `Scalar::from_bytes_mod_order(blake3(seed || label ||
+/// value-le-bytes))`.
+///
+/// Because the blinding is a pure function of `(seed, label, value)`, two
+/// invocations with identical inputs produce byte-identical proofs
+/// (`cmp`-equal) — no RNG involvement. Any change to the seed, the label, or
+/// the value flips proof bytes. The blinding remains secret *custody of the
+/// holder of the seed*: leaking `seed` is equivalent to leaking every
+/// blinding derived from it.
+///
+/// The existing [`prove_range`] (OsRng) path is untouched.
+///
+/// # Errors
+///
+/// Same refusals as [`prove_range`].
+///
+/// # Panics
+///
+/// Never panics; out-of-range values are typed refusals.
+pub fn prove_range_seeded(
+    seed: &[u8; 32],
+    value: u64,
+    bits: usize,
+    label: &'static [u8],
+) -> Result<RangeWitness, RangeProofError> {
+    let blinding = seeded_blinding(seed, label, value);
+    let mut rng = SeededRng::new(*seed, label, value);
+    prove_single_with_blinding(value, bits, label, None, blinding, &mut rng)
+}
+
+/// Verify a Pedersen commitment opens under `(value, blinding)`: recompute
+/// `C = value*G + blinding*H` and compare against the commitment bytes.
+///
+/// This is the commitment-opening seam the receipt-bound derivation relies
+/// on: a [`RangeWitness`] always carries an opening consistent with its
+/// commitment, and a commitment bound to receipt hash `H1` (via
+/// [`prove_range_bound`]'s transcript append) still opens under its own
+/// `(value, blinding)` — but its proof refuses verification under any other
+/// binding.
+///
+/// # Errors
+///
+/// [`RangeProofError::OpeningMismatch`] when the recomputed commitment
+/// differs — wrong value or wrong blinding under the same `C`.
+pub fn pedersen_open(
+    commitment: &[u8; 32],
+    value: u64,
+    blinding: &[u8; 32],
+) -> Result<(), RangeProofError> {
+    let pc_gens = PedersenGens::default();
+    let mut v_le = [0u8; 32];
+    v_le[..8].copy_from_slice(&value.to_le_bytes());
+    let v = Scalar::from_bytes_mod_order(v_le);
+    let b = Scalar::from_bytes_mod_order(*blinding);
+    let recomputed = pc_gens.commit(v, b).compress();
+    if recomputed == CompressedRistretto(*commitment) {
+        Ok(())
+    } else {
+        Err(RangeProofError::OpeningMismatch(format!(
+            "commitment {} does not open under the supplied (value, blinding)",
+            hex_encode(commitment)
+        )))
+    }
+}
+
+/// Lowercase-hex encode for typed error messages (no extra dep).
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Deterministic blake3-keystream CPRNG for bulletproofs' internal
+/// polynomial blinding factors. Same key always yields the same byte stream,
+/// so a seeded proof is byte-identical across runs.
+pub struct SeededRng {
+    key: [u8; 32],
+    counter: u64,
+    buf: [u8; 32],
+    pos: usize,
+}
+
+impl SeededRng {
+    /// New keystream keyed by `blake3(seed || label || value-le || nonce)`.
+    fn new(seed: [u8; 32], label: &[u8], value: u64) -> Self {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(&seed);
+        hasher.update(b"affidavit:zk-range:seeded-rng:v1");
+        hasher.update(label);
+        hasher.update(&value.to_le_bytes());
+        Self {
+            key: hasher.finalize().into(),
+            counter: 0,
+            buf: [0u8; 32],
+            pos: 32,
+        }
+    }
+
+    fn refill(&mut self) {
+        let mut hasher = blake3::Hasher::new_keyed(&self.key);
+        hasher.update(&self.counter.to_le_bytes());
+        self.buf = hasher.finalize().into();
+        hasher.reset();
+        hasher.update(&self.counter.to_le_bytes());
+        self.counter += 1;
+    }
+}
+
+impl RngCore for SeededRng {
+    fn next_u32(&mut self) -> u32 {
+        let mut b = [0u8; 4];
+        self.fill_bytes(&mut b);
+        u32::from_le_bytes(b)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        let mut b = [0u8; 8];
+        self.fill_bytes(&mut b);
+        u64::from_le_bytes(b)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        for byte in dest.iter_mut() {
+            if self.pos == self.buf.len() {
+                self.refill();
+                self.pos = 0;
+            }
+            *byte = self.buf[self.pos];
+            self.pos += 1
+        }
+    }
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+        self.fill_bytes(dest);
+        Ok(())
+    }
+}
+
+impl CryptoRng for SeededRng {}
+
+/// Shared single-prover path for the seeded and RNG paths: appends the
+/// receipt hash to the transcript (when bound) before proving with the
+/// caller-supplied blinding scalar.
+fn prove_single_with_blinding<R: RngCore + CryptoRng>(
+    value: u64,
+    bits: usize,
+    label: &'static [u8],
+    receipt_hash: Option<&[u8; 32]>,
+    blinding: Scalar,
+    rng: &mut R,
+) -> Result<RangeWitness, RangeProofError> {
+    if bits == 0 || bits > 64 {
+        return Err(RangeProofError::Generation(format!(
+            "unsupported bit range: {bits}"
+        )));
+    }
+    if bits < 64 && (value >> bits) != 0 {
+        return Err(RangeProofError::Generation(format!(
+            "value {value} does not fit in {bits} bits"
+        )));
+    }
+    let gens = BulletproofGens::new(bits.next_power_of_two().max(32), 1);
+    let pc_gens = PedersenGens::default();
+    let mut transcript = Transcript::new(label);
+    if let Some(h) = receipt_hash {
+        transcript.append_message(b"receipt-hash", h);
+    }
+
+    let (proof, commitment) = RangeProof::prove_single_with_rng(
+        &gens,
+        &pc_gens,
+        &mut transcript,
+        value,
+        &blinding,
+        bits,
+        rng,
+    )
+    .map_err(|e| RangeProofError::Generation(e.to_string()))?;
 
     let mut commitment_bytes = [0u8; 32];
     commitment_bytes.copy_from_slice(commitment.as_bytes());
@@ -405,7 +617,7 @@ pub fn verify_range_batch(
 /// # Errors
 ///
 /// Same refusals as [`prove_range`].
-pub fn prove_range_bound<R: RngCore>(
+pub fn prove_range_bound<R: RngCore + CryptoRng>(
     value: u64,
     bits: usize,
     label: &'static [u8],
@@ -433,47 +645,23 @@ pub fn verify_range_bound(
 
 /// Shared prove path for [`prove_range`] / [`prove_range_bound`]: appends
 /// the receipt hash to the transcript (when bound) before proving.
-fn prove_range_with_hash<R: RngCore>(
+fn prove_range_with_hash<R: RngCore + CryptoRng>(
     value: u64,
     bits: usize,
     label: &'static [u8],
     receipt_hash: Option<&[u8; 32]>,
     rng: &mut R,
 ) -> Result<RangeWitness, RangeProofError> {
-    if bits == 0 || bits > 64 {
-        return Err(RangeProofError::Generation(format!(
-            "unsupported bit range: {bits}"
-        )));
-    }
-    if bits < 64 && (value >> bits) != 0 {
-        return Err(RangeProofError::Generation(format!(
-            "value {value} does not fit in {bits} bits"
-        )));
-    }
-    let gens = BulletproofGens::new(bits.next_power_of_two().max(32), 1);
-    let pc_gens = PedersenGens::default();
-    let mut transcript = Transcript::new(label);
-    if let Some(h) = receipt_hash {
-        transcript.append_message(b"receipt-hash", h);
-    }
     let mut blinding_bytes = [0u8; 32];
     rng.fill_bytes(&mut blinding_bytes);
-    let blinding = Scalar::from_bytes_mod_order(blinding_bytes);
-
-    let (proof, commitment) =
-        RangeProof::prove_single(&gens, &pc_gens, &mut transcript, value, &blinding, bits)
-            .map_err(|e| RangeProofError::Generation(e.to_string()))?;
-
-    let mut commitment_bytes = [0u8; 32];
-    commitment_bytes.copy_from_slice(commitment.as_bytes());
-    let blinding_bytes: [u8; 32] = blinding.to_bytes();
-
-    Ok(RangeWitness {
-        commitment: commitment_bytes,
-        blinding: blinding_bytes,
-        proof: proof.to_bytes(),
+    prove_single_with_blinding(
+        value,
         bits,
-    })
+        label,
+        receipt_hash,
+        Scalar::from_bytes_mod_order(blinding_bytes),
+        rng,
+    )
 }
 
 /// Shared verify path for [`verify_range`] / [`verify_range_bound`]: appends
@@ -675,5 +863,130 @@ mod bound_batch_tests {
                 "batch requires bits in [8, 16, 32, 64], got 12".into()
             ))
         );
+    }
+}
+
+#[cfg(test)]
+mod seeded_opening_tests {
+    //! Register row 63: seeded deterministic blinding. Cycle-4 row B
+    //! (Pedersen half): commitment-opening consistency seam.
+
+    use super::*;
+    use rand_core::OsRng;
+
+    const LABEL: &[u8] = b"affidavit:zk-range:v1:effect-budget";
+    const SEED: [u8; 32] = [7u8; 32];
+    const H1: [u8; 32] = [1u8; 32];
+    const H2: [u8; 32] = [2u8; 32];
+
+    // ---- Row 63: seeded deterministic blinding ----
+
+    #[test]
+    fn same_seed_label_value_is_byte_identical_across_invocations() {
+        let a = prove_range_seeded(&SEED, 42, 32, LABEL).expect("prove a");
+        let b = prove_range_seeded(&SEED, 42, 32, LABEL).expect("prove b");
+        assert_eq!(a, b);
+        assert_eq!(cmp_bytes(&a.proof, &b.proof), std::cmp::Ordering::Equal);
+        assert_eq!(
+            cmp_bytes(&a.commitment, &b.commitment),
+            std::cmp::Ordering::Equal
+        );
+    }
+
+    #[test]
+    fn changing_any_of_seed_label_value_flips_proof_bytes() {
+        let base = prove_range_seeded(&SEED, 42, 32, LABEL).expect("prove base");
+
+        let mut other_seed = SEED;
+        other_seed[0] ^= 0x01;
+        let alt_seed = prove_range_seeded(&other_seed, 42, 32, LABEL).expect("prove alt seed");
+        assert_ne!(base.proof, alt_seed.proof);
+        assert_ne!(base.commitment, alt_seed.commitment);
+
+        let alt_label = prove_range_seeded(&SEED, 42, 32, b"affidavit:zk-range:v1:other-domain")
+            .expect("prove alt label");
+        assert_ne!(base.proof, alt_label.proof);
+        assert_ne!(base.commitment, alt_label.commitment);
+
+        let alt_value = prove_range_seeded(&SEED, 43, 32, LABEL).expect("prove alt value");
+        assert_ne!(base.proof, alt_value.proof);
+        assert_ne!(base.commitment, alt_value.commitment);
+    }
+
+    #[test]
+    fn seeded_proof_verifies_and_opens() {
+        let witness = prove_range_seeded(&SEED, 1_000, 32, LABEL).expect("prove");
+        assert_eq!(
+            verify_range(&witness.commitment, &witness.proof, 32, LABEL),
+            Ok(())
+        );
+        assert_eq!(
+            pedersen_open(&witness.commitment, 1_000, &witness.blinding),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn seeded_out_of_range_value_is_refused() {
+        assert!(prove_range_seeded(&SEED, 1 << 32, 32, LABEL).is_err());
+    }
+
+    #[test]
+    fn osrng_path_remains_nondeterministic() {
+        // Falsifier for "existing OsRng path untouched": two fresh random
+        // witnesses of the same value must differ (fresh entropy each run).
+        let a = prove_range(42, 32, LABEL, &mut OsRng).expect("prove a");
+        let b = prove_range(42, 32, LABEL, &mut OsRng).expect("prove b");
+        assert_ne!(a.proof, b.proof);
+        assert_ne!(a.commitment, b.commitment);
+    }
+
+    // ---- Cycle-4 row B (Pedersen half): opening consistency ----
+
+    #[test]
+    fn commitment_opens_under_correct_pair_only() {
+        let w = prove_range(42, 32, LABEL, &mut OsRng).expect("prove");
+        assert_eq!(pedersen_open(&w.commitment, 42, &w.blinding), Ok(()));
+        assert!(matches!(
+            pedersen_open(&w.commitment, 43, &w.blinding),
+            Err(RangeProofError::OpeningMismatch(_))
+        ));
+        assert!(matches!(
+            pedersen_open(&w.commitment, 42, &wrong_blinding(&w)),
+            Err(RangeProofError::OpeningMismatch(_))
+        ));
+        // A zero blinding under a nonzero-value commitment is refused too.
+        assert!(matches!(
+            pedersen_open(&w.commitment, 42, &[0u8; 32]),
+            Err(RangeProofError::OpeningMismatch(_))
+        ));
+    }
+
+    fn wrong_blinding(w: &RangeWitness) -> [u8; 32] {
+        let mut b = w.blinding;
+        b[0] ^= 0x01;
+        b
+    }
+
+    #[test]
+    fn receipt_bound_derivation_carries_through_the_opening_seam() {
+        // Row 33 binding carries through: a witness bound to H1 opens under
+        // its own (value, blinding) and verifies under H1, but its proof
+        // refuses under a different receipt-hash binding — the opening seam
+        // stays consistent while the transcript binding stays exclusive.
+        let w = prove_range_bound(42, 32, LABEL, Some(&H1), &mut OsRng).expect("prove bound");
+        assert_eq!(pedersen_open(&w.commitment, 42, &w.blinding), Ok(()));
+        assert_eq!(
+            verify_range_bound(&w.commitment, &w.proof, 32, LABEL, Some(&H1)),
+            Ok(())
+        );
+        assert_eq!(
+            verify_range_bound(&w.commitment, &w.proof, 32, LABEL, Some(&H2)),
+            Err(RangeProofError::VerificationFailed)
+        );
+    }
+
+    fn cmp_bytes(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
+        a.cmp(b)
     }
 }
