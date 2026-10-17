@@ -14,6 +14,9 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 /// Replay the BLAKE3 receipt chain across all court records in a directory
+// [coordinator] ctdd self-gate restored (ontology lane procedure: template cannot emit gates;
+// these handlers live behind the ctdd feature plane).
+#[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("chain-verify", "receipt")]
 pub fn receipt_chain_verify(

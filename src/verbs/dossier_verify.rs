@@ -14,6 +14,9 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 /// Verify a sealed-dossier wire file against the local ML-DSA-65 key store
+// [coordinator] ctdd self-gate restored (ontology lane procedure: template cannot emit gates;
+// these handlers live behind the ctdd feature plane).
+#[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("verify", "dossier")]
 pub fn dossier_verify(

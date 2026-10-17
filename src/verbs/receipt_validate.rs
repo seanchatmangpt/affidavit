@@ -14,6 +14,9 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 /// Validate one 352-byte CTRT court receipt record (file or stdin)
+// [coordinator] ctdd self-gate restored (ontology lane procedure: template cannot emit gates;
+// these handlers live behind the ctdd feature plane).
+#[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("validate", "receipt")]
 pub fn receipt_validate(

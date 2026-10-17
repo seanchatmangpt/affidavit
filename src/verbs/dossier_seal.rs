@@ -14,6 +14,9 @@
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 /// Seal a directory of 352-byte court records into a signed sealed-dossier wire file
+// [coordinator] ctdd self-gate restored (ontology lane procedure: template cannot emit gates;
+// these handlers live behind the ctdd feature plane).
+#[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("seal", "dossier")]
 pub fn dossier_seal(
