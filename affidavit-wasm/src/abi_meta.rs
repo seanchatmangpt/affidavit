@@ -37,6 +37,8 @@ pub const OPS: &[&str] = &[
     "range_proof_verify",
     "derive_subject_digest",
     "verify_signature",
+    "pqc_assemble",
+    "pqc_verify",
 ];
 
 /// Typed error codes, ordered by `wja:codeOrder`.
@@ -50,4 +52,5 @@ pub const ERROR_CODES: &[&str] = &[
     "missing_buffer",
     "internal",
     "malformed",
+    "pqc_refused",
 ];

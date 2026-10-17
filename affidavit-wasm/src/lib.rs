@@ -37,6 +37,7 @@ pub mod crypto;
 pub mod signature;
 mod advanced;
 mod external_evidence;
+pub mod pqc;
 pub mod receipt;
 
 // Generated FFI shell (rust-wasi-wasmex-pack). Exports are wasm32-only; the helpers
