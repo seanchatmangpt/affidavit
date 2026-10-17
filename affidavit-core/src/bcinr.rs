@@ -96,7 +96,10 @@ pub fn bcinr_genesis_hash<H: ChainHasher>() -> Digest {
 /// Advance the chain by one frame (the verbatim bcinr rule):
 /// `H(prev_chain_hash || frame.to_hash_bytes())`.
 #[must_use]
-pub fn bcinr_chain_from_frame<H: ChainHasher>(prev_chain_hash: &Digest, frame: &BcinrFrame) -> Digest {
+pub fn bcinr_chain_from_frame<H: ChainHasher>(
+    prev_chain_hash: &Digest,
+    frame: &BcinrFrame,
+) -> Digest {
     let mut s = H::init();
     H::absorb(&mut s, prev_chain_hash.as_bytes());
     H::absorb(&mut s, &frame.to_hash_bytes());
@@ -170,7 +173,9 @@ mod tests {
         fn absorb(state: &mut heapless_lanes::Lanes, bytes: &[u8]) {
             for (i, &b) in bytes.iter().enumerate() {
                 let lane = &mut state.l[i % 4];
-                *lane = (*lane ^ b as u64).wrapping_mul(0x100_0000_01b3).rotate_left((i % 64) as u32);
+                *lane = (*lane ^ b as u64)
+                    .wrapping_mul(0x100_0000_01b3)
+                    .rotate_left((i % 64) as u32);
             }
         }
         fn finish(state: heapless_lanes::Lanes) -> crate::digest::Digest {
@@ -225,7 +230,10 @@ mod tests {
 
     #[test]
     fn genesis_differs_from_all_zero_digest() {
-        assert_ne!(bcinr_genesis_hash::<Reverse32>(), crate::digest::Digest::ZERO);
+        assert_ne!(
+            bcinr_genesis_hash::<Reverse32>(),
+            crate::digest::Digest::ZERO
+        );
     }
 
     #[test]

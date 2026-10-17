@@ -146,16 +146,19 @@ fn empty_chain_hash_is_the_bcinr_genesis() {
 #[test]
 fn chaining_zero_frames_is_the_identity() {
     let g = bcinr_genesis_hash::<Blake3Chain>();
-    let still_empty = bcinr_chain_from_frame::<Blake3Chain>(&g, &BcinrFrame {
-        instruction_id: 0,
-        fired_mask: 0,
-        denial: 0,
-        obj_refs: [0; 8],
-        ts_ns: 0,
-        activity_idx: 0,
-        node_kind: 0,
-        prior_hash: g,
-    });
+    let still_empty = bcinr_chain_from_frame::<Blake3Chain>(
+        &g,
+        &BcinrFrame {
+            instruction_id: 0,
+            fired_mask: 0,
+            denial: 0,
+            obj_refs: [0; 8],
+            ts_ns: 0,
+            activity_idx: 0,
+            node_kind: 0,
+            prior_hash: g,
+        },
+    );
     // The all-zero frame is a real frame (obj_refs scatter of zeros), so this
     // is a link, not the identity; assert the identity property at the fold
     // level instead: genesis recomputes from no frames at all.
@@ -172,14 +175,20 @@ fn tampering_any_fixture_byte_changes_the_head() {
     let tampered_payload = Digest(payload_bytes);
 
     let honest = {
-        let frame =
-            bcinr_admission_frame::<Blake3Chain>(&decode32(&payload_hex()), &prev, &meta, 0, 0, 0, 0);
+        let frame = bcinr_admission_frame::<Blake3Chain>(
+            &decode32(&payload_hex()),
+            &prev,
+            &meta,
+            0,
+            0,
+            0,
+            0,
+        );
         bcinr_chain_from_frame::<Blake3Chain>(&prev, &frame)
     };
     let forged = {
-        let frame = bcinr_admission_frame::<Blake3Chain>(
-            &tampered_payload, &prev, &meta, 0, 0, 0, 0,
-        );
+        let frame =
+            bcinr_admission_frame::<Blake3Chain>(&tampered_payload, &prev, &meta, 0, 0, 0, 0);
         bcinr_chain_from_frame::<Blake3Chain>(&prev, &frame)
     };
 
@@ -188,7 +197,10 @@ fn tampering_any_fixture_byte_changes_the_head() {
         chain_hex(),
         "forged head must not match the committed fixture chain hash"
     );
-    assert_ne!(forged, honest, "one flipped payload byte must move the head");
+    assert_ne!(
+        forged, honest,
+        "one flipped payload byte must move the head"
+    );
 }
 
 #[test]

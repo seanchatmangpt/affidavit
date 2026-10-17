@@ -52,6 +52,11 @@ pub enum EvidenceError {
     PrincipalMismatch,
     /// The AuthZEN resource does not bind the exact expected effect.
     EffectMismatch,
+    /// Evidence validity ended before the caller-supplied observation time.
+    ///
+    /// Determinism law: expiry is never compared against a wall clock. The
+    /// caller supplies `now`; identical inputs always yield identical refusals.
+    EvidenceExpired,
 }
 
 impl EvidenceError {
@@ -71,6 +76,7 @@ impl EvidenceError {
             Self::PolicyDecisionPointMismatch => "pdp_mixup",
             Self::PrincipalMismatch => "principal_mismatch",
             Self::EffectMismatch => "effect_digest_mismatch",
+            Self::EvidenceExpired => "evidence_expired",
         }
     }
 }
@@ -93,6 +99,7 @@ impl fmt::Display for EvidenceError {
             Self::PolicyDecisionPointMismatch => write!(f, "AuthZEN PDP identity mismatch"),
             Self::PrincipalMismatch => write!(f, "AuthZEN subject principal mismatch"),
             Self::EffectMismatch => write!(f, "AuthZEN resource/effect mismatch"),
+            Self::EvidenceExpired => write!(f, "evidence expired before the observation time"),
         }
     }
 }
@@ -222,6 +229,19 @@ pub struct AuthZenDecisionEvidenceRef<'a> {
     pub decision: bool,
     /// Exact policy decision point identifier that produced the observation.
     pub policy_decision_point: &'a str,
+}
+
+/// Admit evidence validity at a caller-supplied observation time.
+///
+/// Deterministic: no wall-clock. `now` must be supplied by the caller
+/// (e.g. carried in the observation itself). Evidence whose validity ends
+/// strictly before `now` is refused with [`EvidenceError::EvidenceExpired`];
+/// evidence valid exactly at `now` is admitted.
+pub fn admit_evidence_validity(valid_until: u64, now: u64) -> Result<(), EvidenceError> {
+    if valid_until < now {
+        return Err(EvidenceError::EvidenceExpired);
+    }
+    Ok(())
 }
 
 /// Admit AuthZEN evidence against an exact principal, effect and PDP.
@@ -376,5 +396,241 @@ mod tests {
             ),
             Err(EvidenceError::PolicyDecisionPointMismatch)
         );
+    }
+
+    #[test]
+    fn malformed_spiffe_prefixes_are_refused() {
+        assert_eq!(
+            SpiffeIdRef::parse("https://prod.acme.com/billing"),
+            Err(EvidenceError::InvalidSpiffeScheme)
+        );
+        assert_eq!(
+            SpiffeIdRef::parse("prod.acme.com/billing"),
+            Err(EvidenceError::InvalidSpiffeScheme)
+        );
+        assert_eq!(
+            SpiffeIdRef::parse("spiffe://"),
+            Err(EvidenceError::MissingTrustDomain)
+        );
+        assert_eq!(
+            SpiffeIdRef::parse("spiffe:///workload"),
+            Err(EvidenceError::MissingTrustDomain)
+        );
+        assert_eq!(
+            SpiffeIdRef::parse("spiffe://user@prod.acme.com/billing"),
+            Err(EvidenceError::InvalidSpiffeAuthority)
+        );
+        assert_eq!(
+            SpiffeIdRef::parse("spiffe://prod.acme.com:8443"),
+            Err(EvidenceError::InvalidSpiffeAuthority)
+        );
+        assert_eq!(
+            SpiffeIdRef::parse("spiffe://prod .acme.com/billing"),
+            Err(EvidenceError::InvalidSpiffeAuthority)
+        );
+        assert_eq!(
+            SpiffeIdRef::parse("spiffe://prod.acme.com/billing#fragment"),
+            Err(EvidenceError::SpiffeQueryOrFragment)
+        );
+    }
+
+    #[test]
+    fn x509_admission_succeeds_and_every_typed_refusal_fires() {
+        let identity = SpiffeIdRef::parse("spiffe://prod.acme.com/billing/api").unwrap();
+        let base = WorkloadIdentityEvidenceRef {
+            identity,
+            svid_type: SvidType::X509,
+            bundle_digest: "sha256:bundle",
+            verified: true,
+        };
+        assert_eq!(
+            admit_workload_identity(
+                base,
+                "spiffe://prod.acme.com/billing/api",
+                "prod.acme.com",
+                false
+            ),
+            Ok(())
+        );
+
+        let mut evidence = base;
+        evidence.bundle_digest = "";
+        assert_eq!(
+            admit_workload_identity(evidence, identity.uri, identity.trust_domain, false),
+            Err(EvidenceError::EmptyField("bundle_digest"))
+        );
+
+        let mut evidence = base;
+        evidence.verified = false;
+        assert_eq!(
+            admit_workload_identity(evidence, identity.uri, identity.trust_domain, false),
+            Err(EvidenceError::WorkloadNotVerified)
+        );
+
+        let mut evidence = base;
+        evidence.identity = SpiffeIdRef::parse("spiffe://prod.acme.com/other").unwrap();
+        assert_eq!(
+            admit_workload_identity(evidence, identity.uri, identity.trust_domain, false),
+            Err(EvidenceError::SpiffeIdMismatch)
+        );
+
+        let mut evidence = base;
+        evidence.identity = SpiffeIdRef::parse("spiffe://staging.acme.com/billing/api").unwrap();
+        assert_eq!(
+            admit_workload_identity(evidence, evidence.identity.uri, "prod.acme.com", false),
+            Err(EvidenceError::TrustDomainMismatch)
+        );
+
+        let mut evidence = base;
+        evidence.svid_type = SvidType::Jwt;
+        assert_eq!(
+            admit_workload_identity(evidence, identity.uri, identity.trust_domain, false),
+            Err(EvidenceError::JwtNotAdmitted)
+        );
+        assert_eq!(
+            admit_workload_identity(evidence, identity.uri, identity.trust_domain, true),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn authzen_missing_sarc_fields_are_refused_in_order() {
+        let request = AuthZenRequestRef {
+            subject: AuthZenEntityRef {
+                entity_type: "user",
+                id: "alice@example.com",
+            },
+            action: AuthZenActionRef { name: "can_read" },
+            resource: AuthZenEntityRef {
+                entity_type: "account",
+                id: "123",
+            },
+        };
+        let decision = AuthZenDecisionEvidenceRef {
+            decision: true,
+            policy_decision_point: "https://pdp.example.com",
+        };
+
+        {
+            let mut request = request;
+            request.subject.entity_type = "";
+            assert_eq!(
+                admit_authzen_evidence(request, decision, "https://pdp.example.com", "a", "123"),
+                Err(EvidenceError::EmptyField("subject.type"))
+            );
+        }
+        {
+            let mut request = request;
+            request.subject.id = "";
+            assert_eq!(
+                admit_authzen_evidence(request, decision, "https://pdp.example.com", "", "123"),
+                Err(EvidenceError::EmptyField("subject.id"))
+            );
+        }
+        {
+            let mut request = request;
+            request.action.name = "";
+            assert_eq!(
+                admit_authzen_evidence(request, decision, "https://pdp.example.com", "a", "123"),
+                Err(EvidenceError::EmptyField("action.name"))
+            );
+        }
+        {
+            let mut request = request;
+            request.resource.entity_type = "";
+            assert_eq!(
+                admit_authzen_evidence(request, decision, "https://pdp.example.com", "a", "123"),
+                Err(EvidenceError::EmptyField("resource.type"))
+            );
+        }
+        {
+            let mut request = request;
+            request.resource.id = "";
+            assert_eq!(
+                admit_authzen_evidence(request, decision, "https://pdp.example.com", "a", ""),
+                Err(EvidenceError::EmptyField("resource.id"))
+            );
+        }
+    }
+
+    #[test]
+    fn authzen_invalid_and_mismatched_surfaces_are_refused() {
+        let request = AuthZenRequestRef {
+            subject: AuthZenEntityRef {
+                entity_type: "user",
+                id: "alice@example.com",
+            },
+            action: AuthZenActionRef { name: "can_read" },
+            resource: AuthZenEntityRef {
+                entity_type: "account",
+                id: "123",
+            },
+        };
+        let decision = |pdp: &'static str| AuthZenDecisionEvidenceRef {
+            decision: true,
+            policy_decision_point: pdp,
+        };
+
+        assert_eq!(
+            admit_authzen_evidence(
+                request,
+                decision("http://pdp.example.com"),
+                "http://pdp.example.com",
+                "alice@example.com",
+                "123"
+            ),
+            Err(EvidenceError::InvalidPolicyDecisionPoint)
+        );
+        assert_eq!(
+            admit_authzen_evidence(
+                request,
+                decision("https://"),
+                "https://",
+                "alice@example.com",
+                "123"
+            ),
+            Err(EvidenceError::InvalidPolicyDecisionPoint)
+        );
+        assert_eq!(
+            admit_authzen_evidence(
+                request,
+                decision("https://pdp.example.com?x=1"),
+                "https://pdp.example.com?x=1",
+                "alice@example.com",
+                "123"
+            ),
+            Err(EvidenceError::InvalidPolicyDecisionPoint)
+        );
+        assert_eq!(
+            admit_authzen_evidence(
+                request,
+                decision("https://pdp.example.com"),
+                "https://pdp.example.com",
+                "bob@example.com",
+                "123"
+            ),
+            Err(EvidenceError::PrincipalMismatch)
+        );
+        assert_eq!(
+            admit_authzen_evidence(
+                request,
+                decision("https://pdp.example.com"),
+                "https://pdp.example.com",
+                "alice@example.com",
+                "456"
+            ),
+            Err(EvidenceError::EffectMismatch)
+        );
+    }
+
+    #[test]
+    fn expiry_is_deterministic_on_caller_supplied_now() {
+        assert_eq!(admit_evidence_validity(100, 100), Ok(()));
+        assert_eq!(
+            admit_evidence_validity(100, 101),
+            Err(EvidenceError::EvidenceExpired)
+        );
+        assert_eq!(admit_evidence_validity(100, 0), Ok(()));
+        assert_eq!(EvidenceError::EvidenceExpired.code(), "evidence_expired");
     }
 }

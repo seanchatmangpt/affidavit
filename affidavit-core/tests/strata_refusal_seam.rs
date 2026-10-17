@@ -152,7 +152,10 @@ fn in_test_port_reproduces_pinned_receipts() {
     // must reproduce every pinned fixture byte-for-byte.
     assert_eq!(derive_receipt("malformed_frame", SEED), MALFORMED_FRAME);
     assert_eq!(derive_receipt("fuel_exhausted", SEED), FUEL_EXHAUSTED);
-    assert_eq!(derive_receipt("parent_discontinuity", SEED), PARENT_DISCONTINUITY);
+    assert_eq!(
+        derive_receipt("parent_discontinuity", SEED),
+        PARENT_DISCONTINUITY
+    );
     assert_eq!(derive_receipt("arena_failure", SEED), ARENA_FAILURE);
     // Determinism: recomputation is pure.
     assert_eq!(derive_receipt("malformed_frame", SEED), MALFORMED_FRAME);
@@ -182,10 +185,22 @@ fn commitment_round_trips_from_payload() {
 #[test]
 fn chain_hasher_accepts_refusal_receipt_as_payload() {
     let seams = [
-        Seam { event_id: "strata.valve.refusals.malformed_frame", payload: &MALFORMED_FRAME },
-        Seam { event_id: "strata.valve.refusals.fuel_exhausted", payload: &FUEL_EXHAUSTED },
-        Seam { event_id: "strata.valve.refusals.parent_discontinuity", payload: &PARENT_DISCONTINUITY },
-        Seam { event_id: "strata.valve.refusals.arena_failure", payload: &ARENA_FAILURE },
+        Seam {
+            event_id: "strata.valve.refusals.malformed_frame",
+            payload: &MALFORMED_FRAME,
+        },
+        Seam {
+            event_id: "strata.valve.refusals.fuel_exhausted",
+            payload: &FUEL_EXHAUSTED,
+        },
+        Seam {
+            event_id: "strata.valve.refusals.parent_discontinuity",
+            payload: &PARENT_DISCONTINUITY,
+        },
+        Seam {
+            event_id: "strata.valve.refusals.arena_failure",
+            payload: &ARENA_FAILURE,
+        },
     ];
     let receipt = seal(&seams);
     // The envelope is sealed and profiled.
@@ -203,8 +218,14 @@ fn chain_hasher_accepts_refusal_receipt_as_payload() {
 #[test]
 fn single_bit_tamper_of_wire_payload_is_detected() {
     let seams = [
-        Seam { event_id: "strata.valve.refusals.malformed_frame", payload: &MALFORMED_FRAME },
-        Seam { event_id: "strata.valve.refusals.fuel_exhausted", payload: &FUEL_EXHAUSTED },
+        Seam {
+            event_id: "strata.valve.refusals.malformed_frame",
+            payload: &MALFORMED_FRAME,
+        },
+        Seam {
+            event_id: "strata.valve.refusals.fuel_exhausted",
+            payload: &FUEL_EXHAUSTED,
+        },
     ];
     let receipt = seal(&seams);
     let honest = receipt.chain_hash();
@@ -241,7 +262,10 @@ fn cross_class_receipts_are_distinct_for_same_seed() {
         ("arena_failure", derive_receipt("arena_failure", SEED)),
         ("fuel_exhausted", derive_receipt("fuel_exhausted", SEED)),
         ("malformed_frame", derive_receipt("malformed_frame", SEED)),
-        ("parent_discontinuity", derive_receipt("parent_discontinuity", SEED)),
+        (
+            "parent_discontinuity",
+            derive_receipt("parent_discontinuity", SEED),
+        ),
     ];
     for (label, r) in &receipts {
         assert_eq!(r.len(), RECEIPT_LEN, "{label}");

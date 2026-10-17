@@ -3,7 +3,7 @@ name = "affidavit-core"
 version = "26.10.16"
 edition = "2021"
 rust-version = "1.78"
-description = "Zero-dependency, no_std, forbid(unsafe) reference verifier for affidavit receipt chains: make invalid receipts unrepresentable and verify them anywhere."
+description = "no_std, forbid(unsafe) reference verifier for affidavit receipt chains that implements zero cryptographic algorithms: ML-DSA-65 and BLAKE3 arrive as external dependencies."
 license = "MIT OR Apache-2.0"
 authors = ["Sean Chatman <xpointsh@gmail.com>"]
 repository = "https://github.com/seanchatmangpt/affidavit"
@@ -16,11 +16,28 @@ default = ["alloc"]
 # Enables the owned ChainBuilder/Receipt. The *verifier* itself needs no
 # allocation and works with `default-features = false`.
 alloc = []
+# Rebase of the mining::ocel type layer onto the published wasm4pm-compat
+# OCEL v2 types (same exact pin as the root crate: =26.8.7). Off by default:
+# wasm4pm-compat is nightly-only and std-based, so it is not no_std
+# compatible — see src/mining/ocel.rs module docs.
+ocel-compat = ["dep:wasm4pm-compat"]
+# OPERATOR LAWS (2026-10-16), superseding the older zero-dependency invariant:
+# 1. No cryptographic algorithm is implemented anywhere in this project —
+#    every algorithm is an external dependency (ML-DSA-65 via `ml-dsa`,
+#    hashing via `blake3`).
+# 2. PQC ships unconditionally (no feature flag) so the court reaches the
+#    WASM artifact; `default-features = false` keeps the crate `no_std`.
+# 3. PQC-only signatures + BLAKE3 hashing: no classical or SLH-DSA path.
 
-# NOTE: there is intentionally no [dependencies] section. That is the whole
-# point — a trust-critical verifier with ZERO supply-chain surface, so it cannot
-# be broken by a bad upstream crate the way the sibling `affidavit` crate
-# can be (its root pin is `wasm4pm-compat =26.8.7`).
+[dependencies]
+ml-dsa = { version = "0.1.1", default-features = false }
+slh-dsa = { version = "=0.2.0-rc.5", default-features = false }
+ml-kem = { version = "0.3.2", default-features = false, features = ["getrandom"] }
+blake3 = { version = "1", default-features = false }
+# Published OCEL v2 type layer for `mining::ocel` (exact pin matching the
+# root affidavit crate). Optional: nightly-only (`#![feature]`) + std, so the
+# default no_std build never touches it.
+wasm4pm-compat = { version = "=26.8.7", optional = true, default-features = false }
 
 # Standalone workspace root: isolates this crate from any ancestor directory so
 # it builds and tests even though the sibling `affidavit` crate cannot.

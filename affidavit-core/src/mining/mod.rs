@@ -45,10 +45,16 @@ use alloc::vec::Vec;
 
 pub mod conformance;
 pub mod footprint;
+pub mod ocel;
 pub mod stats;
 
 pub use conformance::{replay, ConformanceResult, ConformanceVerdict};
 pub use footprint::{AlphaRelation, Footprint};
+/// Published `wasm4pm-compat` OCEL v2 adapter (behind the `ocel-compat`
+/// feature; see `ocel.rs` module docs for the no_std finding).
+#[cfg(feature = "ocel-compat")]
+pub use ocel::compat;
+pub use ocel::{OcelError, OcelEvent, OcelLog, OcelObject};
 pub use stats::LogStatistics;
 
 /// A trace: the ordered activities (event types) of a receipt.

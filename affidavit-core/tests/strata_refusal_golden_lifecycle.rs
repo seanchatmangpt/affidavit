@@ -4,7 +4,7 @@
 //!
 //! What is bound here (three repos, one artifact):
 //!   strata valve derivation (ggen-marketplace pack, `generated/refusals.ex`)
-//!     → affidavit chain (`ChainBuilder` with the cryptographic [`Sha256`]
+//!     → affidavit chain (`ChainBuilder` with the cryptographic [`Blake3Hasher`]
 //!       chain hasher, L33/L42 seam)
 //!     → sealed receipt (`Verdict::Accept` end to end).
 //!
@@ -18,12 +18,12 @@
 //!
 //! Events are the 4 strata valve refusal classes' fixed opaque 32-byte wire
 //! receipts (ground truth: strata_protocol/src/refusal.rs — no cause channel
-//! on the wire); each event's commitment is `Sha256(wire receipt)`, so a
+//! on the wire); each event's commitment is `Blake3Hasher(wire receipt)`, so a
 //! single-bit tamper of any refusal receipt (or its commitment in the sealed
 //! envelope) propagates through the rolling chain hash and is REJECTed with
 //! `ChainHashMismatch`.
 
-use affidavit_core::{ChainBuilder, ChainHasher, Digest, Event, Sha256, Verdict};
+use affidavit_core::{Blake3Hasher, ChainBuilder, ChainHasher, Digest, Event, Verdict};
 use sha2::{Digest as ShaDigest, Sha256 as Sha2};
 
 // ---------------------------------------------------------------------------
@@ -94,21 +94,17 @@ fn mint_reproduces_pinned_receipts() {
 /// Commitment over the exact 32-byte wire receipt, with the cryptographic
 /// chain hasher (domain-separated by the chain's own absorb).
 fn commitment_of(payload: &[u8; 32]) -> Digest {
-    let mut state = <Sha256 as ChainHasher>::init();
-    <Sha256 as ChainHasher>::absorb(&mut state, payload);
-    <Sha256 as ChainHasher>::finish(state)
+    let mut state = <Blake3Hasher as ChainHasher>::init();
+    <Blake3Hasher as ChainHasher>::absorb(&mut state, payload);
+    <Blake3Hasher as ChainHasher>::finish(state)
 }
 
 /// Seal: the 4 minted refusal receipts become 4 affidavit events via
-/// `ChainBuilder` with the [`Sha256`] hasher; the envelope is finalized.
+/// `ChainBuilder` with the [`Blake3Hasher`] hasher; the envelope is finalized.
 fn seal() -> affidavit_core::Receipt {
-    let mut builder = ChainBuilder::<Sha256>::new();
+    let mut builder = ChainBuilder::<Blake3Hasher>::new();
     for (label, receipt) in PINNED {
-        builder = builder.event(
-            "strata_refusal",
-            event_id(label),
-            commitment_of(&receipt),
-        );
+        builder = builder.event("strata_refusal", event_id(label), commitment_of(&receipt));
     }
     builder.finalize()
 }
@@ -134,7 +130,7 @@ fn golden_lifecycle_sealed_receipt_accepts() {
         assert_eq!(ev.commitment, commitment_of(&pinned));
     }
     // The sealed receipt verifies end to end.
-    assert_eq!(receipt.verify::<Sha256>(), Verdict::Accept);
+    assert_eq!(receipt.verify::<Blake3Hasher>(), Verdict::Accept);
 }
 
 #[test]
@@ -163,7 +159,7 @@ fn golden_lifecycle_tampered_event_rejects() {
     events[0].commitment = tampered_commitment;
 
     assert_eq!(
-        affidavit_core::verify::<Sha256>(&events, &honest_chain_hash, receipt.profile()),
+        affidavit_core::verify::<Blake3Hasher>(&events, &honest_chain_hash, receipt.profile()),
         Verdict::Reject(affidavit_core::RejectReason::ChainHashMismatch),
     );
 }
@@ -188,7 +184,7 @@ fn golden_lifecycle_each_class_tamper_is_rejected() {
         tampered[class] ^= 0x01;
         events[class].commitment = commitment_of(&tampered);
         assert_eq!(
-            affidavit_core::verify::<Sha256>(&events, &honest_chain_hash, receipt.profile()),
+            affidavit_core::verify::<Blake3Hasher>(&events, &honest_chain_hash, receipt.profile()),
             Verdict::Reject(affidavit_core::RejectReason::ChainHashMismatch),
             "tamper of class index {class} must be detected"
         );
@@ -216,7 +212,7 @@ fn golden_lifecycle_raw_wire_receipt_is_not_a_commitment_passthrough() {
 
     // Raw passthrough: FUEL_EXHAUSTED's wire bytes as the commitment itself.
     events[1].commitment = Digest(FUEL_EXHAUSTED);
-    match affidavit_core::verify::<Sha256>(&events, &honest_chain_hash, receipt.profile()) {
+    match affidavit_core::verify::<Blake3Hasher>(&events, &honest_chain_hash, receipt.profile()) {
         Verdict::Reject(affidavit_core::RejectReason::ChainHashMismatch) => {}
         other => panic!("raw wire receipt as commitment must REJECT, got {other:?}"),
     }
@@ -225,9 +221,9 @@ fn golden_lifecycle_raw_wire_receipt_is_not_a_commitment_passthrough() {
     // so the chain check passes and the zero-commitment refusal is the one
     // that fires (the verifier reports chain mismatch first on a stale hash).
     events[1].commitment = Digest([0u8; 32]);
-    let zero_hash = affidavit_core::compute_chain_hash::<Sha256>(&events);
+    let zero_hash = affidavit_core::compute_chain_hash::<Blake3Hasher>(&events);
     assert_eq!(
-        affidavit_core::verify::<Sha256>(&events, &zero_hash, receipt.profile()),
+        affidavit_core::verify::<Blake3Hasher>(&events, &zero_hash, receipt.profile()),
         Verdict::Reject(affidavit_core::RejectReason::ZeroCommitment { index: 1 }),
     );
 }
