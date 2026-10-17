@@ -2906,27 +2906,124 @@ pub fn soc2_audit(
     Ok(())
 }
 
+/// PII marker vocabulary for the GDPR proof scan. Objects follow the
+/// affidavit convention `id:type[:qualifier]`, so `email:alice@example.com`
+/// is stored as `id = "email"`, `obj_type = "alice@example.com"`. A marker
+/// (taken as its stem, without the trailing `:`) matches when it is a prefix
+/// of the object id or of the object type — covering both `email:…`-style
+/// ids and bare `email` object classes.
+pub const GDPR_PII_VOCAB: &[&str] = &["email:", "user:", "person:", "subject:"];
+
+/// PHI marker vocabulary for the HIPAA proof scan (`patient:12345`,
+/// `medical:mrn-88`, `diagnosis:icd10-e11`, `record:visit-31`), matched the
+/// same way as [`GDPR_PII_VOCAB`].
+pub const HIPAA_PHI_VOCAB: &[&str] = &["patient:", "medical:", "diagnosis:", "record:"];
+
+/// Stem of a vocab marker (marker without its trailing `:`).
+fn marker_stem(marker: &str) -> &str {
+    marker.strip_suffix(':').unwrap_or(marker)
+}
+
+/// Does an object id/type carry this marker?
+fn marker_match(marker: &str, o: &crate::types::ObjectRef) -> bool {
+    let stem = marker_stem(marker);
+    o.id.starts_with(stem) || o.obj_type.starts_with(stem)
+}
+
+/// Per-marker scan outcome derived from the chain itself.
+#[derive(Debug, serde::Serialize)]
+struct PiiMarkerScan {
+    marker: &'static str,
+    hits: usize,
+    found: bool,
+}
+
+/// Scan a receipt chain for objects whose id or type carries a personal-data
+/// marker prefix. Counts are derived from the chain, never asserted.
+fn scan_pii_markers(receipts: &[Receipt], vocab: &'static [&'static str]) -> Vec<PiiMarkerScan> {
+    vocab
+        .iter()
+        .map(|marker| {
+            let hits = receipts
+                .iter()
+                .flat_map(|r| &r.events)
+                .flat_map(|e| &e.objects)
+                .filter(|o| marker_match(marker, o))
+                .count();
+            PiiMarkerScan {
+                marker,
+                hits,
+                found: hits > 0,
+            }
+        })
+        .collect()
+}
+
+fn pii_marker_json(scans: &[PiiMarkerScan]) -> serde_json::Value {
+    serde_json::json!({
+        "markers_found": scans.iter().filter(|s| s.found).count(),
+        "markers_not_found": scans.iter().filter(|s| !s.found).count(),
+        "per_marker": scans.iter().map(|s| serde_json::json!({
+            "marker": s.marker,
+            "hits": s.hits,
+            "found": s.found,
+        })).collect::<Vec<_>>(),
+        "total_hits": scans.iter().map(|s| s.hits).sum::<usize>(),
+    })
+}
+
 /// `affi receipt gdpr-proof` — generate GDPR compliance proof.
+///
+/// Falsifiable shape (CLI_VACUITY_AUDIT_26_10_17): the proof reports
+/// per-marker PII findings counted from the chain itself; a chain with zero
+/// in-scope personal data emits a distinct honest finding, and zero chains is
+/// the typed refusal `REFUSED_NO_CHAINS`. The scan is evidence over the chain,
+/// never a blanket compliance assertion.
 pub fn gdpr_proof(
     receipts_path: String,
     out: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?.receipts;
+    if receipts.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_CHAINS: no receipt chains found under \"{receipts_path}\" — \
+             a GDPR personal-data proof over zero chains is not evidence of \
+             compliance, it is evidence of nothing"
+        )));
+    }
+
+    let total_events: usize = receipts.iter().map(|r| r.events.len()).sum();
+    let scans = scan_pii_markers(&receipts, GDPR_PII_VOCAB);
+    let total_hits: usize = scans.iter().map(|s| s.hits).sum();
+
+    let finding = if total_hits > 0 {
+        serde_json::json!({
+            "finding": "in-scope personal data present",
+            "detail": format!(
+                "{total_hits} personal-data object reference(s) across {total_events} event(s) \
+                 match the PII vocabulary — erasure/subject-rights review is required"
+            ),
+        })
+    } else {
+        serde_json::json!({
+            "finding": "no in-scope personal data found",
+            "detail": format!(
+                "no in-scope personal data found — proof covers {total_events} events \
+                 scanned against the PII vocabulary"
+            ),
+        })
+    };
 
     let proof = serde_json::json!({
         "regulation": "GDPR",
         "receipts_analyzed": receipts.len(),
-        "evidence": {
-            "data_integrity": "BLAKE3 chain ensures no retroactive modification of access records",
-            "right_to_erasure": "object-id references are opaque; PII is never stored in the chain",
-            "audit_trail": format!("{} event(s) recorded in tamper-evident chain", receipts.iter().map(|r| r.events.len()).sum::<usize>()),
-            "lawful_basis": "Content-addressed chain provides evidence of processing activities",
-        },
-        "receipts": receipts.iter().map(|r| serde_json::json!({
-            "chain_hash": r.chain_hash,
-            "events": r.events.len(),
-        })).collect::<Vec<_>>(),
+        "events_scanned": total_events,
+        "pii_vocabulary": GDPR_PII_VOCAB,
+        "scan": pii_marker_json(&scans),
+        "personal_data_finding": finding,
+        "integrity_evidence": "BLAKE3 chain ensures no retroactive modification of access records",
+        "note": "evidence over the receipt chain — legal determination of GDPR compliance requires counsel review",
     });
 
     let proof_str = adapt(serde_json::to_string_pretty(&proof).map_err(anyhow::Error::from))?;
@@ -2945,20 +3042,73 @@ pub fn gdpr_proof(
 }
 
 /// `affi receipt hipaa` — generate HIPAA compliance proof.
+///
+/// Falsifiable shape (CLI_VACUITY_AUDIT_26_10_17): per-marker PHI findings
+/// counted from the chain, plus an honest audit-trail check (audit-type events
+/// counted, reported found/not-found). Zero chains is the typed refusal
+/// `REFUSED_NO_CHAINS`; zero PHI and zero audit events produce a distinct
+/// honest output rather than a blanket "compliant" claim.
 pub fn hipaa(receipts_path: String, out: Option<String>, format: Option<String>) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?.receipts;
+    if receipts.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_CHAINS: no receipt chains found under \"{receipts_path}\" — \
+             a HIPAA safeguard proof over zero chains attests to no safeguards \
+             actually in operation"
+        )));
+    }
+
+    let total_events: usize = receipts.iter().map(|r| r.events.len()).sum();
+    let scans = scan_pii_markers(&receipts, HIPAA_PHI_VOCAB);
+    let total_hits: usize = scans.iter().map(|s| s.hits).sum();
+
+    // Audit-trail check: HIPAA §164.312(b) requires a mechanism to record and
+    // examine access to ePHI. Count audit-type events from the chain honestly.
+    let audit_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
+        .filter(|e| e.event_type.contains("audit"))
+        .count();
+
+    let audit_finding = serde_json::json!({
+        "audit_events": audit_events,
+        "found": audit_events > 0,
+        "finding": if audit_events > 0 {
+            format!("{audit_events} audit-type event(s) recorded — access-review trail present")
+        } else {
+            format!("no audit-type events found across {total_events} event(s) — \
+                     §164.312(b) access-review trail NOT evidenced by this chain")
+        },
+    });
+
+    let phi_finding = if total_hits > 0 {
+        serde_json::json!({
+            "finding": "in-scope PHI present",
+            "detail": format!(
+                "{total_hits} PHI object reference(s) across {total_events} event(s) \
+                 match the PHI vocabulary — safeguard review is required"
+            ),
+        })
+    } else {
+        serde_json::json!({
+            "finding": "no in-scope PHI found",
+            "detail": format!(
+                "no in-scope PHI found — proof covers {total_events} events \
+                 scanned against the PHI vocabulary"
+            ),
+        })
+    };
 
     let proof = serde_json::json!({
         "regulation": "HIPAA",
         "receipts_analyzed": receipts.len(),
-        "safeguards": {
-            "technical": "BLAKE3 content-addressing ensures audit log integrity",
-            "administrative": format!("{} operation events logged", receipts.iter().map(|r| r.events.len()).sum::<usize>()),
-            "physical": "receipts stored at content-addressed paths",
-        },
-        "access_log": receipts.iter().map(|r| serde_json::json!({
-            "chain_hash": r.chain_hash, "events": r.events.len(),
-        })).collect::<Vec<_>>(),
+        "events_scanned": total_events,
+        "phi_vocabulary": HIPAA_PHI_VOCAB,
+        "scan": pii_marker_json(&scans),
+        "phi_finding": phi_finding,
+        "audit_trail": audit_finding,
+        "integrity_evidence": "BLAKE3 content-addressing ensures audit log integrity",
+        "note": "evidence over the receipt chain — legal determination of HIPAA compliance requires counsel review",
     });
 
     let proof_str = adapt(serde_json::to_string_pretty(&proof).map_err(anyhow::Error::from))?;

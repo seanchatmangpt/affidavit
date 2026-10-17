@@ -18,6 +18,15 @@ fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_affi")
 }
 
+/// Serialize the whole suite: the cells drive the real binary against
+/// machine-level state (env-resolved receipt paths, the shared cargo-linked
+/// binary) and flaked when raced in parallel; serial order is the court's
+/// contract (see emit-build flake receipt 2026-10-17).
+static SUITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+fn lock_suite() -> std::sync::MutexGuard<'static, ()> {
+    SUITE_LOCK.lock().unwrap_or_else(|p| p.into_inner())
+}
+
 fn scratch(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("affi-vacuity-{}-{}", tag, std::process::id()));
     let _ = fs::remove_dir_all(&dir);
@@ -27,6 +36,7 @@ fn scratch(tag: &str) -> PathBuf {
 
 /// Build a real two-event chain + a one-event license chain in `<dir>/receipts`.
 fn fixture_with_chains(tag: &str, license_object: &str) -> PathBuf {
+    let _g = lock_suite();
     let dir = scratch(tag);
     let receipts = dir.join("receipts");
     fs::create_dir_all(&receipts).expect("create receipts dir");
@@ -39,7 +49,7 @@ fn fixture_with_chains(tag: &str, license_object: &str) -> PathBuf {
         ("build", "repo:main", p1.to_str().unwrap()),
         ("test", "suite:unit", lic.to_str().unwrap()),
     ] {
-        let st = Command::new(bin())
+        let out = Command::new(bin())
             .args([
                 "receipt",
                 "emit",
@@ -51,9 +61,15 @@ fn fixture_with_chains(tag: &str, license_object: &str) -> PathBuf {
                 payload,
             ])
             .current_dir(&dir)
-            .status()
+            .output()
             .expect("run affi emit");
-        assert!(st.success(), "emit {event_type} failed");
+        if !out.status.success() {
+            panic!(
+                "emit {event_type} failed (exit {:?}): {}",
+                out.status.code(),
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
     }
     let st = Command::new(bin())
         .args(["receipt", "assemble", "--out", "receipts/chain1.json"])
@@ -104,6 +120,7 @@ fn write_policy(dir: &Path, name: &str, allowed: &[&str]) -> PathBuf {
 
 #[test]
 fn legal_hold_status_refuses_no_chains_on_empty_dir() {
+    let _g = lock_suite();
     let dir = scratch("lh-empty");
     let receipts = dir.join("receipts");
     fs::create_dir_all(&receipts).unwrap();
@@ -359,6 +376,7 @@ fn receipt_audit_output_depends_on_input() {
 
 #[test]
 fn receipt_audit_refuses_no_chains_on_empty_dir() {
+    let _g = lock_suite();
     let dir = scratch("audit-empty");
     fs::create_dir_all(dir.join("receipts")).unwrap();
 
@@ -375,8 +393,6 @@ fn receipt_audit_refuses_no_chains_on_empty_dir() {
         "typed refusal must be named; stderr: {stderr}"
     );
 }
-
-#[test]
 
 #[test]
 fn certificate_fre_902_recomputes_chain() {
@@ -411,6 +427,7 @@ fn certificate_fre_902_recomputes_chain() {
     );
 
     // Falsifier 2: an empty receipts dir is the typed refusal, never a certificate.
+    let _g = lock_suite();
     let dir = scratch("fre902-empty");
     let receipts = dir.join("receipts");
     fs::create_dir_all(&receipts).unwrap();
@@ -485,6 +502,7 @@ fn restitution_calculate_derives_from_schedule() {
     assert!(azure.contains("\"compute_events\": 2") && azure.contains("0.12"), "{azure}");
 
     // Falsifier 2: a chain with zero compute-class events refuses typed.
+    let _g = lock_suite();
     let dir = scratch("rest-empty");
     let receipts = dir.join("receipts");
     fs::create_dir_all(&receipts).unwrap();
