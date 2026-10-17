@@ -21,7 +21,8 @@ use clap_noun_verb_macros::verb;
 #[rustfmt::skip]
 #[verb("verify", "dossier")]
 pub fn dossier_verify(
+    #[arg(index = 1)]
+    file: String,
 ) -> Result<()> {
-    crate::handlers::dossier_verify(
-    )
+    crate::handlers::dossier_verify(file)
 }

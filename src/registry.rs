@@ -1492,6 +1492,28 @@ mod tests {
         assert_eq!(report.unique_nouns, 13);
         #[cfg(feature = "ctdd")]
         assert_eq!(expected, 100);
+        // Positive control: with the ctdd feature on, the four gated verbs must
+        // actually be present in the runtime slice (not merely tolerated absent).
+        const GATED_PAIRS: &[(&str, &str)] = &[
+            ("dossier", "seal"),
+            ("dossier", "verify"),
+            ("receipt", "validate"),
+            ("receipt", "chain-verify"),
+        ];
+        if cfg!(feature = "ctdd") {
+            for (noun, verb) in GATED_PAIRS {
+                let verbs = report
+                    .structure
+                    .iter()
+                    .find(|(n, _)| n == noun)
+                    .map(|(_, v)| v)
+                    .unwrap_or_else(|| panic!("ctdd noun {noun} missing from runtime registry"));
+                assert!(
+                    verbs.iter().any(|v| v == verb),
+                    "ctdd-gated verb ({verb}, {noun}) missing from runtime registry"
+                );
+            }
+        }
         // The report's structure is exactly the hand REGISTRY projection.
         let hand: Vec<(String, Vec<String>)> = {
             let mut m: std::collections::BTreeMap<String, Vec<String>> = Default::default();

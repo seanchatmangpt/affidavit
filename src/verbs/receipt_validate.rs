@@ -21,7 +21,8 @@ use clap_noun_verb_macros::verb;
 #[rustfmt::skip]
 #[verb("validate", "receipt")]
 pub fn receipt_validate(
+    #[arg(index = 1)]
+    path: Option<String>,
 ) -> Result<()> {
-    crate::handlers::receipt_validate(
-    )
+    crate::handlers::receipt_validate(path)
 }

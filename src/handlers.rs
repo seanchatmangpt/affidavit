@@ -9425,3 +9425,58 @@ mod ctrt_verify_digest_tests {
         assert_eq!(err.machine_code(), 0xE005);
     }
 }
+
+// ---------------------------------------------------------------------------
+// ctdd ledger handlers (feature `ctdd`) — bodies recovered from git history
+// (commit eeda22b, pre-render wrapper bodies), moved behind the handler seam.
+// ---------------------------------------------------------------------------
+
+/// Handler for `dossier seal`: seal a directory of 352-byte court records
+/// into a signed sealed-dossier wire file via the local ML-DSA-65 key.
+#[cfg(feature = "ctdd")]
+pub fn dossier_seal(dir: String, output: String) -> Result<()> {
+    let signer = crate::ctdd_cli::load_signer_or_exit();
+    crate::ctdd_cli::seal_outcome(&dir, &output, &signer)
+        .map(|outcome| crate::ctdd_cli::render_and_exit("dossier seal", &outcome))
+        .map_err(|e| {
+            eprintln!("refusal: io {e}");
+            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
+        })
+}
+
+/// Handler for `dossier verify`: verify a sealed-dossier wire file against
+/// the local ML-DSA-65 key store.
+#[cfg(feature = "ctdd")]
+pub fn dossier_verify(file: String) -> Result<()> {
+    let signer = crate::ctdd_cli::load_signer_or_exit();
+    crate::ctdd_cli::verify_outcome(&file, &signer.public_key())
+        .map(|outcome| crate::ctdd_cli::render_and_exit("dossier verify", &outcome))
+        .map_err(|e| {
+            eprintln!("refusal: io {e}");
+            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
+        })
+}
+
+/// Handler for `receipt validate`: validate one 352-byte CTRT court receipt
+/// record (file or stdin).
+#[cfg(feature = "ctdd")]
+pub fn receipt_validate(path: Option<String>) -> Result<()> {
+    crate::ctdd_cli::validate_outcome(path.as_deref())
+        .map(|outcome| crate::ctdd_cli::render_and_exit("receipt validate", &outcome))
+        .map_err(|e| {
+            eprintln!("refusal: io {e}");
+            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
+        })
+}
+
+/// Handler for `receipt chain-verify`: replay the BLAKE3 receipt chain across
+/// all court records in a directory.
+#[cfg(feature = "ctdd")]
+pub fn receipt_chain_verify(dir: String) -> Result<()> {
+    crate::ctdd_cli::chain_verify_outcome(&dir)
+        .map(|outcome| crate::ctdd_cli::render_and_exit("receipt chain-verify", &outcome))
+        .map_err(|e| {
+            eprintln!("refusal: io {e}");
+            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
+        })
+}

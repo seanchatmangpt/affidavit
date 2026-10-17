@@ -21,7 +21,8 @@ use clap_noun_verb_macros::verb;
 #[rustfmt::skip]
 #[verb("chain-verify", "receipt")]
 pub fn receipt_chain_verify(
+    #[arg(index = 1)]
+    dir: String,
 ) -> Result<()> {
-    crate::handlers::receipt_chain_verify(
-    )
+    crate::handlers::receipt_chain_verify(dir)
 }

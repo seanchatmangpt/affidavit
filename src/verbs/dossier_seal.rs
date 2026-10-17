@@ -21,7 +21,9 @@ use clap_noun_verb_macros::verb;
 #[rustfmt::skip]
 #[verb("seal", "dossier")]
 pub fn dossier_seal(
+    #[arg(index = 1)]
+    dir: String,
+    output: String,
 ) -> Result<()> {
-    crate::handlers::dossier_seal(
-    )
+    crate::handlers::dossier_seal(dir, output)
 }
