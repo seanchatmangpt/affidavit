@@ -82,3 +82,41 @@ Standing: all UNKNOWN until falsifier runs on the exact subject.
 - core AGENTS/README four-algorithm law: IN FLIGHT (doc lane).
 - justfile validate gaps: DONE (1f7103a).
 - CHANGELOG 26.10.16 entry: DONE (fd04c66).
+
+## Cycle-3 additions (2026-10-16, 16-lane deep-dive round 3; rows 48-78)
+
+| # | Proposal | Dep | Seam | Cost | Falsifier (one-line) |
+|---|---|---|---|---|---|
+| 48 | Typed blake3::Hash digest via serialize feature (malformed commitment refused at deserialize) | blake3 | `src/types.rs:27` | S/M | 63-hex/non-hex commitment rows flip verdict cells at stage-1 |
+| 49 | Hasher: io::Write streaming seal (to_writer, delete intermediate canonical String) | blake3 | `crypto_trust_canonical.rs:222, wire_ctrt.rs` | S | writer vs render-then-hash digests byte-identical on 1MB corpus |
+| 50 | validators seam for CLI admission gates (delete hand-rolled arg parsers) | clap-noun-verb | `src/verbs/*.rs` | S | old check vs validators:: diverge on one fixture -> court flips |
+| 51 | policies wire-in to doctor (TargetPressurePolicy/ToolchainMismatchPolicy as real checks) | clap-noun-verb | `src/doctor_check.rs` | S | >max_gb size flips doctor verdict; removal drops count by 1 |
+| 52 | SLH-DSA SPKI/PKCS8 export-import round-trip court | slh-dsa | `src/crypto_trust_pqc.rs tests` | S | tampered alg-id OID SPKI or truncated vk -> typed Err; honest round-trip byte-exact |
+| 53 | SLH-DSA multipart domain-separation court (MultipartVerifier/Signer) | slh-dsa | `pqc.rs tests` | S | reordered/missing chunk must fail verify |
+| 54 | X-Wing deterministic-encapsulation court (64B caller randomness) | x-wing | `crypto-trust tests` | S | same (ek,r) differing ct, or tampered ct same ss -> FAIL |
+| 55 | X-Wing seed-identity + wire-budget pins (1216/32/1120) | x-wing | `crypto-trust tests` | S | 33-byte/truncated ct accepted or seed round-trip diverges -> FAIL |
+| 56 | Ed25519 PKCS#8 key import/export round-trip | ed25519-dalek | `src/ed25519_witness.rs` | S | mutated DER byte -> typed refusal; round-trip restores pk |
+| 57 | Ed25519 prehashed (phflag) strict-parity extension | ed25519-dalek | `ed25519_witness.rs` | S | malleated prehashed sig refused host+wasm; prehashed sig fails plain verify |
+| 58 | wasm32 linkme premise probe (delete-class: fallback justification never tested) | linkme | `doctor_check.rs:153-163` | S | probe crate asserts len()==1 on wasm32-wasip1; survive -> delete fallback |
+| 59 | Zero-size DoctorCheck law enforcement (size_of==0 compile court) | linkme | `doctor_check.rs` | S | 1-field check type fails to compile/register |
+| 60 | JCS duplicate-key typed refusal (DEFECT: last-win silently canonicalizes) | serde_jcs | `parse layers both surfaces` | S | duplicate-key corpus row flips bad_json refusal vs today's silent accept |
+| 61 | jcs_verify twin op (canonicalize/verify asymmetry) | serde_jcs | `crypto_trust_canonical.rs + wasm ABI` | S/M | swapped keys or reformatted number flips verdict with stage named |
+| 62 | Aggregated range proof (prove_multi, O(log) joint proof) | bulletproofs | `src/zk_range.rs` | M | one out-of-range member refuses aggregate with index |
+| 63 | Seeded deterministic blinding (byte-exact host/wasm differential courts) | bulletproofs | `src/zk_range.rs:87-89` | S | same seed+label+value -> cmp-identical proof bytes |
+| 64 | otel plane BUILD_BROKEN adjudication (opentelemetry 0.32 sdk path removed) | opentelemetry | `tests/maximalist_tracing.rs` | S/M | cargo test --features otel --no-run exit 0 (repair) or grep-zero (delete) |
+| 65 | KEM pinned-randomness encapsulation KAT (encapsulate_deterministic) | ml-kem | `affidavit-core/src/kem.rs tests` | S | same-m re-encapsulation diverges or different-m collides -> FAIL |
+| 66 | KEM implicit-rejection (FO) semantics court | ml-kem | `kem.rs tests` | S | tampered-ct ss' unstable or == honest ss -> loud FAIL |
+| 67 | ml-dsa ExpandedSigningKeyBytes wire round-trip court | ml-dsa | `src/crypto_trust_pqc.rs tests` | S | from_expanded(to_expanded(esk)) byte-identical sig; ±1-byte typed Err |
+| 68 | ml-dsa SigningKey seed-identity court (as_seed/to_seed) | ml-dsa | `crypto_trust_pqc.rs tests` | S | to_seed(from_seed(s))==s; rebuilt key signs identically |
+| 69 | EC JWK import seam (kty=EC P-256|secp256k1) + round-trip court | p256/k256 | `src/crypto_trust_jwks.rs` | S | non-CEM x refuses typed; dropping point-validation flips court |
+| 70 | secp256k1/P-256 batch ECDSA verify (high-s member poisons batch) | k256 | `src/secp256k1_witness.rs` | M | swapped pair fails batch w/ index; lone high-s flips to refusal |
+| 71 | Persistent SMT backend (monotree Sled/RocksDB) + reopen court | monotree | `src/smt.rs:88` | S/M | mutated DB byte flips inclusion verdict on reopen |
+| 72 | Hasher-generic StateTree<H> + cross-hasher divergence court | monotree | `src/smt.rs` | S | verify_proof with swapped hasher still true = vacuous FAIL |
+| 73 | DurableRefusal replay fixtures (refusal embeds machine-replayable fixture + blake3 integrity) | clnrm-core semantics | `src/diag.rs + new refusal_fixture.rs` | M | fixture byte mutation flips integrity hash; unreplayable refusal = FAIL |
+| 74 | Latency-band cross-validation court (span vs receipt timing layers) | clnrm-core semantics | `otel feature + tracing.rs` | M | over-band span with no TimingViolation cell = FAIL |
+| 75 | Streaming online/offline context-confusion court | wasm4pm-compat | `mining/ocel_streaming_context_court.rs` | S | online-vs-offline mislabeled evidence flips admission |
+| 76 | Data-quality grounding gate before fitness/alignment claims | wasm4pm-compat | `src/mining.rs preflight` | S/M | ungrounded DQ -> typed refusal precedes any fitness number |
+| 77 | bcinr double-mix tamper-propagation court (anti-vacuity) | none | `affidavit-core/src/bcinr.rs` | S | one-byte frame-t mutation flips chain_hash_t..n; non-propagating = FAIL |
+| 78 | External-evidence boundary admission corpus (SPIFFE strictness, clock edges) | none | `affidavit-core/src/external_evidence.rs` | S | flipping one boundary (valid_until==now) flips a corpus cell |
+
+Cycle-3 defect-class findings: JCS duplicate-key last-win (row 60); otel feature plane compile-broken (row 64, repair lane dispatched); `affi doctor` registered in the verb registry but no clap subcommand wired (cli.rs has zero doctor wiring); serde_json duplicate-key last-win also affects root parse paths.
