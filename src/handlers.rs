@@ -8722,7 +8722,7 @@ mod nullifier_handler_tests {
     }
 
     /// 1. First run: missing snapshot = fresh registry; admit succeeds; a typed
-    /// AFRN snapshot is persisted.
+    ///    AFRN snapshot is persisted.
     #[test]
     fn test_emit_ctrt_first_run_fresh_registry_persists_snapshot() {
         with_deterministic_compat(|| {
@@ -8742,8 +8742,8 @@ mod nullifier_handler_tests {
     }
 
     /// 2. Persistence roundtrip through the handler path: second call with the
-    /// same wire is refused as ReplayDetected (0xE101) because the snapshot
-    /// restored the seen-wire state.
+    ///    same wire is refused as ReplayDetected (0xE101) because the snapshot
+    ///    restored the seen-wire state.
     #[test]
     fn test_emit_ctrt_replay_refused_across_handler_invocations() {
         with_deterministic_compat(|| {
@@ -8761,7 +8761,7 @@ mod nullifier_handler_tests {
     }
 
     /// 3. Distinct wires admit independently across handler invocations
-    /// (roundtrip preserves distinctness).
+    ///    (roundtrip preserves distinctness).
     #[test]
     fn test_emit_ctrt_roundtrip_admits_distinct_wires() {
         with_deterministic_compat(|| {
@@ -8774,9 +8774,9 @@ mod nullifier_handler_tests {
     }
 
     /// 4. Truncated snapshot fails CLOSED — the HMAC-BLAKE3 tag over the
-    /// truncated body no longer matches, surfacing CorruptLedger
-    /// (0xE102) in the envelope. The handler must never silently skip a
-    /// partial tail or start fresh.
+    ///    truncated body no longer matches, surfacing CorruptLedger
+    ///    (0xE102) in the envelope. The handler must never silently skip a
+    ///    partial tail or start fresh.
     #[test]
     fn test_emit_ctrt_truncated_snapshot_fails_closed() {
         with_deterministic_compat(|| {
@@ -8816,10 +8816,10 @@ mod nullifier_handler_tests {
     }
 
     /// 6. The snapshot-authentication key file is created on first run,
-    /// mode 0600 on unix, 32 bytes, and reused (not regenerated) on later
-    /// runs — otherwise sealed snapshots from an earlier run would be
-    /// unloadable. Runs with the compat env OFF: the deterministic compat
-    /// path intentionally uses a constant MAC key and no keyfile.
+    ///    mode 0600 on unix, 32 bytes, and reused (not regenerated) on later
+    ///    runs — otherwise sealed snapshots from an earlier run would be
+    ///    unloadable. Runs with the compat env OFF: the deterministic compat
+    ///    path intentionally uses a constant MAC key and no keyfile.
     #[test]
     fn test_emit_ctrt_mac_keyfile_created_and_reused() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
@@ -8847,9 +8847,9 @@ mod nullifier_handler_tests {
     }
 
     /// 7. SX4-E at the handler boundary: a forged generation byte inside the
-    /// persisted snapshot (body tampered without re-tagging) must be refused
-    /// as CorruptLedger — the tampered snapshot must not silently load into a
-    /// fresh-permissive registry.
+    ///    persisted snapshot (body tampered without re-tagging) must be refused
+    ///    as CorruptLedger — the tampered snapshot must not silently load into a
+    ///    fresh-permissive registry.
     #[test]
     fn test_emit_ctrt_forged_generation_byte_fails_closed() {
         with_deterministic_compat(|| {
@@ -8871,9 +8871,9 @@ mod nullifier_handler_tests {
     }
 
     /// 8. SX4-B: two handler invocations over the same wire in the same state
-    /// dir — the second must REFUSE with the typed replay code, because the
-    /// full registry state (dense + wire + histories) survives via the
-    /// authenticated snapshot.
+    ///    dir — the second must REFUSE with the typed replay code, because the
+    ///    full registry state (dense + wire + histories) survives via the
+    ///    authenticated snapshot.
     #[test]
     fn test_sx4b_two_handler_invocations_same_wire_refused() {
         with_deterministic_compat(|| {
@@ -8881,7 +8881,7 @@ mod nullifier_handler_tests {
             emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
             let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
                 .expect_err("second invocation must refuse");
-            assert_eq!(err.to_string().contains("0xE101"), true);
+            assert!(err.to_string().contains("0xE101"));
         });
     }
 }
@@ -8915,7 +8915,7 @@ mod ctrt_verify_digest_tests {
         );
         let wire = ctrt.serialize();
         let path = dir.path().join("receipt_x.ctrt");
-        std::fs::write(&path, &wire).expect("wire");
+        std::fs::write(&path, wire).expect("wire");
         std::fs::write(
             dir.path().join("receipt_x.ctrt.digest"),
             to_hex(&ctrt.digest()),

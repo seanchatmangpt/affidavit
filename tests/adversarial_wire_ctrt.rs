@@ -6,9 +6,17 @@
 //! 3. Rejection of truncated buffers (0..351), oversized buffers (353+), and trailing garbage bytes.
 //! 4. Fail-closed rejection of invalid `verdict_status` values (0x02..0xFF) without panic.
 //!    (Note: VerdictStatus has enum values: 0 = Refused, 1 = Accepted, 2 = Pending, 3 = Inconclusive.
-//!     Values 0x04..0xFF are invalid, and any unsupported variant triggers WireCtrtError::InvalidVerdictStatus).
+//!    Values 0x04..0xFF are invalid, and any unsupported variant triggers WireCtrtError::InvalidVerdictStatus).
 //! 5. Structural alignment / RM1 offset laws with `dossier_wire::ChainRecord` from `chicago_tdd_tools`.
+//
+// These tests deliberately exercise the raw `WireCtrt::deserialize` (framing /
+// truncation / endianness attacks) alongside `deserialize_verified`; the file-level
+// allow keeps the raw-framing half of the corpus compilable.
+#![allow(deprecated)]
 
+// These tests deliberately exercise the raw `WireCtrt::deserialize` (framing/truncation/
+// endianness attacks) as well as `deserialize_verified`; the deprecation lint would
+// otherwise blanket-ban the raw-framing half of the corpus.
 use affidavit::wire_ctrt::{
     VerdictStatus, WireCtrt, WireCtrtError, CTRT_MAGIC, CTRT_PAYLOAD_SIZE, CTRT_WIRE_SIZE,
 };
@@ -18,8 +26,8 @@ fn sample_canonical_ctrt() -> WireCtrt {
     // Seed payload with structured data including valid UTF-8 and binary markers
     let text_header = b"AFFIDAVIT-RECEIPT-LEGAL-ANCHOR-STANAG-4107";
     payload[..text_header.len()].copy_from_slice(text_header);
-    for i in text_header.len()..CTRT_PAYLOAD_SIZE {
-        payload[i] = ((i * 37) % 251) as u8;
+    for (i, slot) in payload.iter_mut().enumerate().skip(text_header.len()) {
+        *slot = ((i * 37) % 251) as u8;
     }
 
     WireCtrt::new(

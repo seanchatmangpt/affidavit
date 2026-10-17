@@ -120,7 +120,7 @@ fn the_browser_verifier_uses_the_same_genesis_seed_as_the_binary() {
              A drifted seed makes the browser verifier reject every real receipt."
         );
         assert!(
-            source.contains(&expected),
+            source.contains(expected),
             "{path} does not mention the current genesis seed `{expected}`"
         );
     }

@@ -1014,7 +1014,7 @@ mod tests {
         rotated.rotate_epoch([0x22; 32]);
         assert!(rotated.check_and_admit(b"post-rotation-wire").is_ok());
         let bytes = rotated.to_bytes();
-        let mut restored = ReplayNullifierRegistry::load_from(&bytes).expect("round trip");
+        let restored = ReplayNullifierRegistry::load_from(&bytes).expect("round trip");
         assert_eq!(restored.epoch_generation(), 1);
     }
 
