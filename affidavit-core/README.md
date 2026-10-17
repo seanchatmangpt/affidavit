@@ -9,14 +9,15 @@ algorithm is an external dependency.
 > take the one move a Rust engineer would actually defend as a step-change for a
 > trust-critical verifier: **implement no crypto of its own, run anywhere, and
 > make invalid receipts unrepresentable.** The sibling `affidavit` crate
-> builds and tests green as of v26.9.6; this core stays the
+> builds and tests green (run its validate ladder — root `AGENTS.md` §6 / `just
+> validate` — for the current standing); this core stays the
 > no-implemented-crypto substrate it compiles against.
 
 ## Why this shape
 
 | Property | What it buys you |
 |---|---|
-| **No crypto implemented in-crate** | Every algorithm is external: **BLAKE3** (`blake3` crate) for chain hashing and **ML-DSA-65** (FIPS 204, RustCrypto `ml-dsa` crate) for signatures — both unconditional `[dependencies]` with `default-features = false`, so `no_std` is preserved. No feature flag can compile this crate without them; none needs to. The supply-chain surface is two externally audited crates, not in-crate hand-rolled arithmetic. |
+| **No crypto implemented in-crate** | Every algorithm is external: **BLAKE3** (`blake3` crate) for chain hashing and **ML-DSA-65** (FIPS 204, RustCrypto `ml-dsa` crate) for signatures — both unconditional `[dependencies]` with `default-features = false`, so `no_std` is preserved. No feature flag can compile this crate without them; none needs to. The supply-chain surface is four externally audited crates, not in-crate hand-rolled arithmetic. |
 | **`no_std`, no `alloc` on the verify path** | [`verify`] runs over a borrowed `&[Event]` and allocates nothing — it runs in a WASM sandbox, an embedded HSM, or an on-chain runtime, not just on a server. |
 | **`forbid(unsafe_code)`** | Memory safety is enforced crate-wide, by the compiler. |
 | **Compile-time sealing** | A `Receipt` is only obtainable from `ChainBuilder::finalize`. A private witness field makes a hand-forged `Receipt` an `E0451` compile error — proven by a `compile_fail` doctest. |
@@ -168,18 +169,22 @@ models — it never judges whether the recorded work was honest.
 
 Operator law: **no cryptographic algorithm is implemented anywhere in this
 project — all algorithms are external.** The signature algorithm surface is
-fixed to **ML-DSA-65 only** (FIPS 204, via the external RustCrypto `ml-dsa`
-crate, an unconditional dependency — no feature flag). `affidavit_core::pqc`
-defines the seam over it:
+fixed to **ML-DSA-65** (FIPS 204, via the external RustCrypto `ml-dsa` crate)
+and **SLH-DSA-SHA2-128s** (FIPS 205, via the external `slh-dsa` crate), with
+**ML-KEM-768** (FIPS 203, via the external `ml-kem` crate) for key
+encapsulation — all unconditional dependencies, no feature flag.
+`affidavit_core::pqc` defines the signature seam over them:
 
 - **`MlDsa65Verifier`** — the FIPS 204 (ML-DSA-65) verification contract,
   implemented by the external `ml-dsa` crate or a consumer adapter. Total,
   boolean-collapsed: any malformed input returns `false`, never panics.
-- **`ExternalMlDsa65`** — the shipped zero-size adapter over `ml-dsa`.
-  Unconditional by operator law: no `pqc` feature flag exists; it compiles
-  always so the court reaches the `affidavit-wasm` artifact.
-- **`PqcProfile`** — `Classical` / `Hybrid` / `Pqc`, the declared assurance
-  level of an envelope.
+- **`ExternalMlDsa65`** and **`ExternalSlhDsa128s`** — the shipped zero-size
+  adapters over `ml-dsa` and `slh-dsa`. Unconditional by operator law: no
+  crypto feature flag exists; they compile always so the court reaches the
+  `affidavit-wasm` artifact.
+- **`PqcProfile`** — `Classical` / `Hybrid` / `Pqc(Suite)`, the declared
+  assurance level of an envelope; `Suite` names the demanded algorithm(s) —
+  `MlDsa65`, `SlhDsa128s`, or `Dual` (both, fail-fast).
 - **`PqcCourt`** — the fail-fast certification court: registers a verifier,
   runs only the checks the declared profile demands in order, and stops at
   the first failure. A profile demanding an algorithm with no verifier
@@ -200,9 +205,13 @@ is fixed by operator law:
 |---|---|---|
 | Chain hashing | BLAKE3 | `blake3` (`default-features = false`, `no_std`) |
 | Signatures | ML-DSA-65 (FIPS 204) | `ml-dsa` (RustCrypto, `default-features = false`, `no_std`) |
+| Signatures | SLH-DSA-SHA2-128s (FIPS 205) | `slh-dsa` (`=0.2.0-rc.5`, `default-features = false`, `no_std`) |
+| Key encapsulation | ML-KEM-768 (FIPS 203) | `ml-kem` (`0.3.2`, `default-features = false`, `no_std`) |
 
-Nothing else is lawful: no SLH-DSA, no SHA-256, no classical signature
-algorithms, no crypto feature flags. In-crate you get only structure:
+Nothing else is lawful: no SHA-256 signatures, no classical signature
+implementations — algorithm identifiers on the envelope wire model (e.g.
+`Es256` labels in `crypto_verify.rs`) are wire labels, not implementations.
+No crypto feature flags. In-crate you get only structure:
 `Fnv256` (an explicitly **non-cryptographic** reference hasher, retained as
 such) and the trait seams themselves.
 
@@ -212,7 +221,8 @@ such) and the trait seams themselves.
   whole `mining` module (including OCEL). Turn it off
   (`default-features = false`) for the pure, allocation-free verify path.
   These are the *only* features (`default`, `alloc`); there are no crypto
-  feature flags — BLAKE3 and ML-DSA-65 ship unconditionally.
+  feature flags — BLAKE3, ML-DSA-65, SLH-DSA-SHA2-128s, and ML-KEM-768 ship
+  unconditionally.
 
 ## Caveats (honest ones)
 
@@ -223,8 +233,8 @@ such) and the trait seams themselves.
   collision-resistant, and retained as a non-cryptographic baseline only.
   For any adversarial setting use `Blake3Hasher` (the external `blake3`
   crate) — nothing else changes; for post-quantum verification use
-  `ExternalMlDsa65` (the external `ml-dsa` crate) or inject your own
-  `MlDsa65Verifier`.
+  `ExternalMlDsa65` (the external `ml-dsa` crate), `ExternalSlhDsa128s`
+  (the external `slh-dsa` crate), or inject your own verifier trait impl.
 - **Scope.** This is the structural chain core: events carry a `commitment`
   digest; it does not re-hash event *payloads* (that's the caller's `commitment`)
   nor parse JSON. It is the portable spec the full `affidavit` crate can build on.
