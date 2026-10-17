@@ -120,3 +120,39 @@ Standing: all UNKNOWN until falsifier runs on the exact subject.
 | 78 | External-evidence boundary admission corpus (SPIFFE strictness, clock edges) | none | `affidavit-core/src/external_evidence.rs` | S | flipping one boundary (valid_until==now) flips a corpus cell |
 
 Cycle-3 defect-class findings: JCS duplicate-key last-win (row 60); otel feature plane compile-broken (row 64, repair lane dispatched); `affi doctor` registered in the verb registry but no clap subcommand wired (cli.rs has zero doctor wiring); serde_json duplicate-key last-win also affects root parse paths.
+
+## Cycle-4 additions (2026-10-17; rows 79-100) — appended late (cycle-4 reports were integrated as lanes before this append)
+
+| # | Proposal | Dep | Seam | Cost | Falsifier (one-line) |
+|---|---|---|---|---|---|
+| 79 | XOF OutputReader seam (variable-length commitments, resumable hashing) | blake3 | `src/chain.rs + core digest.rs` | S/M | set_position diverges from fill-at-0; resume-from-count != fresh = FAIL |
+| 80 | zeroize feature on keyed-MAC plane (wipe replay_nullifier key material) | blake3 zeroize | `src/replay_nullifier.rs` | S | feature off -> keyed state survives drop = FAIL |
+| 81 | ml-dsa mu-path differential court (mu vs msg domain distinctness) | ml-dsa | `src/crypto_trust_pqc.rs tests` | S | mu-path sig verifying over wrong mu/msg = loud FAIL |
+| 82 | ml-dsa pinned-rnd sign_internal divergence court | ml-dsa | `crypto_trust_pqc.rs tests` | S | same-rnd-different-M collision or cross-rnd identical sig = FAIL |
+| 83 | SLH context-string domain-separation court (256B ctx cap) | slh-dsa | `crypto_trust_pqc.rs tests` | S | ctx-bound sig passing empty-ctx verify (either direction) = FAIL |
+| 84 | SLH seed-role partition court (sk_seed/pk_seed/sk_prf roles) | slh-dsa | `crypto_trust_pqc.rs tests` | S | sk_prf swap leaves pk identical but verify flips = anti-vacuity control |
+| 85 | SLH/blake3/ed25519 zeroize-feature gaps (dep lines enable no zeroize) | slh-dsa/ed25519-dalek | `Cargo.toml dep features` | S | key material survives Drop on every sign call = register decision |
+| 86 | dk->ek recovery + KeyInit expansion parity court | x-wing | `tests/adversarial_pqc.rs` | S | dk.encapsulation_key() != original pk bytes = FAIL |
+| 87 | X-Wing dual-mode divergence-set isolation court (CFRG transition law) | x-wing | `tests/adversarial_pqc.rs` | S | spurious or collapsed divergence between accept/reject modes = FAIL |
+| 88 | Ed25519 secret-material hygiene court (redacted Debug, zero seed bytes) | ed25519-dalek | `src/ed25519_witness.rs:34` | S | Debug/serde output containing any seed byte = FAIL |
+| 89 | verify_strict adversarial vector corpus (small-order A, non-canonical R/A) | ed25519-dalek | `ed25519_strict tests` | S | any vector accepted host-side or host/wasm divergence = FAIL |
+| 90 | Multi-party (MPC) aggregation of receipt-bound range proof | bulletproofs | `src/zk_range.rs RangeMpcSession` | M | out-of-range party aborts typed; single-party shortcut = vacuous FAIL |
+| 91 | Pedersen commitment-opening consistency court | bulletproofs | `src/zk_range.rs` | S | open(v±1,b) accepted, or acceptance without receipt-bound blinding = FAIL |
+| 92 | ECDSA RFC-6979 nonce-determinism + low-s normalization differential court [ADJUDICATION: form policy] | p256/k256 | `secp256k1_witness + wasm twin` | S | same-seed re-sign diverges host/wasm, or high-s accept asymmetry = FAIL |
+| 93 | ProcessDelta unresolved-evidence court (TelemetryGap never a conformance verdict) | wasm4pm-compat | `mining/ocel_process_delta_court.rs` | S/M | unresolved delta accepted as conformance claim -> typed refusal |
+| 94 | DECLARE constraint-temper court (22 canonical templates) | wasm4pm-compat | `mining/ocel_declare_court.rs` | M | NotCoExistence violation ACCEPTs = FAIL; satisfying log must ACCEPT |
+| 95 | DoctorCheck runtime-context seam run(ctx) + check_receipt_store migration | linkme | `src/doctor_check.rs + handlers.rs` | S | post-migration findings byte-identical; registration removal drops count by 1 |
+| 96 | CUSTOM_HANDLERS plugin slice: documented but nonexistent (delete-or-land) | linkme | `src/handlers.rs + CLAUDE.md` | S/M | integration test registers handler, emit dispatches through it; or strike doc |
+| 97 | JCS wasm commitment domain-separation (DEFECT: unkeyed vs DOMAIN_TAG planes) | blake3 | `advanced.rs:47 + jcs_parity.rs` | S | untagged blake3(canonical) acceptance = FAIL |
+| 98 | Parse-precision class repair (serde_json float_roundtrip, delete artifact class) | serde_json | `Cargo.toml both + jcs_parity.rs` | S | corpus parse_precision count == 0 with feature; revert flips nonzero |
+| 99 | SMT batch-op surface + root permutation-invariance court | monotree | `src/smt.rs` | S/M | shuffled batch or batch-vs-sequential root divergence, or dup-key last-win = FAIL |
+| 100 | Proof-structure budget law for verify_proof (>256/0-step/cut-sum refuse typed) | monotree | `src/smt.rs verify path` | S | oversized/zero-step proof accepted past recomputation = FAIL |
+
+Cycle-4 defect-class: SMT absence-witness key-binding gap (verify_absence never checks neighbor_proof.key==neighbor_key — repair lane in flight); SMT empty-proof vacuity probe; dead src/verbs/fix.rs (DELETED, duplicate verb outside mod tree); quarantine sidecar wall-clock (handlers.rs:1859, repair lane in flight); `affi doctor` verb registered but no clap subcommand wired (pre-existing, unowned).
+
+## Cycle-5 additions (2026-10-17; rows 101+)
+
+| # | Proposal | Dep | Seam | Cost | Falsifier (one-line) |
+|---|---|---|---|---|---|
+| 101 | BehaviorCoverage grounding court (coverage cell increments as admission metric) | clnrm-core | new tests/behavior_coverage_court.rs | S/M | deleting an increment leaves cell green = vacuous FAIL |
+| 102 | Dark-matter synthesis corpus import (hermeticity-violation scenarios as seeded fixtures) | clnrm-core | new tests/synthesis_corpus_court.rs | M | synthesized violation admitted, or non-deterministic across runs = FAIL |
