@@ -400,8 +400,7 @@ pub fn import_jwk(jwk: &serde_json::Value) -> Result<(AlgorithmId, PublicKeyMate
                         "Ed25519 OKP x must be 32 bytes".to_string(),
                     )
                 })?;
-                let key = ed25519_dalek::VerifyingKey::from_bytes(&bytes)
-                .map_err(|_| {
+                let key = ed25519_dalek::VerifyingKey::from_bytes(&bytes).map_err(|_| {
                     JwksError::InvalidPoint(
                         "Ed25519".to_string(),
                         "x does not decode to an Ed25519 curve point".to_string(),
@@ -616,7 +615,6 @@ mod tests {
 
     #[cfg(all(feature = "ed25519", feature = "secp256k1"))]
     // ------------------ import courts (register row 32, classical half) --
-
     #[test]
     fn import_round_trip_is_byte_stable_p256() {
         let signing = crate::crypto_trust_es256::Es256SigningKey::from_seed(&[11u8; 32])
@@ -672,8 +670,7 @@ mod tests {
         );
         let jwk = export_jwk(&rec).expect("exports");
         let (alg, material) = import_jwk(&export_fixup(&jwk, &rec)).expect("round-trips");
-        assert_eq!(alg, AlgorithmId::Ed25519
-        );
+        assert_eq!(alg, AlgorithmId::Ed25519);
         assert_eq!(material, PublicKeyMaterial::Ed25519(raw));
         let _ = jwk;
     }
@@ -723,7 +720,10 @@ mod tests {
         });
         assert_eq!(
             import_jwk(&p384),
-            Err(JwksError::UnsupportedCurve("P-384".to_string(), "EC".to_string()))
+            Err(JwksError::UnsupportedCurve(
+                "P-384".to_string(),
+                "EC".to_string()
+            ))
         );
         let x25519 = serde_json::json!({
             "kty": "OKP", "crv": "X25519",
@@ -790,10 +790,9 @@ mod tests {
         // that owns verification — it must NOT refuse where dalek accepts.
         // Encoding of y = p = 2^255-19 (reduces to 0 at decode), sign bit 0.
         let p_le: [u8; 32] = [
-            0xed, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f,
+            0xed, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0x7f,
         ];
         let jwk = serde_json::json!({
             "kty": "OKP", "crv": "Ed25519",

@@ -171,8 +171,7 @@ fn crypto_trust_mutation_court_every_admitted_algorithm_verifies_its_own_signatu
         mldsa65_seed: [0x66u8; ML_DSA_65_SEED_LEN],
     };
     let es256_public = hybrid.es256.public_key_sec1();
-    let mldsa_public = ml_dsa65_from_seed(&hybrid.mldsa65_seed)
-        .public;
+    let mldsa_public = ml_dsa65_from_seed(&hybrid.mldsa65_seed).public;
     let hybrid_record = record_for(
         SUBJECT,
         AlgorithmId::HybridEs256MlDsa65,

@@ -1287,7 +1287,6 @@ pub fn search(query: &str) -> Vec<&'static VerbEntry> {
     scored.into_iter().map(|(_, e)| e).collect()
 }
 
-
 // ─── Runtime registry twin (row 21) ─────────────────────────────────────────
 //
 // The compile-time parity courts above pin REGISTRY to the `#[verb]` source
@@ -1316,7 +1315,6 @@ pub fn search(query: &str) -> Vec<&'static VerbEntry> {
 // function re-implements the `validate()` checks that apply to the runtime
 // maps (duplicate nouns/verbs, empty nouns) over `command_structure()`-equivalent
 // data, plus the slice-vs-map duplicate detector the framework lacks.
-
 
 /// `#[verb]` stubs compiled only under the `ctdd` feature. Under default
 /// features these wrappers (and their framework registrations) do not exist,
@@ -1398,9 +1396,7 @@ pub fn validate_registry_runtime() -> Result<RuntimeRegistryReport, String> {
     // ── Check 1: validate() twin — no InvalidStructure-equivalent state ────
     // Empty noun (noun with no verbs).
     if let Some((noun, _)) = structure.iter().find(|(_, v)| v.is_empty()) {
-        return Err(format!(
-            "InvalidStructure: noun '{noun}' has no verbs"
-        ));
+        return Err(format!("InvalidStructure: noun '{noun}' has no verbs"));
     }
     // Duplicate (noun, verb) registration: the maps dedupe silently, so a
     // live duplicate is visible only as slice total > map unique.
@@ -1432,8 +1428,11 @@ pub fn validate_registry_runtime() -> Result<RuntimeRegistryReport, String> {
             "runtime registry has {unique_verbs} verbs but hand REGISTRY has {hand_verbs}"
         ));
     }
-    let hand_nouns: usize =
-        REGISTRY.iter().map(|e| e.noun).collect::<std::collections::BTreeSet<_>>().len();
+    let hand_nouns: usize = REGISTRY
+        .iter()
+        .map(|e| e.noun)
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
     if unique_nouns != hand_nouns {
         return Err(format!(
             "runtime registry has {unique_nouns} nouns but hand REGISTRY has {hand_nouns}"
@@ -1485,7 +1484,10 @@ mod tests {
         // Pinned surface constants (v26.10.16): 100 verbs across 13 nouns in
         // the hand REGISTRY; 96 compile in under default features (4 ctdd-gated).
         let expected = 100 - CTDD_GATED_VERBS.len();
-        assert_eq!(report.verb_registrations, expected, "raw #[verb] registrations");
+        assert_eq!(
+            report.verb_registrations, expected,
+            "raw #[verb] registrations"
+        );
         assert_eq!(report.unique_verbs, expected);
         assert_eq!(report.unique_nouns, 13);
         #[cfg(feature = "ctdd")]
@@ -1493,8 +1495,13 @@ mod tests {
         // The report's structure is exactly the hand REGISTRY projection.
         let hand: Vec<(String, Vec<String>)> = {
             let mut m: std::collections::BTreeMap<String, Vec<String>> = Default::default();
-            for e in REGISTRY.iter().filter(|e| !CTDD_GATED_VERBS.contains(&(e.noun, e.verb))) {
-                m.entry(e.noun.to_string()).or_default().push(e.verb.to_string());
+            for e in REGISTRY
+                .iter()
+                .filter(|e| !CTDD_GATED_VERBS.contains(&(e.noun, e.verb)))
+            {
+                m.entry(e.noun.to_string())
+                    .or_default()
+                    .push(e.verb.to_string());
             }
             for v in m.values_mut() {
                 v.sort();
@@ -1517,7 +1524,6 @@ mod tests {
             "raw #[verb] slice length diverges from hand REGISTRY (feature-adjusted)"
         );
     }
-
 
     #[test]
     fn registry_entry_count_matches_constant() {
