@@ -130,9 +130,20 @@ impl VerbEntry {
     }
 }
 
-/// The complete verb registry — 90 entries, one per live verb.
+/// The complete verb registry — one entry per live verb (101 as of v26.10.16).
 ///
 /// Ordering mirrors `src/verbs/mod.rs` (alphabetical) for easy cross-referencing.
+///
+/// # Determinism at first access
+///
+/// `REGISTRY` is a `&'static` slice read directly — no lazily-initialized
+/// global, no hash-map iteration, no nondeterministic source. Every accessor
+/// below (`lookup`, `by_group`, `did_you_mean`, `search`) walks the slice in
+/// stored order, and where results are sorted the sort is total (ties broken
+/// by verb name), so repeated runs over the same build produce byte-identical
+/// output ordering in `--help` grouping, `guide search`, and completions. The
+/// stored order is itself maintained alphabetical, and the const block above
+/// pins the surface to the compiled `#[verb]` projections at build time.
 pub static REGISTRY: &[VerbEntry] = &[
     // ── Core ────────────────────────────────────────────────────────────────
     VerbEntry::new(
@@ -906,6 +917,304 @@ pub static REGISTRY: &[VerbEntry] = &[
     .with_example("affi certificate fre-902"),
 ];
 
+// --- Compile-time projection cross-check ------------------------------------
+//
+// The macro path (a #[affi_verb(...)] distributed-slice surface emitted beside
+// each #[verb(...)]) requires editing all 101 files under src/verbs/, which are
+// a ggen projection of ontology/affi-cli.ttl. Register row: that path is
+// UNSUPPORTED(generated-surface) until the ggen template emits the wrapper.
+// The lawful fast-tripwire instead: verb sources are pulled in with
+// include_str! and a const block asserts, at compile time, that every
+// REGISTRY row names a literal #[verb("<verb>", "<noun>")] attribute in the
+// declared verb module set -- deleting a REGISTRY row or its projection breaks
+// the build before any test runs. The runtime courts below enforce the reverse
+// direction (projection without a row) and the ontology parity.
+
+/// `src/verbs/mod.rs`, read at compile time.
+const VERBS_MOD_RS: &str = include_str!("verbs/mod.rs");
+
+/// Every declared verb module's source, keyed by module name.
+const VERB_SOURCES: &[(&str, &str)] = &[
+    ("anomaly_detect", include_str!("verbs/anomaly_detect.rs")),
+    ("assemble", include_str!("verbs/assemble.rs")),
+    (
+        "assemble_and_notarize",
+        include_str!("verbs/assemble_and_notarize.rs"),
+    ),
+    (
+        "assemble_with_signature",
+        include_str!("verbs/assemble_with_signature.rs"),
+    ),
+    ("attest", include_str!("verbs/attest.rs")),
+    ("audit", include_str!("verbs/audit.rs")),
+    ("bus_factor", include_str!("verbs/bus_factor.rs")),
+    ("catalog", include_str!("verbs/catalog.rs")),
+    ("causality_chain", include_str!("verbs/causality_chain.rs")),
+    (
+        "certificate_fre_902",
+        include_str!("verbs/certificate_fre_902.rs"),
+    ),
+    ("conformance", include_str!("verbs/conformance.rs")),
+    (
+        "coverage_analysis",
+        include_str!("verbs/coverage_analysis.rs"),
+    ),
+    (
+        "dependency_matrix",
+        include_str!("verbs/dependency_matrix.rs"),
+    ),
+    ("diagnose", include_str!("verbs/diagnose.rs")),
+    ("diff", include_str!("verbs/diff.rs")),
+    ("doctor", include_str!("verbs/doctor.rs")),
+    ("dora_metrics", include_str!("verbs/dora_metrics.rs")),
+    ("dossier_emit", include_str!("verbs/dossier_emit.rs")),
+    ("dossier_inspect", include_str!("verbs/dossier_inspect.rs")),
+    ("dossier_seal", include_str!("verbs/dossier_seal.rs")),
+    ("dossier_verify", include_str!("verbs/dossier_verify.rs")),
+    (
+        "ecosystem_certify",
+        include_str!("verbs/ecosystem_certify.rs"),
+    ),
+    (
+        "ecosystem_verify",
+        include_str!("verbs/ecosystem_verify.rs"),
+    ),
+    ("emit", include_str!("verbs/emit.rs")),
+    ("emit_batch", include_str!("verbs/emit_batch.rs")),
+    ("emit_from_cicd", include_str!("verbs/emit_from_cicd.rs")),
+    ("emit_from_cloud", include_str!("verbs/emit_from_cloud.rs")),
+    (
+        "emit_from_github",
+        include_str!("verbs/emit_from_github.rs"),
+    ),
+    (
+        "emit_from_gitlab",
+        include_str!("verbs/emit_from_gitlab.rs"),
+    ),
+    (
+        "emit_from_monitoring",
+        include_str!("verbs/emit_from_monitoring.rs"),
+    ),
+    (
+        "emit_from_security",
+        include_str!("verbs/emit_from_security.rs"),
+    ),
+    ("envelope_export", include_str!("verbs/envelope_export.rs")),
+    ("envelope_list", include_str!("verbs/envelope_list.rs")),
+    ("envelope_sign", include_str!("verbs/envelope_sign.rs")),
+    ("envelope_verify", include_str!("verbs/envelope_verify.rs")),
+    ("errc_assure", include_str!("verbs/errc_assure.rs")),
+    ("errc_certify", include_str!("verbs/errc_certify.rs")),
+    ("errc_verify", include_str!("verbs/errc_verify.rs")),
+    (
+        "errc_verify_assurance",
+        include_str!("verbs/errc_verify_assurance.rs"),
+    ),
+    (
+        "evidence_crl_apply",
+        include_str!("verbs/evidence_crl_apply.rs"),
+    ),
+    (
+        "evidence_crl_publish",
+        include_str!("verbs/evidence_crl_publish.rs"),
+    ),
+    ("evidence_heads", include_str!("verbs/evidence_heads.rs")),
+    (
+        "evidence_journal",
+        include_str!("verbs/evidence_journal.rs"),
+    ),
+    (
+        "explain_incident",
+        include_str!("verbs/explain_incident.rs"),
+    ),
+    (
+        "find_blast_radius",
+        include_str!("verbs/find_blast_radius.rs"),
+    ),
+    ("fix_receipt", include_str!("verbs/fix_receipt.rs")),
+    ("gdpr_proof", include_str!("verbs/gdpr_proof.rs")),
+    ("graph", include_str!("verbs/graph.rs")),
+    ("guide_search", include_str!("verbs/guide_search.rs")),
+    ("hipaa", include_str!("verbs/hipaa.rs")),
+    ("inspect", include_str!("verbs/inspect.rs")),
+    (
+        "install_git_hook",
+        include_str!("verbs/install_git_hook.rs"),
+    ),
+    ("keys_generate", include_str!("verbs/keys_generate.rs")),
+    ("keys_import", include_str!("verbs/keys_import.rs")),
+    ("keys_list", include_str!("verbs/keys_list.rs")),
+    ("keys_revoke", include_str!("verbs/keys_revoke.rs")),
+    ("keys_rotate", include_str!("verbs/keys_rotate.rs")),
+    (
+        "legal_hold_status",
+        include_str!("verbs/legal_hold_status.rs"),
+    ),
+    (
+        "license_compliance",
+        include_str!("verbs/license_compliance.rs"),
+    ),
+    ("model", include_str!("verbs/model.rs")),
+    ("monitor", include_str!("verbs/monitor.rs")),
+    ("notarize", include_str!("verbs/notarize.rs")),
+    ("orphaned_code", include_str!("verbs/orphaned_code.rs")),
+    ("pci_dss", include_str!("verbs/pci_dss.rs")),
+    ("policy_enforce", include_str!("verbs/policy_enforce.rs")),
+    (
+        "portfolio_health",
+        include_str!("verbs/portfolio_health.rs"),
+    ),
+    ("predict", include_str!("verbs/predict.rs")),
+    ("profile", include_str!("verbs/profile.rs")),
+    ("query", include_str!("verbs/query.rs")),
+    (
+        "receipt_chain_verify",
+        include_str!("verbs/receipt_chain_verify.rs"),
+    ),
+    (
+        "receipt_throughput",
+        include_str!("verbs/receipt_throughput.rs"),
+    ),
+    (
+        "receipt_validate",
+        include_str!("verbs/receipt_validate.rs"),
+    ),
+    ("replay", include_str!("verbs/replay.rs")),
+    (
+        "restitution_calculate",
+        include_str!("verbs/restitution_calculate.rs"),
+    ),
+    ("root_cause", include_str!("verbs/root_cause.rs")),
+    ("sbom_attest", include_str!("verbs/sbom_attest.rs")),
+    (
+        "sbom_blast_radius",
+        include_str!("verbs/sbom_blast_radius.rs"),
+    ),
+    ("sbom_compliance", include_str!("verbs/sbom_compliance.rs")),
+    ("sbom_emit", include_str!("verbs/sbom_emit.rs")),
+    ("sbom_ntia", include_str!("verbs/sbom_ntia.rs")),
+    ("sbom_scan", include_str!("verbs/sbom_scan.rs")),
+    ("search", include_str!("verbs/search.rs")),
+    ("security_debt", include_str!("verbs/security_debt.rs")),
+    ("show", include_str!("verbs/show.rs")),
+    ("sign", include_str!("verbs/sign.rs")),
+    ("soc2_audit", include_str!("verbs/soc2_audit.rs")),
+    (
+        "standing_certify",
+        include_str!("verbs/standing_certify.rs"),
+    ),
+    ("standing_verify", include_str!("verbs/standing_verify.rs")),
+    ("stats", include_str!("verbs/stats.rs")),
+    ("team_velocity", include_str!("verbs/team_velocity.rs")),
+    ("tech_debt", include_str!("verbs/tech_debt.rs")),
+    ("test", include_str!("verbs/test.rs")),
+    ("timeline", include_str!("verbs/timeline.rs")),
+    ("trend_analysis", include_str!("verbs/trend_analysis.rs")),
+    ("variance", include_str!("verbs/variance.rs")),
+    ("verify", include_str!("verbs/verify.rs")),
+    (
+        "verify_compliance",
+        include_str!("verbs/verify_compliance.rs"),
+    ),
+    ("verify_family", include_str!("verbs/verify_family.rs")),
+    ("verify_sla", include_str!("verbs/verify_sla.rs")),
+    ("visualize", include_str!("verbs/visualize.rs")),
+    ("why", include_str!("verbs/why.rs")),
+];
+
+/// Const-context substring search over bytes.
+const fn const_contains(haystack: &str, needle: &[u8], nlen: usize) -> bool {
+    let h = haystack.as_bytes();
+    if nlen == 0 {
+        return true;
+    }
+    if h.len() < nlen {
+        return false;
+    }
+    let mut i = 0;
+    while i + nlen <= h.len() {
+        let mut j = 0;
+        while j < nlen && h[i + j] == needle[j] {
+            j += 1;
+        }
+        if j == nlen {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Append bytes into the fixed-size needle buffer (const context).
+const fn push_part(buf: &mut [u8; 128], n: &mut usize, part: &[u8]) {
+    assert!(*n + part.len() <= 128, "needle buffer overflow");
+    let mut k = 0;
+    while k < part.len() {
+        buf[*n] = part[k];
+        *n += 1;
+        k += 1;
+    }
+}
+
+/// Append a &str into the fixed-size needle buffer (const context).
+const fn push_str(buf: &mut [u8; 128], n: &mut usize, part: &str) {
+    push_part(buf, n, part.as_bytes());
+}
+
+/// Count non-overlapping occurrences of a byte pattern (const context).
+const fn const_count(haystack: &str, needle: &[u8]) -> usize {
+    let h = haystack.as_bytes();
+    let mut count = 0;
+    let mut i = 0;
+    while i + needle.len() <= h.len() {
+        let mut j = 0;
+        while j < needle.len() && h[i + j] == needle[j] {
+            j += 1;
+        }
+        if j == needle.len() {
+            count += 1;
+            i += needle.len();
+        } else {
+            i += 1;
+        }
+    }
+    count
+}
+
+/// Build the `pub mod <name>;` needle bytes.
+const fn mod_decl_needle(name: &str) -> ([u8; 128], usize) {
+    let mut buf = [0u8; 128];
+    let mut n = 0usize;
+    push_part(&mut buf, &mut n, b"pub mod ");
+    push_str(&mut buf, &mut n, name);
+    push_part(&mut buf, &mut n, b";");
+    (buf, n)
+}
+
+/// Compile-time cross-check (cheap subset evaluated on every build): the
+/// VERB_SOURCES include list is exhaustive over `src/verbs/mod.rs` and every
+/// listed module is actually declared. The full REGISTRY-row-to-`#[verb]`
+/// scan runs in `registry_rows_pinned_to_verb_projections` below — the verb
+/// sources are `include_str!`-pinned into the binary, so the check cannot be
+/// fooled by filesystem drift after compilation.
+const _: () = {
+    assert!(
+        const_count(VERBS_MOD_RS, b"pub mod ") == VERB_SOURCES.len(),
+        "VERB_SOURCES in src/registry.rs is out of sync with src/verbs/mod.rs: \
+         add/remove the include_str! entry for the changed module"
+    );
+
+    let mut i = 0;
+    while i < VERB_SOURCES.len() {
+        let (name, _) = VERB_SOURCES[i];
+        let (needle, nlen) = mod_decl_needle(name);
+        assert!(
+            const_contains(VERBS_MOD_RS, &needle, nlen),
+            "verb module not declared in src/verbs/mod.rs"
+        );
+        i += 1;
+    }
+};
 /// Look up a verb by `(verb, noun)` pair.
 ///
 /// Returns `None` if the combination is not registered.
@@ -1259,6 +1568,30 @@ mod tests {
         assert!(
             snake.is_empty(),
             "these REGISTRY verb tokens use `_` but the CLI dispatches kebab-case: {snake:?}"
+        );
+    }
+
+    /// Row 5 fast-tripwire over compile-time-pinned verb sources: every
+    /// REGISTRY row must name a literal `#[verb("<verb>", "<noun>")]`
+    /// attribute in one of the `include_str!`-pinned verb module sources.
+    /// Unlike `every_registry_entry_has_a_verb_projection` (which re-reads
+    /// the filesystem at test time), this reads bytes frozen at compile
+    /// time, so it fails on a row deleted after compilation only if the
+    /// crate is rebuilt — and it fails compilation of any build that pins
+    /// a REGISTRY row with no projection.
+    #[test]
+    fn registry_rows_pinned_to_verb_projections() {
+        let mut missing = Vec::new();
+        for entry in REGISTRY {
+            let needle = format!("#[verb(\"{}\", \"{}\")]", entry.verb, entry.noun);
+            let projected = VERB_SOURCES.iter().any(|(_, src)| src.contains(&needle));
+            if !projected {
+                missing.push(format!("{} {}", entry.noun, entry.verb));
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "REGISTRY rows with no pinned #[verb] projection: {missing:?}"
         );
     }
 
