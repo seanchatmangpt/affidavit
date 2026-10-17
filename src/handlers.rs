@@ -3399,27 +3399,36 @@ pub fn policy_enforce(
         "violation_list": violations,
     });
 
+    // B6: policy violations exit REJECT regardless of the renderer — the
+    // verdict decides, never the format branch.
+    if !compliant {
+        if format.as_deref() == Some("json") {
+            outln!(
+                "{}",
+                adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+            );
+        } else {
+            outln!(
+                "policy-enforce [{}]: {} — {} violation(s) in {} receipts",
+                policy_file,
+                "VIOLATIONS FOUND",
+                violations.len(),
+                receipts.len()
+            );
+        }
+        std::process::exit(crate::diag::exit_codes::REJECT);
+    }
     if format.as_deref() == Some("json") {
         outln!(
             "{}",
             adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
         );
-        return Ok(());
-    }
-    outln!(
-        "policy-enforce [{}]: {} — {} violation(s) in {} receipts",
-        policy_file,
-        if compliant {
-            "COMPLIANT"
-        } else {
-            "VIOLATIONS FOUND"
-        },
-        violations.len(),
-        receipts.len()
-    );
-    if !compliant {
-        // B6: policy violations must exit with exit_codes::REJECT (2).
-        std::process::exit(crate::diag::exit_codes::REJECT);
+    } else {
+        outln!(
+            "policy-enforce [{}]: COMPLIANT — 0 violation(s) in {} receipts",
+            policy_file,
+            receipts.len()
+        );
     }
     Ok(())
 }

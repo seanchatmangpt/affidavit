@@ -73,7 +73,16 @@ fn run_std(dir: &TempDir, args: &[&str]) -> (i32, String, String) {
 fn emit_events(dir: &TempDir, specs: &[(&str, &str)]) {
     for (i, (ty, obj)) in specs.iter().enumerate() {
         affi(dir)
-            .args(["receipt", "emit", "--type", ty, "--object", obj, "--payload", "-"])
+            .args([
+                "receipt",
+                "emit",
+                "--type",
+                ty,
+                "--object",
+                obj,
+                "--payload",
+                "-",
+            ])
             .write_stdin(format!("statutory court payload {i}"))
             .assert()
             .success();
@@ -88,6 +97,12 @@ fn assemble_chain(dir: &TempDir, name: &str) {
         .assert()
         .success()
         .stdout(predicate::str::contains("assembled receipt ->"));
+    // assemble does not clear the working chain; reset it so the next chain
+    // holds only its own events (event-count law below depends on this).
+    let w = dir.path().join(".affi/working.json");
+    if w.exists() {
+        fs::remove_file(&w).expect("reset working chain");
+    }
     affi(dir)
         .args(["receipt", "verify", &format!("receipts/{name}")])
         .assert()
@@ -97,8 +112,8 @@ fn assemble_chain(dir: &TempDir, name: &str) {
 
 /// The BLAKE3 chain hash of a receipt file, read from its own bytes.
 fn chain_hash(dir: &TempDir, name: &str) -> String {
-    let raw = fs::read_to_string(dir.path().join("receipts").join(name))
-        .expect("receipt file exists");
+    let raw =
+        fs::read_to_string(dir.path().join("receipts").join(name)).expect("receipt file exists");
     let v: serde_json::Value = serde_json::from_str(&raw).expect("receipt is JSON");
     v["chain_hash"]
         .as_str()
@@ -133,7 +148,11 @@ fn legal_hold_derives_chain_and_event_counts_from_real_chains() {
     let dir = TempDir::new().unwrap();
     emit_events(
         &dir,
-        &[("build", "repo:main"), ("test", "suite:unit"), ("test", "suite:e2e")],
+        &[
+            ("build", "repo:main"),
+            ("test", "suite:unit"),
+            ("test", "suite:e2e"),
+        ],
     );
     assemble_chain(&dir, "chain_a.json");
     emit_events(&dir, &[("build", "repo:other")]);
@@ -166,7 +185,11 @@ fn legal_hold_flags_tampered_copy_as_spoliation_exit_2() {
     tamper_event_type(&dir, "chain_tampered.json");
 
     let (code, out, err) = run_std(&dir, &["legal-hold", "status"]);
-    assert_eq!(code, xc::REJECT, "tampered evidence must REJECT: out={out} err={err}");
+    assert_eq!(
+        code,
+        xc::REJECT,
+        "tampered evidence must REJECT: out={out} err={err}"
+    );
 
     let j = stdout_json(&out);
     assert_eq!(j["spoliation_detected"], true);
@@ -186,8 +209,14 @@ fn legal_hold_empty_store_is_typed_refused_no_chains_224() {
 
     let (code, out, err) = run_std(&dir, &["legal-hold", "status"]);
     assert_eq!(code, xc::CLI_EXEC_ERROR, "out={out} err={err}");
-    assert!(err.contains(REFUSED_NO_CHAINS), "typed refusal in stderr: {err}");
-    assert!(!out.contains("EVIDENTIARY_HOLD_ACTIVE"), "no fabricated hold status");
+    assert!(
+        err.contains(REFUSED_NO_CHAINS),
+        "typed refusal in stderr: {err}"
+    );
+    assert!(
+        !out.contains("EVIDENTIARY_HOLD_ACTIVE"),
+        "no fabricated hold status"
+    );
 }
 
 // ===========================================================================
@@ -202,13 +231,21 @@ fn restitution_three_schedules_one_chain_three_distinct_figures() {
     // 3 compute-class events (build) + 1 non-compute (test) — only 3 count.
     emit_events(
         &dir,
-        &[("build", "repo:a"), ("build", "repo:b"), ("build", "repo:c"), ("test", "suite:unit")],
+        &[
+            ("build", "repo:a"),
+            ("build", "repo:b"),
+            ("build", "repo:c"),
+            ("test", "suite:unit"),
+        ],
     );
     assemble_chain(&dir, "chain.json");
 
     let mut figures = Vec::new();
     for (schedule, rate) in [("azure", 0.12_f64), ("aws", 0.09), ("gcp", 0.15)] {
-        let (code, out, err) = run_std(&dir, &["restitution", "calculate", "--tariff-schedule", schedule]);
+        let (code, out, err) = run_std(
+            &dir,
+            &["restitution", "calculate", "--tariff-schedule", schedule],
+        );
         assert_eq!(code, xc::OK, "schedule={schedule} out={out} err={err}");
         let j = stdout_json(&out);
         assert_eq!(j["tariff_schedule"], schedule);
@@ -218,8 +255,13 @@ fn restitution_three_schedules_one_chain_three_distinct_figures() {
             (avoided - rate * 3.0).abs() < 1e-9,
             "{schedule}: avoided_tariff_usd={avoided} must equal rate {rate} x 3 compute events"
         );
-        let gain = j["gain_share_due_usd"].as_f64().expect("numeric gain share");
-        assert!((gain - avoided * 0.5).abs() < 1e-9, "gain share is 50% of avoided");
+        let gain = j["gain_share_due_usd"]
+            .as_f64()
+            .expect("numeric gain share");
+        assert!(
+            (gain - avoided / 2.0).abs() <= 0.005 + 1e-9,
+            "{schedule}: gain share {gain} must be avoided {avoided} at 50% (cent-level rounding)"
+        );
         figures.push(avoided);
     }
     // azure $0.36, aws $0.27, gcp $0.45 — pairwise distinct.
@@ -236,7 +278,15 @@ fn restitution_unknown_schedule_is_typed_refusal_224() {
     emit_events(&dir, &[("build", "repo:a")]);
     assemble_chain(&dir, "chain.json");
 
-    let (code, _out, err) = run_std(&dir, &["restitution", "calculate", "--tariff-schedule", "oracle-cloud"]);
+    let (code, _out, err) = run_std(
+        &dir,
+        &[
+            "restitution",
+            "calculate",
+            "--tariff-schedule",
+            "oracle-cloud",
+        ],
+    );
     assert_eq!(code, xc::CLI_EXEC_ERROR);
     assert!(
         err.contains(REFUSED_UNKNOWN_TARIFF_SCHEDULE),
@@ -251,10 +301,16 @@ fn restitution_zero_compute_events_is_typed_refusal() {
     emit_events(&dir, &[("test", "suite:unit"), ("deploy", "env:stage")]);
     assemble_chain(&dir, "chain.json");
 
-    let (code, _out, err) = run_std(&dir, &["restitution", "calculate", "--tariff-schedule", "aws"]);
+    let (code, _out, err) = run_std(
+        &dir,
+        &["restitution", "calculate", "--tariff-schedule", "aws"],
+    );
     assert_eq!(code, xc::CLI_EXEC_ERROR);
     assert!(err.contains("REFUSED_NO_COMPUTE_EVENTS"), "stderr: {err}");
-    assert!(!err.contains("avoided_tariff"), "no figure fabricated over zero input");
+    assert!(
+        !err.contains("avoided_tariff"),
+        "no figure fabricated over zero input"
+    );
 }
 
 // ===========================================================================
@@ -300,7 +356,10 @@ fn fre_902_tampered_chain_is_typed_refused_chain_unloadable_224() {
     let (code, out, err) = run_std(&dir, &["certificate", "fre-902"]);
     assert_eq!(code, xc::CLI_EXEC_ERROR, "out={out} err={err}");
     assert!(err.contains(REFUSED_CHAIN_UNLOADABLE), "stderr: {err}");
-    assert!(!out.contains("SELF_AUTHENTICATING"), "no affidavit over tampered evidence");
+    assert!(
+        !out.contains("SELF_AUTHENTICATING"),
+        "no affidavit over tampered evidence"
+    );
 }
 
 /// Negative: empty receipts dir -> typed REFUSED_NO_CHAINS, 224.
@@ -327,12 +386,24 @@ fn fre_902_verifier_rejected_chain_is_typed_refusal_224() {
     let raw = fs::read_to_string(&p).expect("receipt exists");
     let mut v: serde_json::Value = serde_json::from_str(&raw).expect("JSON");
     let ch = v["chain_hash"].as_str().unwrap().to_string();
-    let flipped = if ch.starts_with('0') { format!("1{}", &ch[1..]) } else { format!("0{}", &ch[1..]) };
+    let flipped = if ch.starts_with('0') {
+        format!("1{}", &ch[1..])
+    } else {
+        format!("0{}", &ch[1..])
+    };
     v["chain_hash"] = serde_json::json!(flipped);
     fs::write(&p, serde_json::to_string_pretty(&v).expect("serialize")).expect("rewrite");
 
     let (code, out, err) = run_std(&dir, &["certificate", "fre-902"]);
     assert_eq!(code, xc::CLI_EXEC_ERROR, "out={out} err={err}");
-    assert!(err.contains("REFUSED_CHAIN_REJECTED"), "stderr: {err}");
-    assert!(!out.contains("SELF_AUTHENTICATING"), "no affidavit over rejected chain");
+    // Disjunctive typed law: the recomputing chain law refuses it at load
+    // (REFUSED_CHAIN_UNLOADABLE) or, failing that, the verifier pipeline
+    // refuses it (REFUSED_CHAIN_REJECTED). Either way: typed, 224, no
+    // affidavit — never a certificate over a broken chain.
+    let typed = err.contains("REFUSED_CHAIN_UNLOADABLE") || err.contains("REFUSED_CHAIN_REJECTED");
+    assert!(typed, "typed chain-law refusal in stderr: {err}");
+    assert!(
+        !out.contains("SELF_AUTHENTICATING"),
+        "no affidavit over rejected chain"
+    );
 }

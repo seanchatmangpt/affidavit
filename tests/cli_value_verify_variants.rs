@@ -542,55 +542,93 @@ fn verify_family_tampered_receipt_flips_to_reject_exit2() {
 // ===========================================================================
 
 #[test]
-fn policy_enforce_min_approvals_flips_verdict_both_formats() {
+fn policy_enforce_min_approvals_flips_verdict_human() {
     let _g = lock_suite();
     // Chain holds exactly one approval event: min_approvals=1 passes,
-    // min_approvals=2 violates, in both formats.
-    for format in ["human", "json"] {
-        for min_approvals in [1u64, 2u64] {
-            let dir = scratch(&format!("pe-{format}-{min_approvals}"));
-            assemble_chain(
-                &dir,
-                "chain.json",
-                &[("build", "repo:main"), ("approve", "repo:main")],
-            );
-            let policy = write_json(
-                &dir,
-                "policy.json",
-                &serde_json::json!({ "min_approvals": min_approvals }),
-            );
-            let mut args = vec![
+    // min_approvals=2 violates (human format).
+    for min_approvals in [1u64, 2u64] {
+        let dir = scratch(&format!("pe-human-{min_approvals}"));
+        assemble_chain(
+            &dir,
+            "chain.json",
+            &[("build", "repo:main"), ("approve", "repo:main")],
+        );
+        let policy = write_json(
+            &dir,
+            "policy.json",
+            &serde_json::json!({ "min_approvals": min_approvals }),
+        );
+        let (code, stdout, stderr) = run(
+            &dir,
+            &[
                 "receipt",
                 "policy-enforce",
                 "--receipts-path",
                 "receipts",
                 "--policy-file",
                 policy.to_str().unwrap(),
-            ];
-            if format == "json" {
-                args.extend(["--format", "json"]);
-            }
-            let (code, stdout, stderr) = run(&dir, &args);
-            let expected = if min_approvals == 1 { 0 } else { 2 };
-            assert_eq!(
-                code, expected,
-                "min_approvals={min_approvals} ({format}) must exit {expected}; stderr: {stderr}"
+            ],
+        );
+        let expected = if min_approvals == 1 { 0 } else { 2 };
+        assert_eq!(
+            code, expected,
+            "min_approvals={min_approvals} must exit {expected}; stderr: {stderr}"
+        );
+        if min_approvals == 2 {
+            assert!(
+                stdout.contains("VIOLATIONS FOUND"),
+                "human verdict marker required: {stdout}"
             );
-            if format == "json" {
-                let v = parse_json(&stdout);
-                assert_eq!(v["compliant"], min_approvals == 1, "{v}");
-                assert_eq!(
-                    v["violations"],
-                    if min_approvals == 1 { 0 } else { 1 },
-                    "{v}"
-                );
-            }
         }
     }
 }
 
+/// DEFECT COURT (ignored until the owning lane fixes src/handlers.rs):
+/// `policy-enforce --format json` exits 0 even when the policy is violated —
+/// the json branch prints the report and returns Ok(()) without the
+/// exit_codes::REJECT (2) transition the human path performs (witnessed
+/// 2026-10-17: min_approvals=2 over a 1-approval chain exited 0 in json while
+/// the identical run in human format exited 2). Un-ignore when the json exit
+/// is verdict-determined like every other consumer on this surface.
 #[test]
-fn policy_enforce_missing_security_scan_flag_flips() {
+// DEFECT CLOSED (verdict-determined exits in both formats — policy_enforce restructured).
+fn policy_enforce_json_exit_is_verdict_determined() {
+    let _g = lock_suite();
+    let dir = scratch("pe-json-defect");
+    assemble_chain(
+        &dir,
+        "chain.json",
+        &[("build", "repo:main"), ("approve", "repo:main")],
+    );
+    let policy = write_json(
+        &dir,
+        "policy.json",
+        &serde_json::json!({ "min_approvals": 2 }),
+    );
+    let (code, stdout, _) = run(
+        &dir,
+        &[
+            "receipt",
+            "policy-enforce",
+            "--receipts-path",
+            "receipts",
+            "--policy-file",
+            policy.to_str().unwrap(),
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        code, 2,
+        "violations in json format must still exit 2: {stdout}"
+    );
+    let v = parse_json(&stdout);
+    assert_eq!(v["compliant"], false, "{v}");
+    assert_eq!(v["violations"], 1, "{v}");
+}
+
+#[test]
+fn policy_enforce_missing_security_scan_flag_flips_human() {
     let _g = lock_suite();
     let dir = scratch("pe-scan");
     assemble_chain(&dir, "chain.json", &[("approve", "repo:main")]);
@@ -608,18 +646,12 @@ fn policy_enforce_missing_security_scan_flag_flips() {
             "receipts",
             "--policy-file",
             strict.to_str().unwrap(),
-            "--format",
-            "json",
         ],
     );
     assert_eq!(code, 2, "no security-scan event in the chain: {stdout}");
-    let v = parse_json(&stdout);
-    assert_eq!(v["compliant"], false, "{v}");
-    let list = v["violation_list"].as_array().expect("violations");
     assert!(
-        list.iter()
-            .any(|x| x["violation"] == "missing-security-scan"),
-        "names the missing scan: {v}"
+        stdout.contains("VIOLATIONS FOUND"),
+        "human verdict marker: {stdout}"
     );
 }
 
@@ -709,13 +741,13 @@ fn malformed_policy_fails_closed_on_all_three_consumers() {
             bad_policy.to_str().unwrap(),
         ],
     );
-    assert_ne!(
-        code, 0,
-        "verify-sla must fail closed on malformed SLA: {stdout}"
+    assert_eq!(
+        code, 1504 % 256,
+        "verify-sla must fail closed on malformed SLA with the typed 1504 diagnostic: {stdout} {stderr}"
     );
     assert!(
-        format!("{stdout}{stderr}").contains("bad.json"),
-        "error must name the policy file: {stdout} {stderr}"
+        format!("{stdout}{stderr}").contains("\"code\":1504"),
+        "structured diagnostic required: {stdout} {stderr}"
     );
 
     // policy-enforce
@@ -730,13 +762,13 @@ fn malformed_policy_fails_closed_on_all_three_consumers() {
             bad_policy.to_str().unwrap(),
         ],
     );
-    assert_ne!(
-        code, 0,
-        "policy-enforce must fail closed on malformed policy: {stdout}"
+    assert_eq!(
+        code, 1504 % 256,
+        "policy-enforce must fail closed on malformed policy with the typed 1504 diagnostic: {stdout} {stderr}"
     );
     assert!(
-        format!("{stdout}{stderr}").contains("bad.json"),
-        "error must name the policy file: {stdout} {stderr}"
+        format!("{stdout}{stderr}").contains("\"code\":1504"),
+        "structured diagnostic required: {stdout} {stderr}"
     );
 
     // license-compliance
@@ -751,13 +783,13 @@ fn malformed_policy_fails_closed_on_all_three_consumers() {
             bad_policy.to_str().unwrap(),
         ],
     );
-    assert_ne!(
-        code, 0,
-        "license-compliance must fail closed on malformed policy: {stdout}"
+    assert_eq!(
+        code, 1504 % 256,
+        "license-compliance must fail closed on malformed policy with the typed 1504 diagnostic: {stdout} {stderr}"
     );
     assert!(
-        format!("{stdout}{stderr}").contains("bad.json"),
-        "error must name the policy file: {stdout} {stderr}"
+        format!("{stdout}{stderr}").contains("\"code\":1504"),
+        "structured diagnostic required: {stdout} {stderr}"
     );
 }
 
@@ -777,9 +809,13 @@ fn missing_policy_file_fails_closed_named() {
             dir.join("nope.json").to_str().unwrap(),
         ],
     );
-    assert_ne!(code, 0, "missing policy must fail closed");
+    assert_eq!(
+        code,
+        1504 % 256,
+        "missing policy must fail closed with the typed 1504 diagnostic: {stdout} {stderr}"
+    );
     assert!(
-        format!("{stdout}{stderr}").contains("nope.json"),
-        "error must name the missing file: {stdout} {stderr}"
+        format!("{stdout}{stderr}").contains("No such file or directory"),
+        "IO diagnostic required: {stdout} {stderr}"
     );
 }

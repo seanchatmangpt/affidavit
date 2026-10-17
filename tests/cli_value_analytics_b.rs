@@ -360,20 +360,21 @@ fn predict_mttr_recovery_ratio_from_corpus() {
 
 #[test]
 fn anomaly_detect_flags_the_real_outlier_with_real_counts() {
-    // VALUE: counts [12,2,2,2,2] -> mean 4, the 12-event receipt is > 2 sigma.
+    // VALUE: 16 one-event receipts + one 30-event receipt (n=17, mean 46/17,
+    // outlier deviates ~27.3 >> 2 sigma ~13.7). Population z-scores for n=5
+    // are hard-capped at (n-1)/sqrt(n) ~= 1.789 < 2, so a small corpus can
+    // NEVER flag at 2 sigma — the corpus is sized to clear the real bound.
     let w = World::new();
     let receipts = w.dir("receipts");
-    let big: Vec<(&str, &str)> = (0..12).map(|_| ("deploy", "art-big:artifact")).collect();
+    let big: Vec<(&str, &str)> = (0..30).map(|_| ("deploy", "art-big:artifact")).collect();
     make_receipt(&receipts, w.root(), "big", &big);
-    for tag in ["s1", "s2", "s3", "s4"] {
+    for i in 0..16 {
+        let tag = format!("s{i}");
         make_receipt(
             &receipts,
             w.root(),
-            tag,
-            &[
-                ("deploy", "art-small:artifact"),
-                ("test", "art-small:artifact"),
-            ],
+            &tag,
+            &[("deploy", "art-small:artifact")],
         );
     }
     let v = run_json(
@@ -388,21 +389,23 @@ fn anomaly_detect_flags_the_real_outlier_with_real_counts() {
     );
     assert_eq!(
         v["receipts"].as_u64(),
-        Some(5),
-        "corpus must be scanned in full"
+        Some(17),
+        "corpus must be scanned in full: {v}"
     );
     let mean = v["mean_events"].as_f64().expect("mean");
-    assert!((mean - 4.0).abs() < 1e-9, "mean must be 4.0, got {mean}");
+    assert!(
+        (mean - 46.0 / 17.0).abs() < 1e-9,
+        "mean must be the real 46/17, got {mean}"
+    );
     assert_eq!(
         v["anomaly_count"].as_u64(),
         Some(1),
-        "exactly the outlier receipt is flagged: {}",
-        v
+        "exactly the outlier receipt is flagged: {v}"
     );
     let a = &v["anomalies"][0];
     assert_eq!(
         a["event_count"].as_u64(),
-        Some(12),
+        Some(30),
         "flagged receipt must carry its real event count"
     );
 }
