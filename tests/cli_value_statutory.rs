@@ -386,10 +386,11 @@ fn fre_902_verifier_rejected_chain_is_typed_refusal_224() {
     let raw = fs::read_to_string(&p).expect("receipt exists");
     let mut v: serde_json::Value = serde_json::from_str(&raw).expect("JSON");
     let ch = v["chain_hash"].as_str().unwrap().to_string();
+    // flip the first hex digit (chain hashes are lowercase; '0'/'1' both in-alphabet)
     let flipped = if ch.starts_with('0') {
-        format!("1{}", ch.strip_prefix('0').unwrap())
+        format!("1{}", &ch[1..])
     } else {
-        format!("0{}", ch.strip_prefix('1').unwrap())
+        format!("{}1{}", &ch[..1], &ch[1..])
     };
     v["chain_hash"] = serde_json::json!(flipped);
     fs::write(&p, serde_json::to_string_pretty(&v).expect("serialize")).expect("rewrite");
