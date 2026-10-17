@@ -279,11 +279,6 @@ pub fn verify_attestation(
         Err(Es256Error::MalformedPublicKey) | Err(Es256Error::MalformedSignature) => {
             Err(AttestationError::BadSignature)
         }
-        // Minimal unblock fix (compile-freeze SLA, disclosed by the adversarial_pqc
-        // lane): DegenerateSeed is keygen-time only — verify_es256 can never
-        // produce it — so it is refused on the same path as the other malformed
-        // inputs.
-        Err(Es256Error::DegenerateSeed) => Err(AttestationError::BadSignature),
         Err(Es256Error::P256(detail)) => Err(AttestationError::Serialization(detail)),
     }
 }

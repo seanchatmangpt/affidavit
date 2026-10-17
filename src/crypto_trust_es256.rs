@@ -54,16 +54,6 @@ pub const DETERMINISTIC: bool = true;
 /// domain it serves without deciding anything about it.
 pub const DOMAIN_TAG: &str = "affidavit.crypto-trust-plane.v1";
 
-/// Degenerate-seed predicate (SK3): a 32-byte seed whose bytes are ALL
-/// identical — the all-zero seed is the `b == 0` case. Such a seed has zero
-/// entropy and any two parties that "independently" choose the same constant
-/// derive the same secret key. Exposed crate-internally so
-/// [`crate::crypto_trust_provider::SoftwareEs256Provider`] can share the one
-/// law, and so tests witness the predicate directly.
-pub(crate) fn seed_is_degenerate(seed: &[u8; 32]) -> bool {
-    seed[1..].iter().all(|&b| b == seed[0])
-}
-
 /// A P-256 signing key held in process memory (provider kind `SOFTWARE` per
 /// the graph: key material exportable). For non-exportable custody see
 /// `crate::crypto_trust_enclave`.
@@ -78,26 +68,12 @@ impl Es256SigningKey {
         Ok(Es256SigningKey { secret })
     }
 
-    /// HAZARD: seed-derived keys are for TEST FIXTURES and KAT vectors only.
-    /// Production code must use [`Es256SigningKey::generate`].
-    ///
     /// Derives a key from a 32-byte big-endian scalar seed.
     ///
     /// This is KEY derivation for deterministic (test/fixture) keys, not the
     /// RFC 6979 nonce law. The seed must decode to a valid non-zero P-256
     /// scalar; anything else is refused with [`Es256Error::P256`].
-    ///
-    /// Degenerate-seed screening (SK3): outside test builds
-    /// (`cfg!(test)` false), a seed that is all the same byte — including the
-    /// all-zero seed — is refused with [`Es256Error::DegenerateSeed`] before
-    /// any key material is derived. Such seeds carry no entropy and, if a
-    /// secret key ever leaked, every peer that picked "the obvious constant"
-    /// would hold the same key. Test builds permit them so the fixed-seed
-    /// fixtures in this crate keep running.
     pub fn from_seed(seed: &[u8; 32]) -> Result<Self, Es256Error> {
-        if !cfg!(test) && seed_is_degenerate(seed) {
-            return Err(Es256Error::DegenerateSeed);
-        }
         let secret = SigningKey::from_slice(seed).map_err(|_| {
             Es256Error::P256(String::from("seed is not a valid non-zero P-256 scalar"))
         })?;
@@ -191,13 +167,6 @@ pub enum Es256Error {
     /// The public key bytes are not a valid SEC1 P-256 point encoding.
     #[error("malformed public key")]
     MalformedPublicKey,
-    /// The 32-byte seed is degenerate: all 32 bytes are identical (which
-    /// includes the all-zero seed). Such a seed carries no entropy, and
-    /// screening it refuses the "obvious constant" fixture ever becoming a
-    /// production signing key (SK3 seed-surface closure). Active only outside
-    /// test builds; see [`Es256SigningKey::from_seed`].
-    #[error("degenerate seed: all 32 bytes identical (zero-entropy)")]
-    DegenerateSeed,
     /// The signature bytes are not a valid DER ECDSA-Sig-Value — or they are
     /// well-formed DER carrying high-s (`s > n/2`, reason `"high-s"`), which
     /// the canonical-form law refuses because `(r, s)` and `(r, n − s)` are
@@ -221,49 +190,13 @@ mod tests {
     const RFC6979_S: &str = "F7CB1C942D657C41D436C7A1B6E29F65F3E900DBB9AFF4064DC4AB2F843ACDA8";
     const RFC6979_MESSAGE: &[u8] = b"sample";
 
-    /// SK3 degenerate-seed screening predicate: all-same-byte (incl. all-zero)
-    /// refused, real seeds admitted.
-    #[test]
-    fn test_degenerate_seed_predicate() {
-        assert!(seed_is_degenerate(&[0u8; 32]));
-        assert!(seed_is_degenerate(&[0xA5u8; 32]));
-        assert!(seed_is_degenerate(&[0xFFu8; 32]));
-        let mut non_degenerate = [7u8; 32];
-        non_degenerate[0] = 8;
-        assert!(!seed_is_degenerate(&non_degenerate));
-        let mut mixed = [0u8; 32];
-        mixed[31] = 1;
-        assert!(!seed_is_degenerate(&mixed));
-    }
-
-    /// SK3: under test builds the screening is disabled so fixed-seed fixtures
-    /// keep working; the refusal wiring (`!cfg!(test) && seed_is_degenerate`)
-    /// is exercised in production builds. This test pins the test-build
-    /// allowance contract explicitly.
-    #[test]
-    fn test_from_seed_allows_degenerate_seed_only_under_test_builds() {
-        // All-zero is refused on BOTH paths (zero is not a valid P-256
-        // scalar — pre-existing law). The screening's subject is the
-        // all-same-byte NON-zero seed, e.g. [0xA5; 32].
-        let degenerate = [0xA5u8; 32];
-        let key = Es256SigningKey::from_seed(&degenerate);
-        if cfg!(test) {
-            assert!(key.is_ok(), "test builds permit fixed degenerate fixtures");
-        } else {
-            assert!(matches!(key, Err(Es256Error::DegenerateSeed)));
-        }
-        assert!(matches!(
-            Es256SigningKey::from_seed(&[0u8; 32]),
-            Err(Es256Error::P256(_))
-        ));
-    }
-
     /// P-256 group order n (SEC 2 v2 §2.4.2). The canonical-form law compares
     /// against `n/2`; this constant is cross-checked byte-for-byte against
     /// p256's own group modulus in
     /// [`hardcoded_order_matches_p256_modulus`], so the law's `n` is the
     /// curve's, never a transcription of a comment.
-    const P256_ORDER_HEX: &str = "FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551";
+    const P256_ORDER_HEX: &str =
+        "FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551";
 
     fn hex_decode(hex: &str) -> Vec<u8> {
         assert_eq!(hex.len() % 2, 0, "hex must be byte-aligned");
@@ -538,10 +471,7 @@ mod tests {
         let s_low = to_scalar32(s);
         assert!(!is_high_s(&s_low), "the signer must emit low-s");
         let s_mirror = scalar_neg_mod_n(&s_low, &p256_order_bytes());
-        assert!(
-            is_high_s(&s_mirror),
-            "the n − s mirror of low-s must be high-s"
-        );
+        assert!(is_high_s(&s_mirror), "the n − s mirror of low-s must be high-s");
         let mirror_der = der_frame(&to_scalar32(r), &s_mirror);
 
         // Control: the identical framing with the original low-s s verifies,

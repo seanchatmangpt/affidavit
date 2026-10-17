@@ -37,7 +37,7 @@ use crate::crypto_trust_es256::{verify_es256, Es256SigningKey};
 use crate::crypto_trust_keys::{AlgorithmId, CryptoProfile, KeyId};
 use crate::crypto_trust_pqc::{ml_dsa65_from_seed, ml_dsa65_sign, ml_dsa65_verify};
 use crate::crypto_trust_store::{FileKeyStore, StoreError, STORE_FILE};
-use crate::doctor_check::{DoctorCheck, DoctorContext, Finding, DOCTOR_CHECKS};
+use crate::doctor_check::{DoctorCheck, Finding, DOCTOR_CHECKS};
 use linkme::distributed_slice;
 use std::path::Path;
 
@@ -125,7 +125,7 @@ impl DoctorCheck for StoreIntegrityCheck {
     fn id(&self) -> &'static str {
         STORE_INTEGRITY_CHECK_ID
     }
-    fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
+    fn run(&self, _ctx: &crate::doctor_check::DoctorContext) -> Vec<crate::doctor_check::Finding> {
         vec![store_integrity_finding(Path::new(STORE_FILE))]
     }
 }
@@ -178,7 +178,7 @@ impl DoctorCheck for Es256SelftestCheck {
     fn id(&self) -> &'static str {
         ES256_SELFTEST_CHECK_ID
     }
-    fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
+    fn run(&self, _ctx: &crate::doctor_check::DoctorContext) -> Vec<crate::doctor_check::Finding> {
         vec![es256_selftest_finding()]
     }
 }
@@ -262,7 +262,7 @@ impl DoctorCheck for EnvelopeLawCheck {
     fn id(&self) -> &'static str {
         ENVELOPE_LAW_CHECK_ID
     }
-    fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
+    fn run(&self, _ctx: &crate::doctor_check::DoctorContext) -> Vec<crate::doctor_check::Finding> {
         vec![envelope_law_finding()]
     }
 }
@@ -335,7 +335,7 @@ impl DoctorCheck for PqcSelftestCheck {
     fn id(&self) -> &'static str {
         PQC_SELFTEST_CHECK_ID
     }
-    fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
+    fn run(&self, _ctx: &crate::doctor_check::DoctorContext) -> Vec<crate::doctor_check::Finding> {
         vec![pqc_selftest_finding()]
     }
 }

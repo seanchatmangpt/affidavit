@@ -65,9 +65,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// at). A nanos-clock tie duplicating a name is a typed refusal at the
 /// `create_new(true)` open, never a clobber.
 fn tmp_sibling(path: &Path) -> PathBuf {
-    let name = path
-        .file_name()
-        .map_or_else(|| "crl".to_string(), |n| n.to_string_lossy().to_string());
+    let name = path.file_name().map_or_else(
+        || "crl".to_string(),
+        |n| n.to_string_lossy().to_string(),
+    );
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
@@ -730,11 +731,7 @@ mod tests {
             .to_string_lossy()
             .to_string();
         assert!(name.starts_with(".crl.json.tmp-"), "{name}");
-        assert_ne!(
-            tmp_sibling(&path),
-            tmp,
-            "staging name carries per-attempt entropy"
-        );
+        assert_ne!(tmp_sibling(&path), tmp, "staging name carries per-attempt entropy");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

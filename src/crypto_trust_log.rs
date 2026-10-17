@@ -573,11 +573,13 @@ mod tests {
             nonce,
             not_before: NOW - 1_000,
             expires_at: NOW + 1_000,
+            // bind the literal subject the certify_signed calls use
+            // (domain_digest(DOMAIN_TAG, b"subject-a")) so the court passes.
             subject_digest: crate::crypto_trust_canonical::digest(
                 crate::crypto_trust_canonical::DOMAIN_TAG,
                 &[b"subject-a"],
             ),
-            audience: "affidavit.seal".to_string(),
+            audience: "affidavit.seal".to_string(), // policy allowlist (see certify_signed)
         }
     }
 
