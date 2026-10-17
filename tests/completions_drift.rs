@@ -467,9 +467,9 @@ fn parsers_are_not_vacuous() {
 #[test]
 fn bash_verb_variables_are_valid_bash_identifiers() {
     let text = read_completion("affi.bash");
-    let valid =
-        regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*$").expect("static regex compiles");
-    let re = regex::Regex::new(r"^    local ([A-Za-z0-9_-]+)_verbs=").expect("static regex compiles");
+    let valid = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*$").expect("static regex compiles");
+    let re =
+        regex::Regex::new(r"^    local ([A-Za-z0-9_-]+)_verbs=").expect("static regex compiles");
     let mut checked = 0usize;
     for line in text.lines() {
         if let Some(caps) = re.captures(line) {
