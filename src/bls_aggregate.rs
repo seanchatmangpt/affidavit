@@ -156,6 +156,23 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_key_is_the_sum_of_registered_points() {
+        // Linearity witness for the rogue-key court (tests/bls_rogue_key.rs,
+        // register row 82): the aggregate key is exactly the group sum of the
+        // registered points, so a registration-time compensating key
+        // pk_r = pk_u + pk_v - pk_honest steers the aggregate to (u+v)*G.
+        let u = CommitteeKey::generate(&mut OsRng);
+        let v = CommitteeKey::generate(&mut OsRng);
+        let (sig, key) = aggregate_committee(
+            &[u.sign(CONTEXT, b"m"), v.sign(CONTEXT, b"m")],
+            &[u.public(), v.public()],
+        )
+        .expect("aggregate");
+        assert_eq!(key.0, u.public().0 + v.public().0);
+        assert_eq!(sig.0, u.sign(CONTEXT, b"m").0 + v.sign(CONTEXT, b"m").0);
+    }
+
+    #[test]
     fn mismatched_committee_is_typed_refusal() {
         let (signatures, public_keys) = committee(3, b"m");
         assert!(matches!(
