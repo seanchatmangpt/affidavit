@@ -97,7 +97,6 @@ pub mod standing_verify;
 pub mod stats;
 pub mod team_velocity;
 pub mod tech_debt;
-pub mod test;
 pub mod timeline;
 pub mod trend_analysis;
 pub mod variance;

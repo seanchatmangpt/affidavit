@@ -192,12 +192,12 @@ fn docs_verb_parity_every_registry_entry_has_exact_page() {
 }
 
 #[test]
-fn docs_verb_parity_registry_is_101_verbs() {
+fn docs_verb_parity_registry_is_100_verbs() {
     // The documented count class (83/79/101 drift). If this line fails after
     // a legitimate registry change, update this constant AND regenerate:
     assert_eq!(
         affidavit::registry::verb_count(),
-        101,
+        100,
         "verb_count moved — update the pinned count here and run `{}`",
         REGEN_CMD
     );

@@ -1,28 +1,23 @@
 // Copyright (c) 2024 Sean Chatman
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
-// `receipt validate` verb (Phase D M2, feature `ctdd`): fully verify one
-// 352-byte CTRT court record (file path, or `-`/omitted for stdin), mapping
-// every domain refusal to its [`chicago_tdd_tools::ledger::LedgerExitCode`]
-// class.
+// Thin verb wrapper rendered from O* by ggen. The pack is authoritative for the
+// CLI *interface* only; the body delegates to a stable consumer-implemented
+// handler. There is NO logic slot here — business logic lives behind the seam in
+// `crate::handlers::*`, which is hand-written (a missing impl is a compile error).
+//
+// Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
+// return_type, handler_name, args.
 
-//! `receipt validate` verb.
+//! `receipt validate` verb (rendered).
 
-#[cfg(feature = "ctdd")]
 use clap_noun_verb::Result;
-
-/// Validate one 352-byte court receipt record (file path, or `-` for stdin)
-#[cfg(feature = "ctdd")]
+use clap_noun_verb_macros::verb;
+/// Validate one 352-byte CTRT court receipt record (file or stdin)
 #[rustfmt::skip]
 #[verb("validate", "receipt")]
 pub fn receipt_validate(
-    #[arg(index = 1)]
-    path: Option<String>,
 ) -> Result<()> {
-    crate::ctdd_cli::validate_outcome(path.as_deref())
-        .map(|outcome| crate::ctdd_cli::render_and_exit("receipt validate", &outcome))
-        .map_err(|e| {
-            eprintln!("refusal: io {e}");
-            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
-        })
+    crate::handlers::receipt_validate(
+    )
 }

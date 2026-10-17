@@ -104,7 +104,6 @@ affi:ReceiptNoun a cnv:Noun ;
         affi:OrphanedCodeVerb ,
 
         # Testing & diagnosis
-        affi:TestVerb ,
         affi:ExplainIncidentVerb ,
         affi:RootCauseVerb ,
 
@@ -132,13 +131,6 @@ affi:ReceiptNoun a cnv:Noun ;
     rdfs:comment "Receipt noun (maximalist): emit, assemble, verify, query, analyze, audit, and govern 300+ repos"@en .
 
 # --- Shared Arguments ---
-# --- Verb: test -------------------------------------------------------------
-affi:TestVerb a cnv:Verb ;
-    cnv:hasVerbName "test" ;
-    cnv:verbAbout "A dummy test verb for ontology validation" ;
-    cnv:belongsToNoun affi:ReceiptNoun ;
-    cnv:returnType "()" .
-
 affi:FormatArg a cnv:Argument ;
     cnv:hasArgumentName "format" ;
     cnv:argumentAbout "Output format: text (default) or json" ;
