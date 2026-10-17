@@ -624,3 +624,7 @@ required-features = ["crypto-trust"]
 [[test]]
 name = "ed25519_strict_vectors"
 required-features = ["crypto-trust"]
+
+[[test]]
+name = "kem_dual_impl_kat"
+required-features = ["pqc"]
