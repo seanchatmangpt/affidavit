@@ -10,7 +10,7 @@ mod common;
 use affidavit_wasm::abi::call;
 use serde_json::{json, Value};
 
-use ml_dsa::{Keypair, KeyInit, MlDsa65, Signer, SigningKey};
+use ml_dsa::{KeyInit, Keypair, MlDsa65, Signer, SigningKey};
 
 /// Deterministic 32-byte seed for the in-test key (FIPS 204 ML-DSA-65).
 const SEED: [u8; 32] = [7u8; 32];
@@ -235,8 +235,7 @@ fn pqc_ops_are_advertised_and_differentially_identical_in_wasm() {
 
     // The exact registry example requests are byte-identical natively and in
     // the real compiled wasm module (wasmi), and succeed in both.
-    let doc: Value =
-        serde_json::from_str(include_str!("../registry/op-examples.json")).unwrap();
+    let doc: Value = serde_json::from_str(include_str!("../registry/op-examples.json")).unwrap();
     let mut host = common::Host::new();
     for ex in doc["examples"].as_array().unwrap() {
         let op = ex["op"].as_str().unwrap();
@@ -259,7 +258,10 @@ fn pqc_ops_are_advertised_and_differentially_identical_in_wasm() {
 // ---------------------------------------------------------------------------
 
 use slh_dsa::signature::{SignatureEncoding, Signer as SlhSigner, Verifier as SlhVerifier};
-use slh_dsa::{Sha2_128s, Signature as SlhSignature, SigningKey as SlhSigningKey, VerifyingKey as SlhVerifyingKey};
+use slh_dsa::{
+    Sha2_128s, Signature as SlhSignature, SigningKey as SlhSigningKey,
+    VerifyingKey as SlhVerifyingKey,
+};
 
 /// Deterministic 16-byte seeds for the in-test SLH-DSA-SHA2-128s key
 /// (FIPS 205 `slh_keygen_internal`; n = 16 for the 128s parameter set).

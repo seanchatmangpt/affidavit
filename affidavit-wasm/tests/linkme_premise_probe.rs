@@ -66,7 +66,10 @@ fn cargo_build(dir: &PathBuf, target: &str) -> (bool, String) {
 }
 
 fn wasm_artifact(dir: &PathBuf, target: &str, name: &str) -> PathBuf {
-    dir.join("target").join(target).join("release").join(format!("{name}.wasm"))
+    dir.join("target")
+        .join(target)
+        .join("release")
+        .join(format!("{name}.wasm"))
 }
 
 /// Positive control: wasm-ld accepts custom `#[used] #[link_section]` statics

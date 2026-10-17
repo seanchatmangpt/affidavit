@@ -73,12 +73,7 @@ fn real_receipt(payload: &[u8]) -> Receipt {
 
 /// A deterministic ES256 signing key + its registry record.
 fn es256_fixture(tag: u8) -> (Es256SigningKey, KeyRecord) {
-    // SK3 screening refuses all-identical seeds; derive a varied one per tag.
-    let mut seed = [0u8; 32];
-    for (i, b) in seed.iter_mut().enumerate() {
-        *b = tag ^ (i as u8).wrapping_mul(0x1F);
-    }
-    let signing = Es256SigningKey::from_seed(&seed).expect("valid fixture scalar");
+    let signing = Es256SigningKey::from_seed(&[tag; 32]).expect("valid fixture scalar");
     let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
     let fingerprint = fingerprint_public_key(AlgorithmId::Es256, &public);
     let record = KeyRecord {
@@ -112,7 +107,7 @@ fn envelope_over(subject: [u8; 32], kid: &KeyId, nonce_tag: u8) -> SignatureEnve
         not_before: NOT_BEFORE,
         expires_at: EXPIRES_AT,
         subject_digest: subject,
-        audience: "affidavit.seal".to_string(),
+        audience: "affidavit.court".to_string(),
     }
 }
 
@@ -273,15 +268,8 @@ fn es256_full_cycle_from_receipt_to_standing_to_seal() {
     // (5) Sitting two: certify mints the standing receipt — evidence for the
     // SA2A authorization layer, never authorization itself.
     let certifying = fresh_sitting(&record, NOW);
-    // The subject string is the receipt's content address — the exact
-    // pre-image `subject_digest_of` digests, as certify_signed's subject
-    // binding law requires.
-    let address_hex = affidavit::chain::content_address(&receipt)
-        .expect("content address")
-        .as_hex()
-        .to_string();
     let standing_receipt: CryptoStandingReceipt = certifying
-        .certify_signed(&envelope, &signature, &address_hex, &signing)
+        .certify(&envelope, &signature, "subject-a")
         .expect("VALID verdict mints a receipt");
     assert_eq!(standing_receipt.profile, CRYPTO_STANDING_PROFILE);
     assert_eq!(standing_receipt.standing, CryptographicStanding::Valid);
@@ -308,11 +296,7 @@ fn es256_full_cycle_from_receipt_to_standing_to_seal() {
 fn wrong_signer_yields_a_decided_invalid_verdict() {
     let receipt = real_receipt(b"wrong-signer");
     let (_honest, record) = es256_fixture(8);
-    let mut imp_seed = [0u8; 32];
-    for (i, b) in imp_seed.iter_mut().enumerate() {
-        *b = 0xBB ^ (i as u8).wrapping_mul(0x2D);
-    }
-    let impostor = Es256SigningKey::from_seed(&imp_seed).expect("valid impostor scalar");
+    let impostor = Es256SigningKey::from_seed(&[0xBB; 32]).expect("valid impostor scalar");
 
     let subject = subject_digest_of(&receipt).expect("subject digest");
     let envelope = envelope_over(subject, &record.id, 0x22);

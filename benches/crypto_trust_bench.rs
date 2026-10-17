@@ -158,7 +158,7 @@ fn bench_ml_dsa65_verify(c: &mut Criterion) {
     graph_facts_hold();
     let seed = [0xA5u8; 32];
     let rnd = [0x5Au8; 32];
-    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
+    let kp = ml_dsa65_from_seed(&seed);
     let sig = ml_dsa65_sign(&seed, BENCH_MESSAGE, &rnd).expect("sign");
     c.bench_function("ctp_ml_dsa65_verify", |b| {
         b.iter(|| {
@@ -174,7 +174,7 @@ fn bench_ml_dsa65_verify(c: &mut Criterion) {
 
 fn bench_slh_dsa128s_sign(c: &mut Criterion) {
     graph_facts_hold();
-    let seeds = ndseed(0x11, SLH_DSA_128S_SEED_LEN);
+    let seeds = [0x11u8; SLH_DSA_128S_SEED_LEN];
     c.bench_function("ctp_slh_dsa128s_sign", |b| {
         b.iter(|| slh_dsa128s_sign(black_box(&seeds), black_box(BENCH_MESSAGE)).expect("sign"))
     });
@@ -182,8 +182,8 @@ fn bench_slh_dsa128s_sign(c: &mut Criterion) {
 
 fn bench_slh_dsa128s_verify(c: &mut Criterion) {
     graph_facts_hold();
-    let seeds = ndseed(0x11, SLH_DSA_128S_SEED_LEN);
-    let kp = slh_dsa128s_from_seed(&seeds).expect("pqc fixture key pair");
+    let seeds = [0x11u8; SLH_DSA_128S_SEED_LEN];
+    let kp = slh_dsa128s_from_seed(&seeds);
     let sig = slh_dsa128s_sign(&seeds, BENCH_MESSAGE).expect("sign");
     c.bench_function("ctp_slh_dsa128s_verify", |b| {
         b.iter(|| {
@@ -209,9 +209,7 @@ fn bench_hybrid_verify(c: &mut Criterion) {
     graph_facts_hold();
     let secret = hybrid_secret();
     let es_pk = secret.es256.public_key_sec1();
-    let ml_pk = ml_dsa65_from_seed(&secret.mldsa65_seed)
-        .expect("pqc fixture key pair")
-        .public;
+    let ml_pk = ml_dsa65_from_seed(&secret.mldsa65_seed).public;
     let sig = hybrid_sign(&secret, BENCH_MESSAGE).expect("sign");
     c.bench_function("ctp_hybrid_verify", |b| {
         b.iter(|| {
@@ -246,7 +244,7 @@ fn bench_envelope_signing_input(c: &mut Criterion) {
 fn hybrid_secret() -> HybridSecret {
     HybridSecret {
         es256: Es256SigningKey::from_seed(&[0x42u8; 32]).expect("valid p256 scalar"),
-        mldsa65_seed: ndseed(0xA5, 32),
+        mldsa65_seed: [0xA5u8; 32],
     }
 }
 
@@ -264,13 +262,3 @@ criterion_group!(
     bench_envelope_signing_input,
 );
 criterion_main!(benches);
-
-#[allow(dead_code)]
-fn ndseed<const N: usize>(b: u8, _n: usize) -> [u8; N] {
-    let mut s = [b; N];
-    s[0] ^= 0x80;
-    if b == 0 {
-        s[1] = 1;
-    }
-    s
-}

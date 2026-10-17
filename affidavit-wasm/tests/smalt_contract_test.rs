@@ -38,7 +38,9 @@ impl RawGate {
         if let Ok(init) = instance.get_typed_func::<(), ()>(&store, "_initialize") {
             init.call(&mut store, ()).expect("_initialize");
         }
-        let memory = instance.get_memory(&store, "memory").expect("exports memory");
+        let memory = instance
+            .get_memory(&store, "memory")
+            .expect("exports memory");
         let gate = instance
             .get_typed_func::<(i32, i32, i64, i32, i32), u32>(&store, "affi_admit_and_seal")
             .expect("exports affi_admit_and_seal");
@@ -50,7 +52,12 @@ impl RawGate {
     }
 
     /// Write `delta` into module memory, run the gate, return (code, ctrt 352B).
-    fn admit_and_seal(&mut self, delta: &[u8], tariff_cents: u64, modality: u8) -> (u32, [u8; 352]) {
+    fn admit_and_seal(
+        &mut self,
+        delta: &[u8],
+        tariff_cents: u64,
+        modality: u8,
+    ) -> (u32, [u8; 352]) {
         let delta_ptr = self.alloc_scratch(delta.len());
         self.memory
             .write(&mut self.store, delta_ptr, delta)
@@ -80,9 +87,7 @@ impl RawGate {
     /// pages are zeroed, so they are disjoint from anything the module's heap
     /// has handed out) and return the byte offset of the last `len` bytes.
     fn alloc_scratch(&mut self, len: usize) -> usize {
-        self.memory
-            .grow(&mut self.store, 1)
-            .expect("grows memory");
+        self.memory.grow(&mut self.store, 1).expect("grows memory");
         self.memory.data(&self.store).len() - len
     }
 }
@@ -117,7 +122,11 @@ fn json_happy_path_assemble_then_verify() {
 
     let vresp = host.call(json!({"op": "verify", "receipt": receipt}));
     assert_eq!(vresp["ok"], Value::Bool(true), "verify: {vresp}");
-    assert_eq!(vresp["accepted"], Value::Bool(true), "verify accepted: {vresp}");
+    assert_eq!(
+        vresp["accepted"],
+        Value::Bool(true),
+        "verify accepted: {vresp}"
+    );
     assert_eq!(vresp["profile"], json!("CoreV1"), "verify profile: {vresp}");
 }
 
@@ -131,18 +140,27 @@ fn forge_rejections_are_typed_not_traps() {
     let resp = host.call(json!({"op": "verify", "receipt": {"forged": true}}));
     assert_eq!(resp["ok"], Value::Bool(true), "verify responds: {resp}");
     assert_eq!(
-        resp["accepted"], Value::Bool(false),
+        resp["accepted"],
+        Value::Bool(false),
         "forged receipt rejected: {resp}"
     );
 
     let bad = host.call_raw(b"{not json");
     let parsed: Value = serde_json::from_slice(&bad).expect("typed error JSON");
     assert_eq!(parsed["ok"], Value::Bool(false), "bad_json: {parsed}");
-    assert_eq!(parsed["error"]["code"], json!("bad_json"), "error code: {parsed}");
+    assert_eq!(
+        parsed["error"]["code"],
+        json!("bad_json"),
+        "error code: {parsed}"
+    );
 
     let unk = host.call(json!({"op": "no_such_op"}));
     assert_eq!(unk["ok"], Value::Bool(false), "unknown op: {unk}");
-    assert_eq!(unk["error"]["code"], json!("unknown_op"), "error code: {unk}");
+    assert_eq!(
+        unk["error"]["code"],
+        json!("unknown_op"),
+        "error code: {unk}"
+    );
 }
 
 /// C-ABI happy path: affi_admit_and_seal returns 0x0000 and seals the exact
@@ -173,10 +191,9 @@ fn ctrt_happy_path_seals_expected_layout() {
 fn ctrt_rejects_null_pointers_fail_closed() {
     let mut gate = RawGate::new();
 
-    let null_out = gate.gate.call(
-        &mut gate.store,
-        (0i32, 4i32, 0i64, 0i32, 0i32),
-    );
+    let null_out = gate
+        .gate
+        .call(&mut gate.store, (0i32, 4i32, 0i64, 0i32, 0i32));
     assert!(null_out.is_ok(), "null pointers must not trap");
     assert_eq!(null_out.unwrap(), 0xE001, "ERR_NULL_POINTER");
 
