@@ -2959,7 +2959,69 @@ pub fn pci_dss(receipts_path: String, out: Option<String>, format: Option<String
     Ok(())
 }
 
+/// `affi legal-hold status` — FRCP 37(e) evidentiary-hold audit over real chains.
+///
+/// Vacuity fix (CLI_VACUITY_AUDIT_26_10_17 defect 5): the previous body
+/// fabricated `EVIDENTIARY_HOLD_ACTIVE` / `events_preserved: 1` over zero
+/// chains. Now: zero chains in the receipts path is the typed refusal
+/// `REFUSED_NO_CHAINS` (CLI execution error, exit 224); real chains derive
+/// `events_preserved` from the actual event count.
+pub fn legal_hold_status(matter: Option<String>) -> Result<()> {
+    // The ontology fixes this verb's surface to `--matter` only; the receipts
+    // path arrives through the environment so the ggen-rendered wrapper stays
+    // byte-identical to its projection.
+    let path = std::env::var("AFFI_RECEIPTS_PATH").unwrap_or_else(|_| "receipts".to_string());
+    let matter_id = matter.as_deref().unwrap_or("matter-default");
+
+    let loaded = load_receipts_from_path(&path)?;
+    if loaded.receipts.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_CHAINS: no OCEL/CTRT receipt chains found under \"{path}\" \
+             — an FRCP 37(e) evidentiary hold cannot be certified over zero chains; \
+             emit and assemble at least one chain first"
+        )));
+    }
+
+    // events_preserved is derived from the chains actually loaded, never a
+    // constant. Deserialization re-verifies each chain hash, so a receipt that
+    // failed to load is treated as spoliation evidence, not silently dropped.
+    let events_preserved: usize = loaded.receipts.iter().map(|r| r.events.len()).sum();
+    let spoliation_detected = !loaded.failures.is_empty();
+
+    let out = serde_json::json!({
+        "ok": !spoliation_detected,
+        "matter": matter_id,
+        "receipts_path": path,
+        "chains": loaded.receipts.len(),
+        "status": "EVIDENTIARY_HOLD_ACTIVE",
+        "spoliation_detected": spoliation_detected,
+        "load_failures": loaded.failures.len(),
+        "events_preserved": events_preserved,
+    });
+
+    if spoliation_detected {
+        // A hold audit with unloadable (tampered/unparseable) chains is a
+        // REJECT-class verdict, not a success.
+        outln!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
+        std::process::exit(crate::diag::exit_codes::REJECT);
+    }
+
+    outln!(
+        "{}",
+        adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+    );
+    Ok(())
+}
 /// `affi receipt license-compliance` — check license compliance across receipts.
+///
+/// Vacuity fix (CLI_VACUITY_AUDIT_26_10_17 defect 2): the extracted licenses
+/// are now actually compared against the policy's `allowed_licenses`. A
+/// disallowed license flips the verdict to non-compliant and names the
+/// offending license; a policy with zero allowed licenses fails on any
+/// license event.
 pub fn license_compliance(
     receipts_path: String,
     license_policy: String,
@@ -2975,22 +3037,51 @@ pub fn license_compliance(
         .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
         .unwrap_or_default();
 
-    // Extract license events from receipts
-    let license_events: Vec<serde_json::Value> = receipts
-        .iter()
-        .flat_map(|r| {
-            r.events
-                .iter()
-                .filter(|e| e.event_type.contains("license"))
-                .map(|e| {
-                    serde_json::json!({
+    /// The license identity an event attests: taken from a `license:`-prefixed
+    /// object id (or an object of type `license`); otherwise the event is
+    /// unattributed and cannot match any allow-list entry.
+    fn license_identities(e: &crate::types::OperationEvent) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for o in &e.objects {
+            if let Some(rest) = o.id.strip_prefix("license:") {
+                out.push(rest.to_string());
+            } else if o.obj_type.eq_ignore_ascii_case("license") {
+                out.push(o.id.clone());
+            }
+        }
+        if out.is_empty() {
+            out.push("unattributed".to_string());
+        }
+        out
+    }
+
+    // Extract license events from receipts and run the policy comparison.
+    let mut violations: Vec<serde_json::Value> = Vec::new();
+    let mut license_events: Vec<serde_json::Value> = Vec::new();
+    for r in &receipts {
+        for e in r.events.iter().filter(|e| e.event_type.contains("license")) {
+            for lic in license_identities(e) {
+                let disallowed = !allowed.iter().any(|a| a == &lic);
+                if disallowed {
+                    violations.push(serde_json::json!({
                         "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
-                        "event_type": e.event_type,
                         "event_id": e.id,
-                    })
-                })
-        })
-        .collect();
+                        "license": lic,
+                        "violation": "license-not-in-allowed-list",
+                    }));
+                }
+                license_events.push(serde_json::json!({
+                    "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
+                    "event_type": e.event_type,
+                    "event_id": e.id,
+                    "license": lic,
+                    "allowed": !disallowed,
+                }));
+            }
+        }
+    }
+
+    let compliant = violations.is_empty();
 
     let out = serde_json::json!({
         "policy_file": license_policy,
@@ -2998,7 +3089,21 @@ pub fn license_compliance(
         "receipts_analyzed": receipts.len(),
         "license_events_found": license_events.len(),
         "events": license_events,
-        "status": "policy loaded — license events extracted from chain",
+        "violations": violations,
+        "compliant": compliant,
+        "status": if compliant {
+            "COMPLIANT: all extracted licenses are in the allowed list".to_string()
+        } else {
+            format!(
+                "NON-COMPLIANT: {} disallowed license(s): {}",
+                violations.len(),
+                violations
+                    .iter()
+                    .filter_map(|v| v["license"].as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        },
     });
 
     if format.as_deref() == Some("json") {
@@ -3006,14 +3111,31 @@ pub fn license_compliance(
             "{}",
             adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
         );
-        return Ok(());
+    } else {
+        outln!(
+            "license-compliance [{}]: {} — {} license event(s) in {} receipt(s), {} violation(s)",
+            license_policy,
+            if compliant {
+                "COMPLIANT"
+            } else {
+                "VIOLATIONS FOUND"
+            },
+            license_events.len(),
+            receipts.len(),
+            violations.len()
+        );
+        for v in &violations {
+            outln!(
+                "  violation: license \"{}\" (event {}) is not in the allowed list",
+                v["license"].as_str().unwrap_or("?"),
+                v["event_id"].as_str().unwrap_or("?")
+            );
+        }
     }
-    outln!(
-        "license-compliance: {} license events in {} receipts (policy: {})",
-        license_events.len(),
-        receipts.len(),
-        license_policy
-    );
+    if !compliant {
+        // B6: policy violations must exit with exit_codes::REJECT (2).
+        std::process::exit(crate::diag::exit_codes::REJECT);
+    }
     Ok(())
 }
 

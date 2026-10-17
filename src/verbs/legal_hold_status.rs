@@ -13,10 +13,5 @@ pub fn legal_hold_status(
     #[arg(help = "Associated matter identifier (FRCP 37(e) scope)")]
     matter: Option<String>,
 ) -> Result<()> {
-    let matter_id = matter.as_deref().unwrap_or("matter-default");
-    #[allow(clippy::print_stdout)]
-    {
-        println!("{{\"ok\":true,\"matter\":\"{}\",\"status\":\"EVIDENTIARY_HOLD_ACTIVE\",\"spoliation_detected\":false,\"events_preserved\":1}}", matter_id);
-    }
-    Ok(())
+    crate::handlers::legal_hold_status(matter)
 }
