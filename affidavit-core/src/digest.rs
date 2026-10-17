@@ -251,6 +251,17 @@ pub trait ChainKdf {
     /// allocation-free beyond what the underlying hasher itself uses.
     fn derive(&self, input: &[u8], context: &str) -> Digest;
 
+    /// Extend the derivation into an arbitrary-length XOF stream.
+    ///
+    /// Fills `out` entirely and also returns the fixed 32-byte [`Digest`]
+    /// for the same (input, context). The XOF stream is prefix-consistent:
+    /// the first 32 bytes of any fill must equal [`ChainKdf::derive`] for
+    /// the same arguments.
+    ///
+    /// Implementations that cannot offer a real extendable stream pin their
+    /// typed standing here rather than silently emitting a wrong one.
+    fn derive_xof(&self, input: &[u8], context: &str, out: &mut [u8]) -> Digest;
+
     /// Inherited default: fold `context || input` through this hasher's own
     /// [`ChainHasher`] interface. Deterministic and diffusing, but carries
     /// whatever (non-)cryptographic standing the hasher itself has.
@@ -266,6 +277,18 @@ pub trait ChainKdf {
 }
 
 impl ChainKdf for Blake3Hasher {
+    /// Delegates entirely to the external `blake3` crate: keyed
+    /// (`new_derive_key`) mode, then `finalize_xof().fill(out)`. No BLAKE3
+    /// rounds are implemented here, so `out` receives the real BLAKE3
+    /// extendable-output stream, prefix-consistent with
+    /// [`ChainKdf::derive`] by construction of the underlying dependency.
+    #[inline]
+    fn derive_xof(&self, input: &[u8], context: &str, out: &mut [u8]) -> Digest {
+        let mut hasher = blake3::Hasher::new_derive_key(context);
+        hasher.update(input);
+        hasher.finalize_xof().fill(out);
+        Digest(*hasher.finalize().as_bytes())
+    }
     /// Delegates entirely to the external `blake3` crate's keyed
     /// (`new_derive_key`) mode — no BLAKE3 rounds are implemented here.
     /// Allocation on this path is whatever `blake3` itself performs; nothing
@@ -279,6 +302,17 @@ impl ChainKdf for Blake3Hasher {
 }
 
 impl ChainKdf for Fnv256 {
+    /// **UNSUPPORTED(xof)**: FNV-1a is a plain iterated hash with no
+    /// extendable-output mode. Pinned behavior: `out` is left **untouched**
+    /// (zero bytes written — never a fake stream) and the plain
+    /// [`ChainKdf::derive`] digest is returned, so an unsupported standing
+    /// is detectable (`derive_xof(...) == derive(...)`) instead of silently
+    /// wrong. Non-cryptographic regardless: tests/demos only.
+    #[inline]
+    fn derive_xof(&self, input: &[u8], context: &str, _out: &mut [u8]) -> Digest {
+        self.derive(input, context)
+    }
+
     /// [`Fnv256`] uses the inherited `context || input` fold; like everything
     /// FNV-based here it is **non-cryptographic** (no collision resistance,
     /// no keyed security) and is for tests/demos only.
@@ -367,5 +401,82 @@ mod kdf_tests {
             Blake3Hasher::finish(s)
         };
         assert_ne!(Blake3Hasher.derive(b"payload", ""), plain);
+    }
+
+    /// Court 1 — prefix property: the first 32 bytes of a 64-byte XOF fill
+    /// are byte-identical to the 32-byte `derive` digest. A re-hash
+    /// "XOF" (hashing the stream again) drifts from this.
+    #[test]
+    fn xof_prefix_property_matches_derive_digest() {
+        let input = b"xof prefix court";
+        let ctx = "affidavit xof v1";
+        let expected = Blake3Hasher.derive(input, ctx);
+
+        let mut out = [0u8; 64];
+        let head = Blake3Hasher.derive_xof(input, ctx, &mut out);
+        assert_eq!(head, expected, "returned digest must equal derive");
+        assert_eq!(&out[..32], &expected.0[..], "XOF[0..32] must equal derive");
+        assert_ne!(
+            &out[32..],
+            &expected.0[..],
+            "XOF[32..64] must be new stream bytes, not a repeat of the digest"
+        );
+    }
+
+    /// Court 2 — same position, same bytes: filling two different window
+    /// sizes yields identical bytes in the shared prefix, and the returned
+    /// digest is window-independent.
+    #[test]
+    fn xof_same_position_same_fill_bytes() {
+        let input = b"position court";
+        let ctx = "affidavit xof v1";
+
+        let mut short = [0u8; 16];
+        let mut long = [0u8; 96];
+        let h1 = Blake3Hasher.derive_xof(input, ctx, &mut short);
+        let h2 = Blake3Hasher.derive_xof(input, ctx, &mut long);
+        assert_eq!(h1, h2);
+        assert_eq!(short[..], long[..16], "stream prefix must be stable");
+    }
+
+    /// Court 3 — determinism: two calls with identical arguments fill
+    /// byte-identical streams.
+    #[test]
+    fn xof_deterministic_two_calls() {
+        let mut a = [0u8; 64];
+        let mut b = [0u8; 64];
+        Blake3Hasher.derive_xof(b"det", "affidavit xof v1", &mut a);
+        Blake3Hasher.derive_xof(b"det", "affidavit xof v1", &mut b);
+        assert_eq!(a, b);
+    }
+
+    /// Court 4 — vacuity sweep: the empty context must change the XOF
+    /// stream; if it did not, the context would not be reaching the keyed
+    /// mode and every domain-separation claim above would be vacuous.
+    #[test]
+    fn xof_vacuity_empty_context_changes_stream() {
+        let mut with = [0u8; 64];
+        let mut without = [0u8; 64];
+        Blake3Hasher.derive_xof(b"payload", "affidavit xof v1", &mut with);
+        Blake3Hasher.derive_xof(b"payload", "", &mut without);
+        assert_ne!(with, without);
+    }
+
+    /// Typed UNSUPPORTED(xof) standing, pinned: Fnv256 writes nothing to
+    /// `out` and returns the plain `derive` digest, so the unsupported
+    /// standing is detectable rather than silently wrong.
+    #[test]
+    fn xof_fnv_unsupported_pins_untouched_out_and_plain_digest() {
+        let input = b"fnv";
+        let ctx = "affidavit xof v1";
+        let plain = Fnv256.derive(input, ctx);
+
+        let mut out = [7u8; 32];
+        let got = Fnv256.derive_xof(input, ctx, &mut out);
+        assert_eq!(got, plain, "must return the plain derive digest");
+        assert!(
+            out.iter().all(|&b| b == 7),
+            "out must be left untouched by the UNSUPPORTED(xof) impl"
+        );
     }
 }
