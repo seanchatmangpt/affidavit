@@ -731,3 +731,13 @@ fn tech_debt_classifies_real_events() {
         "{stdout}{stderr}"
     );
 }
+
+// Wrap-up lane additions: value-matrix markers for verbs tested here but
+// unmarked by the first wave. Verified: this suite passes (exit 0).
+// value-matrix: (receipt, audit)
+// value-matrix: (receipt, conformance)
+// value-matrix: (receipt, coverage-analysis)
+// value-matrix: (receipt, model)
+// value-matrix: (receipt, query)
+// value-matrix: (receipt, root-cause)
+// value-matrix: (receipt, tech-debt)

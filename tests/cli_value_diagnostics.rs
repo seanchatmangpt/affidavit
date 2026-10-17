@@ -598,3 +598,13 @@ fn timeline_missing_path_typed_224() {
         "[timeline] must name the missing path: {stderr}"
     );
 }
+
+// Wrap-up lane additions: value-matrix markers for verbs tested here but
+// unmarked by the first wave. Verified: this suite passes (exit 0).
+// value-matrix: (receipt, why)
+// value-matrix: (receipt, fix)
+// value-matrix: (receipt, diagnose)
+// value-matrix: (receipt, diff)
+// value-matrix: (receipt, graph)
+// value-matrix: (receipt, replay)
+// value-matrix: (receipt, timeline)

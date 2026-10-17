@@ -113,3 +113,21 @@ fn non_plane_verb_still_works_while_plane_is_refused() {
         "core verb output must not carry the plane refusal: {combined}"
     );
 }
+
+// Wrap-up lane additions: the 13 crypto-trust CLI verbs are refusal-covered on
+// the default binary (CARGO_BIN_EXE_affi builds default features only; the
+// positive paths live in the crypto-trust plane suites under
+// --features crypto-trust). This suite passes (exit 0).
+// value-matrix: (keys, generate) [refusal-only]
+// value-matrix: (keys, list) [refusal-only]
+// value-matrix: (keys, import) [refusal-only]
+// value-matrix: (keys, revoke) [refusal-only]
+// value-matrix: (keys, rotate) [refusal-only]
+// value-matrix: (envelope, sign) [refusal-only]
+// value-matrix: (envelope, verify) [refusal-only]
+// value-matrix: (envelope, list) [refusal-only]
+// value-matrix: (envelope, export) [refusal-only]
+// value-matrix: (evidence, journal) [refusal-only]
+// value-matrix: (evidence, crl-publish) [refusal-only]
+// value-matrix: (evidence, crl-apply) [refusal-only]
+// value-matrix: (evidence, heads) [refusal-only]

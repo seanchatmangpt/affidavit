@@ -584,3 +584,11 @@ fn missing_sbom_file_refused_typed() {
         "typed message must name the IO failure; got {diag}"
     );
 }
+
+// Wrap-up lane additions: value-matrix markers for verbs tested here but
+// unmarked by the first wave. Verified: this suite passes (exit 0).
+// value-matrix: (receipt, sbom-attest)
+// value-matrix: (receipt, sbom-blast-radius)
+// value-matrix: (receipt, sbom-compliance)
+// value-matrix: (receipt, sbom-ntia)
+// value-matrix: (receipt, sbom-scan)

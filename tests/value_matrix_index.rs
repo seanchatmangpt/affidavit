@@ -21,7 +21,7 @@ use std::path::PathBuf;
 /// Coordinator flip: set to `true` once the value matrix reaches 100%
 /// coverage (marker set ∪ doc set == registry set). Until then the court
 /// passes with a typed WARNING while coverage < 100%.
-const COMPLETE: bool = false;
+const COMPLETE: bool = true;
 
 /// Marker syntax the 17 domain lanes must emit:
 /// `// value-matrix: (noun, verb)` — noun first, then verb.

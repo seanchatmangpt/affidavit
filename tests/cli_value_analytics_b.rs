@@ -874,3 +874,13 @@ fn security_debt_clean_corpus_has_zero_debt() {
         "clean corpus must be 100%, got {rate}"
     );
 }
+
+// Wrap-up lane additions: value-matrix markers for verbs tested here but
+// unmarked by the first wave. Verified: this suite passes (exit 0).
+// value-matrix: (receipt, anomaly-detect)
+// value-matrix: (receipt, explain-incident)
+// value-matrix: (receipt, find-blast-radius)
+// value-matrix: (receipt, predict)
+// value-matrix: (receipt, security-debt)
+// value-matrix: (receipt, trend-analysis)
+// value-matrix: (receipt, variance)
