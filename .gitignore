@@ -89,3 +89,6 @@ mutants.out.old/
 /.affi/
 # contract-digest probe sidecars
 *.ctrt.digest
+
+# lane build-root leases (two-target-dir repro builds)
+affidavit-wasm/target-repro/
