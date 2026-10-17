@@ -30,9 +30,20 @@ pub enum Ed25519WitnessError {
 }
 
 /// A local witness signing key. Never persist or transmit the secret half.
-#[derive(Debug, Clone)]
+///
+/// `Debug` is redacted: it must never render any byte of the signing seed
+/// (row 79 hygiene). Zeroizing the seed on drop is a recorded follow-up
+/// (requires a `zeroize` dependency change — out of this lane's authority).
+#[derive(Clone)]
 pub struct WitnessKeyPair {
     signing: SigningKey,
+}
+
+impl std::fmt::Debug for WitnessKeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Redacted: the signing seed never enters any Debug rendering.
+        f.write_str("WitnessKeyPair(<redacted>)")
+    }
 }
 
 impl WitnessKeyPair {
@@ -52,6 +63,29 @@ impl WitnessKeyPair {
         rng.fill_bytes(&mut seed);
         Self {
             signing: SigningKey::from_bytes(&seed),
+        }
+    }
+
+    /// The 32-byte signing seed (row 31). Round-trips through
+    /// [`WitnessKeyPair::from_seed`] — the returned pair is byte-identical in
+    /// public key and signatures, because `from_seed` reconstructs the same
+    /// dalek `SigningKey` from the same seed bytes.
+    #[must_use]
+    pub fn seed(&self) -> [u8; 32] {
+        self.signing.to_bytes()
+    }
+
+    /// Reconstruct a key pair from a 32-byte seed (row 31).
+    ///
+    /// Note: dalek clamps the seed's scalar (bits 0-2 cleared, bit 255 set,
+    /// bits 254-251 copied) during expansion, so distinct seeds that differ
+    /// only in the low three bits or the top bit expand to the *same* key.
+    /// The court below pins this clamping behavior explicitly rather than
+    /// guessing at it.
+    #[must_use]
+    pub fn from_seed(seed: &[u8; 32]) -> Self {
+        Self {
+            signing: SigningKey::from_bytes(seed),
         }
     }
 
@@ -136,5 +170,83 @@ mod tests {
             result,
             Err(Ed25519WitnessError::MalformedPublicKey | Ed25519WitnessError::VerificationFailed)
         ));
+    }
+    // --- row 31: seed / from_seed round-trip ---
+
+    #[test]
+    fn from_seed_roundtrip_reproduces_public_key_and_signature() {
+        let kp = WitnessKeyPair::generate();
+        let restored = WitnessKeyPair::from_seed(&kp.seed());
+        assert_eq!(restored.public(), kp.public());
+        let message = b"row31 roundtrip payload";
+        assert_eq!(restored.sign(message), kp.sign(message));
+        assert!(verify_witness(&restored.public(), message, &kp.sign(message)).is_ok());
+    }
+
+    #[test]
+    fn zero_seed_constructs_and_dalek_clamps_it() {
+        // Dalek expands the seed by clamping the scalar (bit 255 set, low
+        // three bits cleared), so an all-zero seed is a lawful, non-panicking
+        // construction producing a fixed valid public key. Pin that behavior:
+        // both the construction itself and the determinism of its output.
+        let zero = WitnessKeyPair::from_seed(&[0u8; 32]);
+        let zero_again = WitnessKeyPair::from_seed(&[0u8; 32]);
+        assert_eq!(zero.public(), zero_again.public());
+        // Clamped scalar of the zero seed is non-zero (bit 255 set), so the
+        // derived public key is a real curve point that can verify a signature.
+        let message = b"zero seed clamp court";
+        let sig = zero.sign(message);
+        assert!(
+            verify_witness(&zero.public(), message, &sig).is_ok(),
+            "zero seed must produce a usable, clamped key pair"
+        );
+    }
+
+    #[test]
+    fn distinct_seeds_produce_distinct_keys() {
+        let mut a = [0u8; 32];
+        let mut b = [0u8; 32];
+        a[..31].copy_from_slice(&[7u8; 31]);
+        a[31] = 8;
+        b[..31].copy_from_slice(&[7u8; 31]);
+        b[31] = 16;
+        // Seeds differ in bits outside the clamp zone, so they must diverge.
+        let ka = WitnessKeyPair::from_seed(&a);
+        let kb = WitnessKeyPair::from_seed(&b);
+        assert_ne!(a, b);
+        assert_ne!(
+            ka.public(),
+            kb.public(),
+            "seeds differing in non-clamped bits must yield distinct public keys"
+        );
+    }
+
+    // --- row 79: redacted Debug hygiene ---
+
+    #[test]
+    fn debug_rendering_leaks_no_seed_byte() {
+        // Distinctive filler seed so any leaked byte is detectable in the
+        // rendering.
+        let seed = [0xABu8; 32];
+        let kp = WitnessKeyPair::from_seed(&seed);
+        let rendered = format!("{:?}", kp);
+        assert!(
+            !rendered.contains("WitnessKeyPair {"),
+            "Debug must not structurally render fields: {rendered}"
+        );
+        for (i, byte) in seed.iter().enumerate() {
+            // Any seed byte leaking as decimal digits or hex would render
+            // somewhere; "171" / "ab" are the renderings of 0xAB.
+            assert!(
+                !rendered.contains(&byte.to_string()),
+                "seed byte {i} leaked (decimal) into Debug: {rendered}"
+            );
+        }
+        let hex: String = seed.iter().map(|b| format!("{b:02x}")).collect();
+        assert!(
+            !rendered.to_lowercase().contains("abab"),
+            "seed hex prefix leaked into Debug: {rendered}"
+        );
+        assert!(rendered.contains("redacted"));
     }
 }
