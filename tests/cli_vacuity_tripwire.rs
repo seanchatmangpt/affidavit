@@ -6,7 +6,7 @@
 // and asserts the outcome (exit code + derived field) actually flips.
 //
 // Lane ownership: the legal-hold status + license-compliance cells are ACTIVE
-// (v26.10.17 eliminate lane). The remaining VACUOUS-six cells stay `#[ignore]`d
+// (v26.10.17 eliminate lane). The receipt-test cell was REMOVED: the verb itself was
 // until their owning lanes land their fixes — an un-ignored failing cell is a
 // court, a faked pass is not.
 
@@ -377,10 +377,6 @@ fn receipt_audit_refuses_no_chains_on_empty_dir() {
 }
 
 #[test]
-#[ignore = "VACUOUS defect 3 (receipt test: dummy verb) — owned by another lane; flip when the verb executes or is deleted"]
-fn receipt_test_is_falsifiable() {
-    todo!("other lane")
-}
 
 #[test]
 fn certificate_fre_902_recomputes_chain() {
