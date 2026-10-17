@@ -1,4 +1,4 @@
-//! # Verb Registry — Single Source of Truth for All 101 Verbs
+//! # Verb Registry — Single Source of Truth for All 100 Verbs
 //!
 //! This module is the W4 keystone: a compile-time static registry that eliminates
 //! drift between documentation, shell completions, and the actual verb set.
@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 101);
+//! assert_eq!(verb_count(), 100);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -130,7 +130,7 @@ impl VerbEntry {
     }
 }
 
-/// The complete verb registry — one entry per live verb (101 as of v26.10.16).
+/// The complete verb registry — one entry per live verb (100 as of v26.10.16).
 ///
 /// Ordering mirrors `src/verbs/mod.rs` (alphabetical) for easy cross-referencing.
 ///
@@ -364,7 +364,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "verify-sla",
         "receipt",
         VerbGroup::Compliance,
-        "Verify that receipt events satisfy defined SLA thresholds and time windows",
+        "Verify that receipt event counts satisfy the min_events SLA threshold (time-window checks are refused: core/v1 receipts carry no timestamps)",
         &["verify_sla", "sla", "service-level", "latency", "uptime", "availability"],
     ),
     VerbEntry::new(
@@ -435,7 +435,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "attest",
         "receipt",
         VerbGroup::Attestation,
-        "Create a signed SLSA attestation document from a sealed receipt",
+        "Create an unsigned SLSA-style attestation document from a sealed receipt (no signature fields; notarize adds signatures)",
         &["attest", "attestation", "slsa", "provenance", "in-toto"],
     ),
     VerbEntry::new(
@@ -630,13 +630,6 @@ pub static REGISTRY: &[VerbEntry] = &[
         VerbGroup::Tooling,
         "Generate an interactive HTML or SVG visualization of the receipt chain",
         &["visualize", "html", "svg", "interactive", "chart", "render"],
-    ),
-    VerbEntry::new(
-        "test",
-        "receipt",
-        VerbGroup::Tooling,
-        "Run the built-in receipt self-test suite to validate the local installation",
-        &["test", "self-test", "smoke-test", "sanity", "validate"],
     ),
     // ── Tooling (non-receipt nouns) ─────────────────────────────────────────
     VerbEntry::new(
@@ -920,7 +913,7 @@ pub static REGISTRY: &[VerbEntry] = &[
 // --- Compile-time projection cross-check ------------------------------------
 //
 // The macro path (a #[affi_verb(...)] distributed-slice surface emitted beside
-// each #[verb(...)]) requires editing all 101 files under src/verbs/, which are
+// each #[verb(...)]) requires editing all 100 files under src/verbs/, which are
 // a ggen projection of ontology/affi-cli.ttl. Register row: that path is
 // UNSUPPORTED(generated-surface) until the ggen template emits the wrapper.
 // The lawful fast-tripwire instead: verb sources are pulled in with
@@ -1107,7 +1100,6 @@ const VERB_SOURCES: &[(&str, &str)] = &[
     ("stats", include_str!("verbs/stats.rs")),
     ("team_velocity", include_str!("verbs/team_velocity.rs")),
     ("tech_debt", include_str!("verbs/tech_debt.rs")),
-    ("test", include_str!("verbs/test.rs")),
     ("timeline", include_str!("verbs/timeline.rs")),
     ("trend_analysis", include_str!("verbs/trend_analysis.rs")),
     ("variance", include_str!("verbs/variance.rs")),
@@ -1302,7 +1294,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 101; // 98 previous + 3 compliance/attestation verbs (legal-hold status, restitution calculate, certificate fre-902)
+        let expected = 100; // 101 after v26.10.16 additions, minus the deleted dummy `receipt test` verb
         assert_eq!(
             verb_count(),
             expected,
