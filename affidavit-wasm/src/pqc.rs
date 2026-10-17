@@ -221,14 +221,23 @@ mod tests {
 
     #[test]
     fn profile_grammar_covers_every_suite_and_refuses_unknown_values() {
-        assert_eq!(parse_profile("classical", "p").unwrap(), PqcProfile::Classical);
+        assert_eq!(
+            parse_profile("classical", "p").unwrap(),
+            PqcProfile::Classical
+        );
         assert_eq!(parse_profile("hybrid", "p").unwrap(), PqcProfile::Hybrid);
-        assert_eq!(parse_profile("pqc", "p").unwrap(), PqcProfile::Pqc(Suite::MlDsa65));
+        assert_eq!(
+            parse_profile("pqc", "p").unwrap(),
+            PqcProfile::Pqc(Suite::MlDsa65)
+        );
         assert_eq!(
             parse_profile("pqc(slh-dsa-sha2-128s)", "p").unwrap(),
             PqcProfile::Pqc(Suite::SlhDsa128s)
         );
-        assert_eq!(parse_profile("pqc(dual)", "p").unwrap(), PqcProfile::Pqc(Suite::Dual));
+        assert_eq!(
+            parse_profile("pqc(dual)", "p").unwrap(),
+            PqcProfile::Pqc(Suite::Dual)
+        );
         assert!(parse_profile("pqc(lattice-max)", "p").is_err());
         // Display names round-trip for the pqc profiles.
         assert_eq!(PqcProfile::Pqc(Suite::Dual).to_string(), "pqc(dual)");

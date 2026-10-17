@@ -92,6 +92,11 @@
       "response_fields": ["ok", "op", "digest_hex", "pre_image_hex"]
     },
     {
+      "name": "smt_inclusion_verify",
+      "request_fields": ["op", "root_hex", "leaf_key_hex", "leaf_value_hex", "proof_steps"],
+      "response_fields": ["ok", "op", "admitted"]
+    },
+    {
       "name": "verify_signature",
       "request_fields": ["op", "alg", "public_key_hex", "signature_hex", "signing_input", "signing_input_hex"],
       "response_fields": ["ok", "op", "valid", "refusal"]

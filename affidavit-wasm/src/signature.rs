@@ -260,7 +260,7 @@ mod tests {
         let r = run(json!({
             "op": "verify_signature", "alg": "ES256",
             "public_key_hex": &hex(sec1.as_bytes()),
-            "signature_hex": hex(&sig.to_der().as_bytes()),
+            "signature_hex": hex(sig.to_der().as_bytes()),
             "signing_input": String::from_utf8_lossy(input).into_owned(),
         }));
         assert_eq!(r["valid"], true, "{r}");
@@ -268,7 +268,7 @@ mod tests {
         let bad = run(json!({
             "op": "verify_signature", "alg": "ES256",
             "public_key_hex": &hex(sec1.as_bytes()),
-            "signature_hex": hex(&sig.to_der().as_bytes()),
+            "signature_hex": hex(sig.to_der().as_bytes()),
             "signing_input": "affidavit.crypto-trust-plane.v2",
         }));
         assert_eq!(bad["valid"], false, "{bad}");

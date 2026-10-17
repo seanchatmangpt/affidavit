@@ -36,6 +36,7 @@ pub const OPS: &[&str] = &[
     "smt_absence_verify",
     "range_proof_verify",
     "derive_subject_digest",
+    "smt_inclusion_verify",
     "verify_signature",
     "pqc_assemble",
     "pqc_verify",

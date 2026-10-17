@@ -24,14 +24,14 @@ afw:module a wja:WasmModule ;
     # `cargo build --locked --lib --target wasm32-wasip1 --profile wasm`;
     # registrySha256 is the sha256 of the rendered registry/capability-registry.json.
     # Source commit is deliberately absent: a commit cannot contain its own hash.
-    wja:wasmSha256 "11663a6645841ba7638eddc95999a8d5021c6f15a4f916fd2492384cfa5bf7d8" ;
-    wja:wasmBytes 712795 ;
-    wja:registrySha256 "8b6c769d4939a5fd290fae4a64bc2303f1d329de5cb5a73e2fbc3a5db0e394c7" ;
+    wja:wasmSha256 "19f3b0f4fd302f7f58f87d0d073e011f04749293eb4b39363bb678c4bf80d864" ;
+    wja:wasmBytes 718736 ;
+    wja:registrySha256 "c585d06486252d3176aab6a79b554cc72fc9af548c81524e679b61e8eb1a7cda" ;
     afw:toolchain "nightly-2026-08-12" ;
     afw:buildTarget "wasm32-wasip1" ;
     afw:buildProfile "wasm" ;
     wja:importsPolicy "wasi_snapshot_preview1" ;
-    wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input , afw:op-certify-authzen-evidence , afw:op-certify-spiffe-evidence , afw:op-jcs-canonicalize , afw:op-smt-absence-verify , afw:op-range-proof-verify , afw:op-derive-subject-digest , afw:op-verify-signature , afw:op-pqc-assemble , afw:op-pqc-verify ;
+    wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input , afw:op-certify-authzen-evidence , afw:op-certify-spiffe-evidence , afw:op-jcs-canonicalize , afw:op-smt-absence-verify , afw:op-smt-inclusion-verify , afw:op-range-proof-verify , afw:op-derive-subject-digest , afw:op-verify-signature , afw:op-pqc-assemble , afw:op-pqc-verify ;
     wja:hasWasiImport afw:imp-environ-get , afw:imp-environ-sizes-get , afw:imp-fd-write , afw:imp-proc-exit ;
     wja:hasErrorCode afw:err-bad-json , afw:err-missing-field , afw:err-unknown-op , afw:err-bad-field , afw:err-too-large , afw:err-too-deep , afw:err-missing-buffer , afw:err-internal , afw:err-malformed , afw:err-pqc-refused .
 
@@ -122,6 +122,13 @@ afw:op-smt-absence-verify a wja:Op ;
     wja:requestFields "op,root_hex,queried_key_hex,neighbor_key_hex,neighbor_value_hex,claimed_prefix_bits,proof_steps" ;
     wja:responseFields "ok,op,admitted" ;
     wja:exampleRequest """{\"op\":\"smt_absence_verify\",\"root_hex\":\"26c125e91454332c68ecaef86614e09fd2c95220d0c2d42d296dda8c52fe12af\",\"queried_key_hex\":\"7f00000000000000000000000000000000000000000000000000000000000000\",\"neighbor_key_hex\":\"8000000000000000000000000000000000000000000000000000000000000000\",\"neighbor_value_hex\":\"ab00000000000000000000000000000000000000000000000000000000000000\",\"claimed_prefix_bits\":0,\"proof_steps\":[{\"right\":false,\"cut_hex\":\"00000100800000000000000000000000000000000000000000000000000000000000000000\"}]}""" .
+
+afw:op-smt-inclusion-verify a wja:Op ;
+    wja:opName "smt_inclusion_verify" ;
+    wja:opOrder 14 ;
+    wja:requestFields "op,root_hex,leaf_key_hex,leaf_value_hex,proof_steps" ;
+    wja:responseFields "ok,op,admitted" ;
+    wja:exampleRequest """{\"op\":\"smt_inclusion_verify\",\"root_hex\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"leaf_key_hex\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"leaf_value_hex\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"proof_steps\":[]}""" .
 
 afw:op-range-proof-verify a wja:Op ;
     wja:opName "range_proof_verify" ;

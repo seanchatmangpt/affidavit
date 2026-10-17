@@ -324,6 +324,46 @@ pub fn op_smt_absence_verify(req: &Value) -> Res<Map<String, Value>> {
     Ok(obj(json!({"admitted": inclusion_holds && prefix_holds})))
 }
 
+/// `smt_inclusion_verify`: state-tree inclusion witness. Verifies that a
+/// leaf value is committed under `root_hex` via monotree's
+/// `(is_right, cut_bytes)` step list — the same fold the root-plane
+/// `src/smt.rs::verify_inclusion` runs, with no tree state at the edge.
+/// `leaf_key_hex` is carried on the wire for witness identity/audit; the
+/// cryptographic binding is root + value + proof steps.
+pub fn op_smt_inclusion_verify(req: &Value) -> Res<Map<String, Value>> {
+    let root = fixed_hex(req, "root_hex")?;
+    let _leaf_key = fixed_hex(req, "leaf_key_hex")?;
+    let leaf_value = fixed_hex(req, "leaf_value_hex")?;
+    let steps_value = field(req, "proof_steps")?
+        .as_array()
+        .ok_or_else(|| err("bad_field", "`proof_steps` must be an array"))?;
+    let mut proof: Vec<(bool, Vec<u8>)> = Vec::with_capacity(steps_value.len());
+    for (i, step) in steps_value.iter().enumerate() {
+        let right = step.get("right").and_then(Value::as_bool).ok_or_else(|| {
+            err(
+                "bad_field",
+                format!("proof_steps[{i}].right must be a boolean"),
+            )
+        })?;
+        let cut_hex = step.get("cut_hex").and_then(Value::as_str).ok_or_else(|| {
+            err(
+                "bad_field",
+                format!("proof_steps[{i}].cut_hex must be a string"),
+            )
+        })?;
+        let cut = hex_decode(cut_hex).ok_or_else(|| {
+            err(
+                "bad_field",
+                format!("proof_steps[{i}].cut_hex is not valid hex"),
+            )
+        })?;
+        proof.push((right, cut));
+    }
+
+    let admitted = monotree::verify_proof(&MonotreeBlake3, Some(&root), &leaf_value, Some(&proof));
+    Ok(obj(json!({"admitted": admitted})))
+}
+
 /// `range_proof_verify`: bulletproofs bounded-metric check. Verifies that a
 /// Pedersen commitment carries a value within `[0, 2^bits)` under the same
 /// domain label the prover used — without the value ever being present.
@@ -521,6 +561,160 @@ mod tests {
         let out = op_smt_absence_verify(&req).expect("total");
         assert_eq!(out["admitted"], Value::Bool(false));
     }
+    #[test]
+    fn smt_inclusion_admits_an_honest_witness() {
+        // Real monotree tree, real proof: the honest witness must admit.
+        let mut tree =
+            monotree::Monotree::<monotree::database::MemoryDB, MonotreeBlake3>::default();
+        let mut keys: Vec<[u8; 32]> = (0u8..4)
+            .map(|i| {
+                let mut k = [0u8; 32];
+                k[0] = i * 32 + 1;
+                k
+            })
+            .collect();
+        keys.sort();
+        let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+        let mut root: Option<monotree::Hash> = None;
+        for k in &keys {
+            root = tree.insert(root.as_ref(), k, &[7u8; 32]).expect("insert");
+        }
+        let proof = tree
+            .get_merkle_proof(root.as_ref(), &keys[2])
+            .expect("proof")
+            .expect("proof present");
+        let steps: Vec<Value> = proof
+            .iter()
+            .map(|(right, cut)| {
+                json!({
+                    "right": right,
+                    "cut_hex": cut.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+                })
+            })
+            .collect();
+        let req = json!({
+            "op":"smt_inclusion_verify",
+            "root_hex": root.expect("root")[..].iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            "leaf_key_hex": keys[2].iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            "leaf_value_hex": hex(&[7u8; 32]),
+            "proof_steps": steps,
+        });
+        let out = op_smt_inclusion_verify(&req).expect("total");
+        assert_eq!(out["admitted"], Value::Bool(true), "honest witness admits");
+    }
+
+    #[test]
+    fn smt_inclusion_refuses_tampered_proof_step() {
+        // Flip one bit inside a proof step's cut bytes: the fold misses the
+        // root and the witness refuses.
+        let mut tree =
+            monotree::Monotree::<monotree::database::MemoryDB, MonotreeBlake3>::default();
+        let mut keys: Vec<[u8; 32]> = (0u8..2)
+            .map(|i| {
+                let mut k = [0u8; 32];
+                k[0] = i * 16 + 3;
+                k
+            })
+            .collect();
+        keys.sort();
+        let mut root: Option<monotree::Hash> = None;
+        for k in &keys {
+            root = tree.insert(root.as_ref(), k, &[9u8; 32]).expect("insert");
+        }
+        let mut proof = tree
+            .get_merkle_proof(root.as_ref(), &keys[0])
+            .expect("proof")
+            .expect("proof present");
+        let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+        proof[0].1[0] ^= 0x01;
+        let req = json!({
+            "op":"smt_inclusion_verify",
+            "root_hex": hex(root.expect("root")[..].try_into().expect("32")),
+            "leaf_key_hex": hex(&keys[0]),
+            "leaf_value_hex": hex(&[9u8; 32]),
+            "proof_steps": proof.iter().map(|(right, cut)| json!({"right": right, "cut_hex": hex(cut)})).collect::<Vec<_>>(),
+        });
+        let out = op_smt_inclusion_verify(&req).expect("total");
+        assert_eq!(out["admitted"], Value::Bool(false), "tampered step refuses");
+    }
+
+    #[test]
+    fn smt_inclusion_refuses_wrong_root() {
+        // Honest proof, honest value, but a root from a different tree state.
+        let mut tree =
+            monotree::Monotree::<monotree::database::MemoryDB, MonotreeBlake3>::default();
+        let mut keys: Vec<[u8; 32]> = (0u8..2)
+            .map(|i| {
+                let mut k = [0u8; 32];
+                k[0] = i * 16 + 5;
+                k
+            })
+            .collect();
+        keys.sort();
+        let mut root: Option<monotree::Hash> = None;
+        for k in &keys {
+            root = tree.insert(root.as_ref(), k, &[9u8; 32]).expect("insert");
+        }
+        let proof = tree
+            .get_merkle_proof(root.as_ref(), &keys[0])
+            .expect("proof")
+            .expect("proof present");
+        let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+        let mut wrong_root = root.expect("root");
+        wrong_root[0] ^= 0x80;
+        let req = json!({
+            "op":"smt_inclusion_verify",
+            "root_hex": hex(&wrong_root),
+            "leaf_key_hex": hex(&keys[0]),
+            "leaf_value_hex": hex(&[9u8; 32]),
+            "proof_steps": proof.iter().map(|(right, cut)| json!({"right": right, "cut_hex": hex(cut)})).collect::<Vec<_>>(),
+        });
+        let out = op_smt_inclusion_verify(&req).expect("total");
+        assert_eq!(out["admitted"], Value::Bool(false), "wrong root refuses");
+    }
+
+    #[test]
+    fn smt_inclusion_refuses_bad_fields() {
+        // Missing field, wrong leaf width, non-hex cut: typed bad_field /
+        // missing_field refusals, never a panic (the ABI is total).
+        let no_root = json!({
+            "op":"smt_inclusion_verify",
+            "leaf_key_hex": format!("{:0>64}", "0"),
+            "leaf_value_hex": format!("{:0>64}", "0"),
+            "proof_steps": []
+        });
+        assert_eq!(
+            op_smt_inclusion_verify(&no_root).expect_err("no root").code,
+            "missing_field"
+        );
+
+        let wide_value = json!({
+            "op":"smt_inclusion_verify",
+            "root_hex": format!("{:0>64}", "0"),
+            "leaf_key_hex": format!("{:0>64}", "0"),
+            "leaf_value_hex": format!("{:0>65}", "0"),
+            "proof_steps": []
+        });
+        assert_eq!(
+            op_smt_inclusion_verify(&wide_value)
+                .expect_err("wide leaf")
+                .code,
+            "bad_field"
+        );
+
+        let bad_cut = json!({
+            "op":"smt_inclusion_verify",
+            "root_hex": format!("{:0>64}", "0"),
+            "leaf_key_hex": format!("{:0>64}", "0"),
+            "leaf_value_hex": format!("{:0>64}", "0"),
+            "proof_steps": [{"right": true, "cut_hex": "zz"}]
+        });
+        assert_eq!(
+            op_smt_inclusion_verify(&bad_cut).expect_err("bad cut").code,
+            "bad_field"
+        );
+    }
+
     #[test]
     fn jcs_refuses_duplicate_keys_at_any_depth() {
         // Top-level duplicate: the former surface silently last-wins'd to 2.

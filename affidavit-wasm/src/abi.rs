@@ -156,6 +156,7 @@ fn dispatch(request: &[u8]) -> Res<Map<String, Value>> {
         "certify_spiffe_evidence" => external_evidence::op_certify_spiffe_evidence(&req)?,
         "jcs_canonicalize" => advanced::op_jcs_canonicalize(&req)?,
         "smt_absence_verify" => advanced::op_smt_absence_verify(&req)?,
+        "smt_inclusion_verify" => advanced::op_smt_inclusion_verify(&req)?,
         "range_proof_verify" => advanced::op_range_proof_verify(&req)?,
         other => {
             return Err(err(
