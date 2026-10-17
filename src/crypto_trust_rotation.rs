@@ -269,8 +269,7 @@ pub fn rotate_es256_to_hybrid(
     admission_checked(from, to)?;
 
     let es256_pk = hybrid_secret.es256.public_key_sec1();
-    let mldsa65_kp = ml_dsa65_from_seed(&hybrid_secret.mldsa65_seed)
-        .map_err(|e| RotationError::Provider(format!("ml-dsa-65 key derivation refused: {e}")))?;
+    let mldsa65_kp = ml_dsa65_from_seed(&hybrid_secret.mldsa65_seed);
     let new_key_id = KeyId::from_fingerprint(&fingerprint_public_key(
         AlgorithmId::HybridEs256MlDsa65,
         &PublicKeyMaterial::Hybrid {
@@ -379,9 +378,7 @@ mod tests {
     fn successor_pks(secret: &HybridSecret) -> (Vec<u8>, Vec<u8>) {
         (
             secret.es256.public_key_sec1(),
-            ml_dsa65_from_seed(&secret.mldsa65_seed)
-                .expect("pqc fixture key pair")
-                .public,
+            ml_dsa65_from_seed(&secret.mldsa65_seed).public,
         )
     }
 
@@ -553,9 +550,7 @@ mod tests {
             "got {err:?}"
         );
 
-        let wrong_ml = ml_dsa65_from_seed(&[0x3Cu8; 32])
-            .expect("pqc fixture key pair")
-            .public;
+        let wrong_ml = ml_dsa65_from_seed(&[0x3Cu8; 32]).public;
         let err = verify_rotation(&record, &es_pk, &wrong_ml)
             .expect_err("record must refuse under a wrong ML-DSA-65 pk");
         assert!(
