@@ -192,3 +192,488 @@ mod tests {
         assert!(prove_range(1, 65, LABEL, &mut OsRng).is_err());
     }
 }
+/// A member of an aggregated range-proof batch: the public commitment and
+/// the secret blinding (prover custody), as in [`RangeWitness`] but without
+/// a per-member proof — the batch shares one aggregated proof.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RangeBatchMember {
+    /// 32-byte compressed Pedersen commitment to the member's value.
+    pub commitment: [u8; 32],
+    /// 32-byte blinding scalar. **Secret**, prover custody only.
+    pub blinding: [u8; 32],
+}
+
+/// An aggregated range-proof batch: one [`RangeProof`] covering `m`
+/// commitments simultaneously (`RangeProof::prove_multiple` at prove time,
+/// `RangeProof::verify_multiple` at verify time, shared [`BulletproofGens`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RangeBatch {
+    /// Per-member commitments and blindings.
+    pub members: Vec<RangeBatchMember>,
+    /// The single aggregated proof covering every member.
+    pub proof: Vec<u8>,
+    /// The bit range every member was constructed over.
+    pub bits: usize,
+}
+
+/// Bit ranges accepted for aggregated batches. `RangeProof::verify_multiple`
+/// refuses any `n` outside `{8, 16, 32, 64}` (`InvalidBitsize`), so the batch
+/// surface gates up front with a typed refusal instead of letting the
+/// external crate's error leak as a generic failure.
+const BATCH_SUPPORTED_BITS: [usize; 4] = [8, 16, 32, 64];
+
+fn check_batch_bits(bits: usize) -> Result<(), RangeProofError> {
+    if !BATCH_SUPPORTED_BITS.contains(&bits) {
+        return Err(RangeProofError::Generation(format!(
+            "batch requires bits in {BATCH_SUPPORTED_BITS:?}, got {bits}"
+        )));
+    }
+    Ok(())
+}
+
+/// Prove `0 <= value_i < 2^bits` for every member simultaneously as one
+/// aggregated proof. All members share the domain label and the bit range.
+///
+/// # Errors
+///
+/// [`RangeProofError::Generation`] for an empty batch, an unsupported bit
+/// range, or any value that does not fit in `bits`.
+///
+/// # Panics
+///
+/// Never panics; out-of-range members are typed refusals.
+pub fn prove_range_batch<R: RngCore>(
+    values: &[u64],
+    bits: usize,
+    label: &'static [u8],
+    rng: &mut R,
+) -> Result<RangeBatch, RangeProofError> {
+    prove_range_batch_bound(values, bits, label, None, rng)
+}
+
+/// Prove an aggregated batch bound to an optional receipt hash.
+///
+/// When `receipt_hash` is `Some`, the hash is appended to the Merlin
+/// transcript under the domain-separated key `b"receipt-hash"` *before* the
+/// protocol runs, so the aggregated proof (and its per-member commitments)
+/// is cryptographically bound to that receipt: a proof generated under H1
+/// fails verification under any other hash H2 because the Fiat-Shamir
+/// challenges diverge.
+///
+/// **Drop-append mutation reasoning.** Both prover and verifier append
+/// unconditionally whenever the binding is present, so the two dangerous
+/// mutations both fail loudly rather than silently degrading: (a) a prover
+/// that drops the append produces a proof that a correct verifier refuses
+/// (challenge divergence), and (b) a verifier that drops the append refuses
+/// a correctly-bound proof — the binding is lost as a hard `Err`, never as a
+/// silent accept. The residual non-cryptographic risk — both sides dropping
+/// the append in lockstep, silently unbinding the proof from the receipt —
+/// is a source-level invariant, covered by
+/// [`tests::bound_proof_rejects_verification_without_the_receipt_hash`],
+/// which fails if either side stops threading the append through
+/// `prove_multiple`/`verify_multiple`.
+///
+/// # Errors
+///
+/// Same refusals as [`prove_range_batch`].
+pub fn prove_range_batch_bound<R: RngCore>(
+    values: &[u64],
+    bits: usize,
+    label: &'static [u8],
+    receipt_hash: Option<&[u8; 32]>,
+    rng: &mut R,
+) -> Result<RangeBatch, RangeProofError> {
+    if values.is_empty() {
+        return Err(RangeProofError::Generation(
+            "batch must contain at least one member".into(),
+        ));
+    }
+    check_batch_bits(bits)?;
+    for &v in values {
+        if bits < 64 && (v >> bits) != 0 {
+            return Err(RangeProofError::Generation(format!(
+                "value {v} does not fit in {bits} bits"
+            )));
+        }
+    }
+    // The aggregated protocol requires the aggregation size m to be a power
+    // of two. Short batches are padded with value-0 members (0 is always in
+    // range, so the aggregate stays sound and leaks nothing); the pads are
+    // carried as ordinary members so the verifier sees exactly the
+    // commitments the proof covers.
+    let m = values.len().next_power_of_two();
+    let mut padded: Vec<u64> = values.to_vec();
+    padded.resize(m, 0);
+    let gens = BulletproofGens::new(bits, m);
+    let pc_gens = PedersenGens::default();
+    let mut transcript = Transcript::new(label);
+    if let Some(h) = receipt_hash {
+        transcript.append_message(b"receipt-hash", h);
+    }
+    let blindings: Vec<Scalar> = padded
+        .iter()
+        .map(|_| {
+            let mut b = [0u8; 32];
+            rng.fill_bytes(&mut b);
+            Scalar::from_bytes_mod_order(b)
+        })
+        .collect();
+
+    let (proof, commitments) =
+        RangeProof::prove_multiple(&gens, &pc_gens, &mut transcript, &padded, &blindings, bits)
+            .map_err(|e| RangeProofError::Generation(e.to_string()))?;
+
+    let members = commitments
+        .iter()
+        .zip(blindings)
+        .map(|(c, b)| {
+            let mut commitment = [0u8; 32];
+            commitment.copy_from_slice(c.as_bytes());
+            RangeBatchMember {
+                commitment,
+                blinding: b.to_bytes(),
+            }
+        })
+        .collect();
+
+    Ok(RangeBatch {
+        members,
+        proof: proof.to_bytes(),
+        bits,
+    })
+}
+
+/// Verify an aggregated batch over the same label (and receipt hash, if the
+/// proof was bound to one) used at proving time.
+///
+/// Wraps [`RangeProof::verify_multiple`] with a single [`BulletproofGens`]
+/// sized for the whole batch. If any member's commitment does not carry a
+/// value in `[0, 2^bits)` — or the proof bytes were swapped, tampered with,
+/// or generated under a different transcript — the *whole* batch fails with
+/// [`RangeProofError::VerificationFailed`]; a failing member can never
+/// surface as a silent pass.
+///
+/// # Errors
+///
+/// [`RangeProofError::MalformedEncoding`] for undecodable proof bytes,
+/// [`RangeProofError::Generation`] for an empty member list or unsupported
+/// bit range, [`RangeProofError::VerificationFailed`] when the batch does
+/// not hold.
+pub fn verify_range_batch(
+    batch: &RangeBatch,
+    label: &'static [u8],
+    receipt_hash: Option<&[u8; 32]>,
+) -> Result<(), RangeProofError> {
+    if batch.members.is_empty() {
+        return Err(RangeProofError::Generation(
+            "batch must contain at least one member".into(),
+        ));
+    }
+    check_batch_bits(batch.bits)?;
+    if !batch.members.len().is_power_of_two() {
+        return Err(RangeProofError::Generation(format!(
+            "batch size must be a power of two, got {}",
+            batch.members.len()
+        )));
+    }
+    let gens = BulletproofGens::new(batch.bits, batch.members.len());
+    let pc_gens = PedersenGens::default();
+    let proof =
+        RangeProof::from_bytes(&batch.proof).map_err(|_| RangeProofError::MalformedEncoding)?;
+    let mut transcript = Transcript::new(label);
+    if let Some(h) = receipt_hash {
+        transcript.append_message(b"receipt-hash", h);
+    }
+    let commitments: Vec<CompressedRistretto> = batch
+        .members
+        .iter()
+        .map(|m| CompressedRistretto(m.commitment))
+        .collect();
+    proof
+        .verify_multiple(&gens, &pc_gens, &mut transcript, &commitments, batch.bits)
+        .map_err(|_| RangeProofError::VerificationFailed)
+}
+/// Prove `0 <= value < 2^bits` bound to an optional receipt hash, threading
+/// `transcript.append_message(b"receipt-hash", h)` before the protocol runs.
+///
+/// Without a binding (`None`) this is byte-behaviorally identical to
+/// [`prove_range`]; existing callers are unaffected.
+///
+/// See [`prove_range_batch_bound`] for the drop-append mutation reasoning,
+/// which applies identically here.
+///
+/// # Errors
+///
+/// Same refusals as [`prove_range`].
+pub fn prove_range_bound<R: RngCore>(
+    value: u64,
+    bits: usize,
+    label: &'static [u8],
+    receipt_hash: Option<&[u8; 32]>,
+    rng: &mut R,
+) -> Result<RangeWitness, RangeProofError> {
+    prove_range_with_hash(value, bits, label, receipt_hash, rng)
+}
+
+/// Verify a range proof over the same label (and receipt hash, if bound)
+/// used at proving time. `None` matches [`verify_range`]'s behavior.
+///
+/// # Errors
+///
+/// Same refusals as [`verify_range`].
+pub fn verify_range_bound(
+    commitment: &[u8; 32],
+    proof_bytes: &[u8],
+    bits: usize,
+    label: &'static [u8],
+    receipt_hash: Option<&[u8; 32]>,
+) -> Result<(), RangeProofError> {
+    verify_range_with_hash(commitment, proof_bytes, bits, label, receipt_hash)
+}
+
+/// Shared prove path for [`prove_range`] / [`prove_range_bound`]: appends
+/// the receipt hash to the transcript (when bound) before proving.
+fn prove_range_with_hash<R: RngCore>(
+    value: u64,
+    bits: usize,
+    label: &'static [u8],
+    receipt_hash: Option<&[u8; 32]>,
+    rng: &mut R,
+) -> Result<RangeWitness, RangeProofError> {
+    if bits == 0 || bits > 64 {
+        return Err(RangeProofError::Generation(format!(
+            "unsupported bit range: {bits}"
+        )));
+    }
+    if bits < 64 && (value >> bits) != 0 {
+        return Err(RangeProofError::Generation(format!(
+            "value {value} does not fit in {bits} bits"
+        )));
+    }
+    let gens = BulletproofGens::new(bits.next_power_of_two().max(32), 1);
+    let pc_gens = PedersenGens::default();
+    let mut transcript = Transcript::new(label);
+    if let Some(h) = receipt_hash {
+        transcript.append_message(b"receipt-hash", h);
+    }
+    let mut blinding_bytes = [0u8; 32];
+    rng.fill_bytes(&mut blinding_bytes);
+    let blinding = Scalar::from_bytes_mod_order(blinding_bytes);
+
+    let (proof, commitment) =
+        RangeProof::prove_single(&gens, &pc_gens, &mut transcript, value, &blinding, bits)
+            .map_err(|e| RangeProofError::Generation(e.to_string()))?;
+
+    let mut commitment_bytes = [0u8; 32];
+    commitment_bytes.copy_from_slice(commitment.as_bytes());
+    let blinding_bytes: [u8; 32] = blinding.to_bytes();
+
+    Ok(RangeWitness {
+        commitment: commitment_bytes,
+        blinding: blinding_bytes,
+        proof: proof.to_bytes(),
+        bits,
+    })
+}
+
+/// Shared verify path for [`verify_range`] / [`verify_range_bound`]: appends
+/// the receipt hash to the transcript (when bound) before verifying.
+fn verify_range_with_hash(
+    commitment: &[u8; 32],
+    proof_bytes: &[u8],
+    bits: usize,
+    label: &'static [u8],
+    receipt_hash: Option<&[u8; 32]>,
+) -> Result<(), RangeProofError> {
+    if bits == 0 || bits > 64 {
+        return Err(RangeProofError::Generation(format!(
+            "unsupported bit range: {bits}"
+        )));
+    }
+    let gens = BulletproofGens::new(bits.next_power_of_two().max(32), 1);
+    let pc_gens = PedersenGens::default();
+    let proof =
+        RangeProof::from_bytes(proof_bytes).map_err(|_| RangeProofError::MalformedEncoding)?;
+    let mut transcript = Transcript::new(label);
+    if let Some(h) = receipt_hash {
+        transcript.append_message(b"receipt-hash", h);
+    }
+    proof
+        .verify_single(
+            &gens,
+            &pc_gens,
+            &mut transcript,
+            &CompressedRistretto(*commitment),
+            bits,
+        )
+        .map_err(|_| RangeProofError::VerificationFailed)
+}
+
+#[cfg(test)]
+mod bound_batch_tests {
+    //! Falsifier courts for registers #33 (receipt-bound witnesses) and
+    //! #34 (aggregated batch verification).
+
+    use super::*;
+    use rand_core::OsRng;
+
+    const LABEL: &[u8] = b"affidavit:zk-range:v1:effect-budget";
+    const H1: [u8; 32] = [1u8; 32];
+    const H2: [u8; 32] = [2u8; 32];
+
+    #[test]
+    fn bound_proof_verifies_under_its_own_receipt_hash() {
+        let witness = prove_range_bound(42, 32, LABEL, Some(&H1), &mut OsRng).expect("prove");
+        assert_eq!(
+            verify_range_bound(&witness.commitment, &witness.proof, 32, LABEL, Some(&H1)),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn bound_proof_prove_h1_verify_h2_is_refused() {
+        // Falsifier: the receipt hash is Fiat-Shamir-bound; a different hash
+        // diverges the challenges, so the proof cannot be replayed against
+        // another receipt.
+        let witness = prove_range_bound(42, 32, LABEL, Some(&H1), &mut OsRng).expect("prove");
+        assert_eq!(
+            verify_range_bound(&witness.commitment, &witness.proof, 32, LABEL, Some(&H2)),
+            Err(RangeProofError::VerificationFailed)
+        );
+    }
+
+    #[test]
+    fn bound_proof_rejects_verification_without_the_receipt_hash() {
+        // Drop-append mutation control: a verifier that omits the
+        // b"receipt-hash" append must get a loud Err, never a silent accept;
+        // symmetrically, a proof proven unbound must not verify under a
+        // hash. If either side stops threading the append, this fails.
+        let bound = prove_range_bound(42, 32, LABEL, Some(&H1), &mut OsRng).expect("prove");
+        assert_eq!(
+            verify_range_bound(&bound.commitment, &bound.proof, 32, LABEL, None),
+            Err(RangeProofError::VerificationFailed)
+        );
+        let unbound = prove_range(42, 32, LABEL, &mut OsRng).expect("prove");
+        assert_eq!(
+            verify_range_bound(&unbound.commitment, &unbound.proof, 32, LABEL, Some(&H1)),
+            Err(RangeProofError::VerificationFailed)
+        );
+    }
+
+    #[test]
+    fn bound_with_none_matches_unbound_behavior() {
+        let a = prove_range_bound(9, 16, LABEL, None, &mut OsRng).expect("prove");
+        assert_eq!(verify_range(&a.commitment, &a.proof, 16, LABEL), Ok(()));
+    }
+
+    #[test]
+    fn bound_batch_verifies_only_under_its_receipt_hash() {
+        let batch = prove_range_batch_bound(&[1, 2, 3], 32, LABEL, Some(&H1), &mut OsRng)
+            .expect("prove batch");
+        assert_eq!(verify_range_batch(&batch, LABEL, Some(&H1)), Ok(()));
+        assert_eq!(
+            verify_range_batch(&batch, LABEL, Some(&H2)),
+            Err(RangeProofError::VerificationFailed)
+        );
+        assert_eq!(
+            verify_range_batch(&batch, LABEL, None),
+            Err(RangeProofError::VerificationFailed)
+        );
+    }
+
+    // ---- Register #34: aggregated batch verification ----
+
+    #[test]
+    fn batch_of_eight_valid_proofs_verifies() {
+        let values: Vec<u64> = (0..8).map(|i| i * 1_000).collect();
+        let batch = prove_range_batch(&values, 32, LABEL, &mut OsRng).expect("prove batch");
+        assert_eq!(batch.members.len(), 8);
+        assert_eq!(verify_range_batch(&batch, LABEL, None), Ok(()));
+    }
+
+    #[test]
+    fn swapping_batch_proof_bytes_fails_loudly() {
+        let values: Vec<u64> = (0..8).map(|i| i * 500).collect();
+        let batch = prove_range_batch(&values, 32, LABEL, &mut OsRng).expect("prove batch");
+
+        // Cross-batch swap: a valid proof from a different aggregate must
+        // not be accepted for this batch's commitments.
+        let other = prove_range_batch(&values, 32, LABEL, &mut OsRng).expect("prove second batch");
+        let mut swapped = batch.clone();
+        swapped.proof = other.proof;
+        assert_eq!(
+            verify_range_batch(&swapped, LABEL, None),
+            Err(RangeProofError::VerificationFailed)
+        );
+
+        // Byte-level tamper on a member-carrying aggregate: any corruption
+        // of the shared proof surfaces as a typed failure, not a pass.
+        let mut tampered = batch.clone();
+        let last = tampered.proof.len() - 1;
+        tampered.proof[last] ^= 0x01;
+        assert!(matches!(
+            verify_range_batch(&tampered, LABEL, None),
+            Err(RangeProofError::VerificationFailed) | Err(RangeProofError::MalformedEncoding)
+        ));
+    }
+
+    #[test]
+    fn batch_matches_sequential_outcomes_on_mixed_corpus() {
+        // Mixed corpus: zero, one, ceiling boundary, and large in-range
+        // values across 8 members.
+        let mixed: Vec<u64> = vec![
+            0,
+            1,
+            4_294_967_295, // 2^32 - 1, exactly at the ceiling
+            123_456_789,
+            2_000_000_000,
+            999,
+            65_535,
+            4_294_967_294,
+        ];
+        assert_eq!(mixed.len(), 8);
+        let batch = prove_range_batch(&mixed, 32, LABEL, &mut OsRng).expect("prove batch");
+        assert_eq!(verify_range_batch(&batch, LABEL, None), Ok(()));
+
+        // Sequential baseline: every member's value proves and verifies on
+        // its own, so batch and sequential agree (both accept).
+        for &v in &mixed {
+            let w = prove_range(v, 32, LABEL, &mut OsRng).expect("sequential prove");
+            assert_eq!(verify_range(&w.commitment, &w.proof, 32, LABEL), Ok(()));
+        }
+
+        // Disagreement case: a corpus with an out-of-range member is
+        // refused by both paths (batch refuses at generation; sequential
+        // refuses per member).
+        let bad: Vec<u64> = vec![1, 2, 1 << 33];
+        assert!(prove_range_batch(&bad, 32, LABEL, &mut OsRng).is_err());
+        assert!(prove_range(1 << 33, 32, LABEL, &mut OsRng).is_err());
+    }
+
+    #[test]
+    fn empty_batch_is_a_typed_refusal() {
+        assert!(prove_range_batch(&[], 32, LABEL, &mut OsRng).is_err());
+        let one = prove_range_batch(&[5], 32, LABEL, &mut OsRng).expect("prove");
+        let mut empty = one.clone();
+        empty.members.clear();
+        assert_eq!(
+            verify_range_batch(&empty, LABEL, None),
+            Err(RangeProofError::Generation(
+                "batch must contain at least one member".into()
+            ))
+        );
+    }
+
+    #[test]
+    fn batch_rejects_unsupported_bit_ranges() {
+        assert!(prove_range_batch(&[1], 12, LABEL, &mut OsRng).is_err());
+        let mut batch = prove_range_batch(&[1], 32, LABEL, &mut OsRng).expect("prove");
+        batch.bits = 12;
+        assert_eq!(
+            verify_range_batch(&batch, LABEL, None),
+            Err(RangeProofError::Generation(
+                "batch requires bits in [8, 16, 32, 64], got 12".into()
+            ))
+        );
+    }
+}
