@@ -11,7 +11,10 @@
 
 //! `receipt chain-verify` verb (rendered).
 
+// [coordinator] gated with the body — default cfg view has no use for them.
+#[cfg(feature = "ctdd")]
 use clap_noun_verb::Result;
+#[cfg(feature = "ctdd")]
 use clap_noun_verb_macros::verb;
 /// Replay the BLAKE3 receipt chain across all court records in a directory
 // [coordinator] ctdd self-gate restored (ontology lane procedure: template cannot emit gates;
