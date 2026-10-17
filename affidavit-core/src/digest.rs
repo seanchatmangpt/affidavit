@@ -228,3 +228,144 @@ mod tests {
         assert_ne!(a, f, "hasher identity must be visible in the head");
     }
 }
+
+/// Keyed domain separation over the hasher seam: derive a digest from an
+/// input bound to a fixed context string.
+///
+/// This is the KDF-flavored extension of [`ChainHasher`]. The default folds
+/// `context || input` through the implementing hasher's own three-call
+/// interface, so any [`ChainHasher`] gets a `derive` for free; a cryptographic
+/// hasher is expected to override it with its dependency's real keyed/derive
+/// mode (see [`Blake3Hasher`]).
+///
+/// **No cryptographic algorithm is implemented in this crate**: the BLAKE3
+/// override delegates entirely to the external `blake3` crate's
+/// `Hasher::new_derive_key` (keyed mode), and [`Fnv256`]'s inherited default
+/// is — like all of [`Fnv256`] — **non-cryptographic** and must not be used
+/// adversarially.
+pub trait ChainKdf {
+    /// Derive a [`Digest`] from `input` under `context`.
+    ///
+    /// Two different contexts applied to the same input must yield different
+    /// digests (domain separation is real, not cosmetic). The path is
+    /// allocation-free beyond what the underlying hasher itself uses.
+    fn derive(&self, input: &[u8], context: &str) -> Digest;
+
+    /// Inherited default: fold `context || input` through this hasher's own
+    /// [`ChainHasher`] interface. Deterministic and diffusing, but carries
+    /// whatever (non-)cryptographic standing the hasher itself has.
+    fn derive_default(input: &[u8], context: &str) -> Digest
+    where
+        Self: ChainHasher,
+    {
+        let mut state = Self::init();
+        Self::absorb(&mut state, context.as_bytes());
+        Self::absorb(&mut state, input);
+        Self::finish(state)
+    }
+}
+
+impl ChainKdf for Blake3Hasher {
+    /// Delegates entirely to the external `blake3` crate's keyed
+    /// (`new_derive_key`) mode — no BLAKE3 rounds are implemented here.
+    /// Allocation on this path is whatever `blake3` itself performs; nothing
+    /// is allocated in this crate.
+    #[inline]
+    fn derive(&self, input: &[u8], context: &str) -> Digest {
+        let mut hasher = blake3::Hasher::new_derive_key(context);
+        hasher.update(input);
+        Digest(*hasher.finalize().as_bytes())
+    }
+}
+
+impl ChainKdf for Fnv256 {
+    /// [`Fnv256`] uses the inherited `context || input` fold; like everything
+    /// FNV-based here it is **non-cryptographic** (no collision resistance,
+    /// no keyed security) and is for tests/demos only.
+    #[inline]
+    fn derive(&self, input: &[u8], context: &str) -> Digest {
+        Self::derive_default(input, context)
+    }
+}
+
+#[cfg(test)]
+mod kdf_tests {
+    use super::*;
+
+    /// Context domain separation is real: same input, two different contexts
+    /// produce different digests on both hashers.
+    #[test]
+    fn kdf_different_contexts_differ_on_same_input() {
+        for ctx in ["a", "affidavit receipt chain v1", "x".repeat(64).as_str()] {
+            let b1 = Blake3Hasher.derive(b"payload", ctx);
+            let b2 = Blake3Hasher.derive(b"payload", "unrelated other context");
+            assert_ne!(b1, b2, "blake3 derive must separate contexts");
+
+            let f1 = Fnv256.derive(b"payload", ctx);
+            let f2 = Fnv256.derive(b"payload", "unrelated other context");
+            assert_ne!(f1, f2, "fnv derive_default must separate contexts");
+        }
+    }
+
+    /// Domain separation is not cosmetic: `derive(input, ctx)` must differ
+    /// from the plain chain-hash of `input` alone.
+    #[test]
+    fn kdf_derive_differs_from_plain_chain_hash() {
+        let plain = {
+            let mut s = Blake3Hasher::init();
+            Blake3Hasher::absorb(&mut s, b"payload");
+            Blake3Hasher::finish(s)
+        };
+        let derived = Blake3Hasher.derive(b"payload", "ctx");
+        assert_ne!(plain, derived, "blake3 keyed mode must domain-separate");
+
+        let fnv_plain = {
+            let mut s = Fnv256::init();
+            Fnv256::absorb(&mut s, b"payload");
+            Fnv256::finish(s)
+        };
+        assert_ne!(
+            fnv_plain,
+            Fnv256.derive(b"payload", "ctx"),
+            "fnv context-prefix fold must differ from the bare fold"
+        );
+    }
+
+    /// Determinism: identical (input, context) pairs reproduce byte-identical
+    /// digests on both hashers.
+    #[test]
+    fn kdf_deterministic_same_args_identical_digests() {
+        for _ in 0..2 {
+            assert_eq!(
+                Blake3Hasher.derive(b"determinism", "ctx-a"),
+                Blake3Hasher.derive(b"determinism", "ctx-a")
+            );
+            assert_eq!(
+                Fnv256.derive(b"determinism", "ctx-a"),
+                Fnv256.derive(b"determinism", "ctx-a")
+            );
+        }
+    }
+
+    /// Positive control (vacuity sweep): emptying the context string changes
+    /// the digest. If this ever fails, the context is not being absorbed and
+    /// the tests above are vacuous.
+    #[test]
+    fn kdf_vacuity_empty_context_changes_digest() {
+        assert_ne!(
+            Blake3Hasher.derive(b"payload", ""),
+            Blake3Hasher.derive(b"payload", "nonempty")
+        );
+        assert_ne!(
+            Fnv256.derive(b"payload", ""),
+            Fnv256.derive(b"payload", "nonempty")
+        );
+        // And the degenerate case: empty context is NOT the plain hash.
+        let plain = {
+            let mut s = Blake3Hasher::init();
+            Blake3Hasher::absorb(&mut s, b"payload");
+            Blake3Hasher::finish(s)
+        };
+        assert_ne!(Blake3Hasher.derive(b"payload", ""), plain);
+    }
+}
