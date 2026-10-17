@@ -1,0 +1,70 @@
+{
+  "name": "@seanchatmangpt/affidavit",
+  "version": "26.10.17",
+  "description": "Affidavit: library-backed zero-trust witness verification and process mining (OCEL, Merkle, Bulletproofs, ML-DSA/SLH-DSA PQC, JCS) over a WASM ABI",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist-nodejs/",
+    "dist-web/",
+    "dist-bundler/",
+    "wasm/",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "THESIS.md"
+  ],
+  "main": "./dist-nodejs/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist-nodejs/index.d.ts",
+      "node": {
+        "import": "./dist-nodejs/index.js"
+      },
+      "browser": "./dist-web/index.js",
+      "default": "./dist-web/index.js"
+    },
+    "./raw": {
+      "types": "./dist-nodejs/raw/index.d.ts",
+      "node": {
+        "import": "./dist-nodejs/raw/index.js"
+      },
+      "browser": "./dist-web/raw/index.js",
+      "default": "./dist-web/raw/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs && tsc -p tsconfig.build.json && node scripts/assemble.mjs",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seanchatmangpt/affidavit.git"
+  },
+  "bugs": "https://github.com/seanchatmangpt/affidavit/issues",
+  "homepage": "https://github.com/seanchatmangpt/affidavit",
+  "keywords": [
+    "affidavit",
+    "cryptography",
+    "process-mining",
+    "zero-trust",
+    "merkle",
+    "pqc",
+    "bulletproofs",
+    "wasm",
+    "webassembly"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

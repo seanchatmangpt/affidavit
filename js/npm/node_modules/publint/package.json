@@ -1,0 +1,63 @@
+{
+  "name": "publint",
+  "version": "0.3.25",
+  "description": "Lint packaging errors",
+  "type": "module",
+  "author": "Bjorn Lu",
+  "license": "MIT",
+  "bin": {
+    "publint": "./src/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "browser": "./src/index-browser.js",
+      "default": "./src/index-node.js"
+    },
+    "./utils": {
+      "types": "./src/utils.d.ts",
+      "default": "./src/utils.js"
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "src"
+  ],
+  "funding": "https://bjornlu.com/sponsor",
+  "homepage": "https://publint.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/publint/publint.git",
+    "directory": "packages/publint"
+  },
+  "bugs": {
+    "url": "https://github.com/publint/publint/issues"
+  },
+  "keywords": [
+    "publish",
+    "lint"
+  ],
+  "dependencies": {
+    "@publint/pack": "^0.1.7",
+    "package-manager-detector": "^1.8.0",
+    "picocolors": "^1.1.1",
+    "sade": "^1.8.1"
+  },
+  "devDependencies": {
+    "@types/prompts": "^2.4.9",
+    "fs-fixture": "^2.16.0",
+    "prompts": "^2.4.2",
+    "tinyexec": "^1.3.1",
+    "vitest": "^5.0.2"
+  },
+  "scripts": {
+    "cli": "node ./src/cli.js",
+    "test": "vitest run",
+    "test-dev": "vitest",
+    "lint-publint": "node ./src/cli.js",
+    "lint-fixture": "node ./scripts/lintFixture.js",
+    "typecheck": "tsc"
+  }
+}

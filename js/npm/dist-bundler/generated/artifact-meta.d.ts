@@ -1,0 +1,2 @@
+export declare const WASM_SHA256 = "681f7033a78f31fcbbf7b7936a772ccac9c7da5f5d5d655bcea4a9e07bbaa8e8";
+//# sourceMappingURL=artifact-meta.d.ts.map
