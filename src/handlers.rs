@@ -4926,62 +4926,6 @@ pub struct DoctorFinding {
     pub auto_fixable: bool,
 }
 
-/// Check that the genesis seed in the chain module matches the binary version.
-fn check_genesis_seed() -> DoctorFinding {
-    let pkg_version = env!("CARGO_PKG_VERSION");
-    // The genesis seed used by chain.rs should embed the current package version.
-    // After the B4 fix it reads CARGO_PKG_VERSION at compile time; pre-B4 it was
-    // a pinned literal.  We report the binary version we were built with so the
-    // operator can detect a stale seed if they see a mismatch in receipt diffs.
-    DoctorFinding {
-        check: "genesis-seed".to_string(),
-        status: CheckStatus::Ok,
-        message: format!(
-            "Genesis seed compiled for binary version {} — matches CARGO_PKG_VERSION",
-            pkg_version
-        ),
-        remediation: None,
-        auto_fixable: false,
-    }
-}
-
-/// Check that the working-receipt directory (.affi/) exists and is accessible.
-fn check_working_dir() -> DoctorFinding {
-    let working_path = std::path::Path::new(".affi/working.json");
-    let affi_dir = std::path::Path::new(".affi");
-    if working_path.exists() {
-        DoctorFinding {
-            check: "working-dir".to_string(),
-            status: CheckStatus::Ok,
-            message: "Working receipt (.affi/working.json) found and accessible".to_string(),
-            remediation: None,
-            auto_fixable: false,
-        }
-    } else if affi_dir.exists() {
-        DoctorFinding {
-            check: "working-dir".to_string(),
-            status: CheckStatus::Warn,
-            message: ".affi/ directory exists but no working.json found".to_string(),
-            remediation: Some(
-                "Run 'affi emit --type <event_type> --object <id:type>' to start a receipt chain."
-                    .to_string(),
-            ),
-            auto_fixable: false,
-        }
-    } else {
-        DoctorFinding {
-            check: "working-dir".to_string(),
-            status: CheckStatus::Warn,
-            message: "No .affi/ directory found in the current working directory".to_string(),
-            remediation: Some(
-                "Run 'affi emit' to initialise the .affi/ directory and begin a receipt chain."
-                    .to_string(),
-            ),
-            auto_fixable: false,
-        }
-    }
-}
-
 /// Check health of a receipt store directory or file.
 fn check_receipt_store(path: &str) -> Vec<DoctorFinding> {
     let mut findings = Vec::new();
@@ -5073,10 +5017,6 @@ pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
             auto_fixable: plugin_finding.auto_fixable,
         });
     }
-
-    // Always-on environment checks (no runtime args required).
-    findings.push(check_genesis_seed());
-    findings.push(check_working_dir());
 
     // Check legacy (non-linkme) checks — receipt store requires runtime path arg.
     if let Some(ref path) = receipts {
