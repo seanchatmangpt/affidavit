@@ -314,7 +314,10 @@ fn bus_factor_partitions_real_object_types() {
         svc["bus_factor"], 2,
         "service is shared by both receipts: {stdout}"
     );
-    assert_eq!(svc["risk"], "LOW", "two-receipt type is LOW risk: {stdout}");
+    assert_eq!(
+        svc["risk"], "MEDIUM",
+        "two-receipt type is MEDIUM risk (handler law: 1=HIGH, <=2=MEDIUM, else LOW): {stdout}"
+    );
 
     assert_eq!(
         v["high_risk"], 1,
@@ -480,8 +483,8 @@ fn team_velocity_counts_real_pr_and_merge_events() {
 
     let v = first_json(&stdout);
     assert_eq!(
-        v["pr_events"], 2,
-        "1 pull_request + 1 review-class event in the world: {stdout}"
+        v["pr_events"], 1,
+        "1 real pull_request event in the world: {stdout}"
     );
     assert_eq!(
         v["merge_events"], 1,
@@ -489,9 +492,9 @@ fn team_velocity_counts_real_pr_and_merge_events() {
     );
     assert_eq!(v["receipts"], 2, "both receipts counted: {stdout}");
     assert_eq!(v["total_events"], 7, "3 + 4 real events: {stdout}");
-    // pr_to_merge_ratio = 2 / 1, derived from the real counts.
+    // pr_to_merge_ratio = 1 / 1, derived from the real counts.
     assert_eq!(
-        v["pr_to_merge_ratio"], 2.0,
+        v["pr_to_merge_ratio"], 1.0,
         "ratio must derive from the real pr/merge counts: {stdout}"
     );
 }

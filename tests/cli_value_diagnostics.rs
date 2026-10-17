@@ -293,7 +293,6 @@ fn diagnose_mirrors_verify_on_tampered_receipt() {
     let (vcode, _, _) = w.run(&[
         "receipt",
         "verify",
-        "--receipt",
         tampered.file_name().unwrap().to_str().unwrap(),
     ]);
     assert_eq!(
@@ -347,18 +346,7 @@ fn diff_reports_added_events_between_two_real_chains() {
     let w = World::new("diff-added");
     let (honest, _tampered) = w.receipt_pair();
 
-    // Build a second, longer real chain in a separate working store.
-    let dir2 = w.cwd.join("chain-b");
-    std::fs::create_dir_all(&dir2).expect("mkdir chain-b");
-    std::fs::write(dir2.join("q1.txt"), "chain b bytes\n").expect("write q1");
-    let emit = |args: &[&str]| {
-        let (code, _, stderr) = w.run(args);
-        assert_eq!(code, EXIT_OK, "[diff] chain-b emit must succeed: {stderr}");
-    };
-    // Note: emit/assemble operate on the cwd store; run chain-b via explicit cwd.
-    let _ = &dir2;
-    let _ = emit;
-    // Simplest real second chain: emit into a fresh temp dir.
+    // Build a second, longer real chain in a fresh working store.
     let w2 = World::new("diff-added-b");
     std::fs::write(w2.cwd.join("q1.txt"), "chain b bytes\n").expect("write q1");
     std::fs::write(w2.cwd.join("q2.txt"), "more chain b bytes\n").expect("write q2");
