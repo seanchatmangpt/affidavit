@@ -8,10 +8,12 @@
 
 //! `receipt validate` verb.
 
+#[cfg(feature = "ctdd")]
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
 /// Validate one 352-byte court receipt record (file path, or `-` for stdin)
+#[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("validate", "receipt")]
 pub fn receipt_validate(

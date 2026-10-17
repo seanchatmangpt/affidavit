@@ -8,10 +8,12 @@
 
 //! `dossier verify` verb.
 
+#[cfg(feature = "ctdd")]
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
 /// Verify a previously sealed dossier wire file against the local key store
+#[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("verify", "dossier")]
 pub fn dossier_verify(

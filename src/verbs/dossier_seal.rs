@@ -9,10 +9,12 @@
 
 //! `dossier seal` verb.
 
+#[cfg(feature = "ctdd")]
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
 /// Seal a dossier directory of court records into a signed sealed-dossier wire file
+#[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("seal", "dossier")]
 pub fn dossier_seal(

@@ -15,6 +15,7 @@ pub mod audit;
 pub mod bus_factor;
 pub mod catalog;
 pub mod causality_chain;
+pub mod certificate_fre_902;
 pub mod conformance;
 pub mod coverage_analysis;
 pub mod dependency_matrix;
@@ -24,13 +25,7 @@ pub mod doctor;
 pub mod dora_metrics;
 pub mod dossier_emit;
 pub mod dossier_inspect;
-
-// Phase D M2: native port of the excised `ctdd_ledger` verbs. Feature-gated:
-// the wire/domain law lives in `chicago-tdd-tools`, compiled in only when
-// the `ctdd` feature is admitted.
-#[cfg(feature = "ctdd")]
 pub mod dossier_seal;
-#[cfg(feature = "ctdd")]
 pub mod dossier_verify;
 pub mod ecosystem_certify;
 pub mod ecosystem_verify;
@@ -68,6 +63,7 @@ pub mod keys_import;
 pub mod keys_list;
 pub mod keys_revoke;
 pub mod keys_rotate;
+pub mod legal_hold_status;
 pub mod license_compliance;
 pub mod model;
 pub mod monitor;
@@ -79,12 +75,11 @@ pub mod portfolio_health;
 pub mod predict;
 pub mod profile;
 pub mod query;
-#[cfg(feature = "ctdd")]
 pub mod receipt_chain_verify;
 pub mod receipt_throughput;
-#[cfg(feature = "ctdd")]
 pub mod receipt_validate;
 pub mod replay;
+pub mod restitution_calculate;
 pub mod root_cause;
 pub mod sbom_attest;
 pub mod sbom_blast_radius;
@@ -112,8 +107,3 @@ pub mod verify_family;
 pub mod verify_sla;
 pub mod visualize;
 pub mod why;
-
-// Adversarial statutory compliance & attestation verbs (v26.10.16)
-pub mod certificate_fre_902;
-pub mod legal_hold_status;
-pub mod restitution_calculate;

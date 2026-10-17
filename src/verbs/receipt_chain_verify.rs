@@ -8,10 +8,12 @@
 
 //! `receipt chain-verify` verb.
 
+#[cfg(feature = "ctdd")]
 use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
 /// Verify the BLAKE3 receipt chain across all court records in a directory
+#[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("chain-verify", "receipt")]
 pub fn receipt_chain_verify(
