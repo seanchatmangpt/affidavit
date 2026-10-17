@@ -2,6 +2,29 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.10.16] — 2026-10-16
+
+**Theme: law-complete affidavit-core rebuild, wasm trust plane, Diataxis docs.**
+
+### Added
+- **affidavit-core** (CalVer 26.10.16, `ef061db`, `4f16c8a`): zero-in-crate-crypto
+  rebuild — PQC court (`PqcCourt(Suite::{MlDsa65,SlhDsa128s,Dual})`), `KemCourt`,
+  `PqcSealedReceipt`, `Blake3Hasher`, OCEL v2 mining; every algorithm an external
+  dependency (`ml-dsa 0.1.1`, `slh-dsa =0.2.0-rc.5`, `ml-kem 0.3.2`, `blake3`).
+- **affidavit-wasm** PQC ABI surface (`29e66f0`): `pqc_verify` / `pqc_assemble`
+  ops wired through the generated `OPS` table, `pqc_refused` error code, host
+  differential courts (`tests/pqc_abi.rs`: wasmi byte-identity, bit-flip,
+  cross-key, malformed-input refusals — 10/10 passed 2026-10-16).
+- **Documentation** (`1847222`): complete Diataxis suite and README rewrite.
+
+### Verification receipts (2026-10-16, this tree)
+- core ladder: `cargo test` 152 passed/0 failed; `--features ocel-compat` plane
+  green; `--no-default-features` build green; clippy `-D warnings` green; fmt
+  green; `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` green.
+- root: `cargo test --lib` 409 passed/0 failed;
+  `examples/golden_run.sh` ACCEPT(0) → REJECT(2), `GOLDEN RUN OK`.
+- registry/ontology parity: 101/101 verbs, 13 registry parity tests passed.
+
 ## [26.10.6] — 2026-10-11
 
 **Theme: Sovereign PQC modulus, 352B CTRT wire, zero-ambient ODB.** Tagged

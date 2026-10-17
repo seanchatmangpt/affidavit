@@ -23,8 +23,14 @@ In complex corporate and technical architectures, subjective honesty is undecida
 ## 🚀 The v26.10.16 Release: Core Invariants
 
 - 🛡️ **352-Byte CTRT Token:** Fixed-size packed binary wire format encoding `statutory_anchor`, `tariff_basis_cents`, and `deontic_modality` in bytes `151..352`.
-- 🔐 **FIPS 204 ML-DSA-65 & SLH-DSA-128s:** Post-quantum cryptographic signatures running in pure Rust with NIST Known Answer Test (KAT) verification.
-- ⚡ **affidavit-wasm (~230 KB):** Sandboxed WASI-only binary exporting `affi_admit_and_seal` for in-process BEAM execution in sub-100 microseconds with zero host traps.
+- 🔐 **FIPS 204/205 PQC signatures:** ML-DSA-65 and SLH-DSA-SHA2-128s (plus
+  ML-KEM-768 key encapsulation) via Rust bindings over the external `ml-dsa`,
+  `slh-dsa`, and `ml-kem` crates — zero hand-implemented cryptography anywhere
+  in this project; KAT-validated through the external implementations. PQC
+  ships unconditionally in `affidavit-core` and the WASM artifact (no PQC
+  feature flag); in the root crate it is available under the `crypto-trust`
+  feature.
+- ⚡ **affidavit-wasm (660,847 bytes pinned; see `affidavit-wasm/registry/ARTIFACTS.sha256`):** Sandboxed WASI-only binary exporting the `af_*` JSON-ABI surface (`af_abi_version`/`af_alloc`/`af_free`/`af_call`) plus the `affi_admit_and_seal` gate — admit-and-seal targets sub-100µs in-process BEAM execution; null and oversize requests return typed errors instead of trapping.
 - 🤖 **101 Canonical Verbs:** Governed by RDF ontology (`ontology/affi-cli.ttl`) with strict drift-parity enforcement across Bash, Zsh, Fish, PowerShell, and Nushell.
 - 📜 **Statutory Verbs:**
   - `affi legal-hold status`: Verifies historical chain continuity and outputs FRCP 37(e) spoliation status.
@@ -85,7 +91,7 @@ Affidavit ships 101 canonical verbs across 11 groups, backed by a compile-time s
 
 Each receipt passes through a rigorous, branchless validation gauntlet:
 
-1. **Decode:** Structural presence and magic check (`CTRT`).
+1. **Decode:** Structural presence and parseable `format_version`. (CTRT-magic checking lives in the separate CTRT wire-format court, `src/wire_ctrt.rs`.)
 2. **Format Check:** Verification against the `core/v1` schema standard.
 3. **Chain Integrity:** Cryptographic re-computation of the rolling BLAKE3 hash.
 4. **Continuity:** Sequence validation; missing sequence numbers trigger `REJECT: EVIDENTIARY_CHAIN_GAP_DETECTED (FRCP-37E)`.
