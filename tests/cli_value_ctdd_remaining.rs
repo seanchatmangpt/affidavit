@@ -166,11 +166,7 @@ fn install_git_hook_writes_executable_hook_that_enforces_exit_1() {
             .expect("hook metadata")
             .permissions()
             .mode();
-        assert_ne!(
-            mode & 0o111,
-            0,
-            "hook must be executable; mode = {mode:o}"
-        );
+        assert_ne!(mode & 0o111, 0, "hook must be executable; mode = {mode:o}");
     }
 
     // Live enforcement: run the installed hook for real. Its embedded
@@ -236,12 +232,7 @@ fn install_git_hook_in_non_git_dir_is_typed_refusal() {
 /// a parsed non-positive number is the failure mode).
 #[test]
 fn receipt_throughput_reports_real_bounded_latency_numbers() {
-    let (code, stdout, stderr) = affi(&[
-        "receipt",
-        "receipt-throughput",
-        "--iterations",
-        "25",
-    ]);
+    let (code, stdout, stderr) = affi(&["receipt", "receipt-throughput", "--iterations", "25"]);
     assert_eq!(
         code, 0,
         "receipt-throughput must succeed; stdout: {stdout} | stderr: {stderr}"
@@ -251,8 +242,13 @@ fn receipt_throughput_reports_real_bounded_latency_numbers() {
         "benchmark header must state the real iteration count; stderr: {stderr}"
     );
 
-    let latency_us = parse_latency_micros(&stdout)
-        .expect("stdout must carry an 'Avg latency:' line with a parseable duration");
+    // The bench renderer prints results on stderr (eprintln), stdout stays empty.
+    assert!(
+        stdout.trim().is_empty(),
+        "throughput results belong on stderr; unexpected stdout: {stdout}"
+    );
+    let latency_us = parse_latency_micros(&stderr)
+        .expect("stderr must carry an 'Avg latency:' line with a parseable duration");
     assert!(
         latency_us > 0.0,
         "avg latency must be positive; got {latency_us}µs"
@@ -263,8 +259,8 @@ fn receipt_throughput_reports_real_bounded_latency_numbers() {
          this is a correctness bound, investigate before re-baselining"
     );
 
-    let ops_sec = parse_ops_per_sec(&stdout)
-        .expect("stdout must carry a 'Throughput:' line with a parseable ops/sec");
+    let ops_sec = parse_ops_per_sec(&stderr)
+        .expect("stderr must carry a 'Throughput:' line with a parseable ops/sec");
     assert!(
         ops_sec > 1.0 && ops_sec < 100_000_000.0,
         "throughput must be a plausible bounded number; got {ops_sec} ops/sec"
@@ -280,9 +276,7 @@ fn receipt_throughput_reports_real_bounded_latency_numbers() {
 }
 
 fn parse_latency_micros(out: &str) -> Option<f64> {
-    let line = out
-        .lines()
-        .find(|l| l.contains("Avg latency:"))?;
+    let line = out.lines().find(|l| l.contains("Avg latency:"))?;
     let raw = line.split(':').nth(1)?.trim();
     let (value, unit) = raw.split_at(raw.find(|c: char| !c.is_ascii_digit() && c != '.')?);
     let value: f64 = value.trim().parse().ok()?;
@@ -323,8 +317,9 @@ fn monitor_real_spc_snapshot_critical_violations_decide_exit() {
         "CRITICAL violations must exit REJECT (2); output: {combined}"
     );
 
-    let json: serde_json::Value = serde_json::from_str(stdout.trim())
-        .unwrap_or_else(|e| panic!("monitor --format json must print one JSON object: {e}\n{stdout}"));
+    let json: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
+        panic!("monitor --format json must print one JSON object: {e}\n{stdout}")
+    });
     assert_eq!(
         json["monitor"], "once",
         "snapshot must be a single-shot monitor run; got: {json}"
@@ -370,8 +365,10 @@ fn monitor_unknown_rules_is_typed_refusal() {
         combined.contains("REFUSED_UNKNOWN_RULE"),
         "unknown rule must be a typed REFUSED_UNKNOWN_RULE; got: {combined}"
     );
+    // JSON envelope escapes the inner quotes (\\"all\\); assert the escaped
+    // form so the check matches the actual wire bytes.
     assert!(
-        combined.contains("\"all\""),
+        combined.contains("\\\"all\\\""),
         "refusal must name the offending token; got: {combined}"
     );
     assert!(
@@ -384,9 +381,10 @@ fn monitor_unknown_rules_is_typed_refusal() {
 /// (cwd-controlled runs cannot go through the `Output`-based helper).
 fn assert_typed_refusal_output(code: i32, combined: &str) {
     assert_ne!(code, 0, "typed refusal must be non-zero; got: {combined}");
-    let in_1500_range = (1500 % 256..=1599 % 256).contains(&code);
-    let structured =
-        in_1500_range || combined.contains("REFUSED_") || combined.contains("error:");
+    // 1500-1599 mod 256 wraps (220..=255 then 0..=63), so test both bands;
+    // the structured JSON error envelope carries the full code ("code":15xx).
+    let in_1500_range = (220..=255).contains(&code) || (0..=63).contains(&code);
+    let structured = in_1500_range || combined.contains("REFUSED_") || combined.contains("error:");
     assert!(
         structured,
         "exit {code} with no structured refusal class; output: {combined}"

@@ -88,19 +88,21 @@ fn registry_pairs() -> Vec<(String, String)> {
     pairs
 }
 
-/// Scan tests/cli_value_matrix/*.rs for `// value-matrix: (noun, verb)` markers.
+/// Scan tests/cli_value_*.rs (top-level domain batches) AND
+/// tests/cli_value_matrix/*.rs for `// value-matrix: (noun, verb)` markers.
 fn marker_pairs() -> BTreeSet<(String, String)> {
-    let dir = repo_root().join("tests/cli_value_matrix");
+    let root = repo_root().join("tests");
     let mut found = BTreeSet::new();
-    let entries = match fs::read_dir(&dir) {
-        Ok(e) => e,
-        Err(_) => return found, // dir absent: coverage starts at zero, loudly
-    };
-    let marker_re = regex::Regex::new(MARKER_RE_SRC).unwrap();
-    let mut files: Vec<_> = entries
+    let mut files: Vec<_> = fs::read_dir(&root)
+        .into_iter()
+        .flatten()
         .filter_map(|e| e.ok())
         .map(|e| e.path())
-        .filter(|p| p.extension().map_or(false, |x| x == "rs"))
+        .filter(|p| {
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            p.extension().map_or(false, |x| x == "rs")
+                && (name.starts_with("cli_value_") || name == "cli_value_matrix")
+        })
         .collect();
     files.sort();
     for path in files {
