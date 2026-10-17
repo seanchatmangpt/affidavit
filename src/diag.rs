@@ -69,6 +69,7 @@ pub mod exit_codes {
 /// | 1200–1299 | Profile conformance errors    |
 /// | 1300–1399 | I/O / environment errors      |
 /// | 1400–1499 | Admission gate errors         |
+/// | 1500–1599 | CLI framework surface errors  |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[repr(u16)]
 pub enum ErrorCode {
@@ -113,6 +114,48 @@ pub enum ErrorCode {
     InvalidObjectId = 1400,
     /// The `event_type` string is empty or contains illegal characters.
     InvalidEventType = 1401,
+
+    // CLI framework surface errors: 1500–1599 -----------------------------
+    /// `clap-noun-verb` could not resolve the requested noun.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::CommandNotFound`].
+    CliCommandNotFound = 1500,
+    /// `clap-noun-verb` resolved the noun but not the verb.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::VerbNotFound`].
+    CliVerbNotFound = 1501,
+    /// A CLI argument failed parsing or validation in the framework.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::ArgumentError`].
+    CliArgumentError = 1502,
+    /// The noun-verb argument structure itself is invalid.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::InvalidStructure`].
+    CliInvalidStructure = 1503,
+    /// A resolved verb's handler returned an error.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::ExecutionError`].
+    CliExecutionError = 1504,
+    /// A CLI plugin failed to load or dispatch.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::PluginError`].
+    CliPluginError = 1505,
+    /// Framework-level validation failed.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::ValidationFailed`].
+    CliValidationFailed = 1506,
+    /// A CLI middleware step failed.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::MiddlewareError`].
+    CliMiddlewareError = 1507,
+    /// CLI telemetry emission failed.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::TelemetryError`].
+    CliTelemetryError = 1508,
+    /// Framework error with no more specific classification.
+    ///
+    /// Maps [`clap_noun_verb::NounVerbError::Generic`].
+    CliGenericError = 1509,
 }
 
 impl ErrorCode {
@@ -162,6 +205,22 @@ impl ErrorCode {
 
             // Admission errors → USAGE_ERROR (bad input to `emit`)
             ErrorCode::InvalidObjectId | ErrorCode::InvalidEventType => exit_codes::USAGE_ERROR,
+
+            // CLI framework surface errors → exit with the stable diagnostic
+            // code encoded modulo 256 (POSIX exit status is 8-bit). The full
+            // stable value (1500–1599) is carried in the diagnostic's `code`
+            // field; the process exit status distinguishes each variant
+            // (1500 → 222 … 1509 → 231).
+            ErrorCode::CliCommandNotFound
+            | ErrorCode::CliVerbNotFound
+            | ErrorCode::CliArgumentError
+            | ErrorCode::CliInvalidStructure
+            | ErrorCode::CliExecutionError
+            | ErrorCode::CliPluginError
+            | ErrorCode::CliValidationFailed
+            | ErrorCode::CliMiddlewareError
+            | ErrorCode::CliTelemetryError
+            | ErrorCode::CliGenericError => (self.code() as i32) % 256,
         }
     }
 
@@ -187,6 +246,16 @@ impl ErrorCode {
             ErrorCode::WorkingDirMissing => "working directory missing or uninitialized",
             ErrorCode::InvalidObjectId => "invalid object id (expected id:type[:qualifier])",
             ErrorCode::InvalidEventType => "invalid event type",
+            ErrorCode::CliCommandNotFound => "command (noun) not found",
+            ErrorCode::CliVerbNotFound => "verb not found for noun",
+            ErrorCode::CliArgumentError => "CLI argument parsing failed",
+            ErrorCode::CliInvalidStructure => "invalid command structure",
+            ErrorCode::CliExecutionError => "command execution failed",
+            ErrorCode::CliPluginError => "CLI plugin error",
+            ErrorCode::CliValidationFailed => "CLI validation failed",
+            ErrorCode::CliMiddlewareError => "CLI middleware error",
+            ErrorCode::CliTelemetryError => "CLI telemetry error",
+            ErrorCode::CliGenericError => "CLI framework error",
         }
     }
 
@@ -242,7 +311,189 @@ impl ErrorCode {
                 "event types must be non-empty lowercase strings \
                  with optional hyphens (e.g. `build`, `audit-log`)",
             ),
+            ErrorCode::CliCommandNotFound => Some("run `affi --help` to list the known nouns"),
+            ErrorCode::CliVerbNotFound => {
+                Some("run `affi <noun> --help` to list the known verbs for that noun")
+            }
+            ErrorCode::CliArgumentError => {
+                Some("check the arguments with `affi <noun> <verb> --help`")
+            }
+            ErrorCode::CliInvalidStructure => {
+                Some("commands follow the `affi <noun> <verb>` pattern")
+            }
+            ErrorCode::CliExecutionError => None,
+            ErrorCode::CliPluginError => None,
+            ErrorCode::CliValidationFailed => None,
+            ErrorCode::CliMiddlewareError => None,
+            ErrorCode::CliTelemetryError => None,
+            ErrorCode::CliGenericError => None,
         }
+    }
+}
+
+/// Strip ANSI escape sequences from a framework error string.
+///
+/// `clap-noun-verb` embeds bold-yellow highlighting (`\x1b[1m\x1b[33m…\x1b[0m`)
+/// around its Levenshtein suggestions; a structured diagnostic must not carry
+/// terminal control bytes into JSON output.
+fn strip_ansi(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip `ESC [ … <final byte in 0x40..=0x7E>`
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                while let Some(&n) = chars.peek() {
+                    chars.next();
+                    if n as u32 >= 0x40 && n as u32 <= 0x7E {
+                        break;
+                    }
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Extract the framework's "Did you mean: …?" Levenshtein suggestion from a
+/// `NounVerbError` display string, if present.
+///
+/// Returns the suggestion text (e.g. `"receipt"`) with any ANSI highlighting
+/// removed, suitable for the [`Diag`] `hint` field.
+fn extract_suggestion(display: &str) -> Option<String> {
+    let clean = strip_ansi(display);
+    // clap-noun-verb's own Levenshtein path: "Did you mean: <a>, <b>?"
+    if let Some(idx) = clean.find("Did you mean: ") {
+        let rest = &clean[idx + "Did you mean: ".len()..];
+        let end = rest.find('?')?;
+        let suggestion = rest[..end].trim();
+        if !suggestion.is_empty() {
+            return Some(suggestion.to_string());
+        }
+    }
+    // clap v4's parse-layer form:
+    //   tip: a similar subcommand exists: 'receipt'
+    //   tip: some similar subcommands exist: 'a', 'b'
+    for marker in [
+        "a similar subcommand exists: ",
+        "some similar subcommands exist: ",
+    ] {
+        if let Some(idx) = clean.find(marker) {
+            let rest = &clean[idx + marker.len()..].replace('\'', "");
+            let line_end = rest.find('\n').unwrap_or(rest.len());
+            let first = rest[..line_end].split(',').next().unwrap_or("").trim();
+            if !first.is_empty() {
+                return Some(first.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Look for the offending token in a clap "unrecognized subcommand" error and
+/// classify noun-miss vs verb-miss against the compile-time verb registry.
+///
+/// Returns the quoted token, if present.
+fn unrecognized_subcommand_token(display: &str) -> Option<String> {
+    let clean = strip_ansi(display);
+    let idx = clean.find("unrecognized subcommand '")?;
+    let rest = &clean[idx + "unrecognized subcommand '".len()..];
+    let end = rest.find('\'')?;
+    Some(rest[..end].to_string())
+}
+
+/// True when `token` names a noun known to the compile-time registry
+/// (hyphen/underscore normalization applied).
+fn is_known_noun(token: &str) -> bool {
+    let normalized = token.replace('-', "_");
+    crate::registry::REGISTRY
+        .iter()
+        .any(|e| e.noun == token || e.noun.replace('-', "_") == normalized)
+}
+
+/// True when the clap usage line names a known noun
+/// (`Usage: affi receipt [OPTIONS] ...`) — i.e. the failure happened *under*
+/// a resolved noun, so an unrecognized subcommand there is a verb miss.
+fn usage_line_names_noun(display: &str) -> bool {
+    let clean = strip_ansi(display);
+    for line in clean.lines() {
+        if let Some(rest) = line.trim().strip_prefix("Usage: affi ") {
+            if let Some(first) = rest.split_whitespace().next() {
+                if is_known_noun(first) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+impl Diag {
+    /// Build a [`Diag`] from a `clap-noun-verb` framework error.
+    ///
+    /// Each [`NounVerbError`] variant maps to a stable code in the 1500–1599
+    /// CLI surface range (see [`ErrorCode`]). The framework's Levenshtein
+    /// "Did you mean" suggestion — when present — becomes the diagnostic's
+    /// `hint`, replacing the plain error string that a bare
+    /// `clap_noun_verb::Result` exit would print.
+    ///
+    /// The recommended process exit code for every variant in this range is
+    /// the diagnostic code encoded modulo 256 (POSIX exit status is 8-bit:
+    /// 1500 → 222 … 1509 → 231, still distinct per variant); the full
+    /// stable value rides in the diagnostic's `code` field.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use affidavit::diag::{Diag, ErrorCode};
+    /// use clap_noun_verb::NounVerbError;
+    ///
+    /// let err = NounVerbError::command_not_found("bogus-noun");
+    /// let d = Diag::from_noun_verb_error(&err);
+    /// assert_eq!(d.code, 1500);
+    /// assert_eq!(ErrorCode::CliCommandNotFound.exit_code(), 1500 % 256);
+    /// ```
+    pub fn from_noun_verb_error(err: &clap_noun_verb::NounVerbError) -> Self {
+        use clap_noun_verb::NounVerbError as E;
+        let display = err.to_string();
+        let code = match err {
+            E::CommandNotFound { .. } => ErrorCode::CliCommandNotFound,
+            E::VerbNotFound { .. } => ErrorCode::CliVerbNotFound,
+            // clap's parse layer rejects unknown nouns/verbs as
+            // ArgumentError("unrecognized subcommand ...") before the
+            // framework's CommandNotFound/VerbNotFound path can fire;
+            // reclassify against the registry so a miss against a known
+            // noun is a verb error and anything else is a noun error.
+            E::ArgumentError { .. } => {
+                if unrecognized_subcommand_token(&display).is_some() {
+                    if usage_line_names_noun(&display) {
+                        ErrorCode::CliVerbNotFound
+                    } else {
+                        ErrorCode::CliCommandNotFound
+                    }
+                } else {
+                    ErrorCode::CliArgumentError
+                }
+            }
+            E::InvalidStructure { .. } => ErrorCode::CliInvalidStructure,
+            E::ExecutionError { .. } => ErrorCode::CliExecutionError,
+            E::PluginError(_) => ErrorCode::CliPluginError,
+            E::ValidationFailed(_) => ErrorCode::CliValidationFailed,
+            E::MiddlewareError(_) => ErrorCode::CliMiddlewareError,
+            E::TelemetryError(_) => ErrorCode::CliTelemetryError,
+            E::Generic(_) => ErrorCode::CliGenericError,
+        };
+        let mut d = Diag::new(code, display);
+        // The framework's Levenshtein suggestion outranks the generic hint.
+        if let Some(s) = extract_suggestion(&d.message) {
+            d.hint = Some(s);
+        } else if let Some(h) = code.hint() {
+            d.hint = Some(h.to_string());
+        }
+        d
     }
 }
 
@@ -388,6 +639,84 @@ mod tests {
         assert_eq!(ErrorCode::WorkingDirMissing.code(), 1302);
         assert_eq!(ErrorCode::InvalidObjectId.code(), 1400);
         assert_eq!(ErrorCode::InvalidEventType.code(), 1401);
+        assert_eq!(ErrorCode::CliCommandNotFound.code(), 1500);
+        assert_eq!(ErrorCode::CliVerbNotFound.code(), 1501);
+        assert_eq!(ErrorCode::CliArgumentError.code(), 1502);
+        assert_eq!(ErrorCode::CliInvalidStructure.code(), 1503);
+        assert_eq!(ErrorCode::CliExecutionError.code(), 1504);
+        assert_eq!(ErrorCode::CliPluginError.code(), 1505);
+        assert_eq!(ErrorCode::CliValidationFailed.code(), 1506);
+        assert_eq!(ErrorCode::CliMiddlewareError.code(), 1507);
+        assert_eq!(ErrorCode::CliTelemetryError.code(), 1508);
+        assert_eq!(ErrorCode::CliGenericError.code(), 1509);
+    }
+
+    #[test]
+    fn cli_surface_codes_exit_with_their_own_number() {
+        let codes = [
+            ErrorCode::CliCommandNotFound,
+            ErrorCode::CliVerbNotFound,
+            ErrorCode::CliArgumentError,
+            ErrorCode::CliInvalidStructure,
+            ErrorCode::CliExecutionError,
+            ErrorCode::CliPluginError,
+            ErrorCode::CliValidationFailed,
+            ErrorCode::CliMiddlewareError,
+            ErrorCode::CliTelemetryError,
+            ErrorCode::CliGenericError,
+        ];
+        for code in codes {
+            let expected = (code.code() as i32) % 256;
+            assert_eq!(
+                code.exit_code(),
+                expected,
+                "E{} must exit with its code mod 256",
+                code.code()
+            );
+            assert!((0..=255).contains(&code.exit_code()));
+        }
+    }
+
+    #[test]
+    fn from_noun_verb_error_maps_command_not_found_with_suggestion() {
+        let err = clap_noun_verb::NounVerbError::command_not_found_with_candidates(
+            "reciept",
+            &["receipt", "emit", "verify"],
+        );
+        let d = Diag::from_noun_verb_error(&err);
+        assert_eq!(d.code, 1500);
+        assert_eq!(
+            d.hint.as_deref(),
+            Some("receipt"),
+            "hint is the Levenshtein suggestion"
+        );
+        assert!(
+            !d.hint.as_deref().unwrap_or_default().contains('\u{1b}'),
+            "no ANSI bytes in hint"
+        );
+    }
+
+    #[test]
+    fn from_noun_verb_error_falls_back_to_generic_hint() {
+        let err = clap_noun_verb::NounVerbError::command_not_found("zzzzzz");
+        let d = Diag::from_noun_verb_error(&err);
+        assert_eq!(d.code, 1500);
+        assert_eq!(
+            d.hint.as_deref(),
+            Some("run `affi --help` to list the known nouns")
+        );
+    }
+
+    #[test]
+    fn from_noun_verb_error_maps_verb_not_found() {
+        let err = clap_noun_verb::NounVerbError::verb_not_found_with_candidates(
+            "receipt",
+            "verrfy",
+            &["verify", "validate"],
+        );
+        let d = Diag::from_noun_verb_error(&err);
+        assert_eq!(d.code, 1501);
+        assert_eq!(d.hint.as_deref(), Some("verify"));
     }
 
     #[test]
@@ -412,6 +741,10 @@ mod tests {
             ErrorCode::InvalidEventType.exit_code(),
             exit_codes::USAGE_ERROR
         );
+        // POSIX exit status is 8-bit: 1500 % 256 == 220.
+        assert_eq!(ErrorCode::CliCommandNotFound.exit_code(), 220);
+        assert_eq!(ErrorCode::CliVerbNotFound.exit_code(), 221);
+        assert_eq!(ErrorCode::CliArgumentError.exit_code(), 222);
     }
 
     #[test]
@@ -486,6 +819,16 @@ mod tests {
             ErrorCode::WorkingDirMissing,
             ErrorCode::InvalidObjectId,
             ErrorCode::InvalidEventType,
+            ErrorCode::CliCommandNotFound,
+            ErrorCode::CliVerbNotFound,
+            ErrorCode::CliArgumentError,
+            ErrorCode::CliInvalidStructure,
+            ErrorCode::CliExecutionError,
+            ErrorCode::CliPluginError,
+            ErrorCode::CliValidationFailed,
+            ErrorCode::CliMiddlewareError,
+            ErrorCode::CliTelemetryError,
+            ErrorCode::CliGenericError,
         ];
         for code in codes {
             let msg = code.message();
