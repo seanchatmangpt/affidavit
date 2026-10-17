@@ -201,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn ungrounded_log_refuses_BEFORE_any_fitness_and_the_mutation_flips_the_court() {
+    fn ungrounded_log_refuses_before_any_fitness_and_the_mutation_flips_the_court() {
         let admitted = admitted_receipt(&["create", "update"], &[("o1", "order")]);
         let mut ocel = fixture_ocel(&admitted.value).expect("fixture ocel");
         // Sever every case link: evt-0 loses its order relationship.
