@@ -258,6 +258,109 @@ pub fn verify_inclusion(
     )
 }
 
+/// monotree's `BitsLen` = `u16`, big-endian (`bytes_to_int`).
+fn be16(b: [u8; 2]) -> usize {
+    (usize::from(b[0]) << 8) | usize::from(b[1])
+}
+
+/// Extract the consumed key-path range `(start, end)` and the 32-byte fixed
+/// path bit array from one monotree proof-step cut. Empirically pinned layout
+/// (monotree serializes `Unit.bits` as a fixed `BIT_ARRAY_LEN = 32` bytes with
+/// absolute bit indexing):
+/// - soft cut:      `[rs:2][re:2][path:32][0x00]` (37 bytes)
+/// - hard-left cut: `[rsL:2][reL:2][pathL:32][rsR:2][reR:2][pathR:32][hashR:32][0x01]` (105)
+/// - hard-right cut: `[hashL:32][rsL:2][reL:2][pathL:32][rsR:2][reR:2][pathR:32][0x01]` (137)
+#[must_use]
+fn step_path_range<'a>(cut: &'a [u8], right: bool) -> Option<(usize, usize, &'a [u8])> {
+    let ac = |s: usize, e: usize| {
+        let n = (e - (s - s % 8)) / 8;
+        if e % 8 == 0 {
+            n
+        } else {
+            n + 1
+        }
+    };
+    if right {
+        // [hashL:32][rsL:2][reL:2][pathL:acL][rsR:2][reR:2][pathR:acR][0x01]
+        if cut.len() < 38 || *cut.last()? != 0x01 {
+            return None;
+        }
+        let (rs_l, re_l) = (be16([cut[32], cut[33]]), be16([cut[34], cut[35]]));
+        let o = 36 + ac(rs_l, re_l);
+        if cut.len() < o + 5 {
+            return None;
+        }
+        let rs = be16([cut[o], cut[o + 1]]);
+        let re = be16([cut[o + 2], cut[o + 3]]);
+        let pl = ac(rs, re);
+        if cut.len() != o + 4 + pl + 1 {
+            return None;
+        }
+        Some((rs, re, cut.get(o + 4..o + 4 + pl)?))
+    } else {
+        if cut.len() < 4 {
+            return None;
+        }
+        let rs = be16([cut[0], cut[1]]);
+        let re = be16([cut[2], cut[3]]);
+        if re > 256 || rs >= re {
+            return None;
+        }
+        let pl = ac(rs, re);
+        match cut.len() {
+            n if n == pl + 5 && cut.get(pl + 4) == Some(&0x00) => {
+                Some((rs, re, cut.get(4..4 + pl)?))
+            }
+            n if n > pl + 5 && cut.last() == Some(&0x01) => {
+                // Hard-node left branch: [rsL:2][reL:2][pathL][rsR:2][reR:2][pathR][hashR:32][0x01]
+                let o = 4 + pl;
+                if cut.len() < o + 5 {
+                    return None;
+                }
+                let (rs_r, re_r) = (be16([cut[o], cut[o + 1]]), be16([cut[o + 2], cut[o + 3]]));
+                let pl_r = ac(rs_r, re_r);
+                if cut.len() != o + 4 + pl_r + 32 + 1 {
+                    return None;
+                }
+                Some((rs, re, cut.get(4..4 + pl)?))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Whether an inclusion proof's steps route exactly to `key`: the cut-encoded
+/// path ranges must tile the full 256-bit key space in order, and every path
+/// bit must match the key. monotree's `verify_proof` folds only the leaf value
+/// and the step cuts — the proof's `key` field is decorative — so this is the
+/// binding a revocation fence actually rests on.
+#[must_use]
+fn proof_routes_key(proof: &InclusionProof) -> bool {
+    let key = proof.key;
+    let bit = |i: usize| (key[i / 8] >> (7 - i % 8)) & 1;
+    let mut expected = 0usize;
+    for (right, cut) in &proof.steps {
+        let Some((rs, re, path)) = step_path_range(cut, *right) else {
+            return false;
+        };
+        if rs != expected || re <= rs || re > 256 {
+            return false;
+        }
+        for i in rs..re {
+            // The stored path slice begins at absolute byte floor(rs/8).
+            let Some(&byte) = path.get(i / 8 - rs / 8) else {
+                return false;
+            };
+            let bitpos = 7 - i % 8;
+            if (byte >> bitpos) & 1 != bit(i) {
+                return false;
+            }
+        }
+        expected = re;
+    }
+    expected == 256
+}
+
 /// Verify an absence witness against a root.
 ///
 /// Checks: (a) the neighbor's inclusion proof is cryptographically valid
@@ -272,6 +375,15 @@ pub fn verify_absence(
     witness: &AbsenceWitness,
 ) -> bool {
     if witness.queried_key == witness.neighbor_key {
+        return false;
+    }
+    // Key binding: the embedded proof must route exactly `neighbor_key`.
+    // Without this, a valid inclusion proof for an unrelated key (with its
+    // matching leaf value) satisfies the cryptographic check while the
+    // prefix law is argued from a different key entirely.
+    if witness.neighbor_proof.key != witness.neighbor_key
+        || !proof_routes_key(&witness.neighbor_proof)
+    {
         return false;
     }
     if !verify_inclusion(root, neighbor_value, &witness.neighbor_proof) {
@@ -425,6 +537,103 @@ mod tests {
         // index but not the tree) must flip this court — absence for 0x33
         // would then be provable against a tree that still commits it.
         assert_eq!(tree.prove_absence(&key(0x33)), Err(SmtError::NoProof));
+    }
+
+    // ---- Cycle-4 falsifier courts ----
+
+    // Falsifier for the absence-witness key-binding defect: the embedded
+    // neighbor_proof may route a DIFFERENT key than witness.neighbor_key,
+    // because verify_inclusion never reads `proof.key`. Attack: neighbor_key
+    // shares the claimed prefix with queried_key (prefix law holds), but the
+    // embedded proof is a valid inclusion proof for an unrelated key under
+    // the same root. If verify_absence admits this, a revocation fence could
+    // be bypassed with a proof from an unrelated subtree.
+    #[test]
+    fn absence_witness_refuses_neighbor_proof_key_mismatch() {
+        let mut tree = StateTree::new();
+        // Neighbor candidate: shares long prefix with the queried key.
+        tree.insert(&key(0x40), &value(1)).expect("insert");
+        // Unrelated key in a far subtree, under the same root.
+        tree.insert(&key(0xB0), &value(2)).expect("insert");
+        let root = tree.root().expect("root");
+
+        let queried = key(0x41); // 0b0100_0001, shares 7-bit prefix with 0x40
+        let witness = tree.prove_absence(&queried).expect("absence witness");
+        assert_eq!(witness.neighbor_key, key(0x40));
+        assert!(
+            verify_absence(&root, &value(1), &witness),
+            "honest witness must verify"
+        );
+
+        // Forge: swap in a valid inclusion proof for the unrelated key.
+        let forged = AbsenceWitness {
+            neighbor_proof: tree.prove_inclusion(&key(0xB0)).expect("unrelated proof"),
+            ..witness
+        };
+        // The attacker also supplies the matching leaf value — the verifier
+        // takes neighbor_value from the prover, so a coherent (proof, value)
+        // pair from an unrelated subtree is the real attack.
+        assert!(
+            !verify_absence(&root, &value(2), &forged),
+            "FLIP = defect CONFIRMED: proof routing an unrelated key admitted"
+        );
+    }
+
+    // Negative control for the forged-witness court: the honest witness built
+    // from prove_absence must still verify after the key-binding repair, and
+    // tampering the claimed prefix must still refuse.
+    #[test]
+    fn absence_witness_prefix_tamper_still_refused() {
+        let mut tree = StateTree::new();
+        tree.insert(&key(0x40), &value(1)).expect("insert");
+        tree.insert(&key(0xB0), &value(2)).expect("insert");
+        let root = tree.root().expect("root");
+        let mut w = tree.prove_absence(&key(0x41)).expect("witness");
+        assert!(verify_absence(&root, &value(1), &w));
+        w.claimed_prefix_bits += 1;
+        assert!(
+            !verify_absence(&root, &value(1), &w),
+            "prefix lie must refuse"
+        );
+        w.claimed_prefix_bits -= 1;
+        w.neighbor_key = key(0xB0);
+        assert!(
+            !verify_absence(&root, &value(1), &w),
+            "neighbor-key lie must refuse"
+        );
+    }
+
+    // Vacuity court: an InclusionProof with zero steps folds to the bare
+    // leaf hash under monotree's verify_proof; against a multi-entry root
+    // it must refuse, or any value could be 'proven' present.
+    #[test]
+    fn empty_step_proof_refused_against_multi_entry_root() {
+        let mut tree = StateTree::new();
+        tree.insert(&key(0x01), &value(1)).expect("insert");
+        tree.insert(&key(0x02), &value(2)).expect("insert");
+        let root = tree.root().expect("root");
+        let empty = InclusionProof {
+            key: key(0x01),
+            steps: vec![],
+        };
+        assert!(
+            !verify_inclusion(&root, &value(1), &empty),
+            "FLIP = vacuity defect: empty proof admitted against multi-entry root"
+        );
+        // Same refusal at a single-entry root: monotree's root is never the
+        // bare leaf hash, so zero steps are never sufficient. Pinned here so
+        // a monotree upgrade that changes this flips loudly.
+        let mut single = StateTree::new();
+        single.insert(&key(0x01), &value(1)).expect("insert");
+        let sroot = single.root().expect("root");
+        let empty_single = InclusionProof {
+            key: key(0x01),
+            steps: vec![],
+        };
+        assert!(
+            !verify_inclusion(&sroot, &value(1), &empty_single),
+            "monotree single-entry root semantics changed: empty proof admitted"
+        );
     }
 
     #[test]
