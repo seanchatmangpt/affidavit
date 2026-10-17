@@ -426,15 +426,12 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
 
 /// `affi receipt emit-from-github` — emit from a GitHub event payload.
 pub fn emit_from_github(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(
-        serde_json::to_string(
-            &serde_json::json!({"source": "github", "repo": repo, "event_type": event_type}),
-        )
-        .map_err(anyhow::Error::from),
-    )?;
+    let payload_json =
+        serde_json::json!({"source": "github", "repo": repo, "event_type": event_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("{repo}:repo")];
     let gh_event_type = format!("github.{event_type}");
-    let output = adapt(crate::cli::emit(&gh_event_type, &objects, &payload))?;
+    let output = emit_with_payload(&gh_event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -449,15 +446,12 @@ pub fn emit_from_github(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-gitlab` — emit from a GitLab event payload.
 pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(
-        serde_json::to_string(
-            &serde_json::json!({"source": "gitlab", "repo": repo, "event_type": event_type}),
-        )
-        .map_err(anyhow::Error::from),
-    )?;
+    let payload_json =
+        serde_json::json!({"source": "gitlab", "repo": repo, "event_type": event_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("{repo}:repo")];
     let gl_event_type = format!("gitlab.{event_type}");
-    let output = adapt(crate::cli::emit(&gl_event_type, &objects, &payload))?;
+    let output = emit_with_payload(&gl_event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -472,15 +466,12 @@ pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-cicd` — emit from CI/CD job outcome.
 pub fn emit_from_cicd(provider: String, job_status: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(
-        serde_json::to_string(
-            &serde_json::json!({"source": "cicd", "provider": provider, "job_status": job_status}),
-        )
-        .map_err(anyhow::Error::from),
-    )?;
+    let payload_json =
+        serde_json::json!({"source": "cicd", "provider": provider, "job_status": job_status});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("ci:{provider}:job")];
     let event_type = format!("cicd.{provider}.{job_status}");
-    let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
+    let output = emit_with_payload(&event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -496,10 +487,12 @@ pub fn emit_from_monitoring(
     alert_type: String,
     format: Option<String>,
 ) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "monitoring", "provider": provider, "alert_type": alert_type})).map_err(anyhow::Error::from))?;
+    let payload_json =
+        serde_json::json!({"source": "monitoring", "provider": provider, "alert_type": alert_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("monitor:{provider}:alert")];
     let event_type = format!("monitoring.{provider}.{alert_type}");
-    let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
+    let output = emit_with_payload(&event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -515,10 +508,11 @@ pub fn emit_from_cloud(
     resource_type: String,
     format: Option<String>,
 ) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "cloud", "provider": provider, "resource_type": resource_type})).map_err(anyhow::Error::from))?;
+    let payload_json = serde_json::json!({"source": "cloud", "provider": provider, "resource_type": resource_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("{resource_type}:{provider}:resource")];
     let event_type = format!("cloud.{provider}.{resource_type}");
-    let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
+    let output = emit_with_payload(&event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -534,10 +528,12 @@ pub fn emit_from_security(
     vuln_type: String,
     format: Option<String>,
 ) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "security", "provider": provider, "vuln_type": vuln_type})).map_err(anyhow::Error::from))?;
+    let payload_json =
+        serde_json::json!({"source": "security", "provider": provider, "vuln_type": vuln_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("scan:{provider}:{vuln_type}")];
     let event_type = format!("security.{provider}.{vuln_type}");
-    let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
+    let output = emit_with_payload(&event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -1854,11 +1850,18 @@ pub fn fix_receipt(
             } else {
                 format!("REJECT: {}", verdict.reason)
             };
+            // Determinism law: the sidecar is a pure function of the subject
+            // receipt — same subject, same bytes, any day it runs. The wall-
+            // clock field was a determinism defect; the subject receipt's own
+            // chain_hash (the same unchecked-load path the verifier uses) is
+            // the receipt-grounded replacement. A file whose JSON cannot be
+            // parsed gets a fixed deterministic placeholder.
+            let subject_chain_hash = crate::cli::load_receipt_unchecked(&receipt)
+                .map(|r| r.chain_hash.as_hex().to_string())
+                .unwrap_or_else(|_| "unparseable-subject".to_string());
             let sidecar = serde_json::json!({
                 "original": receipt,
-                "quarantined_at": std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs()).unwrap_or(0),
+                "subject_chain_hash": subject_chain_hash,
                 "reason": reason,
                 "failing_stages": verdict.outcomes.iter()
                     .filter(|o| !o.passed)
@@ -4926,85 +4929,18 @@ pub struct DoctorFinding {
     pub auto_fixable: bool,
 }
 
-/// Check health of a receipt store directory or file.
-fn check_receipt_store(path: &str) -> Vec<DoctorFinding> {
-    let mut findings = Vec::new();
-    let p = std::path::Path::new(path);
-    if !p.exists() {
-        findings.push(DoctorFinding {
-            check: "receipt-store".to_string(),
-            status: CheckStatus::Fail,
-            message: format!("Receipt path not found: {path}"),
-            remediation: Some(format!("Create the directory: mkdir -p {path}")),
-            auto_fixable: true,
-        });
-        return findings;
-    }
-    if p.is_file() {
-        // Single receipt — verify it is parseable JSON
-        match std::fs::read_to_string(p) {
-            Ok(raw) => match serde_json::from_str::<serde_json::Value>(&raw) {
-                Ok(_) => findings.push(DoctorFinding {
-                    check: "receipt-store".to_string(),
-                    status: CheckStatus::Ok,
-                    message: format!("Receipt file is valid JSON: {path}"),
-                    remediation: None,
-                    auto_fixable: false,
-                }),
-                Err(e) => findings.push(DoctorFinding {
-                    check: "receipt-store".to_string(),
-                    status: CheckStatus::Fail,
-                    message: format!("Receipt file is not valid JSON ({path}): {e}"),
-                    remediation: Some(
-                        "Re-assemble the receipt with 'affi assemble' from the original working directory.".to_string(),
-                    ),
-                    auto_fixable: false,
-                }),
-            },
-            Err(e) => findings.push(DoctorFinding {
-                check: "receipt-store".to_string(),
-                status: CheckStatus::Fail,
-                message: format!("Cannot read receipt file ({path}): {e}"),
-                remediation: Some("Check file permissions.".to_string()),
-                auto_fixable: false,
-            }),
-        }
-        return findings;
-    }
-    // Directory — count .json receipts
-    let count = walkdir::WalkDir::new(p)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
-        .count();
-    if count == 0 {
-        findings.push(DoctorFinding {
-            check: "receipt-store-count".to_string(),
-            status: CheckStatus::Warn,
-            message: format!("No .json receipt files found in {path}"),
-            remediation: Some(
-                "Run 'affi assemble' to produce a receipt, then move it here.".to_string(),
-            ),
-            auto_fixable: false,
-        });
-    } else {
-        findings.push(DoctorFinding {
-            check: "receipt-store-count".to_string(),
-            status: CheckStatus::Ok,
-            message: format!("Found {count} receipt(s) in {path}"),
-            remediation: None,
-            auto_fixable: false,
-        });
-    }
-    findings
-}
-
 /// `affi doctor` — run environment and receipt-store health checks.
 pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
     let mut findings: Vec<DoctorFinding> = Vec::new();
 
-    // Run all registered DoctorCheck implementations (linkme-discovered).
-    for plugin_finding in crate::doctor_check::run_all() {
+    // Run all registered DoctorCheck implementations (linkme-discovered),
+    // including the migrated receipt-store check (register row 79), which
+    // reads the `--receipts` flag from the run context.
+    let ctx = crate::doctor_check::DoctorContext {
+        receipts_path: receipts.as_deref(),
+        fix,
+    };
+    for plugin_finding in crate::doctor_check::run_all(&ctx) {
         findings.push(DoctorFinding {
             check: plugin_finding.id.to_string(),
             status: match plugin_finding.status {
@@ -5016,11 +4952,6 @@ pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
             remediation: plugin_finding.remediation,
             auto_fixable: plugin_finding.auto_fixable,
         });
-    }
-
-    // Check legacy (non-linkme) checks — receipt store requires runtime path arg.
-    if let Some(ref path) = receipts {
-        findings.extend(check_receipt_store(path));
     }
 
     // Apply safe automatic remediations if --fix was requested.
