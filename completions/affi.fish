@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 98, Registry nouns: 10
+# Source: src/registry.rs — Registry verbs: 100, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 
 # --- helper predicates -------------------------------------------------------
@@ -13,7 +13,7 @@ function __affi_no_noun
     set -l toks (commandline -opc)
     for t in $toks[2..-1]
         switch $t
-            case affi dossier ecosystem envelope errc evidence guide keys receipt standing
+            case affi certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
                 return 1
         end
     end
@@ -35,7 +35,7 @@ function __affi_no_verb
     set -l found_noun 0
     for t in $toks[2..-1]
         switch $t
-            case affi dossier ecosystem envelope errc evidence guide keys receipt standing
+            case affi certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
             set found_noun 1
             case '*'
             if test $found_noun -eq 1
@@ -49,6 +49,7 @@ end
 # --- Nouns -------------------------------------------------------------------
 
 complete -c affi -f -n '__affi_no_noun' -a affi -d '1 verbs'
+complete -c affi -f -n '__affi_no_noun' -a certificate -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a dossier -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a ecosystem -d '2 verbs'
 complete -c affi -f -n '__affi_no_noun' -a envelope -d '4 verbs'
@@ -56,19 +57,25 @@ complete -c affi -f -n '__affi_no_noun' -a errc -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a evidence -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a guide -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a keys -d '5 verbs'
-complete -c affi -f -n '__affi_no_noun' -a receipt -d '71 verbs'
+complete -c affi -f -n '__affi_no_noun' -a legal-hold -d '1 verbs'
+complete -c affi -f -n '__affi_no_noun' -a receipt -d '70 verbs'
+complete -c affi -f -n '__affi_no_noun' -a restitution -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a standing -d '2 verbs'
 
 # --- affi verbs ------------------------------------------------------
 
 complete -c affi -f -n '__affi_using_noun affi; and __affi_no_verb' -a doctor -d 'Run environment and receipt-store health checks; optionally apply safe fixes'
 
+# --- certificate verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun certificate; and __affi_no_verb' -a fre-902 -d 'Generates self-authenticating electronic records affidavit under FRE 902(14)'
+
 # --- dossier verbs ------------------------------------------------------
 
-complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a emit -d 'Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)'
-complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a inspect -d 'Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature'
-complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a seal -d 'Seal a directory of 352-byte court records into a signed sealed-dossier wire file'
-complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a verify -d 'Verify a sealed-dossier wire file against the local ML-DSA-65 key store'
+complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a emit -d '[crypto-trust] Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)'
+complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a inspect -d '[crypto-trust] Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature'
+complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a seal -d '[ctdd] Seal a directory of 352-byte court records into a signed sealed-dossier wire file'
+complete -c affi -f -n '__affi_using_noun dossier; and __affi_no_verb' -a verify -d '[ctdd] Verify a sealed-dossier wire file against the local ML-DSA-65 key store'
 
 # --- ecosystem verbs ------------------------------------------------------
 
@@ -77,10 +84,10 @@ complete -c affi -f -n '__affi_using_noun ecosystem; and __affi_no_verb' -a veri
 
 # --- envelope verbs ------------------------------------------------------
 
-complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a export -d 'Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)'
-complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a list -d 'List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)'
-complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a sign -d 'Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document'
-complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a verify -d 'Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)'
+complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a export -d '[crypto-trust] Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)'
+complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a list -d '[crypto-trust] List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)'
+complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a sign -d '[crypto-trust] Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document'
+complete -c affi -f -n '__affi_using_noun envelope; and __affi_no_verb' -a verify -d '[crypto-trust] Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)'
 
 # --- errc verbs ------------------------------------------------------
 
@@ -91,10 +98,10 @@ complete -c affi -f -n '__affi_using_noun errc; and __affi_no_verb' -a verify-as
 
 # --- evidence verbs ------------------------------------------------------
 
-complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a crl-apply -d 'Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)'
-complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a crl-publish -d 'Publish the signed revocation list (CTP-CRL-v1) for the store'\''s recorded revocations under the registered issuer key'
-complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a heads -d 'Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)'
-complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a journal -d 'Record a receipt'\''s cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry'
+complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a crl-apply -d '[crypto-trust] Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)'
+complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a crl-publish -d '[crypto-trust] Publish the signed revocation list (CTP-CRL-v1) for the store'\''s recorded revocations under the registered issuer key'
+complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a heads -d '[crypto-trust] Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)'
+complete -c affi -f -n '__affi_using_noun evidence; and __affi_no_verb' -a journal -d '[crypto-trust] Record a receipt'\''s cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry'
 
 # --- guide verbs ------------------------------------------------------
 
@@ -102,24 +109,28 @@ complete -c affi -f -n '__affi_using_noun guide; and __affi_no_verb' -a search -
 
 # --- keys verbs ------------------------------------------------------
 
-complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a generate -d 'Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)'
-complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a import -d 'Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)'
-complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a list -d 'List registered key records: kid, algorithm, fingerprint, custodian'
-complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a revoke -d 'Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store'
-complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a rotate -d 'Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store'
+complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a generate -d '[crypto-trust] Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)'
+complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a import -d '[crypto-trust] Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)'
+complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a list -d '[crypto-trust] List registered key records: kid, algorithm, fingerprint, custodian'
+complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a revoke -d '[crypto-trust] Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store'
+complete -c affi -f -n '__affi_using_noun keys; and __affi_no_verb' -a rotate -d '[crypto-trust] Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store'
+
+# --- legal-hold verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun legal-hold; and __affi_no_verb' -a status -d 'Audits local OCEL and CTRT event chains to certify FRCP 37(e) evidentiary hold integrity'
 
 # --- receipt verbs ------------------------------------------------------
 
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a anomaly-detect -d 'Detect anomalous events in the receipt chain using statistical outlier analysis'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a assemble -d 'Finalize the working receipt into an immutable sealed file'
-complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a assemble-and-notarize -d 'Assemble and attach a local trust-plane notarization in one step (no external TSA)'
-complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a assemble-with-signature -d 'Assemble and immediately sign the receipt in a single atomic operation'
-complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a attest -d 'Create a signed SLSA attestation document from a sealed receipt'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a assemble-and-notarize -d '[crypto-trust] Assemble and attach a local trust-plane notarization in one step (no external TSA)'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a assemble-with-signature -d '[crypto-trust] Assemble and immediately sign the receipt in a single atomic operation'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a attest -d 'Create an unsigned SLSA-style attestation document from a sealed receipt (no signature fields; notarize adds signatures)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a audit -d 'Run a full audit pass over a receipt: chain integrity, commitments, and event completeness'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a bus-factor -d 'Compute the bus factor for each object in the chain based on contributor events'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a catalog -d 'Index a directory of receipts into a local catalog for fast search and lookup'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a causality-chain -d 'Build a causality chain graph linking events by causal relationships'
-complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a chain-verify -d 'Replay the BLAKE3 receipt chain across all court records in a directory'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a chain-verify -d '[ctdd] Replay the BLAKE3 receipt chain across all court records in a directory'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a conformance -d 'Check a receipt against custom conformance rules or a named profile'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a coverage-analysis -d 'Measure what fraction of defined event types appear in the receipt'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a dependency-matrix -d 'Build an object-to-object dependency matrix from co-occurrence in receipt events'
@@ -146,7 +157,7 @@ complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a instal
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a license-compliance -d 'Check that dependency licenses in the receipt satisfy the project'\''s license policy'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a model -d 'Extract the type schema from a receipt (event types, object types, qualifiers)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a monitor -d 'Watch a working receipt file and stream events to stdout as they are appended'
-complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a notarize -d 'Attach a local trust-plane notarization to a receipt (unsigned attestation request, or a real ES256 attestation with AFFI_NOTARY_KEY)'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a notarize -d '[crypto-trust] Attach a local trust-plane notarization to a receipt (unsigned attestation request, or a real ES256 attestation with AFFI_NOTARY_KEY)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a orphaned-code -d 'Identify object references in the receipt that have no corresponding emit events'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a pci-dss -d 'Collect PCI-DSS control evidence from receipt events for auditor review'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a policy-enforce -d 'Evaluate receipt events against a Rego or CEL policy file'
@@ -165,22 +176,25 @@ complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a sbom-s
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a search -d 'Search the local receipt catalog by event type, object, date range, or keyword'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a security-debt -d 'Surface security-relevant events with missing or weak commitments'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a show -d 'Human-readable dump of the receipt chain with event details'
-complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a sign -d 'Cryptographically sign a sealed receipt with an ES256 key (raw-hex key file; production custody via HSM/Secure Enclave)'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a sign -d '[crypto-trust] Cryptographically sign a sealed receipt with an ES256 key (raw-hex key file; production custody via HSM/Secure Enclave)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a soc2-audit -d 'Collect SOC 2 trust-service-criteria evidence from receipts for auditor review'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a stats -d 'Chain metrics: event count, hash distribution, event-type histogram'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a team-velocity -d 'Measure team throughput and cycle time from emit/assemble event pairs'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a tech-debt -d 'Identify stale or low-quality events that signal accumulated technical debt'
-complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a test -d 'Run the built-in receipt self-test suite to validate the local installation'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a timeline -d 'Render a temporal timeline of events ordered by sequence number'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a trend-analysis -d 'Compute rolling trends over event frequency, latency, and error rates across receipts'
-complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a validate -d 'Validate one 352-byte CTRT court receipt record (file or stdin)'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a validate -d '[ctdd] Validate one 352-byte CTRT court receipt record (file or stdin)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a variance -d 'Measure variance in event timing and payload size across a collection of receipts'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a verify -d 'Run the 7-stage certify pipeline against a receipt (exit 0=ACCEPT, 2=REJECT)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a verify-compliance -d 'Check evidence presence for a compliance framework (evidence present/absent — not a legal determination)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a verify-family -d 'Verify a family of related receipts all satisfy shared constraints'
-complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a verify-sla -d 'Verify that receipt events satisfy defined SLA thresholds and time windows'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a verify-sla -d 'Verify that receipt event counts satisfy the min_events SLA threshold (time-window checks are refused: core/v1 receipts carry no timestamps)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a visualize -d 'Generate an interactive HTML or SVG visualization of the receipt chain'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a why -d 'Explain in plain language why a receipt was rejected, with stage-by-stage remediation steps'
+
+# --- restitution verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun restitution; and __affi_no_verb' -a calculate -d 'Computes liquidated avoided-cost distributions under Restatement of Restitution § 42'
 
 # --- standing verbs ------------------------------------------------------
 

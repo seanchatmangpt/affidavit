@@ -33,11 +33,12 @@
 pub mod abi;
 #[rustfmt::skip] // generated; byte-identical to the ggen render
 pub mod abi_meta;
-pub mod crypto;
-pub mod signature;
 mod advanced;
+pub mod crypto;
 mod external_evidence;
+pub mod pqc;
 pub mod receipt;
+pub mod signature;
 
 // Generated FFI shell (rust-wasi-wasmex-pack). Exports are wasm32-only; the helpers
 // and their tests also build natively.

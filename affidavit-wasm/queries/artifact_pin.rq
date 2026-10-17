@@ -14,7 +14,7 @@ PREFIX wja: <https://ggen.dev/ontology/wasi-json-abi#>
 PREFIX afw: <http://affidavit.io/wasm#>
 
 SELECT ?crate_name ?export_prefix ?abi_version ?wasm_sha256 ?wasm_bytes
-       ?registry_sha256 ?toolchain ?build_target ?build_profile ?ops ?imports
+       ?registry_sha256 ?toolchain ?build_target ?build_profile ?ops ?imports ?exports
 WHERE {
   ?m a wja:WasmModule ;
      wja:crateName ?crate_name ;
@@ -58,7 +58,22 @@ WHERE {
     }
     GROUP BY ?m3
   }
-  FILTER(?m = ?m2 && ?m = ?m3)
+  {
+    SELECT ?m4 (GROUP_CONCAT(?espec; separator="@@") AS ?exports)
+    WHERE {
+      {
+        SELECT ?m4 ?espec
+        WHERE {
+          ?m4 afw:hasCabiExport ?exp .
+          ?exp afw:exportName ?en .
+          BIND(STR(?en) AS ?espec)
+        }
+        ORDER BY ?en
+      }
+    }
+    GROUP BY ?m4
+  }
+  FILTER(?m = ?m2 && ?m = ?m3 && ?m = ?m4)
 }
 ORDER BY ?crate_name
 LIMIT 1

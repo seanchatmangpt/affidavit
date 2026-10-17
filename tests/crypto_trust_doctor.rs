@@ -156,7 +156,9 @@ fn crypto_checks_register_into_doctor_slice_and_run() {
                 | PQC_SELFTEST_CHECK_ID
         ) {
             seen += 1;
-            let f = check.run();
+            let fs = check.run(&affidavit::doctor_check::DoctorContext::default());
+            assert_eq!(fs.len(), 1, "{} must yield exactly one finding", id);
+            let f = &fs[0];
             assert_eq!(f.id, id);
             // Ambient store is either absent or valid — both are health; the
             // self-tests must be green unconditionally.

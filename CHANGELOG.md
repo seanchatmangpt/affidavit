@@ -2,6 +2,105 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [26.10.17] — 2026-10-17
+
+**Theme: annealing-wave hardening — PQC vacuity closures, capability register, CLI vacuity audit + ERRC, crypto defect closures.**
+
+### Added
+- **Capability register** (`247d4b6`, `f9da11b`, `e37a717`, `fc87f56`): dependency-mined
+  register grown across cycles 1-5 to 102 rows (rows 48-78, then 79-102), with
+  delete-class findings (`298fd32` dead `src/verbs/fix.rs` removed; `77122d3` empty
+  accumulator stub deleted).
+- **CLI vacuity audit + ERRC** (`abcea17`, `5b8589b`): all 101 verbs audited as
+  executed; vacuity tripwire court with 19 live cells + byte-identity detector
+  (ERRC-CREATE). ERRC waves: six VACUOUS cells closed — legal-hold +
+  license-compliance (`127b2c0`), gdpr-proof + hipaa (`e9a89be`); wire of all six
+  `emit-from-*` verbs (`0dd25cb`); feature-aware help with
+  `[crypto-trust]`/`[ctdd]` prefixes (ERRC-REDUCE, `d7f4443`); typed refusals on
+  unknown input across 5 analytics verbs (ERRC-RAISE, `a48a5a7`); verdict-determined
+  exits + honest SLA/attest claims (`1b256eb`); stable exit codes + Diag hints for
+  the framework surface (`8153451`); B13 stray trailing null killed on every
+  success path (`05461c3`); dead receipt-test dummy verb deleted, receipt audit
+  made real (`3aa41ea`).
+- **affidavit-wasm PQC ABI + JCS hardening** (`a4b65c8`, `82dbbe2`): `pqc_verify` /
+  `pqc_assemble` ops with range-proof label registry receipt-amount domain; JCS
+  key ordering by UTF-16 code units (RFC 8785 §3.2.3, `540002d`); JCS
+  duplicate-key refusal + domain-separated commitment (`3ade36e`); JCS
+  cross-runtime parity court, 282 corpus cases (`5b190fe`); linkme wasm32 premise
+  probe — row 58 verdict REFUTED-PREMISE (`513ab76`).
+- **affidavit-core seams** (`a05c9c1`, `dbac2da`, `3c285d5`): `ChainKdf` blake3
+  derive_key domain separation with XOF output streaming; zk-range receipt-bound
+  witnesses + batch verification; MlDsa65Signer cached-expansion seam.
+
+### Fixed
+- **Crypto defect closures**: FROST threshold-quorum single-use nonces —
+  `NonceReuse` typed refusal, row 81c CLOSED (`2e9a18d`, confirming court
+  `3bb560c`); SMT absence-witness key binding — CONFIRMED DEFECT repaired
+  (`0ac7485`); ag4 quartet — 4 adversarial attacks closed, court 19/19
+  (`c2119a5`); e2e SK3 degenerate-seed screening fixtures (`1a81553`) with
+  keypair-direct API migration completed in kat/rotation/quorum (`6c14830`).
+- **BLS rogue-key soundness claim FALSIFIED** (`84a430f`, row 82 DEFECT):
+  registered divergence — the rogue-key attack court demonstrates the defect;
+  no fix claimed in this cycle.
+- **Ontology** (`ea24b1c`): FM-LAW-020 orphans closed; ggen render green;
+  artifact re-pinned.
+- **Determinism** (`f9a5c60`): doctor quarantine sidecar wall-clock removed;
+  `DoctorContext` seam (row 79).
+- **Perf** (`88e9ac4`, `6153dc4`): SBOM mmap+rayon parallel hash fast path —
+  identical-or-refuse (row 24); replay-nullifier keyed-hasher reset reuse, wire
+  outputs unchanged (row 23).
+- **Misc**: Blake3Hash decode-time validation (`c7786a4`); wire all six
+  `emit-from-*` verbs via `emit_with_payload` (`0dd25cb`); clippy 34-error lint
+  debt cleared (`b1d32c8`); `kem_dual_impl_kat` is pqc-plane-scoped via
+  required-features (`e79ef96`).
+
+### Verification receipts (2026-10-17, this tree)
+- Two wasm artifact re-pins after core/wasm source drift, each two-target-dir
+  byte-identical (`d5ec6a3`, `a8c3c2b`).
+- Adversarial corpus expansions: seeded permutation verify court (row 45,
+  `9813c44`); ed25519 strict adversarial vector corpus (row 80, `26e7c0e`);
+  x-wing dk->ek parity + dual-mode divergence courts (`a16f4ba`); SLH SPKI/PKCS8
+  + ml-dsa sk round-trip + seed-identity courts (`5cd7eb9`); dual-implementation
+  ML-KEM-768 KAT court (row 30, `3ea786d`); KEM cross-parameter-set confusion
+  court (`75d009c`); KEM seed-identity court (`eba7b49`); SLH-DSA opt_rand
+  determinism + wire-budget pins (`9b36a3d`); post-revocation absence court
+  (`5bcdf74`); bcinr double-mix tamper-propagation court (`6534c13`);
+  external-evidence boundary admission corpus (`f3871f5`); LatencyBands
+  cross-validation court (`898b09f`); flatten-loss accounting + alignment
+  grounding courts (`55c86ff`-adjacent `51ee682`); SjReceipt TTL projection
+  parity court (`3215f69`); SMT batch ops with permutation-invariant canonical
+  roots (row 101, `ddec917`); witness seed round-trip + Debug-hygiene court
+  (`0afe89e`); seeded deterministic blinding + Pedersen opening seam (`23c3774`);
+  jcs_verify canonicality twin with divergence classes (`f5cd9f9`); jcs_digest
+  streaming canonical digest (`f3ed0c4`); compile-time-pinned verb projection
+  cross-check (row 5, `359a705`); error-case courts aligned with the stable diag
+  exit catalog (`8624548`).
+- Final verb count: **100** (`38a9ed4`, `2c3a6a0` — README verb-count sites
+  101 -> 100 after receipt-test deletion).
+
+## [26.10.16] — 2026-10-16
+
+**Theme: law-complete affidavit-core rebuild, wasm trust plane, Diataxis docs.**
+
+### Added
+- **affidavit-core** (CalVer 26.10.16, `ef061db`, `4f16c8a`): zero-in-crate-crypto
+  rebuild — PQC court (`PqcCourt(Suite::{MlDsa65,SlhDsa128s,Dual})`), `KemCourt`,
+  `PqcSealedReceipt`, `Blake3Hasher`, OCEL v2 mining; every algorithm an external
+  dependency (`ml-dsa 0.1.1`, `slh-dsa =0.2.0-rc.5`, `ml-kem 0.3.2`, `blake3`).
+- **affidavit-wasm** PQC ABI surface (`29e66f0`): `pqc_verify` / `pqc_assemble`
+  ops wired through the generated `OPS` table, `pqc_refused` error code, host
+  differential courts (`tests/pqc_abi.rs`: wasmi byte-identity, bit-flip,
+  cross-key, malformed-input refusals — 10/10 passed 2026-10-16).
+- **Documentation** (`1847222`): complete Diataxis suite and README rewrite.
+
+### Verification receipts (2026-10-16, this tree)
+- core ladder: `cargo test` 152 passed/0 failed; `--features ocel-compat` plane
+  green; `--no-default-features` build green; clippy `-D warnings` green; fmt
+  green; `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` green.
+- root: `cargo test --lib` 409 passed/0 failed;
+  `examples/golden_run.sh` ACCEPT(0) → REJECT(2), `GOLDEN RUN OK`.
+- registry/ontology parity: 101/101 verbs, 13 registry parity tests passed.
+
 ## [26.10.6] — 2026-10-11
 
 **Theme: Sovereign PQC modulus, 352B CTRT wire, zero-ambient ODB.** Tagged

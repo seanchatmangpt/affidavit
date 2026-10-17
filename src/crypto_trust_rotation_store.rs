@@ -382,7 +382,7 @@ mod tests {
     fn successor_pks(secret: &crate::crypto_trust_pqc::HybridSecret) -> (Vec<u8>, Vec<u8>) {
         (
             secret.es256.public_key_sec1(),
-            ml_dsa65_from_seed(&secret.mldsa65_seed).expect("pqc fixture key pair").public,
+            ml_dsa65_from_seed(&secret.mldsa65_seed).public,
         )
     }
 
@@ -488,7 +488,7 @@ mod tests {
         let wrong_es = Es256SigningKey::from_seed(&OTHER_HYBRID_ES_SEED)
             .expect("valid p256 scalar")
             .public_key_sec1();
-        let wrong_ml = ml_dsa65_from_seed(&OTHER_HYBRID_ML_SEED).expect("pqc fixture key pair").public;
+        let wrong_ml = ml_dsa65_from_seed(&OTHER_HYBRID_ML_SEED).public;
         let err = store
             .append(&honest, &wrong_es, &wrong_ml)
             .expect_err("record under foreign successor material must be refused");

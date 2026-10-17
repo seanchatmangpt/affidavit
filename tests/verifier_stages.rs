@@ -155,6 +155,50 @@ fn stage_evaluate_profile_catches_empty_event_type() {
     );
 }
 
+#[test]
+fn stage_evaluate_profile_catches_unauthorized_deletion_spoliation() {
+    let mut asm = ChainAssembler::new();
+    let mut c = SeqCounter::new();
+    let ev = build_event(
+        "delete",
+        vec![object_ref("o", "artifact")],
+        b"unauthorized delete",
+        &mut c,
+    )
+    .unwrap();
+    asm.append(ev).unwrap();
+    let receipt = asm.finalize();
+    let verdict = verify(&receipt);
+    assert!(!verdict.accepted, "unauthorized delete event must REJECT");
+    let s6 = stage(&verdict, "evaluate_profile");
+    assert!(!s6.passed);
+    assert!(s6
+        .detail
+        .contains("REJECT: UNLAWFUL_RECORD_EXPUNCTION (ABA-3.4A)"));
+}
+
+#[test]
+fn stage_evaluate_profile_allows_authorized_deletion_with_seal() {
+    let mut asm = ChainAssembler::new();
+    let mut c = SeqCounter::new();
+    let mut ev = build_event(
+        "delete",
+        vec![object_ref("seal-1", "licensor_revocation_seal")],
+        b"authorized delete",
+        &mut c,
+    )
+    .unwrap();
+    ev.objects[0].qualifier = Some("authorized_revocation".to_string());
+    asm.append(ev).unwrap();
+    let receipt = asm.finalize();
+    let verdict = verify(&receipt);
+    assert!(
+        verdict.accepted,
+        "authorized deletion with seal must ACCEPT"
+    );
+    assert!(stage(&verdict, "evaluate_profile").passed);
+}
+
 // ── All stages ───────────────────────────────────────────────────────────────
 
 #[test]

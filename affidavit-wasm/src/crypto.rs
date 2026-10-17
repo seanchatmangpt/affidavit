@@ -143,7 +143,10 @@ pub(crate) fn op_derive_subject_digest(req: &Value) -> Result<Map<String, Value>
         }
         (Some(s), None) => s.as_bytes().to_vec(),
         (None, Some(h)) => hex_decode(h).ok_or_else(|| {
-            err("bad_field", "`subject_hex` must be valid lowercase or uppercase hex")
+            err(
+                "bad_field",
+                "`subject_hex` must be valid lowercase or uppercase hex",
+            )
         })?,
         (None, None) => {
             return Err(err(
@@ -236,21 +239,17 @@ mod tests {
     /// blake3 1.8.5, the pinned crate in Cargo.lock).
     const KAT_TAG: &str = "affidavit-paid-delivery/v1";
     const KAT_SUBJECT: &str = "paid-delivery:evt-001";
-    const KAT_DIGEST_HEX: &str =
-        "3ca4fb8419bd2319a832f8c9b2a5e2d8f2e8105c17d5fc6115de0238a7ec5e3f";
+    const KAT_DIGEST_HEX: &str = "3ca4fb8419bd2319a832f8c9b2a5e2d8f2e8105c17d5fc6115de0238a7ec5e3f";
 
     #[test]
     fn kat_matches_the_rust_surface_digest_law() {
-        assert_eq!(
-            derive_subject_digest(KAT_TAG, KAT_SUBJECT.as_bytes()),
-            {
-                let mut d = [0u8; 32];
-                for i in 0..32 {
-                    d[i] = u8::from_str_radix(&KAT_DIGEST_HEX[2 * i..2 * i + 2], 16).unwrap();
-                }
-                d
+        assert_eq!(derive_subject_digest(KAT_TAG, KAT_SUBJECT.as_bytes()), {
+            let mut d = [0u8; 32];
+            for i in 0..32 {
+                d[i] = u8::from_str_radix(&KAT_DIGEST_HEX[2 * i..2 * i + 2], 16).unwrap();
             }
-        );
+            d
+        });
     }
 
     #[test]
@@ -318,15 +317,17 @@ mod tests {
         assert_eq!(pre[tag.len()], 0x00);
         assert_eq!(&pre[tag.len() + 1..2 * tag.len() + 1], tag);
         assert_eq!(pre[2 * tag.len() + 1], 0x00);
-        assert_eq!(&pre[2 * tag.len() + 2..2 * tag.len() + 10], &21u64.to_be_bytes());
+        assert_eq!(
+            &pre[2 * tag.len() + 2..2 * tag.len() + 10],
+            &21u64.to_be_bytes()
+        );
         assert_eq!(&pre[2 * tag.len() + 10..], KAT_SUBJECT.as_bytes());
         // Refusals: both subject fields, neither, empty tag, bad hex.
         let r: Res<_> = op_derive_subject_digest(&serde_json::json!({
             "domain_tag": KAT_TAG, "subject": "a", "subject_hex": "61"
         }));
         assert_eq!(r.unwrap_err().code, "bad_field");
-        let r: Res<_> =
-            op_derive_subject_digest(&serde_json::json!({"domain_tag": KAT_TAG}));
+        let r: Res<_> = op_derive_subject_digest(&serde_json::json!({"domain_tag": KAT_TAG}));
         assert_eq!(r.unwrap_err().code, "missing_field");
         let r: Res<_> =
             op_derive_subject_digest(&serde_json::json!({"domain_tag": "", "subject": "a"}));
@@ -338,7 +339,8 @@ mod tests {
     }
 
     #[test]
-    fn refusals_are_typed() {        assert!(matches!(
+    fn refusals_are_typed() {
+        assert!(matches!(
             verify_signature_input(b"not json", V0_SIGNING_INPUT_HEX),
             Err(SignatureInputError::Envelope(
                 affidavit_core::crypto_verify::EnvelopeError::Malformed(_)

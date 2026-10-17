@@ -1,0 +1,141 @@
+name: Documentation Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/docs-validation.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Check that documentation builds without warnings
+  doc-build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: docs-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build documentation
+        run: cargo doc --all-features --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # Check for typos in documentation
+  doc-typos:
+    name: Check for Typos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: taiki-e/install-action@typos
+
+      - name: Check spelling in docs
+        run: typos docs/
+
+  # Verify README is up to date
+  readme-check:
+    name: README Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check README exists and is not empty
+        run: |
+          if [ ! -f README.md ]; then
+            echo "✗ README.md not found"
+            exit 1
+          fi
+
+          if [ ! -s README.md ]; then
+            echo "✗ README.md is empty"
+            exit 1
+          fi
+
+          echo "✓ README.md is present and not empty"
+
+      - name: Verify version in README matches Cargo.toml
+        run: |
+          README_VERSION=$(grep -m1 'version.*[0-9]\.[0-9]\.[0-9]' README.md | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+
+          if [ -z "$README_VERSION" ]; then
+            echo "⚠ Warning: Could not find version in README"
+            exit 0  # Not a hard error - might not have version there
+          fi
+
+          if [ "$README_VERSION" != "$CARGO_VERSION" ]; then
+            echo "⚠ Warning: README version ($README_VERSION) differs from Cargo.toml ($CARGO_VERSION)"
+            echo "   This is just a heads up - manually verify if this is intentional"
+            exit 0  # Not a hard error - might be intentional
+          fi
+
+          echo "✓ README version matches Cargo.toml"
+
+  # Validate example code blocks compile
+  example-validation:
+    name: Validate Example Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: examples-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check tutorial examples compile
+        run: |
+          if [ -d "examples/tutorial" ]; then
+            echo "✓ Tutorial examples directory exists"
+            for example in examples/tutorial/*.rs; do
+              if [ -f "$example" ]; then
+                echo "  Checking $(basename $example)..."
+                rustc --crate-type bin "$example" --edition 2021 -C prefer-dynamic 2>&1 | head -5 || true
+              fi
+            done
+          else
+            echo "⚠ Tutorial examples directory not found"
+          fi
+
+      - name: Check all examples build
+        run: cargo build --examples --all-features --workspace
+
+  # Final validation - ensure docs are production-ready
+  doc-validation-summary:
+    name: Documentation Validation Summary
+    runs-on: ubuntu-latest
+    needs:
+      - doc-build
+      - doc-typos
+      - readme-check
+      - example-validation
+    if: always()
+    steps:
+      - name: Check all validation passed
+        if: |
+          needs.doc-build.result != 'success' ||
+          needs.doc-typos.result != 'success' ||
+          needs.readme-check.result != 'success' ||
+          needs.example-validation.result != 'success'
+        run: |
+          echo "✗ Documentation validation failed"
+          exit 1
+
+      - name: Documentation validation passed ✓
+        run: echo "✓ All documentation checks passed - ready for release"

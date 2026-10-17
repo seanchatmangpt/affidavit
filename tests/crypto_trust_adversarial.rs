@@ -178,7 +178,7 @@ fn teeth_valid_key_registers() {
 fn teeth_valid_pqc_envelopes_verify() {
     // ML-DSA-65 envelope: sign the real pre-image, verify VALID.
     let mldsa_seed = [0xA5u8; 32];
-    let kp = ml_dsa65_from_seed(&mldsa_seed).expect("pqc fixture key pair");
+    let kp = ml_dsa65_from_seed(&mldsa_seed);
     let record = record_for(
         AlgorithmId::MlDsa65,
         PublicKeyMaterial::MlDsa65(kp.public.clone()),
@@ -199,7 +199,7 @@ fn teeth_valid_pqc_envelopes_verify() {
 
     // SLH-DSA-SHA2-128s envelope: same law.
     let slh_seeds = [0x11u8; 48];
-    let slh_kp = slh_dsa128s_from_seed(&slh_seeds).expect("pqc fixture key pair");
+    let slh_kp = slh_dsa128s_from_seed(&slh_seeds);
     let slh_record = record_for(
         AlgorithmId::SlhDsa128s,
         PublicKeyMaterial::SlhDsa128s(slh_kp.public.clone()),
@@ -917,7 +917,7 @@ fn pqc_provider_tamper_matrix_is_typed() {
     let msg: &[u8] = b"lane7 pqc tamper matrix";
 
     // ML-DSA-65: teeth, then byte-flip (decided false), then typed refusals.
-    let mldsa = ml_dsa65_from_seed(&ndseed(0xA5, 32)).expect("pqc fixture key pair");
+    let mldsa = ml_dsa65_from_seed(&ndseed(0xA5, 32));
     let mldsa_sig = ml_dsa65_sign(&mldsa.seed, msg, &[0x5Au8; 32]).expect("ml-dsa sign");
     assert!(
         ml_dsa65_verify(&mldsa.public, msg, &mldsa_sig).expect("ml-dsa teeth"),
@@ -941,7 +941,7 @@ fn pqc_provider_tamper_matrix_is_typed() {
     ));
 
     // SLH-DSA-SHA2-128s: teeth, byte-flip, typed refusals.
-    let slh = slh_dsa128s_from_seed(&ndseed(0x11, 48)).expect("pqc fixture key pair");
+    let slh = slh_dsa128s_from_seed(&ndseed(0x11, 48));
     let slh_sig = slh_dsa128s_sign(&slh.seeds, msg).expect("slh-dsa sign");
     assert!(
         slh_dsa128s_verify(&slh.public, msg, &slh_sig).expect("slh-dsa teeth"),
@@ -1006,7 +1006,7 @@ fn pqc_provider_tamper_matrix_is_typed() {
     );
 
     // Cross-key: the PQ half under a different key must not verify.
-    let other_mldsa = ml_dsa65_from_seed(&ndseed(0x3C, 32)).expect("pqc fixture key pair");
+    let other_mldsa = ml_dsa65_from_seed(&ndseed(0x3C, 32));
     let hybrid_again = hybrid_sign(&secret, msg).expect("hybrid sign");
     assert!(
         !hybrid_verify(&es256_pk, &other_mldsa.public, msg, &hybrid_again).expect("well-formed"),

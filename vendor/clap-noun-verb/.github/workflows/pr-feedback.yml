@@ -1,0 +1,302 @@
+name: PR Feedback & Notifications
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # =========================================================================
+  # PERFORMANCE REGRESSION DETECTION
+  # =========================================================================
+  performance-regression:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run benchmarks on PR
+        run: cargo bench --all-features -- --save-baseline pr
+
+      - name: Checkout main branch
+        run: |
+          git fetch origin main
+          git checkout main
+
+      - name: Run benchmarks on main
+        run: cargo bench --all-features -- --save-baseline main
+
+      - name: Compare benchmarks
+        id: bench-compare
+        run: |
+          git checkout -
+          cargo bench --all-features -- --baseline main --load-baseline pr > bench-comparison.txt || true
+
+          # Check for regressions (>10% slower)
+          if grep -q "Performance has regressed" bench-comparison.txt; then
+            echo "regression=true" >> $GITHUB_OUTPUT
+            echo "REGRESSION DETECTED"
+          else
+            echo "regression=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on PR with benchmark results
+        if: steps.bench-compare.outputs.regression == 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const comparison = fs.readFileSync('bench-comparison.txt', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ⚠️  Performance Regression Detected\n\n\`\`\`\n${comparison}\n\`\`\``
+            });
+
+      - name: Fail if regression detected
+        if: steps.bench-compare.outputs.regression == 'true'
+        run: |
+          echo "❌ Performance regression detected - review required"
+          exit 1
+
+  # =========================================================================
+  # ANDON SIGNAL PR COMMENT
+  # =========================================================================
+  andon-pr-comment:
+    name: Andon Signal Status Comment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run Andon checks
+        id: andon
+        run: |
+          # Initialize status
+          echo "compiler_errors=green" >> $GITHUB_OUTPUT
+          echo "compiler_warnings=green" >> $GITHUB_OUTPUT
+          echo "test_failures=green" >> $GITHUB_OUTPUT
+          echo "clippy_warnings=green" >> $GITHUB_OUTPUT
+          echo "formatting=green" >> $GITHUB_OUTPUT
+
+          # Check compiler errors
+          cargo check 2>&1 | tee check.log || true
+          if grep -q "error\[E" check.log; then
+            echo "compiler_errors=red" >> $GITHUB_OUTPUT
+          fi
+          if grep -q "warning:" check.log; then
+            echo "compiler_warnings=yellow" >> $GITHUB_OUTPUT
+          fi
+
+          # Check tests
+          cargo test 2>&1 | tee test.log || true
+          if grep -q "FAILED" test.log; then
+            echo "test_failures=red" >> $GITHUB_OUTPUT
+          fi
+
+          # Check clippy
+          cargo clippy -- -D warnings 2>&1 | tee clippy.log || true
+          if grep -q "warning:" clippy.log; then
+            echo "clippy_warnings=yellow" >> $GITHUB_OUTPUT
+          fi
+
+          # Check formatting
+          cargo fmt -- --check || echo "formatting=yellow" >> $GITHUB_OUTPUT
+
+      - name: Comment Andon status on PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const signals = {
+              compiler_errors: '${{ steps.andon.outputs.compiler_errors }}',
+              compiler_warnings: '${{ steps.andon.outputs.compiler_warnings }}',
+              test_failures: '${{ steps.andon.outputs.test_failures }}',
+              clippy_warnings: '${{ steps.andon.outputs.clippy_warnings }}',
+              formatting: '${{ steps.andon.outputs.formatting }}'
+            };
+
+            const emoji = {
+              green: '✅',
+              yellow: '⚠️',
+              red: '❌'
+            };
+
+            const allGreen = Object.values(signals).every(s => s === 'green');
+
+            const body = `## 🚦 Andon Signal Protocol Status
+
+            ${allGreen ? '**ALL SIGNALS GREEN - PROCEED** ✅' : '**STOP THE LINE** ⛔'}
+
+            | Check | Status |
+            |-------|--------|
+            | Compiler Errors | ${emoji[signals.compiler_errors]} ${signals.compiler_errors.toUpperCase()} |
+            | Compiler Warnings | ${emoji[signals.compiler_warnings]} ${signals.compiler_warnings.toUpperCase()} |
+            | Test Failures | ${emoji[signals.test_failures]} ${signals.test_failures.toUpperCase()} |
+            | Clippy Warnings | ${emoji[signals.clippy_warnings]} ${signals.clippy_warnings.toUpperCase()} |
+            | Code Formatting | ${emoji[signals.formatting]} ${signals.formatting.toUpperCase()} |
+
+            ${allGreen ? '' : '⛔ **Action Required**: Fix all non-green signals before merging.'}
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  # =========================================================================
+  # CODE COVERAGE PR COMMENT
+  # =========================================================================
+  coverage-pr-comment:
+    name: Coverage Report Comment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Generate coverage
+        run: |
+          cargo tarpaulin --all-features --workspace \
+            --out Xml --output-dir coverage \
+            --timeout 300
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          COVERAGE=$(grep -oP 'line-rate="\K[^"]+' coverage/cobertura.xml | head -1)
+          COVERAGE_PCT=$(echo "$COVERAGE * 100" | bc)
+          echo "percentage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
+
+      - name: Comment coverage on PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const coverage = parseFloat('${{ steps.coverage.outputs.percentage }}');
+            const threshold = 80;
+            const meetsThreshold = coverage >= threshold;
+
+            const emoji = meetsThreshold ? '✅' : '❌';
+            const status = meetsThreshold ? 'PASS' : 'FAIL';
+
+            const body = `## 📊 Code Coverage Report
+
+            **Coverage**: ${coverage.toFixed(2)}% ${emoji}
+            **Threshold**: ${threshold}%
+            **Status**: ${status}
+
+            ${meetsThreshold ? '✅ Coverage meets the 80% threshold.' : '❌ Coverage below 80% threshold - add more tests.'}
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  # =========================================================================
+  # BINARY SIZE CHANGE COMMENT
+  # =========================================================================
+  binary-size-comment:
+    name: Binary Size Change
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build PR binary
+        run: cargo build --release
+
+      - name: Get PR binary size
+        id: pr-size
+        run: |
+          SIZE=$(stat -c%s target/release/clap-noun-verb)
+          echo "bytes=$SIZE" >> $GITHUB_OUTPUT
+
+      - name: Checkout main
+        run: |
+          git fetch origin main
+          git checkout main
+
+      - name: Build main binary
+        run: cargo build --release
+
+      - name: Get main binary size
+        id: main-size
+        run: |
+          SIZE=$(stat -c%s target/release/clap-noun-verb)
+          echo "bytes=$SIZE" >> $GITHUB_OUTPUT
+
+      - name: Calculate size change
+        id: size-change
+        run: |
+          PR_SIZE=${{ steps.pr-size.outputs.bytes }}
+          MAIN_SIZE=${{ steps.main-size.outputs.bytes }}
+          DIFF=$((PR_SIZE - MAIN_SIZE))
+          DIFF_PCT=$(echo "scale=2; ($DIFF / $MAIN_SIZE) * 100" | bc)
+
+          echo "diff=$DIFF" >> $GITHUB_OUTPUT
+          echo "diff_pct=$DIFF_PCT" >> $GITHUB_OUTPUT
+
+      - name: Comment size change on PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prSize = parseInt('${{ steps.pr-size.outputs.bytes }}');
+            const mainSize = parseInt('${{ steps.main-size.outputs.bytes }}');
+            const diff = parseInt('${{ steps.size-change.outputs.diff }}');
+            const diffPct = parseFloat('${{ steps.size-change.outputs.diff_pct }}');
+
+            const prSizeMB = (prSize / 1024 / 1024).toFixed(2);
+            const mainSizeMB = (mainSize / 1024 / 1024).toFixed(2);
+            const diffKB = (diff / 1024).toFixed(2);
+
+            const emoji = diff > 0 ? '📈' : diff < 0 ? '📉' : '➡️';
+            const sign = diff > 0 ? '+' : '';
+
+            const body = `## 📦 Binary Size Change
+
+            | Metric | Value |
+            |--------|-------|
+            | Main branch | ${mainSizeMB} MB |
+            | This PR | ${prSizeMB} MB |
+            | Change | ${emoji} ${sign}${diffKB} KB (${sign}${diffPct}%) |
+
+            ${Math.abs(diffPct) > 5 ? '⚠️  **Significant size change detected** (>5%)' : ''}
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

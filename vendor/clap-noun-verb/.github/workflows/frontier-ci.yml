@@ -1,0 +1,452 @@
+name: Frontier CI - 21-Point Feature Matrix
+
+on:
+  push:
+    branches: [ main, develop, 'claude/**', 'frontier/**' ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -D warnings
+
+jobs:
+  # =========================================================================
+  # 21-POINT FEATURE TEST MATRIX
+  # =========================================================================
+  feature-matrix:
+    name: Test - ${{ matrix.features || 'baseline' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          # Tier 0: Baseline
+          - ""
+
+          # Tier 1: Individual features (9 features)
+          - "meta-framework"
+          - "rdf-composition"
+          - "fractal-patterns"
+          - "discovery-engine"
+          - "federated-network"
+          - "learning-trajectories"
+          - "reflexive-testing"
+          - "economic-sim"
+          - "quantum-ready"
+
+          # Tier 2: Meta-features (3 features)
+          - "frontier-semantic"
+          - "frontier-intelligence"
+          - "frontier-quality"
+
+          # Tier 3: Critical combinations (5 combos)
+          - "meta-framework,rdf-composition"
+          - "discovery-engine,learning-trajectories"
+          - "federated-network,rdf-composition"
+          - "economic-sim,learning-trajectories"
+          - "executable-specs"
+
+          # Tier 4: Extremes (3 endpoints)
+          - "frontier-all"
+          - "no-features"
+          - "repl"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: frontier-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Andon Signal Check - Compilation
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo check
+          elif [ "${{ matrix.features }}" = "no-features" ]; then
+            cargo check --no-default-features
+          else
+            cargo check --features "${{ matrix.features }}"
+          fi
+          echo "✅ ANDON GREEN: No compiler errors"
+
+      - name: Andon Signal Check - Tests
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo test --quiet
+          elif [ "${{ matrix.features }}" = "no-features" ]; then
+            cargo test --no-default-features --quiet
+          else
+            cargo test --features "${{ matrix.features }}" --quiet
+          fi
+          echo "✅ ANDON GREEN: All tests pass"
+
+      - name: Andon Signal Check - Clippy
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo clippy -- -D warnings
+          elif [ "${{ matrix.features }}" = "no-features" ]; then
+            cargo clippy --no-default-features -- -D warnings
+          else
+            cargo clippy --features "${{ matrix.features }}" -- -D warnings
+          fi
+          echo "✅ ANDON GREEN: No clippy warnings"
+
+      - name: Measure binary size
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo build --release
+          elif [ "${{ matrix.features }}" = "no-features" ]; then
+            cargo build --release --no-default-features
+          else
+            cargo build --release --features "${{ matrix.features }}"
+          fi
+          ls -lh target/release/clap-noun-verb* | grep -v '\.d$' || true
+          echo "Binary size tracked for features: ${{ matrix.features || 'baseline' }}"
+
+  # =========================================================================
+  # CODE COVERAGE with TARPAULIN
+  # =========================================================================
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: coverage-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Generate coverage report
+        run: |
+          cargo tarpaulin --all-features --workspace \
+            --out Html --out Xml \
+            --output-dir coverage \
+            --timeout 300 \
+            --exclude-files 'tests/*' 'benches/*' 'examples/*'
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/cobertura.xml
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Archive coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage/
+
+      - name: Check coverage threshold (80%)
+        run: |
+          # Extract coverage percentage from XML
+          COVERAGE=$(grep -oP 'line-rate="\K[^"]+' coverage/cobertura.xml | head -1)
+          COVERAGE_PCT=$(echo "$COVERAGE * 100" | bc)
+          echo "Coverage: ${COVERAGE_PCT}%"
+          if (( $(echo "$COVERAGE_PCT < 80" | bc -l) )); then
+            echo "❌ Coverage below 80% threshold"
+            exit 1
+          fi
+          echo "✅ Coverage meets 80% threshold"
+
+  # =========================================================================
+  # PERFORMANCE BENCHMARKING with CRITERION
+  # =========================================================================
+  benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: bench-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Fetch baseline (main branch)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          git fetch origin main:main
+
+      - name: Run benchmarks
+        run: cargo bench --all-features -- --save-baseline current
+
+      - name: Compare with baseline
+        if: github.ref != 'refs/heads/main'
+        run: |
+          git checkout main
+          cargo bench --all-features -- --baseline main --save-baseline main
+          git checkout -
+          cargo bench --all-features -- --baseline main --load-baseline current
+
+      - name: Archive benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: target/criterion/
+
+      - name: Andon Signal Check - Performance SLOs
+        run: |
+          echo "✅ ANDON GREEN: Performance benchmarks complete"
+          # TODO: Add criterion threshold checks when SLO targets defined
+
+  # =========================================================================
+  # SECURITY SCANNING
+  # =========================================================================
+  security:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: security-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install security tools
+        run: |
+          cargo install cargo-audit cargo-outdated
+
+      - name: Audit dependencies for vulnerabilities
+        run: |
+          cargo audit --deny warnings
+          echo "✅ No known vulnerabilities"
+
+      - name: Check for outdated dependencies
+        run: |
+          cargo outdated --exit-code 1 --root-deps-only
+          echo "✅ Dependencies are up-to-date"
+
+      - name: cargo-deny (licenses, bans, advisories)
+        run: |
+          cargo deny check licenses
+          cargo deny check bans
+          cargo deny check advisories
+          echo "✅ License and security checks passed"
+
+  # =========================================================================
+  # COMPILATION TIME TRACKING
+  # =========================================================================
+  compile-time:
+    name: Compilation Time Tracking
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Clean build (no cache)
+        run: cargo clean
+
+      - name: Track incremental compilation time
+        run: |
+          START=$(date +%s)
+          cargo build
+          END=$(date +%s)
+          DURATION=$((END - START))
+          echo "Incremental build time: ${DURATION}s"
+          if [ $DURATION -gt 120 ]; then
+            echo "⚠️  WARNING: Build time ${DURATION}s exceeds 120s target"
+          else
+            echo "✅ Build time within target"
+          fi
+
+      - name: Track full rebuild time
+        run: |
+          cargo clean
+          START=$(date +%s)
+          cargo build --all-features
+          END=$(date +%s)
+          DURATION=$((END - START))
+          echo "Full build time (all features): ${DURATION}s"
+
+  # =========================================================================
+  # ANDON SIGNAL PROTOCOL - COMPREHENSIVE CHECK
+  # =========================================================================
+  andon-protocol:
+    name: Andon Signal Protocol
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: andon-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: "🚦 ANDON CHECK 1: Compiler Errors"
+        run: |
+          cargo check --all-features
+          echo "✅ ANDON GREEN: No compiler errors"
+
+      - name: "🚦 ANDON CHECK 2: Compiler Warnings"
+        run: |
+          cargo check --all-features 2>&1 | tee check.log
+          if grep -q "warning:" check.log; then
+            echo "❌ ANDON RED: Compiler warnings detected"
+            exit 1
+          fi
+          echo "✅ ANDON GREEN: No compiler warnings"
+
+      - name: "🚦 ANDON CHECK 3: Test Failures"
+        run: |
+          cargo test --all-features 2>&1 | tee test.log
+          if grep -q "FAILED" test.log; then
+            echo "❌ ANDON RED: Test failures detected"
+            exit 1
+          fi
+          echo "✅ ANDON GREEN: All tests pass"
+
+      - name: "🚦 ANDON CHECK 4: Clippy Warnings"
+        run: |
+          cargo clippy --all-features -- -D warnings
+          echo "✅ ANDON GREEN: No clippy warnings"
+
+      - name: "🚦 ANDON CHECK 5: Formatting"
+        run: |
+          cargo fmt --all -- --check
+          echo "✅ ANDON GREEN: Code properly formatted"
+
+      - name: "🚦 ANDON CHECK 6: Documentation"
+        run: |
+          cargo doc --all-features --no-deps
+          echo "✅ ANDON GREEN: Documentation builds successfully"
+
+      - name: "✅ ALL ANDON SIGNALS GREEN"
+        run: |
+          echo "════════════════════════════════════════"
+          echo "   ALL ANDON SIGNALS CLEARED ✅"
+          echo "════════════════════════════════════════"
+          echo "✅ No compiler errors"
+          echo "✅ No compiler warnings"
+          echo "✅ All tests pass"
+          echo "✅ No clippy warnings"
+          echo "✅ Code properly formatted"
+          echo "✅ Documentation builds"
+          echo "════════════════════════════════════════"
+
+  # =========================================================================
+  # BINARY SIZE TRACKING
+  # =========================================================================
+  binary-size:
+    name: Binary Size Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: size-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binaries
+        run: |
+          cargo build --release
+          cargo build --release --no-default-features
+          cargo build --release --all-features
+
+      - name: Analyze binary sizes
+        run: |
+          echo "Binary Size Analysis:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Default features:"
+          ls -lh target/release/clap-noun-verb | awk '{print $5 "\t" $9}'
+
+          echo ""
+          echo "No features:"
+          ls -lh target/release/clap-noun-verb | awk '{print $5 "\t" $9}'
+
+          echo ""
+          echo "All features:"
+          ls -lh target/release/clap-noun-verb | awk '{print $5 "\t" $9}'
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Check binary size threshold (10MB)
+        run: |
+          SIZE=$(stat -c%s target/release/clap-noun-verb)
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "Binary size: ${SIZE_MB}MB"
+          if [ $SIZE_MB -gt 10 ]; then
+            echo "⚠️  WARNING: Binary size ${SIZE_MB}MB exceeds 10MB target"
+          else
+            echo "✅ Binary size within target"
+          fi
+
+  # =========================================================================
+  # CI SUCCESS SUMMARY
+  # =========================================================================
+  frontier-ci-success:
+    name: Frontier CI Summary
+    runs-on: ubuntu-latest
+    needs:
+      - feature-matrix
+      - coverage
+      - benchmarks
+      - security
+      - compile-time
+      - andon-protocol
+      - binary-size
+    if: always()
+    steps:
+      - name: Check all required jobs passed
+        if: |
+          needs.feature-matrix.result != 'success' ||
+          needs.coverage.result != 'success' ||
+          needs.benchmarks.result != 'success' ||
+          needs.security.result != 'success' ||
+          needs.andon-protocol.result != 'success'
+        run: |
+          echo "❌ One or more critical CI jobs failed"
+          exit 1
+
+      - name: "✅ FRONTIER CI PASSED"
+        run: |
+          echo "════════════════════════════════════════"
+          echo "   FRONTIER CI COMPLETE ✅"
+          echo "════════════════════════════════════════"
+          echo "✅ 21-point feature matrix: PASS"
+          echo "✅ Code coverage >80%: PASS"
+          echo "✅ Performance benchmarks: PASS"
+          echo "✅ Security scanning: PASS"
+          echo "✅ Andon Protocol: ALL GREEN"
+          echo "✅ Binary size tracking: COMPLETE"
+          echo "════════════════════════════════════════"

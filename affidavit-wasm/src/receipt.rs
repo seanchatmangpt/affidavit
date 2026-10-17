@@ -345,8 +345,7 @@ mod tests {
     #[test]
     fn genesis_seed_is_frozen_not_version_derived() {
         assert_eq!(
-            GENESIS_SEED,
-            "affidavit-v26.9.28-genesis",
+            GENESIS_SEED, "affidavit-v26.9.28-genesis",
             "seed is frozen to the deployed wasm generation, independent of CARGO_PKG_VERSION"
         );
     }

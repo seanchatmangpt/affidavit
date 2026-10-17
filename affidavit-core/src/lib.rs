@@ -1,16 +1,19 @@
 //! # affidavit-core
 //!
-//! A **zero-dependency**, `#![no_std]`, `#![forbid(unsafe_code)]` reference
-//! verifier for affidavit-style receipt chains.
+//! A `#![no_std]`, `#![forbid(unsafe_code)]` reference verifier for
+//! affidavit-style receipt chains.
 //!
 //! The premise: the component you *verify provenance with* should be the hardest
 //! thing in the system to compromise. So this core has:
 //!
-//! * **No dependencies.** Nothing to audit, nothing to be broken by an upstream
-//!   release. (Pointedly: the sibling `affidavit` crate carries a published
-//!   dependency pin, `wasm4pm-compat =26.8.7`, that a future upstream release
-//!   could break. A verifier with an empty `[dependencies]` cannot fail that
-//!   way.)
+//! * **No cryptographic arithmetic in-crate.** Every algorithm (ML-DSA-65,
+//!   SLH-DSA-SHA2-128s, ML-KEM-768, BLAKE3) arrives as an audited external
+//!   dependency — `ml-dsa`, `slh-dsa`, `ml-kem`, `blake3`. The supply chain to
+//!   audit is exactly four crates, each externally validated; nothing here
+//!   hand-rolls lattice, hash-tree, or cipher internals. (Pointedly: the sibling
+//!   `affidavit` crate carries a published dependency pin,
+//!   `wasm4pm-compat =26.8.7`, that a future upstream release could break. Here,
+//!   only algorithm crates are pinned, each one externally validated.)
 //! * **No `std`, no `alloc` on the verify path.** [`verify`] runs over a
 //!   borrowed `&[Event]` and allocates nothing, so it works in a WASM sandbox,
 //!   an embedded HSM, or an on-chain runtime — not just on a server.
@@ -19,8 +22,30 @@
 //!   from [`ChainBuilder::finalize`]; its sealed state cannot be forged by hand
 //!   (see the `compile_fail` example below).
 //! * **A pluggable hash.** The chain folds through any [`ChainHasher`]; a
-//!   zero-dep reference hasher [`Fnv256`] ships in-crate, and a cryptographic
-//!   hash (e.g. BLAKE3) can be slotted in for a tamper-*evident* chain.
+//!   non-crypto reference hasher [`Fnv256`] ships in-crate, and a cryptographic
+//!   hash can be slotted in for a tamper-*evident* chain.
+//!
+//! ## Zero hand-implemented crypto
+//!
+//! No cryptographic primitive is implemented inside this crate. Hashing and
+//! post-quantum signatures come exclusively from externally audited
+//! dependencies — BLAKE3 for hashing and ML-DSA-65 (FIPS 204) for signatures —
+//! and that policy is unconditional: there are no feature flags that could
+//! compile the crate with a hand-rolled substitute in place. [`PqcCourt`]
+//! accepts any [`MlDsa65Verifier`] implementation, so the verifier you ship
+//! (e.g. the `ml-dsa` crate, also behind the WASM boundary) is the verifier the
+//! court judges with:
+//!
+//! ```
+//! use affidavit_core::{ExternalMlDsa65, PqcCourt, PqcProfile, Suite};
+//!
+//! // Compile-time wiring of an external ML-DSA-65 verifier into the court.
+//! // Judging a real signature requires real keys; see
+//! // tests/pqc_external_validation.rs for the end-to-end run.
+//! let court: PqcCourt = PqcCourt::new().with_ml_dsa(&ExternalMlDsa65);
+//! assert!(court.has_ml_dsa());
+//! let _ = PqcProfile::Pqc(Suite::MlDsa65);
+//! ```
 //!
 //! ## Build, seal, verify
 //!
@@ -65,13 +90,13 @@ pub mod bcinr;
 pub mod chain;
 pub mod crypto_verify;
 pub mod digest;
-pub mod sha256;
 pub mod external_evidence;
+pub mod kem;
+pub mod pqc;
+pub mod sealed;
 pub mod verifier;
 
 #[cfg(feature = "alloc")]
-pub mod accumulator;
-
 #[cfg(feature = "alloc")]
 pub mod mining;
 
@@ -79,13 +104,24 @@ pub use chain::{compute_chain_hash, Event, PROFILE};
 pub use crypto_verify::{
     Algorithm, EnvelopeError, EnvelopeRef, Profile, DOMAIN_TAG, ENVELOPE_FIELDS, ENVELOPE_VERSION,
 };
-pub use digest::{ChainHasher, Digest, Fnv256};
-pub use sha256::Sha256;
+pub use digest::{Blake3Hasher, ChainHasher, Digest, Fnv256};
 pub use external_evidence::{
     admit_authzen_evidence, admit_workload_identity, AuthZenActionRef, AuthZenDecisionEvidenceRef,
     AuthZenEntityRef, AuthZenRequestRef, EvidenceError, SpiffeIdRef, SvidType,
     WorkloadIdentityEvidenceRef, AUTHORITY_NONE, AUTHZEN_STANDARD, CONSEQUENCE_EVIDENCE_ONLY,
     SPIFFE_PREFIX,
+};
+pub use kem::{
+    EncapsulationOut, ExternalMlKem768, KemCourt, KemDecapsulator, KemEncapsulator, KemRefusal,
+    KemVerdict, CIPHERTEXT_LEN, DECAPSULATION_SEED_LEN, ENCAPSULATION_KEY_LEN, SHARED_SECRET_LEN,
+};
+pub use pqc::{
+    ExternalMlDsa65, ExternalSlhDsa128s, MlDsa65Verifier, PqcCourt, PqcProfile, PqcRefusal,
+    PqcVerdict, SlhDsaVerifier, Suite,
+};
+pub use sealed::{
+    key_id as sealed_key_id, seal_message, PqcSealedReceipt, SealRefusal, DOMAIN_KEY_ID,
+    DOMAIN_SEAL, ML_DSA_65_PK_LEN, ML_DSA_65_SIG_LEN, SEAL_MSG_LEN,
 };
 pub use verifier::{verify, RejectReason, Verdict};
 

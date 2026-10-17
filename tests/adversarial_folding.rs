@@ -1,8 +1,9 @@
 use affidavit::trajectory_folding::{
-    fold_outcome, fold_receipts, CtrtReceipt, TrajectoryFoldError, COURT_RECORD_LEN,
-    COURT_RECEIPT_V1_LEN,
+    fold_outcome, fold_receipts, CtrtReceipt, TrajectoryFoldError, COURT_RECEIPT_V1_LEN,
+    COURT_RECORD_LEN,
 };
 
+#[allow(clippy::too_many_arguments)] // test fixture builder; arity mirrors the wire fields
 fn create_receipt(
     parent: [u8; 32],
     ticks: u64,
@@ -36,7 +37,8 @@ fn create_receipt(
         chain_hash: [0u8; 32],
     };
     let encoded = r.encode().expect("valid encode");
-    r.chain_hash.copy_from_slice(&encoded[COURT_RECEIPT_V1_LEN..]);
+    r.chain_hash
+        .copy_from_slice(&encoded[COURT_RECEIPT_V1_LEN..]);
     r
 }
 
@@ -109,8 +111,11 @@ fn test_monoidal_associativity_ticks_wall_and_properties() {
     assert_eq!(ab_c.timestamp_ms, r_c.timestamp_ms);
 
     // 4. Budget met (boolean conjunction): (true && true) && false == true && (true && false)
-    assert_eq!(r_ab.budget_met && r_c.budget_met, r_a.budget_met && r_bc.budget_met);
-    assert_eq!(r_ab.budget_met && r_c.budget_met, false);
+    assert_eq!(
+        r_ab.budget_met && r_c.budget_met,
+        r_a.budget_met && r_bc.budget_met
+    );
+    assert!(!(r_ab.budget_met && r_c.budget_met));
 
     // 5. Thermal (semilattice max): max(max(1, 2), 3) == max(1, max(2, 3))
     assert_eq!(r_ab.thermal.max(r_c.thermal), r_a.thermal.max(r_bc.thermal));
@@ -128,7 +133,11 @@ fn test_parent_linkage_mismatch_rejection_and_no_laundering() {
     match err {
         TrajectoryFoldError::ParentLinkageMismatch { expected, found } => {
             let exp_hex: String = r_a.chain_hash.iter().map(|b| format!("{b:02x}")).collect();
-            let fnd_hex: String = r_b_bogus.parent_receipt_hash.iter().map(|b| format!("{b:02x}")).collect();
+            let fnd_hex: String = r_b_bogus
+                .parent_receipt_hash
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
             assert_eq!(expected, exp_hex);
             assert_eq!(found, fnd_hex);
         }
@@ -149,16 +158,34 @@ fn test_parent_linkage_mismatch_rejection_and_no_laundering() {
 
 #[test]
 fn test_arithmetic_overflow_saturating_add_u64_max() {
-    let r_a = create_receipt([0u8; 32], u64::MAX, u64::MAX - 10, "max_a", 0, 1, true, [0u8; 32]);
+    let r_a = create_receipt(
+        [0u8; 32],
+        u64::MAX,
+        u64::MAX - 10,
+        "max_a",
+        0,
+        1,
+        true,
+        [0u8; 32],
+    );
     let r_b = create_receipt(r_a.chain_hash, 50, 100, "overflow_b", 0, 1, true, [0u8; 32]);
 
     // fold_receipts uses saturating_add:
     // a.total_ticks.saturating_add(b.total_ticks) -> u64::MAX
     // a.wall_ms.saturating_add(b.wall_ms) -> u64::MAX
-    let folded = fold_receipts(&r_a, &r_b).expect("fold should saturate gracefully without panicking");
+    let folded =
+        fold_receipts(&r_a, &r_b).expect("fold should saturate gracefully without panicking");
 
-    assert_eq!(folded.total_ticks, u64::MAX, "total_ticks must saturate to u64::MAX");
-    assert_eq!(folded.wall_ms, u64::MAX, "wall_ms must saturate to u64::MAX");
+    assert_eq!(
+        folded.total_ticks,
+        u64::MAX,
+        "total_ticks must saturate to u64::MAX"
+    );
+    assert_eq!(
+        folded.wall_ms,
+        u64::MAX,
+        "wall_ms must saturate to u64::MAX"
+    );
 
     // Verify wire encoding and roundtrip decode survives u64::MAX fields intact
     let encoded = folded.encode().expect("encode saturated receipt");

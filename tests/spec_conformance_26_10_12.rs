@@ -22,28 +22,52 @@ fn test_numeric_machine_codes_0xe001_through_0xe402() {
     // ── 0xE001 .. 0xE004: Wire CTRT Error Codes ─────────────────────────
     // 0xE001: Payload length != 352 bytes
     let err_e001 = WireCtrtError::InvalidLength(351);
-    assert_eq!(err_e001.machine_code(), 0xE001, "0xE001 must be InvalidLength");
+    assert_eq!(
+        err_e001.machine_code(),
+        0xE001,
+        "0xE001 must be InvalidLength"
+    );
 
     // 0xE002: Magic bytes mismatch (not CTRT)
     let err_e002 = WireCtrtError::InvalidMagic(*b"BADM");
-    assert_eq!(err_e002.machine_code(), 0xE002, "0xE002 must be InvalidMagic");
+    assert_eq!(
+        err_e002.machine_code(),
+        0xE002,
+        "0xE002 must be InvalidMagic"
+    );
 
     // 0xE003: Unsupported wire version identifier
     let err_e003 = WireCtrtError::UnsupportedVersion(99);
-    assert_eq!(err_e003.machine_code(), 0xE003, "0xE003 must be UnsupportedVersion");
+    assert_eq!(
+        err_e003.machine_code(),
+        0xE003,
+        "0xE003 must be UnsupportedVersion"
+    );
 
     // 0xE004: Unrecognized verdict status code
     let err_e004 = WireCtrtError::InvalidVerdictStatus(0xFF);
-    assert_eq!(err_e004.machine_code(), 0xE004, "0xE004 must be InvalidVerdictStatus");
+    assert_eq!(
+        err_e004.machine_code(),
+        0xE004,
+        "0xE004 must be InvalidVerdictStatus"
+    );
 
     // ── 0xE101 .. 0xE102: Replay Nullifier Error Codes ───────────────────
     // 0xE101: Nullifier collision within active epoch
     let err_e101 = ReplayNullifierError::ReplayDetected("deadbeef".to_string());
-    assert_eq!(err_e101.machine_code(), 0xE101, "0xE101 must be ReplayDetected");
+    assert_eq!(
+        err_e101.machine_code(),
+        0xE101,
+        "0xE101 must be ReplayDetected"
+    );
 
     // 0xE102: Persistent nullifier storage corrupt / deserialization error
     let err_e102 = ReplayNullifierError::InvalidPersistenceStorage("corrupt table".to_string());
-    assert_eq!(err_e102.machine_code(), 0xE102, "0xE102 must be InvalidPersistenceStorage");
+    assert_eq!(
+        err_e102.machine_code(),
+        0xE102,
+        "0xE102 must be InvalidPersistenceStorage"
+    );
 
     // ── 0xE201 .. 0xE202: Trajectory Folding Error Codes ─────────────────
     // 0xE201: Parent linkage mismatch between receipts
@@ -51,44 +75,84 @@ fn test_numeric_machine_codes_0xe001_through_0xe402() {
         expected: "exp".to_string(),
         found: "fnd".to_string(),
     };
-    assert_eq!(err_e201.machine_code(), 0xE201, "0xE201 must be ParentLinkageMismatch");
+    assert_eq!(
+        err_e201.machine_code(),
+        0xE201,
+        "0xE201 must be ParentLinkageMismatch"
+    );
 
     // 0xE202: Incompatible verdict status during fold
     let err_e202 = TrajectoryFoldError::IncompatibleVerdict;
-    assert_eq!(err_e202.machine_code(), 0xE202, "0xE202 must be IncompatibleVerdict");
+    assert_eq!(
+        err_e202.machine_code(),
+        0xE202,
+        "0xE202 must be IncompatibleVerdict"
+    );
 
     // ── 0xE301 .. 0xE303: Post-Quantum Cryptographic Error Codes ─────────
     // 0xE301: ML-DSA-65 signature check failure / verification failure
     let err_e301_pqc = affidavit::crypto_trust_pqc::PqcError::MalformedSignature;
-    assert_eq!(err_e301_pqc.machine_code(), 0xE301, "0xE301 must be MalformedSignature / MlDsa failure");
+    assert_eq!(
+        err_e301_pqc.machine_code(),
+        0xE301,
+        "0xE301 must be MalformedSignature / MlDsa failure"
+    );
 
     let err_e301_affidavit = affidavit::error::PqcError::Verification("bad signature".to_string());
-    assert_eq!(err_e301_affidavit.machine_code(), 0xE301, "0xE301 must be Verification failure");
+    assert_eq!(
+        err_e301_affidavit.machine_code(),
+        0xE301,
+        "0xE301 must be Verification failure"
+    );
 
     // 0xE302: Decapsulation failure / malformed key
     let err_e302_pqc = affidavit::crypto_trust_pqc::PqcError::MalformedPublicKey;
-    assert_eq!(err_e302_pqc.machine_code(), 0xE302, "0xE302 must be MalformedPublicKey / decapsulation failure");
+    assert_eq!(
+        err_e302_pqc.machine_code(),
+        0xE302,
+        "0xE302 must be MalformedPublicKey / decapsulation failure"
+    );
 
     let err_e302_affidavit = affidavit::error::PqcError::Encapsulation("kem failure".to_string());
-    assert_eq!(err_e302_affidavit.machine_code(), 0xE302, "0xE302 must be Encapsulation failure");
+    assert_eq!(
+        err_e302_affidavit.machine_code(),
+        0xE302,
+        "0xE302 must be Encapsulation failure"
+    );
 
     // 0xE303: Formal oracle detected output divergence
     let err_e303_pqc = affidavit::crypto_trust_pqc::PqcError::SlhDsa("divergence".to_string());
-    assert_eq!(err_e303_pqc.machine_code(), 0xE303, "0xE303 must be SlhDsa / formal divergence");
+    assert_eq!(
+        err_e303_pqc.machine_code(),
+        0xE303,
+        "0xE303 must be SlhDsa / formal divergence"
+    );
 
     let err_e303_affidavit = affidavit::error::PqcError::Chain(
-        affidavit::error::ChainError::Decode(serde_json::from_str::<()>("invalid").unwrap_err())
+        affidavit::error::ChainError::Decode(serde_json::from_str::<()>("invalid").unwrap_err()),
     );
-    assert_eq!(err_e303_affidavit.machine_code(), 0xE303, "0xE303 must be Chain divergence");
+    assert_eq!(
+        err_e303_affidavit.machine_code(),
+        0xE303,
+        "0xE303 must be Chain divergence"
+    );
 
     // ── 0xE401 .. 0xE402: Git Merkle Subsystem Error Codes ───────────────
     // 0xE401: Git object not found in database
     let err_e401 = GitMerkleError::ObjectNotFound("missing_sha".to_string());
-    assert_eq!(err_e401.machine_code(), 0xE401, "0xE401 must be ObjectNotFound");
+    assert_eq!(
+        err_e401.machine_code(),
+        0xE401,
+        "0xE401 must be ObjectNotFound"
+    );
 
     // 0xE402: Git tree corrupt or unparseable
     let err_e402 = GitMerkleError::TreeCorruptOrUnparseable("malformed_tree".to_string());
-    assert_eq!(err_e402.machine_code(), 0xE402, "0xE402 must be TreeCorruptOrUnparseable");
+    assert_eq!(
+        err_e402.machine_code(),
+        0xE402,
+        "0xE402 must be TreeCorruptOrUnparseable"
+    );
 }
 
 #[test]
@@ -172,7 +236,10 @@ fn test_no_panics_on_adversarial_boundary_inputs() {
 
     for pattern in &boundary_patterns {
         let result = WireCtrt::deserialize(pattern);
-        assert!(result.is_err(), "Boundary pattern must fail closed without panic");
+        assert!(
+            result.is_err(),
+            "Boundary pattern must fail closed without panic"
+        );
     }
 
     // Constant time branchless comparison never panics

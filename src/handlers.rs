@@ -175,8 +175,8 @@ fn format_nullifier_refusal(e: crate::replay_nullifier::ReplayNullifierError) ->
 fn load_or_create_nullifier_mac_key(
     state_dir: &std::path::Path,
 ) -> std::result::Result<[u8; 32], NounVerbError> {
-    let deterministic = std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY")
-        .is_some_and(|v| v == "1");
+    let deterministic =
+        std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY").is_some_and(|v| v == "1");
     if deterministic {
         return Ok([0x5Eu8; 32]);
     }
@@ -263,18 +263,15 @@ fn emit_ctrt_nullifier_enforced(
     // Epoch key: OS entropy via with_generated_key; the historical constant is
     // kept only behind AFFI_NULLIFIER_DETERMINISTIC_KEY=1 (documented compat
     // path for tests/determinism — must never ship).
-    let deterministic = std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY")
-        .is_some_and(|v| v == "1");
+    let deterministic =
+        std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY").is_some_and(|v| v == "1");
     let mut registry = if deterministic {
-        crate::replay_nullifier::ReplayNullifierRegistry::new(
-            [0x26u8; 32],
-            10_000,
-        )
+        crate::replay_nullifier::ReplayNullifierRegistry::new([0x26u8; 32], 10_000)
     } else {
         #[cfg(feature = "crypto-trust")]
         {
             crate::replay_nullifier::ReplayNullifierRegistry::with_generated_key(10_000)
-            .map_err(|e| to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e))))?
+                .map_err(|e| to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e))))?
         }
         #[cfg(not(feature = "crypto-trust"))]
         {
@@ -297,11 +294,8 @@ fn emit_ctrt_nullifier_enforced(
                 "Anti-replay persistence unreadable [0xE102 InvalidPersistenceStorage]: {e}"
             )))
         })?;
-        registry =
-            crate::replay_nullifier::ReplayNullifierRegistry::unseal(&bytes, &mac_key)
-                .map_err(|e| {
-                    to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e)))
-                })?;
+        registry = crate::replay_nullifier::ReplayNullifierRegistry::unseal(&bytes, &mac_key)
+            .map_err(|e| to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e))))?;
     }
 
     let nullifier = registry
@@ -360,11 +354,10 @@ pub fn emit(r#type: String, object: String, payload: String, format: Option<Stri
         // - epoch key drawn from OS entropy (with_generated_key); the historical
         //   constant key survives only behind the AFFI_NULLIFIER_DETERMINISTIC_KEY=1
         //   compat path (documented, tests/determinism opt-in only — must not ship)
-        let nullifier =
-            emit_ctrt_nullifier_enforced(&wire, std::path::Path::new(".affi"))?;
+        let nullifier = emit_ctrt_nullifier_enforced(&wire, std::path::Path::new(".affi"))?;
 
         let out_path = format!("receipt_{}.ctrt", to_hex(&nullifier[..8]));
-        std::fs::write(&out_path, &wire).map_err(io_err)?;
+        std::fs::write(&out_path, wire).map_err(io_err)?;
         // Digest sidecar (SK4-F1 ingest threading): records the full-wire
         // BLAKE3 digest at emission so the verify handler can decode through
         // `deserialize_verified`. This is a co-located corruption-detection
@@ -373,7 +366,11 @@ pub fn emit(r#type: String, object: String, payload: String, format: Option<Stri
         // tamper-evidence channel is UNSUPPORTED here and out of lane scope.
         let sidecar_path = format!("{out_path}.digest");
         std::fs::write(&sidecar_path, to_hex(&ctrt.digest())).map_err(io_err)?;
-        outln!("emitted CTRT wire receipt -> {} (nullifier: {})", out_path, to_hex(&nullifier));
+        outln!(
+            "emitted CTRT wire receipt -> {} (nullifier: {})",
+            out_path,
+            to_hex(&nullifier)
+        );
         return Ok(());
     }
 
@@ -429,15 +426,12 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
 
 /// `affi receipt emit-from-github` — emit from a GitHub event payload.
 pub fn emit_from_github(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(
-        serde_json::to_string(
-            &serde_json::json!({"source": "github", "repo": repo, "event_type": event_type}),
-        )
-        .map_err(anyhow::Error::from),
-    )?;
+    let payload_json =
+        serde_json::json!({"source": "github", "repo": repo, "event_type": event_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("{repo}:repo")];
     let gh_event_type = format!("github.{event_type}");
-    let output = adapt(crate::cli::emit(&gh_event_type, &objects, &payload))?;
+    let output = emit_with_payload(&gh_event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -452,15 +446,12 @@ pub fn emit_from_github(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-gitlab` — emit from a GitLab event payload.
 pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(
-        serde_json::to_string(
-            &serde_json::json!({"source": "gitlab", "repo": repo, "event_type": event_type}),
-        )
-        .map_err(anyhow::Error::from),
-    )?;
+    let payload_json =
+        serde_json::json!({"source": "gitlab", "repo": repo, "event_type": event_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("{repo}:repo")];
     let gl_event_type = format!("gitlab.{event_type}");
-    let output = adapt(crate::cli::emit(&gl_event_type, &objects, &payload))?;
+    let output = emit_with_payload(&gl_event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -475,15 +466,12 @@ pub fn emit_from_gitlab(repo: String, event_type: String, format: Option<String>
 
 /// `affi receipt emit-from-cicd` — emit from CI/CD job outcome.
 pub fn emit_from_cicd(provider: String, job_status: String, format: Option<String>) -> Result<()> {
-    let payload = adapt(
-        serde_json::to_string(
-            &serde_json::json!({"source": "cicd", "provider": provider, "job_status": job_status}),
-        )
-        .map_err(anyhow::Error::from),
-    )?;
+    let payload_json =
+        serde_json::json!({"source": "cicd", "provider": provider, "job_status": job_status});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("ci:{provider}:job")];
     let event_type = format!("cicd.{provider}.{job_status}");
-    let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
+    let output = emit_with_payload(&event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -499,10 +487,12 @@ pub fn emit_from_monitoring(
     alert_type: String,
     format: Option<String>,
 ) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "monitoring", "provider": provider, "alert_type": alert_type})).map_err(anyhow::Error::from))?;
+    let payload_json =
+        serde_json::json!({"source": "monitoring", "provider": provider, "alert_type": alert_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("monitor:{provider}:alert")];
     let event_type = format!("monitoring.{provider}.{alert_type}");
-    let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
+    let output = emit_with_payload(&event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -518,10 +508,11 @@ pub fn emit_from_cloud(
     resource_type: String,
     format: Option<String>,
 ) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "cloud", "provider": provider, "resource_type": resource_type})).map_err(anyhow::Error::from))?;
+    let payload_json = serde_json::json!({"source": "cloud", "provider": provider, "resource_type": resource_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("{resource_type}:{provider}:resource")];
     let event_type = format!("cloud.{provider}.{resource_type}");
-    let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
+    let output = emit_with_payload(&event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -537,10 +528,12 @@ pub fn emit_from_security(
     vuln_type: String,
     format: Option<String>,
 ) -> Result<()> {
-    let payload = adapt(serde_json::to_string(&serde_json::json!({"source": "security", "provider": provider, "vuln_type": vuln_type})).map_err(anyhow::Error::from))?;
+    let payload_json =
+        serde_json::json!({"source": "security", "provider": provider, "vuln_type": vuln_type});
+    let payload = adapt(serde_json::to_vec(&payload_json).map_err(anyhow::Error::from))?;
     let objects = vec![format!("scan:{provider}:{vuln_type}")];
     let event_type = format!("security.{provider}.{vuln_type}");
-    let output = adapt(crate::cli::emit(&event_type, &objects, &payload))?;
+    let output = emit_with_payload(&event_type, &objects, &payload)?;
     if format.as_deref() == Some("json") {
         let s = adapt(serde_json::to_string_pretty(&output).map_err(anyhow::Error::from))?;
         outln!("{s}");
@@ -756,7 +749,9 @@ pub fn verify(
 ) -> Result<()> {
     // Check if the file is a 352B CTRT wire receipt
     if let Ok(bytes) = std::fs::read(&receipt) {
-        if bytes.len() == crate::wire_ctrt::CTRT_WIRE_SIZE && &bytes[0..4] == &crate::wire_ctrt::CTRT_MAGIC {
+        if bytes.len() == crate::wire_ctrt::CTRT_WIRE_SIZE
+            && bytes[0..4] == crate::wire_ctrt::CTRT_MAGIC
+        {
             // SK4-F1 digest threading: prefer `deserialize_verified` when a
             // digest sidecar (<receipt>.digest, hex, written at emission) is
             // available. The sidecar is a co-located corruption-detection
@@ -766,12 +761,14 @@ pub fn verify(
             // expected digest, so plain `deserialize` remains, acknowledging
             // the deprecation and the SK4 finding: the payload tail
             // (151..352) is NOT commitment-checked on this path.
-            let expected_digest: Option<[u8; 32]> = std::fs::read_to_string(format!("{receipt}.digest"))
-                .ok()
-                .and_then(|s| decode_hex_32(s.trim()));
+            let expected_digest: Option<[u8; 32]> =
+                std::fs::read_to_string(format!("{receipt}.digest"))
+                    .ok()
+                    .and_then(|s| decode_hex_32(s.trim()));
             let parse_result = match expected_digest {
                 Some(digest) => crate::wire_ctrt::WireCtrt::deserialize_verified(&bytes, &digest)
                     .map_err(|e| e.to_string()),
+                #[allow(deprecated)]
                 None => crate::wire_ctrt::WireCtrt::deserialize(&bytes).map_err(|e| e.to_string()),
             };
             match parse_result {
@@ -786,9 +783,17 @@ pub fn verify(
                             "elapsed_cycles": wire_receipt.elapsed_cycles,
                             "status": wire_receipt.verdict_status as u8,
                         });
-                        outln!("{}", serde_json::to_string_pretty(&out).map_err(|e| to_noun_verb(AffidavitError::Execution(e.to_string())))?);
+                        outln!(
+                            "{}",
+                            serde_json::to_string_pretty(&out).map_err(|e| to_noun_verb(
+                                AffidavitError::Execution(e.to_string())
+                            ))?
+                        );
                     } else {
-                        eprintln!("verdict: ACCEPT [CTRT-352B] — wire receipt valid (digest: {})", to_hex(&d));
+                        eprintln!(
+                            "verdict: ACCEPT [CTRT-352B] — wire receipt valid (digest: {})",
+                            to_hex(&d)
+                        );
                     }
                     return Ok(());
                 }
@@ -799,7 +804,12 @@ pub fn verify(
                             "type": "CTRT-352B",
                             "reason": e.to_string(),
                         });
-                        outln!("{}", serde_json::to_string_pretty(&out).map_err(|e2| to_noun_verb(AffidavitError::Execution(e2.to_string())))?);
+                        outln!(
+                            "{}",
+                            serde_json::to_string_pretty(&out).map_err(|e2| to_noun_verb(
+                                AffidavitError::Execution(e2.to_string())
+                            ))?
+                        );
                     } else {
                         eprintln!("verdict: REJECT [CTRT-352B] — {}", e);
                     }
@@ -939,12 +949,23 @@ pub fn verify_sla(receipt: String, sla_file: String, format: Option<String>) -> 
 
     // Check minimum event count SLA if defined
     let min_events = sla["min_events"].as_u64().unwrap_or(0) as usize;
-    let max_ttl_ms = sla["max_chain_ttl_ms"].as_u64();
+
+    // ERRC-RAISE: max_chain_ttl_ms cannot be enforced — core/v1 receipts carry
+    // no timestamps (determinism law: ordered by monotonic seq, not wall-clock),
+    // so there is no time data to compare a TTL against. A key that is read and
+    // then silently ignored launders an unenforced claim into a passing check;
+    // refuse it as a typed UNSUPPORTED_ENFORCEMENT instead.
+    if sla
+        .get("max_chain_ttl_ms")
+        .map(|v| !v.is_null())
+        .unwrap_or(false)
+    {
+        return Err(NounVerbError::execution_error(
+            "UNSUPPORTED_ENFORCEMENT: max_chain_ttl_ms cannot be enforced — core/v1 receipts carry no timestamps (events are ordered by monotonic seq, not wall-clock); only min_events is enforced by verify-sla",
+        ));
+    }
 
     let sla_ok = event_count >= min_events;
-    let ttl_note = max_ttl_ms
-        .map(|t| format!("max_chain_ttl_ms={t} (not enforced without timestamps)"))
-        .unwrap_or_default();
 
     if format.as_deref() == Some("json") {
         let out = serde_json::json!({
@@ -953,22 +974,21 @@ pub fn verify_sla(receipt: String, sla_file: String, format: Option<String>) -> 
             "sla_met": sla_ok,
             "event_count": event_count,
             "min_events_required": min_events,
-            "ttl_note": ttl_note,
         });
         outln!(
             "{}",
             adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
         );
-        return Ok(());
+    } else {
+        outln!(
+            "verify-sla: {} — events={event_count} (min={min_events})",
+            if sla_ok { "PASS" } else { "FAIL" }
+        );
     }
-    outln!(
-        "verify-sla: {} — events={event_count} (min={min_events}) {ttl_note}",
-        if sla_ok { "PASS" } else { "FAIL" }
-    );
     if !sla_ok {
-        return Err(NounVerbError::execution_error(
-            "SLA check failed: event count below minimum",
-        ));
+        // Exit is verdict-determined and format-independent (same contract as
+        // verify-compliance): a failing SLA exits REJECT (2) in every format.
+        std::process::exit(crate::diag::exit_codes::REJECT);
     }
     Ok(())
 }
@@ -1036,6 +1056,8 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
 
     let all_pass = code == 0 && framework_checks.iter().all(|(_, ok, _)| *ok);
 
+    // B6/ERRC-RAISE: the exit code is verdict-determined and format-independent —
+    // a failing verdict exits REJECT (2) in every output format.
     if format.as_deref() == Some("json") {
         let checks: Vec<serde_json::Value> = framework_checks
             .iter()
@@ -1051,35 +1073,40 @@ pub fn verify_compliance(receipt: String, framework: String, format: Option<Stri
             "{}",
             adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
         );
-        return Ok(());
-    }
-    outln!(
-        "verify-compliance [{framework}]: {}",
-        if all_pass {
-            "EVIDENCE_PRESENT"
-        } else {
-            "EVIDENCE_ABSENT"
-        }
-    );
-    outln!("note: legal compliance determination requires human auditor review");
-    for (name, ok, note) in &framework_checks {
+    } else {
         outln!(
-            "  {} {name}: {note}",
-            if *ok {
-                "evidence present for control"
+            "verify-compliance [{framework}]: {}",
+            if all_pass {
+                "EVIDENCE_PRESENT"
             } else {
-                "evidence absent for control"
+                "EVIDENCE_ABSENT"
             }
         );
+        outln!("note: legal compliance determination requires human auditor review");
+        for (name, ok, note) in &framework_checks {
+            outln!(
+                "  {} {name}: {note}",
+                if *ok {
+                    "evidence present for control"
+                } else {
+                    "evidence absent for control"
+                }
+            );
+        }
     }
     if !all_pass {
-        // B6: non-compliant verdict must exit with exit_codes::REJECT (2).
+        // B6: non-compliant verdict must exit with exit_codes::REJECT (2),
+        // regardless of the output format requested.
         std::process::exit(crate::diag::exit_codes::REJECT);
     }
     Ok(())
 }
 
-/// `affi receipt attest` — create a signed attestation (SLSA provenance).
+/// `affi receipt attest` — create an unsigned SLSA-style attestation document.
+///
+/// The output carries no signature fields: the default binary has no
+/// crypto-trust signing plane wired into this verb, so it is an attestation
+/// document (subject digest + predicate), not a signed attestation.
 pub fn attest(
     receipt: String,
     attestation_type: Option<String>,
@@ -1840,11 +1867,18 @@ pub fn fix_receipt(
             } else {
                 format!("REJECT: {}", verdict.reason)
             };
+            // Determinism law: the sidecar is a pure function of the subject
+            // receipt — same subject, same bytes, any day it runs. The wall-
+            // clock field was a determinism defect; the subject receipt's own
+            // chain_hash (the same unchecked-load path the verifier uses) is
+            // the receipt-grounded replacement. A file whose JSON cannot be
+            // parsed gets a fixed deterministic placeholder.
+            let subject_chain_hash = crate::cli::load_receipt_unchecked(&receipt)
+                .map(|r| r.chain_hash.as_hex().to_string())
+                .unwrap_or_else(|_| "unparseable-subject".to_string());
             let sidecar = serde_json::json!({
                 "original": receipt,
-                "quarantined_at": std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs()).unwrap_or(0),
+                "subject_chain_hash": subject_chain_hash,
                 "reason": reason,
                 "failing_stages": verdict.outcomes.iter()
                     .filter(|o| !o.passed)
@@ -2130,6 +2164,21 @@ pub fn causality_chain(
 ) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?.receipts;
 
+    // Vacuity fix (CLI_VACUITY_AUDIT_26_10_17): an unknown --start-event must
+    // be a typed refusal, never a silent empty chain with exit 0.
+    let start_exists = receipts.iter().any(|r| {
+        r.events
+            .iter()
+            .any(|e| e.id == start_event || e.event_type == start_event)
+    });
+    if !start_exists {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_START_EVENT_NOT_FOUND: no event with id or type \"{start_event}\" \
+             exists in the receipts under \"{receipts_path}\" — causality cannot be \
+             traced from a nonexistent event"
+        )));
+    }
+
     // Walk forward from the start_event across all receipts (by seq order)
     let mut chain: Vec<serde_json::Value> = Vec::new();
     let mut found = false;
@@ -2240,10 +2289,12 @@ pub fn find_blast_radius(
 
     // Find the change event and collect all receipts that share objects with it
     let mut change_objects: Vec<String> = Vec::new();
+    let mut change_found = false;
 
     for r in &receipts {
         for event in &r.events {
             if event.id == change_event || event.event_type == change_event {
+                change_found = true;
                 change_objects = event
                     .objects
                     .iter()
@@ -2252,9 +2303,16 @@ pub fn find_blast_radius(
                 break;
             }
         }
-        if !change_objects.is_empty() {
+        if change_found {
             break;
         }
+    }
+    if !change_found {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_CHANGE_EVENT_NOT_FOUND: no event with id or type \"{change_event}\" \
+             matches any event in the receipts under \"{receipts_path}\" — a blast radius \
+             cannot be computed for a change that never happened"
+        )));
     }
 
     let mut affected: Vec<serde_json::Value> = Vec::new();
@@ -2651,7 +2709,26 @@ pub fn predict(
 ) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?.receipts;
 
-    let total_receipts = receipts.len().max(1);
+    // Vacuity fixes (CLI_VACUITY_AUDIT_26_10_17): (a) an unknown
+    // --prediction-type is a typed refusal enumerating the valid types, never
+    // an "error" JSON payload with exit 0; (b) a prediction over zero chains
+    // is refused — extrapolation from zero evidence must not return 1.0.
+    const VALID_PREDICTION_TYPES: &[&str] = &["ci-pass", "deploy-success", "mttr"];
+    if !VALID_PREDICTION_TYPES.contains(&prediction_type.as_str()) {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_UNKNOWN_PREDICTION_TYPE: \"{prediction_type}\" is not a known \
+             prediction type; valid types are: {}",
+            VALID_PREDICTION_TYPES.join(", ")
+        )));
+    }
+    if receipts.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_CHAINS: no receipt chains found under \"{receipts_path}\" — \
+             a prediction from zero evidence would be a constant fiction \
+             (pass_rate/success_rate 1.0), not a forecast"
+        )));
+    }
+    let total_receipts = receipts.len();
     let prediction = match prediction_type.as_str() {
         "ci-pass" => {
             let test_events: usize = receipts
@@ -2704,7 +2781,7 @@ pub fn predict(
             };
             serde_json::json!({"prediction_type": "mttr", "recovery_ratio": ratio, "confidence": "low-historical-base"})
         }
-        other => serde_json::json!({"error": format!("Unknown prediction type: {other}")}),
+        _ => unreachable!("prediction type validated above"),
     };
 
     if format.as_deref() == Some("json") {
@@ -2833,27 +2910,124 @@ pub fn soc2_audit(
     Ok(())
 }
 
+/// PII marker vocabulary for the GDPR proof scan. Objects follow the
+/// affidavit convention `id:type[:qualifier]`, so `email:alice@example.com`
+/// is stored as `id = "email"`, `obj_type = "alice@example.com"`. A marker
+/// (taken as its stem, without the trailing `:`) matches when it is a prefix
+/// of the object id or of the object type — covering both `email:…`-style
+/// ids and bare `email` object classes.
+pub const GDPR_PII_VOCAB: &[&str] = &["email:", "user:", "person:", "subject:"];
+
+/// PHI marker vocabulary for the HIPAA proof scan (`patient:12345`,
+/// `medical:mrn-88`, `diagnosis:icd10-e11`, `record:visit-31`), matched the
+/// same way as [`GDPR_PII_VOCAB`].
+pub const HIPAA_PHI_VOCAB: &[&str] = &["patient:", "medical:", "diagnosis:", "record:"];
+
+/// Stem of a vocab marker (marker without its trailing `:`).
+fn marker_stem(marker: &str) -> &str {
+    marker.strip_suffix(':').unwrap_or(marker)
+}
+
+/// Does an object id/type carry this marker?
+fn marker_match(marker: &str, o: &crate::types::ObjectRef) -> bool {
+    let stem = marker_stem(marker);
+    o.id.starts_with(stem) || o.obj_type.starts_with(stem)
+}
+
+/// Per-marker scan outcome derived from the chain itself.
+#[derive(Debug, serde::Serialize)]
+struct PiiMarkerScan {
+    marker: &'static str,
+    hits: usize,
+    found: bool,
+}
+
+/// Scan a receipt chain for objects whose id or type carries a personal-data
+/// marker prefix. Counts are derived from the chain, never asserted.
+fn scan_pii_markers(receipts: &[Receipt], vocab: &'static [&'static str]) -> Vec<PiiMarkerScan> {
+    vocab
+        .iter()
+        .map(|marker| {
+            let hits = receipts
+                .iter()
+                .flat_map(|r| &r.events)
+                .flat_map(|e| &e.objects)
+                .filter(|o| marker_match(marker, o))
+                .count();
+            PiiMarkerScan {
+                marker,
+                hits,
+                found: hits > 0,
+            }
+        })
+        .collect()
+}
+
+fn pii_marker_json(scans: &[PiiMarkerScan]) -> serde_json::Value {
+    serde_json::json!({
+        "markers_found": scans.iter().filter(|s| s.found).count(),
+        "markers_not_found": scans.iter().filter(|s| !s.found).count(),
+        "per_marker": scans.iter().map(|s| serde_json::json!({
+            "marker": s.marker,
+            "hits": s.hits,
+            "found": s.found,
+        })).collect::<Vec<_>>(),
+        "total_hits": scans.iter().map(|s| s.hits).sum::<usize>(),
+    })
+}
+
 /// `affi receipt gdpr-proof` — generate GDPR compliance proof.
+///
+/// Falsifiable shape (CLI_VACUITY_AUDIT_26_10_17): the proof reports
+/// per-marker PII findings counted from the chain itself; a chain with zero
+/// in-scope personal data emits a distinct honest finding, and zero chains is
+/// the typed refusal `REFUSED_NO_CHAINS`. The scan is evidence over the chain,
+/// never a blanket compliance assertion.
 pub fn gdpr_proof(
     receipts_path: String,
     out: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?.receipts;
+    if receipts.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_CHAINS: no receipt chains found under \"{receipts_path}\" — \
+             a GDPR personal-data proof over zero chains is not evidence of \
+             compliance, it is evidence of nothing"
+        )));
+    }
+
+    let total_events: usize = receipts.iter().map(|r| r.events.len()).sum();
+    let scans = scan_pii_markers(&receipts, GDPR_PII_VOCAB);
+    let total_hits: usize = scans.iter().map(|s| s.hits).sum();
+
+    let finding = if total_hits > 0 {
+        serde_json::json!({
+            "finding": "in-scope personal data present",
+            "detail": format!(
+                "{total_hits} personal-data object reference(s) across {total_events} event(s) \
+                 match the PII vocabulary — erasure/subject-rights review is required"
+            ),
+        })
+    } else {
+        serde_json::json!({
+            "finding": "no in-scope personal data found",
+            "detail": format!(
+                "no in-scope personal data found — proof covers {total_events} events \
+                 scanned against the PII vocabulary"
+            ),
+        })
+    };
 
     let proof = serde_json::json!({
         "regulation": "GDPR",
         "receipts_analyzed": receipts.len(),
-        "evidence": {
-            "data_integrity": "BLAKE3 chain ensures no retroactive modification of access records",
-            "right_to_erasure": "object-id references are opaque; PII is never stored in the chain",
-            "audit_trail": format!("{} event(s) recorded in tamper-evident chain", receipts.iter().map(|r| r.events.len()).sum::<usize>()),
-            "lawful_basis": "Content-addressed chain provides evidence of processing activities",
-        },
-        "receipts": receipts.iter().map(|r| serde_json::json!({
-            "chain_hash": r.chain_hash,
-            "events": r.events.len(),
-        })).collect::<Vec<_>>(),
+        "events_scanned": total_events,
+        "pii_vocabulary": GDPR_PII_VOCAB,
+        "scan": pii_marker_json(&scans),
+        "personal_data_finding": finding,
+        "integrity_evidence": "BLAKE3 chain ensures no retroactive modification of access records",
+        "note": "evidence over the receipt chain — legal determination of GDPR compliance requires counsel review",
     });
 
     let proof_str = adapt(serde_json::to_string_pretty(&proof).map_err(anyhow::Error::from))?;
@@ -2872,20 +3046,73 @@ pub fn gdpr_proof(
 }
 
 /// `affi receipt hipaa` — generate HIPAA compliance proof.
+///
+/// Falsifiable shape (CLI_VACUITY_AUDIT_26_10_17): per-marker PHI findings
+/// counted from the chain, plus an honest audit-trail check (audit-type events
+/// counted, reported found/not-found). Zero chains is the typed refusal
+/// `REFUSED_NO_CHAINS`; zero PHI and zero audit events produce a distinct
+/// honest output rather than a blanket "compliant" claim.
 pub fn hipaa(receipts_path: String, out: Option<String>, format: Option<String>) -> Result<()> {
     let receipts = load_receipts_from_path(&receipts_path)?.receipts;
+    if receipts.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_CHAINS: no receipt chains found under \"{receipts_path}\" — \
+             a HIPAA safeguard proof over zero chains attests to no safeguards \
+             actually in operation"
+        )));
+    }
+
+    let total_events: usize = receipts.iter().map(|r| r.events.len()).sum();
+    let scans = scan_pii_markers(&receipts, HIPAA_PHI_VOCAB);
+    let total_hits: usize = scans.iter().map(|s| s.hits).sum();
+
+    // Audit-trail check: HIPAA §164.312(b) requires a mechanism to record and
+    // examine access to ePHI. Count audit-type events from the chain honestly.
+    let audit_events: usize = receipts
+        .iter()
+        .flat_map(|r| &r.events)
+        .filter(|e| e.event_type.contains("audit"))
+        .count();
+
+    let audit_finding = serde_json::json!({
+        "audit_events": audit_events,
+        "found": audit_events > 0,
+        "finding": if audit_events > 0 {
+            format!("{audit_events} audit-type event(s) recorded — access-review trail present")
+        } else {
+            format!("no audit-type events found across {total_events} event(s) — \
+                     §164.312(b) access-review trail NOT evidenced by this chain")
+        },
+    });
+
+    let phi_finding = if total_hits > 0 {
+        serde_json::json!({
+            "finding": "in-scope PHI present",
+            "detail": format!(
+                "{total_hits} PHI object reference(s) across {total_events} event(s) \
+                 match the PHI vocabulary — safeguard review is required"
+            ),
+        })
+    } else {
+        serde_json::json!({
+            "finding": "no in-scope PHI found",
+            "detail": format!(
+                "no in-scope PHI found — proof covers {total_events} events \
+                 scanned against the PHI vocabulary"
+            ),
+        })
+    };
 
     let proof = serde_json::json!({
         "regulation": "HIPAA",
         "receipts_analyzed": receipts.len(),
-        "safeguards": {
-            "technical": "BLAKE3 content-addressing ensures audit log integrity",
-            "administrative": format!("{} operation events logged", receipts.iter().map(|r| r.events.len()).sum::<usize>()),
-            "physical": "receipts stored at content-addressed paths",
-        },
-        "access_log": receipts.iter().map(|r| serde_json::json!({
-            "chain_hash": r.chain_hash, "events": r.events.len(),
-        })).collect::<Vec<_>>(),
+        "events_scanned": total_events,
+        "phi_vocabulary": HIPAA_PHI_VOCAB,
+        "scan": pii_marker_json(&scans),
+        "phi_finding": phi_finding,
+        "audit_trail": audit_finding,
+        "integrity_evidence": "BLAKE3 content-addressing ensures audit log integrity",
+        "note": "evidence over the receipt chain — legal determination of HIPAA compliance requires counsel review",
     });
 
     let proof_str = adapt(serde_json::to_string_pretty(&proof).map_err(anyhow::Error::from))?;
@@ -2942,7 +3169,69 @@ pub fn pci_dss(receipts_path: String, out: Option<String>, format: Option<String
     Ok(())
 }
 
+/// `affi legal-hold status` — FRCP 37(e) evidentiary-hold audit over real chains.
+///
+/// Vacuity fix (CLI_VACUITY_AUDIT_26_10_17 defect 5): the previous body
+/// fabricated `EVIDENTIARY_HOLD_ACTIVE` / `events_preserved: 1` over zero
+/// chains. Now: zero chains in the receipts path is the typed refusal
+/// `REFUSED_NO_CHAINS` (CLI execution error, exit 224); real chains derive
+/// `events_preserved` from the actual event count.
+pub fn legal_hold_status(matter: Option<String>) -> Result<()> {
+    // The ontology fixes this verb's surface to `--matter` only; the receipts
+    // path arrives through the environment so the ggen-rendered wrapper stays
+    // byte-identical to its projection.
+    let path = std::env::var("AFFI_RECEIPTS_PATH").unwrap_or_else(|_| "receipts".to_string());
+    let matter_id = matter.as_deref().unwrap_or("matter-default");
+
+    let loaded = load_receipts_from_path(&path)?;
+    if loaded.receipts.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_CHAINS: no OCEL/CTRT receipt chains found under \"{path}\" \
+             — an FRCP 37(e) evidentiary hold cannot be certified over zero chains; \
+             emit and assemble at least one chain first"
+        )));
+    }
+
+    // events_preserved is derived from the chains actually loaded, never a
+    // constant. Deserialization re-verifies each chain hash, so a receipt that
+    // failed to load is treated as spoliation evidence, not silently dropped.
+    let events_preserved: usize = loaded.receipts.iter().map(|r| r.events.len()).sum();
+    let spoliation_detected = !loaded.failures.is_empty();
+
+    let out = serde_json::json!({
+        "ok": !spoliation_detected,
+        "matter": matter_id,
+        "receipts_path": path,
+        "chains": loaded.receipts.len(),
+        "status": "EVIDENTIARY_HOLD_ACTIVE",
+        "spoliation_detected": spoliation_detected,
+        "load_failures": loaded.failures.len(),
+        "events_preserved": events_preserved,
+    });
+
+    if spoliation_detected {
+        // A hold audit with unloadable (tampered/unparseable) chains is a
+        // REJECT-class verdict, not a success.
+        outln!(
+            "{}",
+            adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+        );
+        std::process::exit(crate::diag::exit_codes::REJECT);
+    }
+
+    outln!(
+        "{}",
+        adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+    );
+    Ok(())
+}
 /// `affi receipt license-compliance` — check license compliance across receipts.
+///
+/// Vacuity fix (CLI_VACUITY_AUDIT_26_10_17 defect 2): the extracted licenses
+/// are now actually compared against the policy's `allowed_licenses`. A
+/// disallowed license flips the verdict to non-compliant and names the
+/// offending license; a policy with zero allowed licenses fails on any
+/// license event.
 pub fn license_compliance(
     receipts_path: String,
     license_policy: String,
@@ -2958,22 +3247,51 @@ pub fn license_compliance(
         .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
         .unwrap_or_default();
 
-    // Extract license events from receipts
-    let license_events: Vec<serde_json::Value> = receipts
-        .iter()
-        .flat_map(|r| {
-            r.events
-                .iter()
-                .filter(|e| e.event_type.contains("license"))
-                .map(|e| {
-                    serde_json::json!({
+    /// The license identity an event attests: taken from a `license:`-prefixed
+    /// object id (or an object of type `license`); otherwise the event is
+    /// unattributed and cannot match any allow-list entry.
+    fn license_identities(e: &crate::types::OperationEvent) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for o in &e.objects {
+            if let Some(rest) = o.id.strip_prefix("license:") {
+                out.push(rest.to_string());
+            } else if o.obj_type.eq_ignore_ascii_case("license") {
+                out.push(o.id.clone());
+            }
+        }
+        if out.is_empty() {
+            out.push("unattributed".to_string());
+        }
+        out
+    }
+
+    // Extract license events from receipts and run the policy comparison.
+    let mut violations: Vec<serde_json::Value> = Vec::new();
+    let mut license_events: Vec<serde_json::Value> = Vec::new();
+    for r in &receipts {
+        for e in r.events.iter().filter(|e| e.event_type.contains("license")) {
+            for lic in license_identities(e) {
+                let disallowed = !allowed.iter().any(|a| a == &lic);
+                if disallowed {
+                    violations.push(serde_json::json!({
                         "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
-                        "event_type": e.event_type,
                         "event_id": e.id,
-                    })
-                })
-        })
-        .collect();
+                        "license": lic,
+                        "violation": "license-not-in-allowed-list",
+                    }));
+                }
+                license_events.push(serde_json::json!({
+                    "receipt": r.chain_hash.0.chars().take(16).collect::<String>(),
+                    "event_type": e.event_type,
+                    "event_id": e.id,
+                    "license": lic,
+                    "allowed": !disallowed,
+                }));
+            }
+        }
+    }
+
+    let compliant = violations.is_empty();
 
     let out = serde_json::json!({
         "policy_file": license_policy,
@@ -2981,7 +3299,21 @@ pub fn license_compliance(
         "receipts_analyzed": receipts.len(),
         "license_events_found": license_events.len(),
         "events": license_events,
-        "status": "policy loaded — license events extracted from chain",
+        "violations": violations,
+        "compliant": compliant,
+        "status": if compliant {
+            "COMPLIANT: all extracted licenses are in the allowed list".to_string()
+        } else {
+            format!(
+                "NON-COMPLIANT: {} disallowed license(s): {}",
+                violations.len(),
+                violations
+                    .iter()
+                    .filter_map(|v| v["license"].as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        },
     });
 
     if format.as_deref() == Some("json") {
@@ -2989,14 +3321,31 @@ pub fn license_compliance(
             "{}",
             adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
         );
-        return Ok(());
+    } else {
+        outln!(
+            "license-compliance [{}]: {} — {} license event(s) in {} receipt(s), {} violation(s)",
+            license_policy,
+            if compliant {
+                "COMPLIANT"
+            } else {
+                "VIOLATIONS FOUND"
+            },
+            license_events.len(),
+            receipts.len(),
+            violations.len()
+        );
+        for v in &violations {
+            outln!(
+                "  violation: license \"{}\" (event {}) is not in the allowed list",
+                v["license"].as_str().unwrap_or("?"),
+                v["event_id"].as_str().unwrap_or("?")
+            );
+        }
     }
-    outln!(
-        "license-compliance: {} license events in {} receipts (policy: {})",
-        license_events.len(),
-        receipts.len(),
-        license_policy
-    );
+    if !compliant {
+        // B6: policy violations must exit with exit_codes::REJECT (2).
+        std::process::exit(crate::diag::exit_codes::REJECT);
+    }
     Ok(())
 }
 
@@ -3050,27 +3399,36 @@ pub fn policy_enforce(
         "violation_list": violations,
     });
 
+    // B6: policy violations exit REJECT regardless of the renderer — the
+    // verdict decides, never the format branch.
+    if !compliant {
+        if format.as_deref() == Some("json") {
+            outln!(
+                "{}",
+                adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+            );
+        } else {
+            outln!(
+                "policy-enforce [{}]: {} — {} violation(s) in {} receipts",
+                policy_file,
+                "VIOLATIONS FOUND",
+                violations.len(),
+                receipts.len()
+            );
+        }
+        std::process::exit(crate::diag::exit_codes::REJECT);
+    }
     if format.as_deref() == Some("json") {
         outln!(
             "{}",
             adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
         );
-        return Ok(());
-    }
-    outln!(
-        "policy-enforce [{}]: {} — {} violation(s) in {} receipts",
-        policy_file,
-        if compliant {
-            "COMPLIANT"
-        } else {
-            "VIOLATIONS FOUND"
-        },
-        violations.len(),
-        receipts.len()
-    );
-    if !compliant {
-        // B6: policy violations must exit with exit_codes::REJECT (2).
-        std::process::exit(crate::diag::exit_codes::REJECT);
+    } else {
+        outln!(
+            "policy-enforce [{}]: COMPLIANT — 0 violation(s) in {} receipts",
+            policy_file,
+            receipts.len()
+        );
     }
     Ok(())
 }
@@ -3356,17 +3714,28 @@ pub fn explain_incident(
         .iter()
         .min_by_key(|e| e["seq"].as_u64().unwrap_or(u64::MAX));
 
+    // Vacuity fix (CLI_VACUITY_AUDIT_26_10_17): the explanation prose must
+    // derive from the data — "Earliest at seq=0" over zero matches contradicted
+    // earliest_event: null. Zero matches stay exit-0 with honest prose.
+    let explanation = match earliest.and_then(|e| e["seq"].as_u64()) {
+        Some(seq) => format!(
+            "Found {} event(s) matching '{}'. Earliest at seq={seq}.",
+            related_events.len(),
+            incident_desc
+        ),
+        None => format!(
+            "Found no events matching '{}'. No root-cause candidate exists.",
+            incident_desc
+        ),
+    };
+
     let out = serde_json::json!({
         "incident_description": incident_desc,
         "keywords": keywords,
         "related_events_count": related_events.len(),
         "earliest_event": earliest,
         "related_events": related_events,
-        "explanation": format!(
-            "Found {} event(s) matching '{}'. Earliest at seq={}.",
-            related_events.len(), incident_desc,
-            earliest.and_then(|e| e["seq"].as_u64()).unwrap_or(0)
-        ),
+        "explanation": explanation,
     });
 
     if format.as_deref() == Some("json") {
@@ -3517,9 +3886,80 @@ pub fn profile(receipt: Option<String>, duration: Option<u64>) -> Result<()> {
 // GOVERNANCE NOUN HANDLERS
 // ============================================================================
 
-/// `affi governance audit` — run the autonomous governance agent.
+/// `affi receipt audit` — scan the receipts path and certify each chain through
+/// the 7-stage verifier.
+///
+/// Vacuity fix (CLI_VACUITY_AUDIT_26_10_17 defect 1): the previous body printed
+/// canned stderr progress and serialized `null` to stdout. Now: the receipts
+/// path (AFFI_RECEIPTS_PATH, default `receipts`) is scanned; every chain is run
+/// through `crate::verifier::verify`; the findings report carries real counts
+/// (chains checked, accepted, rejected) with the first-failure reason per
+/// rejected chain. Zero chains is the typed refusal `REFUSED_NO_CHAINS`
+/// (exit 224); any rejected or unloadable chain is REJECT (exit 2); exit 0 only
+/// when at least one chain was checked and all were accepted.
 pub fn audit() -> Result<()> {
-    eprintln!("Running autonomous governance audit...");
+    // The ontology fixes this verb's surface to zero arguments; the receipts
+    // path arrives through the environment so the ggen-rendered wrapper stays
+    // byte-identical to its projection.
+    let path = std::env::var("AFFI_RECEIPTS_PATH").unwrap_or_else(|_| "receipts".to_string());
+
+    let loaded = load_receipts_from_path(&path)?;
+    if loaded.receipts.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_CHAINS: no receipt chains found under \"{path}\" — an audit \
+             cannot certify zero chains; emit and assemble at least one chain first"
+        )));
+    }
+
+    let mut findings: Vec<serde_json::Value> = Vec::new();
+    let mut rejected: Vec<serde_json::Value> = Vec::new();
+    for r in &loaded.receipts {
+        let verdict = crate::verifier::verify(r);
+        let hash = r.chain_hash.0.chars().take(16).collect::<String>();
+        if verdict.accepted {
+            findings.push(serde_json::json!({
+                "chain": hash,
+                "events": r.events.len(),
+                "verdict": "ACCEPT",
+                "reason": verdict.reason,
+            }));
+        } else {
+            rejected.push(serde_json::json!({
+                "chain": hash,
+                "events": r.events.len(),
+                "verdict": "REJECT",
+                "reason": verdict.reason,
+            }));
+        }
+    }
+    // A chain present on disk but unparseable is an audit failure, not a skip.
+    for (file, err) in &loaded.failures {
+        rejected.push(serde_json::json!({
+            "chain": file,
+            "verdict": "REJECT",
+            "reason": format!("unloadable: {err}"),
+        }));
+    }
+
+    let chains_checked = loaded.receipts.len();
+    let all_valid = rejected.is_empty();
+    let report = serde_json::json!({
+        "ok": all_valid,
+        "receipts_path": path,
+        "chains_checked": chains_checked,
+        "accepted": findings.len(),
+        "rejected": rejected.len(),
+        "findings": findings,
+        "failures": rejected,
+    });
+
+    outln!(
+        "{}",
+        adapt(serde_json::to_string_pretty(&report).map_err(anyhow::Error::from))?
+    );
+    if !all_valid {
+        std::process::exit(crate::diag::exit_codes::REJECT);
+    }
     Ok(())
 }
 
@@ -3543,16 +3983,55 @@ pub fn audit() -> Result<()> {
 pub fn monitor(
     watch: Option<String>,
     _metrics: Option<String>,
-    _rules: Option<String>,
+    rules: Option<String>,
     baseline_commits: Option<u32>,
     interval: Option<u64>,
     output: Option<String>,
-    format: Option<String>,
+    mut format: Option<String>,
 ) -> Result<()> {
     let watch_path = watch.clone();
     let baseline_count = baseline_commits.unwrap_or(20) as usize;
     let poll_interval = interval.unwrap_or(10);
-    let _output_channels = output.as_deref().unwrap_or("stderr,events");
+
+    // Vacuity fixes (CLI_VACUITY_AUDIT_26_10_17):
+    // (a) unknown --rules values are a typed refusal, not silently ignored;
+    // (b) --output is accepted only as an alias for --format json — any other
+    //     value is refused, never silently dropped;
+    // (c) a CRITICAL severity violation decides the exit code (REJECT), the
+    //     renderer does not;
+    // (d) --watch without the file-watch feature is a typed UNSUPPORTED
+    //     refusal, not a silent single-shot run.
+    const VALID_RULES: &[&str] = &[
+        "1-sigma",
+        "9-in-a-row",
+        "trend",
+        "alternating",
+        "2of3-beyond-2sigma",
+        "4of5-beyond-1sigma",
+        "15-in-a-row-within-1sigma",
+    ];
+    if let Some(rules) = rules.as_deref() {
+        for token in rules.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+            if !VALID_RULES.contains(&token) {
+                return Err(NounVerbError::execution_error(format!(
+                    "REFUSED_UNKNOWN_RULE: \"{token}\" is not a known Western Electric \
+                     rule; valid rules are: {}",
+                    VALID_RULES.join(", ")
+                )));
+            }
+        }
+    }
+    if let Some(output) = output.as_deref() {
+        match output {
+            "json" => format = Some("json".to_string()),
+            other => {
+                return Err(NounVerbError::execution_error(format!(
+                    "REFUSED_UNSUPPORTED: --output \"{other}\" is not supported; \
+                     --output accepts only \"json\" (alias for --format json)"
+                )));
+            }
+        }
+    }
 
     // If no watch path, run measurement once
     if watch_path.is_none() {
@@ -3632,15 +4111,25 @@ pub fn monitor(
             outln!("quality: no violations detected (all green)");
         }
 
+        // Verdict, not rendering: any CRITICAL-severity violation fails the
+        // invocation with the stable REJECT exit code regardless of format.
+        if analyzer
+            .violations
+            .iter()
+            .any(|v| v.severity() == "CRITICAL")
+        {
+            std::process::exit(crate::diag::exit_codes::REJECT);
+        }
+
         return Ok(());
     }
 
     // Watch mode: use the real FileWatcher when the file-watch feature is enabled.
     let watch_path_str = watch_path.as_deref().unwrap_or("src");
-    outln!("monitor: watching {watch_path_str} (interval: {poll_interval}s) — Ctrl-C to stop");
 
     #[cfg(feature = "file-watch")]
     {
+        outln!("monitor: watching {watch_path_str} (interval: {poll_interval}s) — Ctrl-C to stop");
         use crate::quality::file_watcher::FileWatcher;
         let debounce_ms = poll_interval * 1000;
         let mut watcher = adapt(FileWatcher::new(watch_path_str, debounce_ms))?;
@@ -3650,19 +4139,15 @@ pub fn monitor(
 
     #[cfg(not(feature = "file-watch"))]
     {
-        // file-watch feature not enabled — run one measurement and explain.
-        eprintln!(
-            "monitor: file-watch feature not enabled; running single measurement.\n\
-             Rebuild with --features file-watch to enable continuous monitoring."
-        );
-        let metrics_snapshot = adapt(crate::quality::measure_code_quality(watch_path_str))?;
-        outln!(
-            "monitor snapshot: stub_ratio={:.2} cyclomatic={:.2} warnings={}",
-            metrics_snapshot.stub_ratio,
-            metrics_snapshot.cyclomatic_complexity,
-            metrics_snapshot.clippy_warnings
-        );
-        Ok(())
+        // file-watch feature not enabled — a typed refusal, not a silent
+        // single-shot run masquerading as watch mode.
+        let _ = watch_path_str;
+        let _ = poll_interval;
+        Err(NounVerbError::execution_error(
+            "REFUSED_UNSUPPORTED: --watch requires the file-watch feature, which is not \
+             compiled into this binary; rebuild with --features file-watch to enable \
+             continuous monitoring",
+        ))
     }
 }
 
@@ -4078,11 +4563,12 @@ THRESHOLD_INDEX={}
 MONITOR_OUTPUT=$(affi receipt monitor --watch . --rules all --output json 2>&1)
 MONITOR_EXIT=$?
 
-# If monitor command itself failed, exit with error
+# If monitor command itself failed, exit with error — enforcement is the
+# hook's whole job; CRITICAL violations now exit non-zero upstream (monitor
+# verdict-determined exits), so this line is the commit gate.
 if [ $MONITOR_EXIT -ne 0 ]; then
     echo "affi monitor exited with code $MONITOR_EXIT" >&2
-    # Note: we allow this to pass for now; comment out next line to enforce monitor success
-    # exit 1
+    exit 1
 fi
 
 # Parse JSON violations (if output is valid JSON)
@@ -4912,141 +5398,18 @@ pub struct DoctorFinding {
     pub auto_fixable: bool,
 }
 
-/// Check that the genesis seed in the chain module matches the binary version.
-fn check_genesis_seed() -> DoctorFinding {
-    let pkg_version = env!("CARGO_PKG_VERSION");
-    // The genesis seed used by chain.rs should embed the current package version.
-    // After the B4 fix it reads CARGO_PKG_VERSION at compile time; pre-B4 it was
-    // a pinned literal.  We report the binary version we were built with so the
-    // operator can detect a stale seed if they see a mismatch in receipt diffs.
-    DoctorFinding {
-        check: "genesis-seed".to_string(),
-        status: CheckStatus::Ok,
-        message: format!(
-            "Genesis seed compiled for binary version {} — matches CARGO_PKG_VERSION",
-            pkg_version
-        ),
-        remediation: None,
-        auto_fixable: false,
-    }
-}
-
-/// Check that the working-receipt directory (.affi/) exists and is accessible.
-fn check_working_dir() -> DoctorFinding {
-    let working_path = std::path::Path::new(".affi/working.json");
-    let affi_dir = std::path::Path::new(".affi");
-    if working_path.exists() {
-        DoctorFinding {
-            check: "working-dir".to_string(),
-            status: CheckStatus::Ok,
-            message: "Working receipt (.affi/working.json) found and accessible".to_string(),
-            remediation: None,
-            auto_fixable: false,
-        }
-    } else if affi_dir.exists() {
-        DoctorFinding {
-            check: "working-dir".to_string(),
-            status: CheckStatus::Warn,
-            message: ".affi/ directory exists but no working.json found".to_string(),
-            remediation: Some(
-                "Run 'affi emit --type <event_type> --object <id:type>' to start a receipt chain."
-                    .to_string(),
-            ),
-            auto_fixable: false,
-        }
-    } else {
-        DoctorFinding {
-            check: "working-dir".to_string(),
-            status: CheckStatus::Warn,
-            message: "No .affi/ directory found in the current working directory".to_string(),
-            remediation: Some(
-                "Run 'affi emit' to initialise the .affi/ directory and begin a receipt chain."
-                    .to_string(),
-            ),
-            auto_fixable: false,
-        }
-    }
-}
-
-/// Check health of a receipt store directory or file.
-fn check_receipt_store(path: &str) -> Vec<DoctorFinding> {
-    let mut findings = Vec::new();
-    let p = std::path::Path::new(path);
-    if !p.exists() {
-        findings.push(DoctorFinding {
-            check: "receipt-store".to_string(),
-            status: CheckStatus::Fail,
-            message: format!("Receipt path not found: {path}"),
-            remediation: Some(format!("Create the directory: mkdir -p {path}")),
-            auto_fixable: true,
-        });
-        return findings;
-    }
-    if p.is_file() {
-        // Single receipt — verify it is parseable JSON
-        match std::fs::read_to_string(p) {
-            Ok(raw) => match serde_json::from_str::<serde_json::Value>(&raw) {
-                Ok(_) => findings.push(DoctorFinding {
-                    check: "receipt-store".to_string(),
-                    status: CheckStatus::Ok,
-                    message: format!("Receipt file is valid JSON: {path}"),
-                    remediation: None,
-                    auto_fixable: false,
-                }),
-                Err(e) => findings.push(DoctorFinding {
-                    check: "receipt-store".to_string(),
-                    status: CheckStatus::Fail,
-                    message: format!("Receipt file is not valid JSON ({path}): {e}"),
-                    remediation: Some(
-                        "Re-assemble the receipt with 'affi assemble' from the original working directory.".to_string(),
-                    ),
-                    auto_fixable: false,
-                }),
-            },
-            Err(e) => findings.push(DoctorFinding {
-                check: "receipt-store".to_string(),
-                status: CheckStatus::Fail,
-                message: format!("Cannot read receipt file ({path}): {e}"),
-                remediation: Some("Check file permissions.".to_string()),
-                auto_fixable: false,
-            }),
-        }
-        return findings;
-    }
-    // Directory — count .json receipts
-    let count = walkdir::WalkDir::new(p)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
-        .count();
-    if count == 0 {
-        findings.push(DoctorFinding {
-            check: "receipt-store-count".to_string(),
-            status: CheckStatus::Warn,
-            message: format!("No .json receipt files found in {path}"),
-            remediation: Some(
-                "Run 'affi assemble' to produce a receipt, then move it here.".to_string(),
-            ),
-            auto_fixable: false,
-        });
-    } else {
-        findings.push(DoctorFinding {
-            check: "receipt-store-count".to_string(),
-            status: CheckStatus::Ok,
-            message: format!("Found {count} receipt(s) in {path}"),
-            remediation: None,
-            auto_fixable: false,
-        });
-    }
-    findings
-}
-
 /// `affi doctor` — run environment and receipt-store health checks.
 pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
     let mut findings: Vec<DoctorFinding> = Vec::new();
 
-    // Run all registered DoctorCheck implementations (linkme-discovered).
-    for plugin_finding in crate::doctor_check::run_all() {
+    // Run all registered DoctorCheck implementations (linkme-discovered),
+    // including the migrated receipt-store check (register row 79), which
+    // reads the `--receipts` flag from the run context.
+    let ctx = crate::doctor_check::DoctorContext {
+        receipts_path: receipts.as_deref(),
+        fix,
+    };
+    for plugin_finding in crate::doctor_check::run_all(&ctx) {
         findings.push(DoctorFinding {
             check: plugin_finding.id.to_string(),
             status: match plugin_finding.status {
@@ -5058,15 +5421,6 @@ pub fn doctor(receipts: Option<String>, fix: bool) -> Result<()> {
             remediation: plugin_finding.remediation,
             auto_fixable: plugin_finding.auto_fixable,
         });
-    }
-
-    // Always-on environment checks (no runtime args required).
-    findings.push(check_genesis_seed());
-    findings.push(check_working_dir());
-
-    // Check legacy (non-linkme) checks — receipt store requires runtime path arg.
-    if let Some(ref path) = receipts {
-        findings.extend(check_receipt_store(path));
     }
 
     // Apply safe automatic remediations if --fix was requested.
@@ -8238,10 +8592,14 @@ fn load_ctt_signer() -> Result<chicago_tdd_tools::ledger::signing::signer::Signe
     use chicago_tdd_tools::ledger::signing::keys::KeyStore;
     use chicago_tdd_tools::ledger::signing::signer::Signer;
     let key = KeyStore::new().load_or_create().map_err(|e| {
-        to_noun_verb(AffidavitError::Execution(format!("KeyStore custody failure: {e}")))
+        to_noun_verb(AffidavitError::Execution(format!(
+            "KeyStore custody failure: {e}"
+        )))
     })?;
     Signer::from_signing_key(key).map_err(|e| {
-        to_noun_verb(AffidavitError::Execution(format!("Signer derivation failure: {e}")))
+        to_noun_verb(AffidavitError::Execution(format!(
+            "Signer derivation failure: {e}"
+        )))
     })
 }
 
@@ -8251,7 +8609,9 @@ pub fn dossier_emit(
     out: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
-    use chicago_tdd_tools::ledger::dossier_wire::{dossier_json, write_output, DEFAULT_DOSSIER_OUT};
+    use chicago_tdd_tools::ledger::dossier_wire::{
+        dossier_json, write_output, DEFAULT_DOSSIER_OUT,
+    };
     use chicago_tdd_tools::ledger::signing::{dossier_subject, key_id};
     use chicago_tdd_tools::nato::court::Verdict;
     use chicago_tdd_tools::nato::dossier_court::{dossier_admits, dossier_root_checked};
@@ -8269,10 +8629,16 @@ pub fn dossier_emit(
         let file_path = p.join(format!("N{i:02}.json"));
         let bytes = std::fs::read(&file_path).map_err(io_err)?;
         let text = String::from_utf8(bytes).map_err(|e| {
-            to_noun_verb(AffidavitError::Execution(format!("{}: UTF-8 decode failed: {e}", file_path.display())))
+            to_noun_verb(AffidavitError::Execution(format!(
+                "{}: UTF-8 decode failed: {e}",
+                file_path.display()
+            )))
         })?;
         let receipt = CourtReceipt::from_json(&text).map_err(|e| {
-            to_noun_verb(AffidavitError::Validation(format!("{}: Malformed receipt: {e:?}", file_path.display())))
+            to_noun_verb(AffidavitError::Validation(format!(
+                "{}: Malformed receipt: {e:?}",
+                file_path.display()
+            )))
         })?;
         receipts.push(receipt);
     }
@@ -8300,18 +8666,23 @@ pub fn dossier_emit(
     }
 
     let root = dossier_root_checked(&receipts).map_err(|e| {
-        to_noun_verb(AffidavitError::Validation(format!("Dossier root computation failed: {e:?}")))
+        to_noun_verb(AffidavitError::Validation(format!(
+            "Dossier root computation failed: {e:?}"
+        )))
     })?;
 
     let signer = load_ctt_signer()?;
     let signature = signer.sign(&dossier_subject(&root));
     let kid = key_id(&signer.public_key());
     let value = dossier_json(&receipts, &root, &kid, &signature).map_err(|e| {
-        to_noun_verb(AffidavitError::Execution(format!("Dossier JSON construction failed: {e}")))
+        to_noun_verb(AffidavitError::Execution(format!(
+            "Dossier JSON construction failed: {e}"
+        )))
     })?;
 
     let out_path = out.unwrap_or_else(|| DEFAULT_DOSSIER_OUT.to_string());
-    let bytes = serde_json::to_vec_pretty(&value).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    let bytes =
+        serde_json::to_vec_pretty(&value).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
     if let Some(parent) = std::path::Path::new(&out_path).parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -8326,9 +8697,17 @@ pub fn dossier_emit(
             "merkle_root": to_hex(&root),
             "out": out_path,
         });
-        outln!("{}", serde_json::to_string_pretty(&obj).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?);
+        outln!(
+            "{}",
+            serde_json::to_string_pretty(&obj)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?
+        );
     } else {
-        outln!("emitted NATO STANAG 4107 dossier -> {} (Merkle root: {})", out_path, to_hex(&root));
+        outln!(
+            "emitted NATO STANAG 4107 dossier -> {} (Merkle root: {})",
+            out_path,
+            to_hex(&root)
+        );
     }
     Ok(())
 }
@@ -8358,7 +8737,8 @@ pub fn dossier_inspect(
     use chicago_tdd_tools::nato::dossier_court::dossier_root;
 
     let raw = std::fs::read(&path).map_err(io_err)?;
-    let doc: DossierJson = serde_json::from_slice(&raw).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    let doc: DossierJson =
+        serde_json::from_slice(&raw).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
 
     if doc.format != DOSSIER_FORMAT {
         return Err(to_noun_verb(AffidavitError::Validation(format!(
@@ -8403,7 +8783,12 @@ pub fn dossier_inspect(
         let kid_stored = parse_key_id(&doc.key_id)
             .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("{e}"))))?;
         let kid_ok = key_id(&pk) == kid_stored;
-        let ok = kid_ok && chicago_tdd_tools::ledger::signing::signer::Signer::verify(&pk, &dossier_subject(&recomputed), &sig);
+        let ok = kid_ok
+            && chicago_tdd_tools::ledger::signing::signer::Signer::verify(
+                &pk,
+                &dossier_subject(&recomputed),
+                &sig,
+            );
         sig_verified = Some(ok);
 
         if !ok {
@@ -8424,7 +8809,11 @@ pub fn dossier_inspect(
             "assert_merkle_root": assert_merkle_root,
             "signature_verified": sig_verified,
         });
-        outln!("{}", serde_json::to_string_pretty(&out).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?);
+        outln!(
+            "{}",
+            serde_json::to_string_pretty(&out)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?
+        );
     } else {
         outln!(
             "format {} ok; receipts: {}; merkle_root: {} (assert_merkle_root={}); ML-DSA-65 signature verified: {}",
@@ -8453,6 +8842,163 @@ pub fn dossier_inspect(
     Err(to_noun_verb(AffidavitError::Execution(
         "REFUSED_UNSUPPORTED: the cryptographic trust plane is not compiled into this binary; rebuild with --features crypto-trust".to_string(),
     )))
+}
+
+// ============================================================================
+// Vacuity fixes (CLI_VACUITY_AUDIT_26_10_17 defects 4 and 6) — certificate
+// fre-902 and restitution calculate. Both consume real receipt chains loaded
+// through the chain-law path (`load_receipts_from_path`, whose deserialization
+// recomputes the rolling BLAKE3 hash) and derive every emitted figure from
+// that input; zero/unverifiable input is a typed refusal, never a certificate.
+// ============================================================================
+
+/// `affi certificate fre-902` — FRE 902(14) self-authenticating affidavit.
+///
+/// Vacuity fix (defect 4): the previous body emitted a canned affidavit
+/// independent of any input. Now: the receipt chains under `AFFI_RECEIPTS_PATH`
+/// (default `receipts`, mirroring the legal-hold lane's projection-stable env
+/// seam) are loaded through the chain-hash-recomputing deserializer, each chain
+/// runs the full 7-stage verifier pipeline, and the affidavit is emitted only
+/// when every chain ACCEPTs — embedding the actual chain hash and event count.
+/// Typed refusals (CLI execution error, exit 224):
+/// - `REFUSED_NO_CHAINS` — zero verifiable chains found;
+/// - `REFUSED_CHAIN_UNLOADABLE` — a chain file failed the chain law (tamper
+///   evidence, not a silent drop);
+/// - `REFUSED_CHAIN_REJECTED` — a loadable chain failed a verifier stage.
+pub fn certificate_fre_902() -> Result<()> {
+    let path = std::env::var("AFFI_RECEIPTS_PATH").unwrap_or_else(|_| "receipts".to_string());
+
+    let loaded = load_receipts_from_path(&path)?;
+    if !loaded.failures.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_CHAIN_UNLOADABLE: {} receipt file(s) under \"{path}\" failed the \
+             chain law (recomputed BLAKE3 chain hash mismatch or parse failure) — \
+             FRE 902(14) self-authentication cannot be certified over tampered \
+             evidence; first failure: {}",
+            loaded.failures.len(),
+            loaded.failures[0].1
+        )));
+    }
+    if loaded.receipts.is_empty() {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_CHAINS: no receipt chains found under \"{path}\" — an \
+             FRE 902(14) affidavit cannot certify zero chains; emit and assemble \
+             at least one chain first"
+        )));
+    }
+
+    // Full verifier pipeline per chain: certify, don't decide — but never
+    // certify a chain the standard itself rejects.
+    let mut verified: Vec<serde_json::Value> = Vec::new();
+    for r in &loaded.receipts {
+        let verdict = crate::verifier::verify(r);
+        if !verdict.accepted {
+            return Err(NounVerbError::execution_error(format!(
+                "REFUSED_CHAIN_REJECTED: chain {} failed the verifier pipeline \
+                 ({}) — {}",
+                r.chain_hash,
+                verdict.profile.as_str(),
+                verdict.reason
+            )));
+        }
+        verified.push(serde_json::json!({
+            "chain_hash": r.chain_hash,
+            "events": r.events.len(),
+        }));
+    }
+
+    let total_events: usize = loaded.receipts.iter().map(|r| r.events.len()).sum();
+    let affidavit = serde_json::json!({
+        "ok": true,
+        "status": "SELF_AUTHENTICATING_FRE_902_VALID",
+        "receipts_path": path,
+        "chains_certified": verified.len(),
+        "events_certified": total_events,
+        "chains": verified,
+    });
+    outln!("AFFIDAVIT OF AUTHENTICITY PURSUANT TO FEDERAL RULE OF EVIDENCE 902(14)");
+    outln!(
+        "{}",
+        adapt(serde_json::to_string_pretty(&affidavit).map_err(anyhow::Error::from))?
+    );
+    Ok(())
+}
+
+/// Per-compute-hour retail rate (USD) by tariff schedule.
+///
+/// Built-in table; the three schedules carry genuinely different rates so two
+/// schedules over one chain cannot produce identical figures.
+fn tariff_rate(schedule: &str) -> Option<f64> {
+    match schedule {
+        "azure" => Some(0.12),
+        "aws" => Some(0.09),
+        "gcp" => Some(0.15),
+        _ => None,
+    }
+}
+
+/// `affi restitution calculate` — Restatement of Restitution § 42 figures.
+///
+/// Vacuity fix (defect 6): the previous body emitted constant $1,250,000.00 /
+/// $625,000.00 for every schedule. Now: the schedule selects a rate from the
+/// built-in table (azure $0.12, aws $0.09, gcp $0.15 per compute-hour),
+/// the chains under `AFFI_RECEIPTS_PATH` supply the actual compute-event count
+/// (events of type `build`, `compute`, or `ci` — one compute-hour each), and
+/// `avoided_tariff = rate × compute_events` with gain_share at 50%. Typed
+/// refusals (CLI execution error, exit 224):
+/// - `REFUSED_UNKNOWN_TARIFF_SCHEDULE` — schedule not in the built-in table;
+/// - `REFUSED_NO_COMPUTE_EVENTS` — zero chains or zero compute-class events,
+///   i.e. nothing in the input to compute from.
+pub fn restitution_calculate(tariff_schedule: Option<String>) -> Result<()> {
+    let schedule_name = tariff_schedule
+        .as_deref()
+        .unwrap_or("azure")
+        .to_ascii_lowercase();
+    let rate = tariff_rate(&schedule_name).ok_or_else(|| {
+        NounVerbError::execution_error(format!(
+            "REFUSED_UNKNOWN_TARIFF_SCHEDULE: \"{schedule_name}\" is not a built-in \
+             tariff schedule (expected one of azure|aws|gcp)"
+        ))
+    })?;
+
+    let path = std::env::var("AFFI_RECEIPTS_PATH").unwrap_or_else(|_| "receipts".to_string());
+    let loaded = load_receipts_from_path(&path)?;
+    let compute_events: usize = loaded
+        .receipts
+        .iter()
+        .map(|r| {
+            r.events
+                .iter()
+                .filter(|e| matches!(e.event_type.as_str(), "build" | "compute" | "ci"))
+                .count()
+        })
+        .sum();
+    if compute_events == 0 {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_NO_COMPUTE_EVENTS: {compute_events} compute-class events \
+             (build|compute|ci) across {} chain(s) under \"{path}\" — restitution \
+             figures must be derived from actual compute events, nothing here to \
+             compute from",
+            loaded.receipts.len()
+        )));
+    }
+
+    let avoided = rate * compute_events as f64;
+    let gain_share = avoided * 0.5;
+    let out = serde_json::json!({
+        "ok": true,
+        "tariff_schedule": schedule_name,
+        "rate_per_compute_hour_usd": rate,
+        "compute_events": compute_events,
+        "avoided_tariff_usd": (avoided * 100.0).round() / 100.0,
+        "gain_share_due_usd": (gain_share * 100.0).round() / 100.0,
+        "certified_status": "LIQUIDATED_RESTITUTION_CALCULATED",
+    });
+    outln!(
+        "{}",
+        adapt(serde_json::to_string_pretty(&out).map_err(anyhow::Error::from))?
+    );
+    Ok(())
 }
 
 #[cfg(test)]
@@ -8673,61 +9219,61 @@ mod nullifier_handler_tests {
     }
 
     /// 1. First run: missing snapshot = fresh registry; admit succeeds; a typed
-    /// AFRN snapshot is persisted.
+    ///    AFRN snapshot is persisted.
     #[test]
     fn test_emit_ctrt_first_run_fresh_registry_persists_snapshot() {
         with_deterministic_compat(|| {
-        let dir = temp_state_dir("fresh");
-        set_deterministic_compat(true);
-        let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
-        assert_ne!(n1, [0u8; 32]);
-        let bytes = std::fs::read(dir.path().join("nullifiers.bin")).expect("snapshot exists");
-        // Sealed envelope: HMAC-BLAKE3 tag(32) ++ body; body carries the AFRN
-        // typed snapshot header — not raw 32B nullifier appends.
-        assert!(
-            bytes.len() > 36 && &bytes[32..36] == b"AFRN",
-            "sealed snapshot = tag(32) ++ AFRN body, got {} bytes",
-            bytes.len()
-        );
+            let dir = temp_state_dir("fresh");
+            set_deterministic_compat(true);
+            let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+            assert_ne!(n1, [0u8; 32]);
+            let bytes = std::fs::read(dir.path().join("nullifiers.bin")).expect("snapshot exists");
+            // Sealed envelope: HMAC-BLAKE3 tag(32) ++ body; body carries the AFRN
+            // typed snapshot header — not raw 32B nullifier appends.
+            assert!(
+                bytes.len() > 36 && &bytes[32..36] == b"AFRN",
+                "sealed snapshot = tag(32) ++ AFRN body, got {} bytes",
+                bytes.len()
+            );
         });
     }
 
     /// 2. Persistence roundtrip through the handler path: second call with the
-    /// same wire is refused as ReplayDetected (0xE101) because the snapshot
-    /// restored the seen-wire state.
+    ///    same wire is refused as ReplayDetected (0xE101) because the snapshot
+    ///    restored the seen-wire state.
     #[test]
     fn test_emit_ctrt_replay_refused_across_handler_invocations() {
         with_deterministic_compat(|| {
-        let dir = temp_state_dir("replay");
-        set_deterministic_compat(true);
-        emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
-        let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
-            .expect_err("replay must be refused");
-        let msg = err.to_string();
-        assert!(
-            msg.contains("0xE101") && msg.to_lowercase().contains("replaydetected"),
-            "envelope must carry the 0xE101 machine code, got: {msg}"
-        );
+            let dir = temp_state_dir("replay");
+            set_deterministic_compat(true);
+            emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+            let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
+                .expect_err("replay must be refused");
+            let msg = err.to_string();
+            assert!(
+                msg.contains("0xE101") && msg.to_lowercase().contains("replaydetected"),
+                "envelope must carry the 0xE101 machine code, got: {msg}"
+            );
         });
     }
 
     /// 3. Distinct wires admit independently across handler invocations
-    /// (roundtrip preserves distinctness).
+    ///    (roundtrip preserves distinctness).
     #[test]
     fn test_emit_ctrt_roundtrip_admits_distinct_wires() {
         with_deterministic_compat(|| {
-        let dir = temp_state_dir("distinct");
-        set_deterministic_compat(true);
-        let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("A ok");
-        let n2 = emit_ctrt_nullifier_enforced(&WIRE_B, dir.path()).expect("B ok");
-        assert_ne!(n1, n2);
+            let dir = temp_state_dir("distinct");
+            set_deterministic_compat(true);
+            let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("A ok");
+            let n2 = emit_ctrt_nullifier_enforced(&WIRE_B, dir.path()).expect("B ok");
+            assert_ne!(n1, n2);
         });
     }
 
     /// 4. Truncated snapshot fails CLOSED — the HMAC-BLAKE3 tag over the
-    /// truncated body no longer matches, surfacing CorruptLedger
-    /// (0xE102) in the envelope. The handler must never silently skip a
-    /// partial tail or start fresh.
+    ///    truncated body no longer matches, surfacing CorruptLedger
+    ///    (0xE102) in the envelope. The handler must never silently skip a
+    ///    partial tail or start fresh.
     #[test]
     fn test_emit_ctrt_truncated_snapshot_fails_closed() {
         with_deterministic_compat(|| {
@@ -8767,10 +9313,10 @@ mod nullifier_handler_tests {
     }
 
     /// 6. The snapshot-authentication key file is created on first run,
-    /// mode 0600 on unix, 32 bytes, and reused (not regenerated) on later
-    /// runs — otherwise sealed snapshots from an earlier run would be
-    /// unloadable. Runs with the compat env OFF: the deterministic compat
-    /// path intentionally uses a constant MAC key and no keyfile.
+    ///    mode 0600 on unix, 32 bytes, and reused (not regenerated) on later
+    ///    runs — otherwise sealed snapshots from an earlier run would be
+    ///    unloadable. Runs with the compat env OFF: the deterministic compat
+    ///    path intentionally uses a constant MAC key and no keyfile.
     #[test]
     fn test_emit_ctrt_mac_keyfile_created_and_reused() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
@@ -8791,13 +9337,16 @@ mod nullifier_handler_tests {
         }
         emit_ctrt_nullifier_enforced(&WIRE_B, dir.path()).expect("second admit ok");
         let key2 = std::fs::read(&key_path).expect("key still present");
-        assert_eq!(key1, key2, "key must be reused across runs, not regenerated");
+        assert_eq!(
+            key1, key2,
+            "key must be reused across runs, not regenerated"
+        );
     }
 
     /// 7. SX4-E at the handler boundary: a forged generation byte inside the
-    /// persisted snapshot (body tampered without re-tagging) must be refused
-    /// as CorruptLedger — the tampered snapshot must not silently load into a
-    /// fresh-permissive registry.
+    ///    persisted snapshot (body tampered without re-tagging) must be refused
+    ///    as CorruptLedger — the tampered snapshot must not silently load into a
+    ///    fresh-permissive registry.
     #[test]
     fn test_emit_ctrt_forged_generation_byte_fails_closed() {
         with_deterministic_compat(|| {
@@ -8819,9 +9368,9 @@ mod nullifier_handler_tests {
     }
 
     /// 8. SX4-B: two handler invocations over the same wire in the same state
-    /// dir — the second must REFUSE with the typed replay code, because the
-    /// full registry state (dense + wire + histories) survives via the
-    /// authenticated snapshot.
+    ///    dir — the second must REFUSE with the typed replay code, because the
+    ///    full registry state (dense + wire + histories) survives via the
+    ///    authenticated snapshot.
     #[test]
     fn test_sx4b_two_handler_invocations_same_wire_refused() {
         with_deterministic_compat(|| {
@@ -8829,7 +9378,7 @@ mod nullifier_handler_tests {
             emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
             let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
                 .expect_err("second invocation must refuse");
-            assert_eq!(err.to_string().contains("0xE101"), true);
+            assert!(err.to_string().contains("0xE101"));
         });
     }
 }
@@ -8852,17 +9401,28 @@ mod ctrt_verify_digest_tests {
         // deserialize_verified when the sidecar is present.
         let dir = tempfile::tempdir().expect("tempdir");
         let ctrt = crate::wire_ctrt::WireCtrt::new(
-            [1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32], 1, 1,
-            crate::wire_ctrt::VerdictStatus::Accepted, [0u8; crate::wire_ctrt::CTRT_PAYLOAD_SIZE],
+            [1u8; 32],
+            [2u8; 32],
+            [3u8; 32],
+            [4u8; 32],
+            1,
+            1,
+            crate::wire_ctrt::VerdictStatus::Accepted,
+            [0u8; crate::wire_ctrt::CTRT_PAYLOAD_SIZE],
         );
         let wire = ctrt.serialize();
         let path = dir.path().join("receipt_x.ctrt");
-        std::fs::write(&path, &wire).expect("wire");
-        std::fs::write(dir.path().join("receipt_x.ctrt.digest"), to_hex(&ctrt.digest()))
-            .expect("sidecar");
+        std::fs::write(&path, wire).expect("wire");
+        std::fs::write(
+            dir.path().join("receipt_x.ctrt.digest"),
+            to_hex(&ctrt.digest()),
+        )
+        .expect("sidecar");
         let bytes = std::fs::read(&path).expect("read");
         let digest = decode_hex_32(
-            std::fs::read_to_string(dir.path().join("receipt_x.ctrt.digest")).expect("read").trim(),
+            std::fs::read_to_string(dir.path().join("receipt_x.ctrt.digest"))
+                .expect("read")
+                .trim(),
         )
         .expect("digest");
         assert!(crate::wire_ctrt::WireCtrt::deserialize_verified(&bytes, &digest).is_ok());
@@ -8874,4 +9434,59 @@ mod ctrt_verify_digest_tests {
             .expect_err("tampered wire must refuse");
         assert_eq!(err.machine_code(), 0xE005);
     }
+}
+
+// ---------------------------------------------------------------------------
+// ctdd ledger handlers (feature `ctdd`) — bodies recovered from git history
+// (commit eeda22b, pre-render wrapper bodies), moved behind the handler seam.
+// ---------------------------------------------------------------------------
+
+/// Handler for `dossier seal`: seal a directory of 352-byte court records
+/// into a signed sealed-dossier wire file via the local ML-DSA-65 key.
+#[cfg(feature = "ctdd")]
+pub fn dossier_seal(dir: String, output: String) -> Result<()> {
+    let signer = crate::ctdd_cli::load_signer_or_exit();
+    crate::ctdd_cli::seal_outcome(&dir, &output, &signer)
+        .map(|outcome| crate::ctdd_cli::render_and_exit("dossier seal", &outcome))
+        .map_err(|e| {
+            eprintln!("refusal: io {e}");
+            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
+        })
+}
+
+/// Handler for `dossier verify`: verify a sealed-dossier wire file against
+/// the local ML-DSA-65 key store.
+#[cfg(feature = "ctdd")]
+pub fn dossier_verify(file: String) -> Result<()> {
+    let signer = crate::ctdd_cli::load_signer_or_exit();
+    crate::ctdd_cli::verify_outcome(&file, &signer.public_key())
+        .map(|outcome| crate::ctdd_cli::render_and_exit("dossier verify", &outcome))
+        .map_err(|e| {
+            eprintln!("refusal: io {e}");
+            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
+        })
+}
+
+/// Handler for `receipt validate`: validate one 352-byte CTRT court receipt
+/// record (file or stdin).
+#[cfg(feature = "ctdd")]
+pub fn receipt_validate(path: Option<String>) -> Result<()> {
+    crate::ctdd_cli::validate_outcome(path.as_deref())
+        .map(|outcome| crate::ctdd_cli::render_and_exit("receipt validate", &outcome))
+        .map_err(|e| {
+            eprintln!("refusal: io {e}");
+            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
+        })
+}
+
+/// Handler for `receipt chain-verify`: replay the BLAKE3 receipt chain across
+/// all court records in a directory.
+#[cfg(feature = "ctdd")]
+pub fn receipt_chain_verify(dir: String) -> Result<()> {
+    crate::ctdd_cli::chain_verify_outcome(&dir)
+        .map(|outcome| crate::ctdd_cli::render_and_exit("receipt chain-verify", &outcome))
+        .map_err(|e| {
+            eprintln!("refusal: io {e}");
+            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
+        })
 }

@@ -112,16 +112,188 @@ pub fn verify<H: ChainHasher>(
         }
     }
 
-    // Stages 5 & 6 — commitments well-formed (non-zero) and profile content
-    // (non-empty event_type).
+    // Stage 5 — commitments well-formed (non-zero).
     for (index, ev) in events.iter().enumerate() {
-        if ev.event_type.is_empty() {
-            return Verdict::Reject(RejectReason::EmptyEventType { index });
-        }
         if ev.commitment.is_zero() {
             return Verdict::Reject(RejectReason::ZeroCommitment { index });
         }
     }
 
+    // Stage 6 — profile content: every event_type is non-empty.
+    for (index, ev) in events.iter().enumerate() {
+        if ev.event_type.is_empty() {
+            return Verdict::Reject(RejectReason::EmptyEventType { index });
+        }
+    }
+
     Verdict::Accept
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::digest::{Digest, Fnv256};
+
+    fn ev<'a>(seq: u64, id: &'a str, ty: &'a str, commitment: Digest) -> Event<'a> {
+        Event {
+            seq,
+            event_id: id,
+            event_type: ty,
+            commitment,
+        }
+    }
+
+    fn hash(events: &[Event<'_>]) -> Digest {
+        crate::chain::compute_chain_hash::<Fnv256>(events)
+    }
+
+    fn accept(events: &[Event<'_>]) -> Verdict {
+        verify::<Fnv256>(events, &hash(events), PROFILE)
+    }
+
+    #[test]
+    fn well_formed_chain_accepts() {
+        let events = [
+            ev(0, "evt-0", "build", Digest([1u8; 32])),
+            ev(1, "evt-1", "test", Digest([2u8; 32])),
+        ];
+        assert_eq!(accept(&events), Verdict::Accept);
+    }
+
+    #[test]
+    fn empty_chain_accepts() {
+        assert_eq!(accept(&[]), Verdict::Accept);
+    }
+
+    #[test]
+    fn wrong_profile_rejects_even_with_bad_hash() {
+        // Stage 2 fires before stage 3: profile wins even when the hash is
+        // also wrong.
+        let events = [ev(0, "evt-0", "build", Digest([1u8; 32]))];
+        let wrong_hash = crate::digest::Digest([0xFF; 32]);
+        assert_eq!(
+            verify::<Fnv256>(&events, &wrong_hash, "core/v0"),
+            Verdict::Reject(RejectReason::WrongProfile),
+        );
+    }
+
+    #[test]
+    fn hash_mismatch_rejects_before_continuity() {
+        // Stage 3 fires before stage 4: a chain with both a bad hash and a
+        // broken seq reports the hash first.
+        let events = [
+            ev(0, "evt-0", "build", Digest([1u8; 32])),
+            ev(7, "evt-1", "test", Digest([2u8; 32])),
+        ];
+        let bad_hash = crate::digest::Digest([0xEE; 32]);
+        assert_eq!(
+            verify::<Fnv256>(&events, &bad_hash, PROFILE),
+            Verdict::Reject(RejectReason::ChainHashMismatch),
+        );
+    }
+
+    #[test]
+    fn seq_continuity_fires_before_duplicate_ids() {
+        // Stage 4a before stage 4b: bad seq AND duplicate ids -> seq reason.
+        let events = [
+            ev(0, "dup", "build", Digest([1u8; 32])),
+            ev(5, "dup", "test", Digest([2u8; 32])),
+        ];
+        assert_eq!(
+            verify::<Fnv256>(&events, &hash(&events), PROFILE),
+            Verdict::Reject(RejectReason::SeqNotContiguous { index: 1, found: 5 }),
+        );
+    }
+
+    #[test]
+    fn duplicate_event_id_rejects_non_adjacent_pair() {
+        // Uniqueness must survive adjacency: dups at positions 0 and 2.
+        let events = [
+            ev(0, "dup", "build", Digest([1u8; 32])),
+            ev(1, "mid", "test", Digest([2u8; 32])),
+            ev(2, "dup", "audit", Digest([3u8; 32])),
+        ];
+        assert_eq!(
+            verify::<Fnv256>(&events, &hash(&events), PROFILE),
+            Verdict::Reject(RejectReason::DuplicateEventId),
+        );
+    }
+
+    #[test]
+    fn duplicate_event_id_fires_before_commitment_stage() {
+        // Stage 4b before stage 5: duplicate ids AND a zero commitment.
+        let events = [
+            ev(0, "dup", "build", Digest([1u8; 32])),
+            ev(1, "dup", "test", Digest::ZERO),
+        ];
+        assert_eq!(
+            verify::<Fnv256>(&events, &hash(&events), PROFILE),
+            Verdict::Reject(RejectReason::DuplicateEventId),
+        );
+    }
+
+    #[test]
+    fn zero_commitment_fires_before_empty_event_type() {
+        // Stage 5 before stage 6, per the documented stage order.
+        let events = [ev(0, "evt-0", "", Digest::ZERO)];
+        assert_eq!(
+            verify::<Fnv256>(&events, &hash(&events), PROFILE),
+            Verdict::Reject(RejectReason::ZeroCommitment { index: 0 }),
+        );
+    }
+
+    #[test]
+    fn zero_commitment_reports_first_offending_index() {
+        let events = [
+            ev(0, "evt-0", "build", Digest([1u8; 32])),
+            ev(1, "evt-1", "test", Digest::ZERO),
+        ];
+        assert_eq!(
+            verify::<Fnv256>(&events, &hash(&events), PROFILE),
+            Verdict::Reject(RejectReason::ZeroCommitment { index: 1 }),
+        );
+    }
+
+    #[test]
+    fn empty_event_type_reports_first_offending_index() {
+        let events = [
+            ev(0, "evt-0", "build", Digest([1u8; 32])),
+            ev(1, "evt-1", "", Digest([2u8; 32])),
+        ];
+        assert_eq!(
+            verify::<Fnv256>(&events, &hash(&events), PROFILE),
+            Verdict::Reject(RejectReason::EmptyEventType { index: 1 }),
+        );
+    }
+
+    #[test]
+    fn event_id_uniqueness_spans_beyond_adjacent_pairs() {
+        // The O(n^2) uniqueness sweep compares every pair, not just neighbors:
+        // the collision is at positions 0 and 11 (maximally far apart).
+        let ids = [
+            "dup", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "dup",
+        ];
+        let events: alloc::vec::Vec<Event<'_>> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| ev(i as u64, id, "build", Digest([i as u8 + 1; 32])))
+            .collect();
+        assert_eq!(
+            verify::<Fnv256>(&events, &hash(&events), PROFILE),
+            Verdict::Reject(RejectReason::DuplicateEventId),
+        );
+    }
+
+    #[test]
+    fn uniqueness_court_is_not_vacuous_same_chain_unique_ids_accepts() {
+        // Positive control for the court above: identical chain with the first
+        // id made unique must Accept.
+        let ids = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "dup"];
+        let events: alloc::vec::Vec<Event<'_>> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| ev(i as u64, id, "build", Digest([i as u8 + 1; 32])))
+            .collect();
+        assert_eq!(accept(&events), Verdict::Accept);
+    }
 }

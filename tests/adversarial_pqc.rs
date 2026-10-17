@@ -16,17 +16,15 @@ use ml_kem::kem::{Decapsulate, TryKeyInit};
 use ml_kem::{FromSeed, MlKem768, Seed};
 use x_wing::kem::{Decapsulator, TryDecapsulate};
 use x_wing::{
-    DecapsulationKey as XwDecapsulationKey,
-    DecapsulationKeyRejectNonContrib,
-    EncapsulationKey as XwEncapsulationKey,
-    CIPHERTEXT_SIZE, DECAPSULATION_KEY_SIZE, ENCAPSULATION_KEY_SIZE,
+    DecapsulationKey as XwDecapsulationKey, DecapsulationKeyRejectNonContrib,
+    EncapsulationKey as XwEncapsulationKey, CIPHERTEXT_SIZE, DECAPSULATION_KEY_SIZE,
+    ENCAPSULATION_KEY_SIZE,
 };
 
 use affidavit::crypto_trust_pqc::{
-    ml_dsa65_from_seed, ml_dsa65_sign, ml_dsa65_verify,
-    slh_dsa128s_from_seed, slh_dsa128s_sign, slh_dsa128s_verify,
-    PqcError, ML_DSA_65_PUBLIC_KEY_LEN, ML_DSA_65_SIGNATURE_LEN, ML_DSA_65_SEED_LEN,
-    SLH_DSA_128S_SEED_LEN,
+    ml_dsa65_from_seed, ml_dsa65_sign, ml_dsa65_verify, slh_dsa128s_from_seed, slh_dsa128s_sign,
+    slh_dsa128s_verify, PqcError, ML_DSA_65_PUBLIC_KEY_LEN, ML_DSA_65_SEED_LEN,
+    ML_DSA_65_SIGNATURE_LEN, SLH_DSA_128S_SEED_LEN,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -137,13 +135,7 @@ fn test_x_wing_truncated_and_malformed_public_keys() {
     // Authentic encapsulation key is 1216 bytes (1184 bytes ML-KEM + 32 bytes X25519)
     assert_eq!(ENCAPSULATION_KEY_SIZE, 1216);
 
-    let short_keys: &[&[u8]] = &[
-        &[],
-        &[0u8; 32],
-        &[0u8; 1183],
-        &[0u8; 1184],
-        &[0u8; 1215],
-    ];
+    let short_keys: &[&[u8]] = &[&[], &[0u8; 32], &[0u8; 1183], &[0u8; 1184], &[0u8; 1215]];
 
     for (idx, short_key) in short_keys.iter().enumerate() {
         let res = XwEncapsulationKey::try_from(*short_key);
@@ -171,7 +163,8 @@ fn test_x_wing_malformed_ciphertext_and_rejection_modes() {
     let sk_reject_noncontrib = DecapsulationKeyRejectNonContrib::from(sk_bytes);
     let pk = sk.encapsulation_key();
 
-    let zero_rand: ml_kem::array::ArrayN<u8, 64> = ml_kem::array::ArrayN::<u8, 64>::from([0xAAu8; 64]);
+    let zero_rand: ml_kem::array::ArrayN<u8, 64> =
+        ml_kem::array::ArrayN::<u8, 64>::from([0xAAu8; 64]);
     let (ct, genuine_ss) = pk.encapsulate_deterministic(&zero_rand);
 
     // 1. Bit flip in ML-KEM ciphertext half (bytes 0..1088)
@@ -268,7 +261,7 @@ fn test_x_wing_cross_protocol_key_injection() {
 #[test]
 fn test_ml_dsa_65_1bit_perturbed_wire_token_sweep() {
     let seed = ndseed(0x42, ML_DSA_65_SEED_LEN);
-    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
+    let kp = ml_dsa65_from_seed(&seed);
     let msg = b"fips-204-ml-dsa-65-adversarial-test-payload";
     let rnd = [0x19u8; 32];
 
@@ -285,13 +278,13 @@ fn test_ml_dsa_65_1bit_perturbed_wire_token_sweep() {
 
     // Adversarial sweep: 1-bit perturbation across boundary and middle positions
     let probe_indices = [
-        0,                      // First byte
-        1,                      // Second byte
-        sig.len() / 4,          // 1/4 offset
-        sig.len() / 2,          // Midpoint
-        3 * sig.len() / 4,      // 3/4 offset
-        sig.len() - 2,          // Penultimate byte
-        sig.len() - 1,          // Last byte
+        0,                 // First byte
+        1,                 // Second byte
+        sig.len() / 4,     // 1/4 offset
+        sig.len() / 2,     // Midpoint
+        3 * sig.len() / 4, // 3/4 offset
+        sig.len() - 2,     // Penultimate byte
+        sig.len() - 1,     // Last byte
     ];
 
     for &idx in &probe_indices {
@@ -326,7 +319,10 @@ fn test_ml_dsa_65_1bit_perturbed_wire_token_sweep() {
 
         let verdict = ml_dsa65_verify(&tampered_pk, msg, &sig);
         match verdict {
-            Ok(valid) => assert!(!valid, "ML-DSA-65 verification with corrupted PK must reject"),
+            Ok(valid) => assert!(
+                !valid,
+                "ML-DSA-65 verification with corrupted PK must reject"
+            ),
             Err(PqcError::MalformedPublicKey) => {} // Safe typed refusal
             Err(other) => panic!("Unexpected error on corrupted PK: {:?}", other),
         }
@@ -336,7 +332,7 @@ fn test_ml_dsa_65_1bit_perturbed_wire_token_sweep() {
 #[test]
 fn test_slh_dsa_128s_1bit_perturbed_wire_token_sweep() {
     let seeds = ndseed(0x7B, SLH_DSA_128S_SEED_LEN);
-    let kp = slh_dsa128s_from_seed(&seeds).expect("pqc fixture key pair");
+    let kp = slh_dsa128s_from_seed(&seeds);
     let msg = b"fips-205-slh-dsa-128s-adversarial-test-payload";
 
     let sig = slh_dsa128s_sign(&kp.seeds, msg).expect("honest signing");
@@ -346,13 +342,7 @@ fn test_slh_dsa_128s_1bit_perturbed_wire_token_sweep() {
     );
 
     // Adversarial sweep across boundary and interior positions
-    let probe_indices = [
-        0,
-        1,
-        sig.len() / 4,
-        sig.len() / 2,
-        sig.len() - 1,
-    ];
+    let probe_indices = [0, 1, sig.len() / 4, sig.len() / 2, sig.len() - 1];
 
     for &idx in &probe_indices {
         for bit in [0, 3, 7] {
@@ -369,7 +359,10 @@ fn test_slh_dsa_128s_1bit_perturbed_wire_token_sweep() {
                     );
                 }
                 Err(PqcError::MalformedSignature) => {}
-                Err(other) => panic!("Unexpected error on 1-bit perturbed SLH-DSA signature: {:?}", other),
+                Err(other) => panic!(
+                    "Unexpected error on 1-bit perturbed SLH-DSA signature: {:?}",
+                    other
+                ),
             }
         }
     }
@@ -406,14 +399,13 @@ fn test_pqc_target_specifications() {
 #[test]
 fn test_adversarial_pqc_deontic_context_binding_and_machine_codes() {
     use affidavit::deontic::{
-        sign_with_deontic_context, verify_formal_oracle_consensus,
-        verify_ml_kem_decapsulation, verify_with_deontic_context, DeonticContext,
-        CODE_DEONTIC_SIG_OR_CONTEXT_MISMATCH, CODE_FORMAL_ORACLE_DIVERGENCE,
-        CODE_ML_KEM_DECAPSULATION_FAILURE,
+        sign_with_deontic_context, verify_formal_oracle_consensus, verify_ml_kem_decapsulation,
+        verify_with_deontic_context, DeonticContext, CODE_DEONTIC_SIG_OR_CONTEXT_MISMATCH,
+        CODE_FORMAL_ORACLE_DIVERGENCE, CODE_ML_KEM_DECAPSULATION_FAILURE,
     };
 
     let seed = ndseed(0x99, ML_DSA_65_SEED_LEN);
-    let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
+    let kp = ml_dsa65_from_seed(&seed);
     let msg = b"adversarial pqc deontic binding test message";
     let ctx = DeonticContext::new("DEFENSE-SPEC-01", [0x7Au8; 32], 2026);
 
@@ -423,7 +415,10 @@ fn test_adversarial_pqc_deontic_context_binding_and_machine_codes() {
     // Tampered context parameter -> 0xE301
     let bad_ctx = DeonticContext::new("DEFENSE-SPEC-02", [0x7Au8; 32], 2026);
     let res = verify_with_deontic_context(&kp.public, msg, &sig, &bad_ctx);
-    assert_eq!(res.unwrap_err().machine_code(), CODE_DEONTIC_SIG_OR_CONTEXT_MISMATCH);
+    assert_eq!(
+        res.unwrap_err().machine_code(),
+        CODE_DEONTIC_SIG_OR_CONTEXT_MISMATCH
+    );
     assert_eq!(CODE_DEONTIC_SIG_OR_CONTEXT_MISMATCH, 0xE301);
 
     // ML-KEM decapsulation failure -> 0xE302
@@ -448,4 +443,173 @@ fn ndseed<const N: usize>(b: u8, _n: usize) -> [u8; N] {
         s[1] = 1;
     }
     s
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CYCLE-4 REGISTER ROWS 79/80 — X-WING dk→ek RECOVERY PARITY & DUAL-MODE
+// DIVERGENCE-SET ISOLATION
+// ══════════════════════════════════════════════════════════════════════════════
+
+use x_wing::kem::{KeyExport, KeyInit};
+
+/// Row 79 — dk→ek recovery parity.
+///
+/// Falsifier: if `DecapsulationKey::from([u8; 32])` and the `KeyInit::new`
+/// expansion path disagree on the recovered encapsulation key bytes, or the
+/// recovered bytes fail to round-trip through `EncapsulationKey::try_from`
+/// (i.e. they are not a well-formed X-Wing pk that actually works with the
+/// dk in a live encapsulate/decapsulate cycle), the court flips.
+#[test]
+fn test_x_wing_dk_to_ek_recovery_parity_seeded_corpus() {
+    // Seeded multi-key corpus: covers degenerate-boundary escapes (ndseed
+    // flips a byte so no seed sits in the all-same-byte refused set) plus
+    // fixed patterns.
+    let seeds: [[u8; DECAPSULATION_KEY_SIZE]; 5] = [
+        [0x00u8; DECAPSULATION_KEY_SIZE], // all-zero (degenerate boundary)
+        [0xFFu8; DECAPSULATION_KEY_SIZE], // all-ones (degenerate boundary)
+        ndseed(0x00, DECAPSULATION_KEY_SIZE), // escaped degenerate
+        [0x55u8; DECAPSULATION_KEY_SIZE],
+        ndseed(0xA7, DECAPSULATION_KEY_SIZE),
+    ];
+
+    for (i, seed) in seeds.iter().enumerate() {
+        // Path 1: the From<[u8; 32]> conversion.
+        let dk_from = XwDecapsulationKey::from(*seed);
+
+        // Path 2: the KeyInit expansion path (`new(&Key<Self>)`).
+        let dk_keyinit =
+            <XwDecapsulationKey as KeyInit>::new(&ml_kem::array::ArrayN::<u8, 32>::from(*seed));
+
+        // Path 3: reject-mode key over the same seed must recover the same pk.
+        let dk_reject = DecapsulationKeyRejectNonContrib::from(*seed);
+
+        let ek_from = dk_from.encapsulation_key().to_bytes();
+        let ek_keyinit = dk_keyinit.encapsulation_key().to_bytes();
+        let ek_reject = dk_reject.encapsulation_key().to_bytes();
+
+        assert_eq!(
+            ek_from.as_slice(),
+            ek_keyinit.as_slice(),
+            "seed {}: From<[u8;32]> and KeyInit paths must recover byte-exact identical ek",
+            i
+        );
+        assert_eq!(
+            ek_from.as_slice(),
+            ek_reject.as_slice(),
+            "seed {}: reject-mode key must recover byte-exact identical ek",
+            i
+        );
+
+        // The recovered bytes must be a well-formed pk: parse back via TryFrom.
+        let ek_reparsed = XwEncapsulationKey::try_from(ek_from.as_slice())
+            .expect("recovered ek bytes must parse back as a valid X-Wing encapsulation key");
+
+        // Anchor to the true pk: honest encapsulation under the re-parsed ek
+        // must decapsulate correctly under the dk (byte parity is not enough —
+        // the bytes must be the *functional* public key of this dk).
+        let rand: ml_kem::array::ArrayN<u8, 64> =
+            ml_kem::array::ArrayN::<u8, 64>::from([0x3Cu8; 64]);
+        let (ct, ss_enc) = ek_reparsed.encapsulate_deterministic(&rand);
+        let ss_dec = dk_from.decapsulate(&ct);
+        assert_eq!(
+            ss_enc, ss_dec,
+            "seed {}: ek recovered from dk must be the functional public key of dk",
+            i
+        );
+
+        // And the dk must serialize back to the original seed bytes.
+        assert_eq!(
+            dk_from.as_bytes(),
+            seed,
+            "seed {}: dk.as_bytes() must round-trip to the original seed",
+            i
+        );
+    }
+}
+
+/// Row 80 — dual-mode divergence-set isolation.
+///
+/// Corpus: {honest ct, tampered-ML-KEM ct_m, tampered-X25519 ct_x,
+/// all-zero-ss_x non-contributory ct}. Accept mode (`Decapsulate` on
+/// `DecapsulationKey`) yields a `SharedKey` for every member; reject mode
+/// (`TryDecapsulate` on `DecapsulationKeyRejectNonContrib`) yields a
+/// `SharedKey` for exactly the contributory members and a typed
+/// `DecapsulationError` for exactly the non-contributory member.
+///
+/// Falsifier: the divergence set D = {members where the modes disagree} must
+/// be exactly {non-contributory ct}. A spurious divergence (reject mode
+/// errors on a contributory member) or a collapsed divergence (reject mode
+/// accepts the low-order point) flips the court. Additionally, on every
+/// contributory member the two modes must agree BYTE-IDENTICAL on the shared
+/// key — a key mismatch with matching accept/reject status is also a flip.
+#[test]
+fn test_x_wing_dual_mode_divergence_set_isolation() {
+    let sk_bytes = [0x91u8; DECAPSULATION_KEY_SIZE];
+    let sk_accept = XwDecapsulationKey::from(sk_bytes);
+    let sk_reject = DecapsulationKeyRejectNonContrib::from(sk_bytes);
+    let pk = sk_accept.encapsulation_key();
+
+    let rand: ml_kem::array::ArrayN<u8, 64> = ml_kem::array::ArrayN::<u8, 64>::from([0x5Eu8; 64]);
+    let (honest_ct, genuine_ss) = pk.encapsulate_deterministic(&rand);
+
+    // Contributory members: honest ct, ML-KEM-half tamper, X25519-half tamper.
+    let mut ct_m = honest_ct.clone();
+    ct_m[0] ^= 0x01; // ML-KEM half: bytes 0..1088
+    let mut ct_x = honest_ct.clone();
+    ct_x[1088] ^= 0x80; // X25519 half: bytes 1088..1120
+
+    // Non-contributory member: all-zero X25519 component => ss_x all-zero.
+    let mut ct_nc = honest_ct.clone();
+    for b in ct_nc[1088..1120].iter_mut() {
+        *b = 0x00;
+    }
+
+    // (label, ct, expected contributory)
+    let corpus: [(&str, x_wing::Ciphertext, bool); 4] = [
+        ("honest", honest_ct.clone(), true),
+        ("tampered_m", ct_m, true),
+        ("tampered_x", ct_x, true),
+        ("all_zero_ss_x", ct_nc, false),
+    ];
+
+    for (label, ct, contributory) in corpus.iter() {
+        // Accept mode: always yields a SharedKey.
+        let ss_accept = sk_accept.decapsulate(&ct);
+
+        // Reject mode: SharedKey iff contributory, typed Err otherwise.
+        let res_reject = sk_reject.try_decapsulate(&ct);
+
+        match (*contributory, res_reject) {
+            (true, Ok(ss_reject)) => {
+                assert_eq!(
+                    ss_accept, ss_reject,
+                    "member '{label}': contributory member must decapsulate to a \
+                     BYTE-IDENTICAL shared key in both modes"
+                );
+            }
+            (false, Err(_)) => {
+                // The only lawful divergence: accept emits a SharedKey, reject
+                // refuses with the typed error.
+                assert_ne!(
+                    genuine_ss, ss_accept,
+                    "member '{label}': non-contributory accept-mode key must not \
+                     equal the genuine shared secret"
+                );
+            }
+            (true, Err(_)) => panic!(
+                "member '{label}': SPURIOUS divergence — reject mode refused a \
+                 contributory ciphertext the accept mode accepts"
+            ),
+            (false, Ok(_)) => panic!(
+                "member '{label}': COLLAPSED divergence — reject mode accepted a \
+                 non-contributory (all-zero ss_x) ciphertext"
+            ),
+        }
+    }
+
+    // Set symmetry: |D| == 1 (exactly the non-contributory member diverged)
+    // and the divergent member is the labelled one — no extra divergences.
+    // This is enforced structurally by the match above: any extra divergence
+    // would have hit the (true, Err) arm and any missing divergence the
+    // (false, Ok) arm, both of which panic.
 }

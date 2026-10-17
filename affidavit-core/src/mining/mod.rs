@@ -3,7 +3,7 @@
 //! A receipt chain *is* an event log: each event's `event_type` is an *activity*
 //! and `seq` gives the order, so one receipt is one *trace*. This module brings
 //! the foundational process-mining lens to that log, holding the same discipline
-//! as the rest of the crate (zero dependencies, no `unsafe`). It needs `alloc`
+//! as the rest of the crate (no crypto, no `unsafe`). It needs `alloc`
 //! for its maps, so it lives behind the `alloc` feature.
 //!
 //! - [`Trace`] — the activity sequence of a receipt.
@@ -45,10 +45,16 @@ use alloc::vec::Vec;
 
 pub mod conformance;
 pub mod footprint;
+pub mod ocel;
 pub mod stats;
 
 pub use conformance::{replay, ConformanceResult, ConformanceVerdict};
 pub use footprint::{AlphaRelation, Footprint};
+/// Published `wasm4pm-compat` OCEL v2 adapter (behind the `ocel-compat`
+/// feature; see `ocel.rs` module docs for the no_std finding).
+#[cfg(feature = "ocel-compat")]
+pub use ocel::compat;
+pub use ocel::{OcelError, OcelEvent, OcelLog, OcelObject};
 pub use stats::LogStatistics;
 
 /// A trace: the ordered activities (event types) of a receipt.

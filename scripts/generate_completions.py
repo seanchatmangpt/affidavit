@@ -154,7 +154,8 @@ def emit_bash(nouns: dict[str, list[dict[str, str]]]) -> str:
     ]
     for noun, rows in nouns.items():
         verbs = " ".join(row["verb"] for row in rows)
-        out.append(f'    local {noun}_verbs="{verbs}"')
+        # Bash identifiers cannot contain '-'; sanitize noun -> variable name.
+        out.append(f'    local {noun.replace("-", "_")}_verbs="{verbs}"')
     out += [
         "",
         '    case "${COMP_CWORD}" in',
@@ -163,7 +164,7 @@ def emit_bash(nouns: dict[str, list[dict[str, str]]]) -> str:
         "            return 0",
         "            ;;",
         "        2)",
-        '            local var="${prev}_verbs"',
+        '            local var="${prev//-/_}_verbs"',
         '            local verbs="${!var}"',
         '            if [[ -n "${verbs}" ]]; then',
         '                COMPREPLY=( $(compgen -W "${verbs}" -- "${cur}") )',

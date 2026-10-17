@@ -100,14 +100,26 @@ fn run_totality_court(fx: &serde_json::Value) -> Result<(), String> {
     //     error here — the fail-closed gate cannot be silently outgrown.
     let emitted_reject_reasons: [(&str, &str); 6] = [
         ("wrong_profile", stringify!(RejectReason::WrongProfile)),
-        ("chain_hash_mismatch", stringify!(RejectReason::ChainHashMismatch)),
+        (
+            "chain_hash_mismatch",
+            stringify!(RejectReason::ChainHashMismatch),
+        ),
         (
             "seq_not_contiguous",
             stringify!(RejectReason::SeqNotContiguous { .. }),
         ),
-        ("duplicate_event_id", stringify!(RejectReason::DuplicateEventId)),
-        ("empty_event_type", stringify!(RejectReason::EmptyEventType { .. })),
-        ("zero_commitment", stringify!(RejectReason::ZeroCommitment { .. })),
+        (
+            "duplicate_event_id",
+            stringify!(RejectReason::DuplicateEventId),
+        ),
+        (
+            "empty_event_type",
+            stringify!(RejectReason::EmptyEventType { .. }),
+        ),
+        (
+            "zero_commitment",
+            stringify!(RejectReason::ZeroCommitment { .. }),
+        ),
     ];
     // Compile-time exhaustiveness witness: this match must stay exhaustive.
     fn exhaustive_witness(r: RejectReason) -> &'static str {
@@ -284,10 +296,7 @@ fn reject_reason_vocabulary_is_exhaustively_mapped() {
     }
     let live: [(&str, &str); 6] = [
         (witness(RejectReason::WrongProfile), "refused_profile"),
-        (
-            witness(RejectReason::ChainHashMismatch),
-            "refused_receipt",
-        ),
+        (witness(RejectReason::ChainHashMismatch), "refused_receipt"),
         (
             witness(RejectReason::SeqNotContiguous { index: 0, found: 1 }),
             "refused_structure",
@@ -297,7 +306,10 @@ fn reject_reason_vocabulary_is_exhaustively_mapped() {
             witness(RejectReason::EmptyEventType { index: 0 }),
             "refused_structure",
         ),
-        (witness(RejectReason::ZeroCommitment { index: 0 }), "refused_consequence"),
+        (
+            witness(RejectReason::ZeroCommitment { index: 0 }),
+            "refused_consequence",
+        ),
     ];
     for (name, class) in live {
         let mapped = emitted
@@ -413,8 +425,7 @@ fn sabotage_twin_removed_mapping_fails_resolution() {
     // Twin of the totality court: remove one mapping from the fixture COPY
     // (in memory; the pinned file on disk is never mutated) and prove the
     // court fails naming the removed class — the court is non-vacuous.
-    let fx: serde_json::Value =
-        serde_json::from_str(fixture_text()).expect("fixture valid");
+    let fx: serde_json::Value = serde_json::from_str(fixture_text()).expect("fixture valid");
     let mut sabotaged = fx.clone();
     sabotaged["valve_mappings"] = sabotaged["valve_mappings"]
         .as_array()

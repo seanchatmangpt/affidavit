@@ -1,0 +1,36 @@
+diff --git a/utils/src/display_json.rs b/utils/src/display_json.rs
+index e69de29..cf848a2 100644
+--- a/utils/src/display_json.rs
++++ b/utils/src/display_json.rs
+@@ -74,17 +74,9 @@ pub fn arg_matches_to_json(matches: &clap::ArgMatches) -> Value {
+         } else {
+-            let original_hook = std::panic::take_hook();
+-            std::panic::set_hook(Box::new(|_| {}));
+-            
+-            let matches_safe = std::panic::AssertUnwindSafe(matches);
+-            let result = std::panic::catch_unwind(move || {
+-                if let Some(&b) = matches_safe.get_one::<bool>(name) {
+-                    return Some(Value::Bool(b));
+-                }
+-                None
+-            });
+-            
+-            std::panic::set_hook(original_hook);
+-            
+-            if let Ok(Some(val)) = result {
+-                map.insert(name.to_string(), val);
+-            } else {
+-                let count = matches.get_count(name);
+-                map.insert(name.to_string(), Value::Number(count.into()));
+-            }
++            match matches.try_get_one::<bool>(name) {
++                Ok(Some(&b)) => {
++                    map.insert(name.to_string(), Value::Bool(b));
++                }
++                _ => {
++                    let count = matches.get_count(name);
++                    map.insert(name.to_string(), Value::Number(count.into()));
++                }
++            }
+         }
+     }

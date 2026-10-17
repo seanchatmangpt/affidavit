@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "declaration": true,
+    "declarationMap": true,
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "isolatedDeclarations": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "outDir": "tsc-out",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "exclude": ["test", "scripts", "dist-*"]
+}

@@ -8,6 +8,7 @@ use crate::abi_meta::{ERROR_CODES, MAX_JSON_DEPTH, OPS};
 use crate::advanced;
 use crate::crypto;
 use crate::external_evidence;
+use crate::pqc;
 use crate::receipt::{self, ObjectRef, OperationEvent, Receipt};
 use crate::signature;
 use affidavit_core::mining::conformance::replay;
@@ -149,10 +150,13 @@ fn dispatch(request: &[u8]) -> Res<Map<String, Value>> {
         "verify_signature_input" => crypto::op_verify_signature_input(&req)?,
         "derive_subject_digest" => crypto::op_derive_subject_digest(&req)?,
         "verify_signature" => signature::op_verify_signature(&req)?,
+        "pqc_verify" => pqc::op_pqc_verify(&req)?,
+        "pqc_assemble" => pqc::op_pqc_assemble(&req)?,
         "certify_authzen_evidence" => external_evidence::op_certify_authzen_evidence(&req)?,
         "certify_spiffe_evidence" => external_evidence::op_certify_spiffe_evidence(&req)?,
         "jcs_canonicalize" => advanced::op_jcs_canonicalize(&req)?,
         "smt_absence_verify" => advanced::op_smt_absence_verify(&req)?,
+        "smt_inclusion_verify" => advanced::op_smt_inclusion_verify(&req)?,
         "range_proof_verify" => advanced::op_range_proof_verify(&req)?,
         other => {
             return Err(err(
@@ -275,7 +279,7 @@ fn parse_object(v: &Value, ctx: &str) -> Res<ObjectRef> {
     }
 }
 
-fn assemble(req: &Value) -> Res<Map<String, Value>> {
+pub(crate) fn assemble(req: &Value) -> Res<Map<String, Value>> {
     let events = field(req, "events")?
         .as_array()
         .ok_or_else(|| err("bad_field", "`events` must be an array"))?;

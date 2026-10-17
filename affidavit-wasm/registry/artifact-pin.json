@@ -6,19 +6,21 @@
     "target": "wasm32-wasip1",
     "toolchain": "nightly-2026-08-12"
   },
-  "bytes": 660847,
+  "bytes": 718736,
   "crate": "affidavit-wasm",
   "exports": [
     "af_abi_version",
     "af_alloc",
     "af_call",
-    "af_free"
+    "af_free",
+    "affi_admit_and_seal"
   ],
   "imports": [
     {"module": "wasi_snapshot_preview1", "name": "environ_get"},
     {"module": "wasi_snapshot_preview1", "name": "environ_sizes_get"},
     {"module": "wasi_snapshot_preview1", "name": "fd_write"},
-    {"module": "wasi_snapshot_preview1", "name": "proc_exit"}
+    {"module": "wasi_snapshot_preview1", "name": "proc_exit"},
+    {"module": "wasi_snapshot_preview1", "name": "random_get"}
   ],
   "name": "affidavit_wasm.wasm",
   "ops": [
@@ -35,9 +37,12 @@
     "smt_absence_verify",
     "range_proof_verify",
     "derive_subject_digest",
-    "verify_signature"
+    "smt_inclusion_verify",
+    "verify_signature",
+    "pqc_assemble",
+    "pqc_verify"
   ],
-  "registry_sha256": "2fcaae611aaf069317123c0e1fe0c2978b2bd9c72aeadf2888aaee8be34d2ee5",
+  "registry_sha256": "c585d06486252d3176aab6a79b554cc72fc9af548c81524e679b61e8eb1a7cda",
   "schema": "affidavit.wasm-pin/1",
-  "sha256": "5cc37aea8e59f7139e2ff5d43ab3c3c82931285b6400cf45f943c61d21a41402"
+  "sha256": "681f7033a78f31fcbbf7b7936a772ccac9c7da5f5d5d655bcea4a9e07bbaa8e8"
 }

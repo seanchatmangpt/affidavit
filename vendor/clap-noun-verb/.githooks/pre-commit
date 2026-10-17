@@ -1,0 +1,100 @@
+#!/bin/bash
+# Pre-commit hook: Verify code-as-projection policy
+# This hook prevents commits that violate the projection model
+
+set -e
+
+echo "Running pre-commit checks for code-as-projection policy..."
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Track if any checks fail
+FAILED=0
+
+# Check 1: No hand-edit markers in generated code
+echo -n "Checking for hand-edit markers... "
+if git diff --cached --name-only | grep -E '\.rs$' | xargs grep -l "@generated" 2>/dev/null | while read f; do
+  if git diff --cached "$f" | grep -q "^+.*TODO.*generated\|^+.*FIXME.*generated"; then
+    echo -e "${RED}✗${NC} Found hand-edit in $f"
+    FAILED=1
+  fi
+done; then
+  :
+fi
+
+if [ $FAILED -eq 0 ]; then
+  echo -e "${GREEN}✓${NC}"
+fi
+
+# Check 2: Verify projection integrity for critical files
+echo -n "Checking critical projection files... "
+CRITICAL_FILES=(
+  "src/autonomic/schema.rs"
+  "src/kernel/session.rs"
+  "src/autonomic/graph.rs"
+)
+
+for file in "${CRITICAL_FILES[@]}"; do
+  if git diff --cached --name-only | grep -q "^$file$"; then
+    # File is being modified; check if it's being edited appropriately
+    if git diff --cached "$file" | grep -q "^+\s*\/\/\s*@projection-of"; then
+      # Projection annotation found; this is allowed
+      :
+    elif ! git diff --cached "$file" | grep -q "^+.*src/autonomic/schema.rs"; then
+      # If not a projection or schema change, flag it
+      echo -e "${YELLOW}⚠${NC} Modifying $file - ensure changes reflect ontology updates"
+    fi
+  fi
+done
+
+echo -e "${GREEN}✓${NC}"
+
+# Check 3: Verify no direct edits to generated test files
+echo -n "Checking generated test files... "
+GENERATED_TEST_FILES=$(find tests -name "*.rs" -type f | xargs grep -l "@generated" 2>/dev/null || true)
+if [ -n "$GENERATED_TEST_FILES" ]; then
+  while read -r test_file; do
+    if git diff --cached "$test_file" | grep -q "^+"; then
+      echo -e "${RED}✗${NC} Generated test file $test_file is being modified"
+      echo "   To fix: edit the test specification in docs/schemas/tests.md instead"
+      FAILED=1
+    fi
+  done <<< "$GENERATED_TEST_FILES"
+fi
+
+if [ $FAILED -eq 0 ]; then
+  echo -e "${GREEN}✓${NC}"
+fi
+
+# Check 4: Ensure schema files are updated when code changes
+echo -n "Checking schema consistency... "
+CODE_FILES=$(git diff --cached --name-only | grep -E 'src/(autonomic|kernel)/.*\.rs$' || true)
+SCHEMA_FILES=$(git diff --cached --name-only | grep -E 'src/autonomic/schema.rs' || true)
+
+if [ -n "$CODE_FILES" ] && [ -z "$SCHEMA_FILES" ]; then
+  echo -e "${YELLOW}⚠${NC} Code changed but schema.rs not modified"
+  echo "   Hint: If you changed command schemas, update src/autonomic/schema.rs"
+else
+  echo -e "${GREEN}✓${NC}"
+fi
+
+# Summary
+echo ""
+if [ $FAILED -eq 0 ]; then
+  echo -e "${GREEN}✓ All projection policy checks passed${NC}"
+  exit 0
+else
+  echo -e "${RED}✗ Some checks failed${NC}"
+  echo ""
+  echo "Code-as-Projection Policy:"
+  echo "- Edit the ontology (Σ), not the generated code"
+  echo "- Generated files should have @projection-of annotations"
+  echo "- Changes to src/autonomic/schema.rs should be reflected in other files"
+  echo "- Use 'cargo run --bin ggen regenerate' to update generated code"
+  echo ""
+  exit 1
+fi

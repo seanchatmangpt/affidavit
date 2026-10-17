@@ -1,4 +1,4 @@
-# affidavit as WebAssembly (v26.9.28)
+# affidavit as WebAssembly (v26.10.17)
 
 `affidavit-wasm/` builds the provenance layer's verifier as a sandboxed WASI
 module. Hosts (Elixir/Wasmex, Node, Python, edge runtimes) verify, assemble and
@@ -40,9 +40,12 @@ length never traps: `af_call` answers with a typed error. Every response is JSON
 `{"ok":true,"op":…,…}` or `{"ok":false,"error":{"code","message"}}`. The call
 never panics on any input.
 
-Error codes (`abi_meta::ERROR_CODES`): `bad_json`, `missing_field`,
+Error codes (`abi_meta::ERROR_CODES`, 10): `bad_json`, `missing_field`,
 `unknown_op`, `bad_field`, `too_large` (request over 16 MiB), `too_deep` (JSON
-nesting over 64), `missing_buffer` (`af_call` on a null buffer), `internal`.
+nesting over 64), `missing_buffer` (`af_call` on a null buffer), `malformed`
+(well-formed request, malformed cryptographic material — envelope or
+key/signature bytes), `pqc_refused` (a `pqc_assemble` profile whose demanded
+signature checks cannot be performed), `internal`.
 Limit failures carry `error.limit`, `error.observed`, `error.max`.
 
 Unknown extra request fields are tolerated (forward compatibility); an unknown
@@ -67,13 +70,6 @@ instance of the project-neutral `wja:` vocabulary defined by
 Never edit these by hand: change the ontology and re-render (CI runs a drift
 court: `ggen sync run` then `git diff --exit-code`). The op bodies
 (`abi.rs`), `receipt.rs` and `crypto.rs` stay hand-written (`HANDWRITTEN.md`).
-
-**Known stale render:** the header comment of `affidavit-wasm/registry/ARTIFACTS.sha256`
-still says "Rendered by ggen (wasi-json-abi-pack)". It is a generated file (the
-create-only pin), so it is not hand-edited; the header comes from the pack's
-`templates/abi/artifacts.sha256.tmpl`. The lawful fix is a re-render after the
-template's wording (or an equivalent regeneration) is updated — the pack itself
-already attributes to `rust-wasi-wasmex-pack` elsewhere (e.g. `src/ffi.rs`).
 
 **Sync inputs (observed 2026-09-30):** `ggen sync run` here reads packs from sibling
 directories (`../ggen-marketplace/packs/{affidavit-trust-plane-pack,rust-wasi-wasmex-pack}`)
@@ -123,15 +119,22 @@ The mapping is identity only; a matching pin grants no authority.
 
 | Op | Request | Response (besides `ok`, `op`) |
 |---|---|---|
-| `capabilities` | `{}` | `version`, `abi_version`, `format_version` (`core/v1`), `genesis_seed`, `hash`, `ops`, `limits` (`max_request_bytes`, `max_json_depth`), `error_codes` |
+| `capabilities` | `{}` | `module` (`affidavit-wasm`), `version`, `abi_version`, `format_version` (`core/v1`), `genesis_seed`, `hash`, `ops`, `limits` (`max_request_bytes`, `max_json_depth`), `error_codes` |
 | `commit` | `{payload}` or `{payload_hex}` | `commitment` (BLAKE3 hex), `bytes` |
 | `assemble` | `{events:[{event_type, payload\|payload_hex\|payload_commitment, id?, objects?}]}` | `receipt`, `content_address`, `chain_hash` |
 | `verify` | `{receipt}` | `accepted`, `profile`, `outcomes[6]` (`stage`,`passed`,`detail`), `reason`, `content_address` |
-| `mine` | `{receipts:[…]}` | `activities`, `edges`, `start`, `end`, `activity_frequency`, `variants`, `footprint`, `trace_count`, `event_count`, `all_accepted`, `rejected_receipts` |
+| `mine` | `{receipts:[…]}` | `activities`, `edges`, `start`, `end`, `activity_frequency`, `variants`, `distinct_variants`, `footprint`, `trace_count`, `event_count`, `all_accepted`, `rejected_receipts` |
 | `verify_signature_input` | `{envelope_json, expected_signing_input_hex}` | `verified`, `signing_input_hex` (envelope signing pre-image binding; no signature arithmetic) |
 | `certify_authzen_evidence` | `{request, decision, policy_decision_point, expected_policy_decision_point, expected_principal, expected_effect_digest}` | `certified`, `standard`, `policy_allows`, `principal`, `action`, `authority` (`NONE`), `consequence` (`EVIDENCE_ONLY`), `evidence_digest`, `evidence` |
 | `certify_spiffe_evidence` | `{spiffe_id, expected_spiffe_id, expected_trust_domain, bundle_digest, verified, svid_type, allow_jwt?}` | `certified`, `spiffe_id`, `trust_domain`, `path`, `svid_type`, `authority` (`NONE`), `consequence` (`EVIDENCE_ONLY`), `evidence_digest`, `evidence` (x509 only unless `allow_jwt`) |
 | `conform` | `{model:[receipts], trace: receipt}` | `verdict`, `fitness`, `legal_moves`, `total_moves`, `start_ok`, `end_ok`, `first_violation`, `trace_accepted`, `model_all_accepted` |
+| `jcs_canonicalize` | `{json}` | `canonical_json` (RFC 8785), `commitment` (BLAKE3 of the canonical bytes) |
+| `smt_absence_verify` | `{root_hex, queried_key_hex, neighbor_key_hex, neighbor_value_hex, claimed_prefix_bits, proof_steps}` | `admitted` |
+| `range_proof_verify` | `{commitment_hex, proof_hex, bits, label}` | `admitted` (bulletproofs: Pedersen commitment carries a value in `[0, 2^bits)` under `label`) |
+| `derive_subject_digest` | `{domain_tag, subject\|subject_hex}` | `digest_hex`, `pre_image_hex` (domain-separated BLAKE3; the exact hashed bytes, for audit) |
+| `verify_signature` | `{alg, public_key_hex, signature_hex, signing_input\|signing_input_hex}` | `valid`, `refusal` (ES256/ES256K/Ed25519) |
+| `pqc_assemble` | `{events, ml_dsa_sig_hex, ml_dsa_pk_hex, pqc_profile}` | `receipt`, `content_address`, `chain_hash`, `pqc` (profile-gated seal; signed message is the compact JSON of `events`) |
+| `pqc_verify` | `{msg\|msg_hex, sig_hex, pk_hex, slh_dsa_sig_hex?, slh_dsa_pk_hex?, profile}` | `profile`, `algorithm`, `accepted`, `refusal` (verdict JSON, never an error; `pqc(dual)` judges ML-DSA-65 first, then SLH-DSA) |
 
 Notes:
 
@@ -216,13 +219,15 @@ edits the web files.
 - **Version-bound.** A receipt only verifies under the exact release that
   assembled it; a 26.9.24 receipt REJECTs at `chain_integrity` here. That is the
   genesis seed working as designed, not a bug.
-- **No signatures in the WASM surface.** Signatures exist in the root crate,
-  feature-gated behind `crypto-trust`: ES256, ML-DSA-65, SLH-DSA-SHA2-128s,
-  and the hybrid ES256+ML-DSA-65, verified by `VerificationEngine`
-  (`affi envelope verify`) — CLI and library only. This wasm build depends on
-  `affidavit-core` alone and contains no signature verification; `verify` here
-  checks the chain and format exactly as before. The wasm ABI offers no
-  signing and no signature verification.
+- **Signature verification, not signing.** The ABI verifies signatures —
+  classical curves (ES256/ES256K/Ed25519 via `p256`/`k256`/`ed25519-dalek`)
+  and PQC (ML-DSA-65 and SLH-DSA-SHA2-128s via `affidavit-core`'s
+  external-crate adapters, through `verify_signature`/`pqc_verify`/
+  `pqc_assemble`) — but the boundary stays asymmetric: signing and
+  key-generation live outside the ABI. This wasm build depends on more than
+  `affidavit-core` (`bulletproofs`, `monotree`, `serde_jcs`); the root
+  crate's envelope surface (`VerificationEngine`, `affi envelope verify`)
+  remains feature-gated behind `crypto-trust`.
 - **Structural only.** Commitments are checked for well-formedness, never against
   payloads (the verifier "reads only commitments").
 - **Sandboxed, not sealed.** Unlike the Rust `Receipt`, which cannot be forged by
@@ -239,4 +244,5 @@ edits the web files.
   registry/ARTIFACTS.sha256
 - [signature-envelope.md](../../ash_affidavit/docs/diataxis/how-to/signature-envelope.md) —
   signature envelope how-to (external sibling repo `ash_affidavit`; the wasm
-  surface has no signature verification — see trust-model boundaries above)
+  surface verifies but does not produce signatures — see trust-model
+  boundaries above)

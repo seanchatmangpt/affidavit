@@ -86,11 +86,7 @@ fn passes(t: f64) -> bool {
 struct ClassRng(u64);
 impl ClassRng {
     fn next_bit(&mut self) -> u8 {
-        self.0 = self
-            .0
-            .wrapping_add(0x9E37_79B9_7F4A_7C15)
-            .rotate_left(29)
-            ^ (self.0 >> 32);
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15).rotate_left(29) ^ (self.0 >> 32);
         (self.0 ^ (self.0 >> 61)) as u8 & 1
     }
 }
@@ -203,7 +199,9 @@ fn leaky_ctrt(class: u8, bytes: &[u8; CTRT_WIRE_SIZE]) -> u64 {
     let mut acc = bytes[0] as u64;
     if class == 1 {
         for i in 0..400u64 {
-            acc = acc.rotate_left(7) ^ i.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ bytes[i as usize % CTRT_WIRE_SIZE] as u64;
+            acc = acc.rotate_left(7)
+                ^ i.wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                ^ bytes[i as usize % CTRT_WIRE_SIZE] as u64;
         }
     }
     acc
@@ -282,7 +280,7 @@ fn qg05_ctrt_deserialize_timing_invariance() {
 fn qg05_ml_dsa65_sign_timing_invariance() {
     let samples = samples_from_env(100_000);
     let fx = MlDsaFixture::new();
-    let kp = ml_dsa65_from_seed(&fx.seed).expect("pqc fixture key pair");
+    let kp = ml_dsa65_from_seed(&fx.seed);
     let subj0 = [0xA5u8; 32];
     let subj1 = {
         let mut s = [0x5Au8; 32];
@@ -327,7 +325,9 @@ fn qg05_positive_control_leaky_twin_must_fire() {
             sink(rec[0] as u64)
         }
     });
-    let fired = attempts.iter().any(|t| !t.is_nan() && t.abs() >= T_THRESHOLD);
+    let fired = attempts
+        .iter()
+        .any(|t| !t.is_nan() && t.abs() >= T_THRESHOLD);
     assert!(
         fired,
         "QG-05 vacuous court: leaky positive control was NOT detected (attempts {:?})",

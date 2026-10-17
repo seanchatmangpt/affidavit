@@ -81,8 +81,16 @@ fn header_verb_count(text: &str, file: &str) -> usize {
         .unwrap_or_else(|_| panic!("completions/{file} header count `{digits}` is not a number"))
 }
 
-/// Parse `local <noun>_verbs="a b c"` lines out of the bash script.
+/// Parse `local <noun>_verbs="a b c"` lines out of the bash script, keyed by
+/// the real (registry) noun: the bash emitter sanitizes `-` to `_` in variable
+/// names, so a parsed variable name `legal_hold` maps back to noun
+/// `legal-hold` via the registry noun list.
 fn bash_noun_verbs(text: &str) -> HashMap<String, Vec<String>> {
+    // sanitized variable stem -> registry noun
+    let var_to_noun: HashMap<String, String> = registry_nouns()
+        .into_iter()
+        .map(|n| (n.replace('-', "_").to_string(), n.to_string()))
+        .collect();
     let mut map: HashMap<String, Vec<String>> = HashMap::new();
     for line in text.lines() {
         let Some(rest) = line.trim().strip_prefix("local ") else {
@@ -91,7 +99,11 @@ fn bash_noun_verbs(text: &str) -> HashMap<String, Vec<String>> {
         let Some(noun_end) = rest.find("_verbs=\"") else {
             continue;
         };
-        let noun = &rest[..noun_end];
+        let var_stem = &rest[..noun_end];
+        let Some(noun) = var_to_noun.get(var_stem) else {
+            continue;
+        };
+        let noun = noun.as_str();
         let start = noun_end + "_verbs=\"".len();
         let Some(end_rel) = rest[start..].find('"') else {
             continue;
@@ -446,4 +458,40 @@ fn parsers_are_not_vacuous() {
             verb_count()
         );
     }
+}
+
+/// Bash identifiers cannot contain `-`; the bash emitter must sanitize every
+/// noun (`legal-hold` -> `legal_hold_verbs`) or `affi legal-hold <TAB>`
+/// completes nothing. Guard: every emitted `<var>_verbs=` name is a valid
+/// bash identifier, and the case-side lookup sanitizes `${prev}` the same way.
+#[test]
+fn bash_verb_variables_are_valid_bash_identifiers() {
+    let text = read_completion("affi.bash");
+    let valid = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*$").expect("static regex compiles");
+    let re =
+        regex::Regex::new(r"^    local ([A-Za-z0-9_-]+)_verbs=").expect("static regex compiles");
+    let mut checked = 0usize;
+    for line in text.lines() {
+        if let Some(caps) = re.captures(line) {
+            let var = &caps[1];
+            assert!(
+                valid.is_match(var),
+                "completions/affi.bash declares `local {var}_verbs=...` — \
+                 `{var}` is not a valid bash identifier; the generator must \
+                 sanitize nouns with `-` to `_` before emitting."
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked >= 13,
+        "expected >=13 `<noun>_verbs=` declarations in completions/affi.bash, \
+         found {checked} — parser may be vacuous."
+    );
+    // The case-side indirect lookup must apply the same sanitization.
+    assert!(
+        text.contains(r#"local var="${prev//-/_}_verbs""#),
+        "completions/affi.bash indirect lookup must sanitize prev with `${{prev//-/_}}` \
+         or hyphenated nouns still fail to complete."
+    );
 }

@@ -10,7 +10,8 @@
     "too_deep",
     "missing_buffer",
     "internal",
-    "malformed"
+    "malformed",
+    "pqc_refused"
   ],
   "exports": [
     "af_abi_version",
@@ -91,9 +92,24 @@
       "response_fields": ["ok", "op", "digest_hex", "pre_image_hex"]
     },
     {
+      "name": "smt_inclusion_verify",
+      "request_fields": ["op", "root_hex", "leaf_key_hex", "leaf_value_hex", "proof_steps"],
+      "response_fields": ["ok", "op", "admitted"]
+    },
+    {
       "name": "verify_signature",
       "request_fields": ["op", "alg", "public_key_hex", "signature_hex", "signing_input", "signing_input_hex"],
       "response_fields": ["ok", "op", "valid", "refusal"]
+    },
+    {
+      "name": "pqc_assemble",
+      "request_fields": ["op", "events", "ml_dsa_sig_hex", "ml_dsa_pk_hex", "pqc_profile"],
+      "response_fields": ["ok", "op", "receipt", "content_address", "chain_hash", "pqc"]
+    },
+    {
+      "name": "pqc_verify",
+      "request_fields": ["op", "msg", "msg_hex", "sig_hex", "pk_hex", "profile"],
+      "response_fields": ["ok", "op", "profile", "algorithm", "accepted", "refusal"]
     }
   ],
   "schema": "wasi-json-abi.capability-registry/1"

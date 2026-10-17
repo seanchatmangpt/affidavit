@@ -107,7 +107,7 @@ fn envelope_over(subject: [u8; 32], kid: &KeyId, nonce_tag: u8) -> SignatureEnve
         not_before: NOT_BEFORE,
         expires_at: EXPIRES_AT,
         subject_digest: subject,
-        audience: "affidavit.seal".to_string(),
+        audience: "affidavit.seal".to_string(), // policy allowlist (certify_signed)
     }
 }
 
@@ -266,17 +266,19 @@ fn es256_full_cycle_from_receipt_to_standing_to_seal() {
     assert_eq!(verdict.key_id, Some(record.id.clone()));
 
     // (5) Sitting two: certify mints the standing receipt — evidence for the
-    // SA2A authorization layer, never authorization itself.
+    // SA2A authorization layer, never authorization itself. certify_signed
+    // re-derives the subject preimage, so this envelope binds the literal
+    // subject string (the receipt-bound envelope above is the verify lane).
+    let certify_subject = "subject-a";
+    let mut certify_env = envelope.clone();
+    certify_env.subject_digest = affidavit::crypto_trust_canonical::digest(
+        affidavit::crypto_trust_canonical::DOMAIN_TAG,
+        &[certify_subject.as_bytes()],
+    );
+    let certify_sig = signing.sign(&certify_env.signing_input());
     let certifying = fresh_sitting(&record, NOW);
-    // The subject string is the receipt's content address — the exact
-    // pre-image `subject_digest_of` digests, as certify_signed's subject
-    // binding law requires.
-    let address_hex = affidavit::chain::content_address(&receipt)
-        .expect("content address")
-        .as_hex()
-        .to_string();
     let standing_receipt: CryptoStandingReceipt = certifying
-        .certify_signed(&envelope, &signature, &address_hex, &signing)
+        .certify_signed(&certify_env, &certify_sig, certify_subject, &signing)
         .expect("VALID verdict mints a receipt");
     assert_eq!(standing_receipt.profile, CRYPTO_STANDING_PROFILE);
     assert_eq!(standing_receipt.standing, CryptographicStanding::Valid);

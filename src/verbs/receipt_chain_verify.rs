@@ -1,27 +1,28 @@
 // Copyright (c) 2024 Sean Chatman
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //
-// `receipt chain-verify` verb (Phase D M2, feature `ctdd`): replay the BLAKE3
-// receipt chain across all 352-byte court records in a directory, mapping
-// every domain refusal to its [`chicago_tdd_tools::ledger::LedgerExitCode`]
-// class.
+// Thin verb wrapper rendered from O* by ggen. The pack is authoritative for the
+// CLI *interface* only; the body delegates to a stable consumer-implemented
+// handler. There is NO logic slot here — business logic lives behind the seam in
+// `crate::handlers::*`, which is hand-written (a missing impl is a compile error).
+//
+// Consumed query columns (verb-signatures.rq): noun_name, verb_name, verb_about,
+// return_type, handler_name, args.
 
-//! `receipt chain-verify` verb.
+//! `receipt chain-verify` verb (rendered).
 
+#[cfg(feature = "ctdd")]
 use clap_noun_verb::Result;
+#[cfg(feature = "ctdd")]
 use clap_noun_verb_macros::verb;
-
-/// Verify the BLAKE3 receipt chain across all court records in a directory
+/// Replay the BLAKE3 receipt chain across all court records in a directory
+// [coordinator] ctdd self-gate (template cannot emit gates)
+#[cfg(feature = "ctdd")]
 #[rustfmt::skip]
 #[verb("chain-verify", "receipt")]
 pub fn receipt_chain_verify(
     #[arg(index = 1)]
     dir: String,
 ) -> Result<()> {
-    crate::ctdd_cli::chain_verify_outcome(&dir)
-        .map(|outcome| crate::ctdd_cli::render_and_exit("receipt chain-verify", &outcome))
-        .map_err(|e| {
-            eprintln!("refusal: io {e}");
-            std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
-        })
+    crate::handlers::receipt_chain_verify(dir)
 }

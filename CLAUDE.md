@@ -1,6 +1,6 @@
 # affidavit — Provenance Layer Documentation
 
-**Version:** 26.9.6  
+**Version:** 26.10.17  
 **Project:** Receipt Assembly & Certification  
 **Language:** Rust (2021 edition)  
 **License:** MIT OR Apache-2.0
@@ -23,10 +23,10 @@ The project's doctrine: **certify, don't decide.** The verifier checks a receipt
 
 The root build situation changed — earlier docs that say "the root crate cannot compile" are now **stale**:
 
-- The root `affidavit` crate **builds and tests**. The real published `wasm4pm-compat 26.8.7` is the admitted structural dependency; `wasm4pm` and `clnrm-core` remain fenced by local stubs via `[patch.crates-io]` in `Cargo.toml` (`stubs/`). `cargo build --all-targets` and `cargo test --all-targets` pass (835 tests + 32 doctests); `cargo fmt --all -- --check` passes. Run the whole AGENTS.md §6 ladder with `just validate`.
+- The root `affidavit` crate **builds and tests**. The real published `wasm4pm-compat 26.8.7` is the admitted structural dependency; `wasm4pm` and `clnrm-core` remain fenced by local stubs via `[patch.crates-io]` in `Cargo.toml` (`stubs/`). `cargo build --all-targets` and `cargo test --all-targets` pass (counts are receipt-only — the `just validate` ladder is the gate, see CHANGELOG 26.10.16 receipts); `cargo fmt --all -- --check` passes. Run the whole validation ladder with `just validate`.
 - `cargo clippy --all-targets -- -D warnings` passes too: `src/lib.rs` denies `clippy::print_stdout`, and library output routes through `src/output.rs` (via the crate-internal `outln!` / `out!` macros) instead of raw `println!`. Use `outln!` (or an `Out`) for new library output; the `clippy` CI job now blocks. Don't delete `stubs/` or the `[patch]` block to "fix" deps.
 - Buildable, tested subprojects also live elsewhere: **`affidavit-core/`** (zero-dep `no_std` verifier + process mining — `cargo test` green), **`web/`** (Next.js — `npx tsc --noEmit`), **`tools/confevo/`** (Python — `python3 -m unittest`).
-- **`affidavit-wasm/`** (v26.9.30) — the verifier as a WASI module with a JSON ABI, byte-compatible with `affi` (`cd affidavit-wasm && cargo test`; guide: [`docs/WASM.md`](docs/WASM.md), invariants: `affidavit-wasm/AGENTS.md`).
+- **`affidavit-wasm/`** (v26.10.17) — the verifier as a WASI module with a JSON ABI, byte-compatible with `affi` (`cd affidavit-wasm && cargo test`; guide: [`docs/WASM.md`](docs/WASM.md), invariants: `affidavit-wasm/AGENTS.md`).
 - Full operational map, per-area validate commands, and conventions: **[`AGENTS.md`](AGENTS.md)** (and **[`affidavit-core/AGENTS.md`](affidavit-core/AGENTS.md)** for that crate's strict invariants).
 
 Everything below describes the *intended* `affidavit` design — treat it as the spec, not the current build state.
@@ -48,7 +48,7 @@ affidavit/
 │   ├── verifier.rs           # 7-stage certify pipeline
 │   ├── types.rs              # Domain types (Event, Receipt, Verdict)
 │   ├── admission.rs          # Validation gates
-│   ├── registry.rs           # Compile-time verb registry (79 verbs, 11 groups)
+│   ├── registry.rs           # Compile-time verb registry (101 verbs, 11 groups)
 │   ├── diag.rs               # Stable exit codes & structured diagnostics
 │   ├── output.rs             # Unified Out handle (human/JSON/YAML)
 │   ├── discovery.rs          # Type discovery & schema registry
@@ -65,7 +65,7 @@ affidavit/
 │   ├── sbom.rs               # SBOM generation & parsing
 │   ├── sbom_compliance.rs    # NTIA compliance checking
 │   ├── sbom_vulnerability.rs # Vulnerability aggregation & risk
-│   ├── verbs/                # 69 command implementations
+│   ├── verbs/                # 106 command implementations
 │   │   ├── emit.rs           # emit — record an event
 │   │   ├── assemble.rs       # assemble — finalize receipt
 │   │   ├── verify.rs         # verify — certify pipeline
@@ -78,7 +78,7 @@ affidavit/
 │   │   ├── replay.rs         # replay — re-execute chain
 │   │   ├── model.rs          # model — type schema extraction
 │   │   ├── conformance.rs    # conformance — profile checking
-│   │   └── [55 more verbs across 10 groups]
+│   │   └── [95 more verbs across 11 groups]
 │   └── [quality, sbom, 1000x, and other modules]
 ├── docs/
 │   ├── INDEX.md              # Documentation index (this session's primary nav)
@@ -111,6 +111,12 @@ affidavit/
 
 **External crates**:
 - `blake3` — Content addressing & chain hashing
+- `ml-dsa` — FIPS 204 ML-DSA-65 signatures (RustCrypto). Operator law: no
+  crypto algorithm is implemented in this project; every algorithm is an
+  external dependency. The signature surface in `affidavit-core` and the WASM artifact is PQC (ML-DSA-65,
+  SLH-DSA-SHA2-128s, ML-KEM-768), ships unconditionally — no PQC feature
+  flag — and includes the WASM artifact. Zero hand-implemented cryptography;
+  KAT validation runs through the external implementation.
 - `serde` / `serde_json` — Serialization
 - `anyhow` / `thiserror` — Error handling
 - `linkme` — Plugin discovery
@@ -190,13 +196,13 @@ The verifier maps 1:1 to a C4 Level-3 component view:
 
 ## CLI Surface
 
-The CLI exposes **79 canonical verbs** across 11 groups, defined in `src/registry.rs`. Run `affi --help` for the full list or use `affi guide search <keyword>` for fuzzy lookup.
+The CLI exposes **101 canonical verbs** across 11 groups, defined in `src/registry.rs`. Run `affi --help` for the full list or use `affi guide search <keyword>` for fuzzy lookup.
 
 **Verb groups:** Core · Diagnostics · Analysis · Ingestion · Compliance · Attestation · SBOM · Insights · Engineering · Tooling · Federation
 
 ### Core Commands (Noun-Verb Pattern)
 
-Affidavit v26.9.6 provides a comprehensive CLI organized into 10 primary verb families:
+Affidavit v26.10.17 provides a comprehensive CLI organized into 10 primary verb families:
 
 **Core Provenance (11 verbs):**
 `emit`, `assemble`, `verify`, `show`, `inspect`, `diagnose`, `stats`, `graph`, `replay`, `model`, `conformance`
@@ -229,7 +235,7 @@ These are the operator surface over the federation kernel (`src/standing.rs`,
 `src/ecosystem.rs`, `src/errc.rs`, `src/errc_claim_assurance.rs`) via the
 adapter in `src/federation.rs`. See `docs/FEDERATION.md`.
 
-**Developer Tools (6 verbs):**
+**Developer Tools (11 verbs):**
 `doctor`, `diff`, `visualize`, `catalog`, `search`, `query`, `timeline`, `profile`, `receipt-throughput`, `install-git-hook`, `test`
 
 See `src/verbs/` for implementation details or run `affi --help` for full usage.
@@ -252,7 +258,7 @@ Run environment and receipt-store health checks. Reports installation status, fe
 cargo build
 cargo run --bin affi -- emit --help
 
-# Run all tests (211+ tests across unit, integration, property, and compliance suites)
+# Run all tests (counts are receipt-only; the gate is `just validate`)
 cargo test
 
 # Run with output
@@ -317,7 +323,7 @@ See `examples/ocel_events.rs`.
 
 ### LSP (Language Server)
 
-`src/lsp.rs` exposes receipt verification as LSP diagnostics:
+`src/lsp/mod.rs` exposes receipt verification as LSP diagnostics:
 
 - Hover over a receipt path → shows receipt summary
 - Diagnostics → shows verification failures per-line
@@ -490,7 +496,7 @@ cargo test receipt_determinism -- --test-threads=1
 
 ## Performance Characteristics
 
-### Benchmarked Operations (see `benches/receipt_operations/`)
+### Benchmarked Operations (see `benches/receipt_operations.rs`)
 
 - **Emit event:** ~100µs (JSON parse + admission + sealing)
 - **Assemble 100 events:** ~50ms (rolling BLAKE3 computation)
@@ -570,7 +576,7 @@ MIT OR Apache-2.0
 
 ---
 
-**Last Updated:** 2026-09-06  
+**Last Updated:** 2026-10-16  
 **Maintained by:** Sean Chatman (xpointsh@gmail.com)
 
 ## Annealing Doctrine (repo clauses)
@@ -584,3 +590,31 @@ Global law: [[entropic-annealing-doctrine]]. Repo-specific clauses:
   control that must fire.
 - **Skeptic/audit lanes do not grade their own builders** — verification
   receipts come from lanes that did not write the code under test.
+
+## Agents
+
+Never dispatch the built-in generic agents (`general-purpose`, `claude`,
+`Explore`). Only use agents defined in `.claude/agents/`:
+`court-runner`, `kd-registrar`, `wasm-abi-guard`, `release-receipt`,
+`doc-surveyor` (read-only surveys). Subagent prompts always carry the
+absolute repo path (`/Users/sac/affidavit`).
+
+**Lane law**: one canonical checkout, no worktrees; lanes own disjoint
+files; agents never run git state transitions — the coordinator owns
+commits/tags; no `git stash` in a shared checkout.
+
+**Receipt discipline**: a receipt embeds real command output (command,
+exit, counts). A receipt with no output is SUSPECT; a claim with no
+receipt is not a receipt. Standing vocabulary:
+`UNKNOWN | PARTIAL_ALIVE | ALIVE | BLOCKED | BUILD_BROKEN | UNSUPPORTED`
+plus typed `REFUSED_*` (AGENTS.md is the authoritative pointer; read it
+before any consequential transition).
+
+**Two-target-dir reproducibility invariant** (docs/WASM.md): the wasm
+artifact is admitted only after two independent `--target-dir` builds of
+the same locked inputs are byte-identical (`cmp`), then the digest is
+pinned in `affidavit-wasm/registry/ARTIFACTS.sha256` and enforced by
+`AFFIDAVIT_WASM=... cargo test --test registry_artifacts`. Pin drift is
+`REFUSED_PIN_DRIFT` — a typed stop triggering the refresh procedure, never
+a silent overwrite. Generated wasm surfaces (ffi.rs, abi_meta.rs, registry
+JSONs) are ggen projections of `ontology/affi-wasm.ttl` — never hand-edit.

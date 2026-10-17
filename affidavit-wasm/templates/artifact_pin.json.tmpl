@@ -14,10 +14,9 @@
   "bytes": {{ wasm_bytes }},
   "crate": {{ crate_name | json_encode() | safe }},
   "exports": [
-    "{{ export_prefix }}_abi_version",
-    "{{ export_prefix }}_alloc",
-    "{{ export_prefix }}_call",
-    "{{ export_prefix }}_free"
+{%- for e in exports | split(pat="@@") | sort %}
+    {{ e | json_encode() | safe }}{% if not loop.last %},{% endif %}
+{%- endfor %}
   ],
   "imports": [
 {%- for i in imp_list %}

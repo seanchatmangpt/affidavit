@@ -1,0 +1,224 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop, 'release/**' ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Format check - fail fast if code isn't formatted
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  # Lint - catch common mistakes early
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: clippy-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # Test suite - most important job
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run tests
+        run: cargo test --all-features --workspace --lib
+
+      - name: Run integration tests
+        run: cargo test --all-features --workspace --test '*'
+
+      - name: Run doc tests
+        run: cargo test --all-features --workspace --doc
+
+      - name: Run tests (no features)
+        run: cargo test --no-default-features --workspace
+
+      - name: Run tests (default features)
+        run: cargo test --workspace
+
+      - name: Run tests (repl feature only)
+        run: cargo test --no-default-features --features repl --workspace
+
+  # Nextest - faster test runner (stable only)
+  nextest:
+    name: Nextest (faster test runner)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: nextest-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: taiki-e/install-action@cargo-nextest
+
+      - name: Run nextest
+        run: cargo nextest run --all-features --workspace
+
+  # MSRV - verify code works on minimum supported Rust version
+  msrv:
+    name: MSRV (1.74)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.74.0
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: msrv-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build with MSRV
+        run: cargo build --all-features --workspace
+
+      - name: Test with MSRV
+        run: cargo test --all-features --workspace
+
+  # Docs - ensure documentation builds
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: docs-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build documentation
+        run: cargo doc --all-features --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # Security audit - check for known vulnerabilities
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: audit-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: taiki-e/install-action@cargo-audit
+
+      - name: Run cargo-audit
+        run: cargo audit --deny warnings
+
+  # License check - ensure dependencies have compatible licenses
+  licenses:
+    name: License Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: deny-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: taiki-e/install-action@cargo-deny
+
+      - name: Check licenses
+        run: cargo deny check licenses --deny warnings
+
+      - name: Check advisories
+        run: cargo deny check advisories --deny warnings
+
+      - name: Check bans
+        run: cargo deny check bans --deny warnings
+
+  # Spell check - catch typos
+  typos:
+    name: Spell Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: taiki-e/install-action@typos
+
+      - name: Check spelling
+        run: typos
+
+  # Summary - ensure all critical checks passed
+  ci-success:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs:
+      - fmt
+      - clippy
+      - test
+      - nextest
+      - msrv
+      - docs
+      - audit
+      - licenses
+      - typos
+    if: always()
+    steps:
+      - name: Check all required checks passed
+        if: |
+          needs.fmt.result != 'success' ||
+          needs.clippy.result != 'success' ||
+          needs.test.result != 'success' ||
+          needs.msrv.result != 'success' ||
+          needs.docs.result != 'success' ||
+          needs.audit.result != 'success' ||
+          needs.licenses.result != 'success' ||
+          needs.typos.result != 'success'
+        run: exit 1
+
+      - name: CI passed ✓
+        run: echo "All CI checks passed!"

@@ -104,7 +104,6 @@ affi:ReceiptNoun a cnv:Noun ;
         affi:OrphanedCodeVerb ,
 
         # Testing & diagnosis
-        affi:TestVerb ,
         affi:ExplainIncidentVerb ,
         affi:RootCauseVerb ,
 
@@ -124,17 +123,14 @@ affi:ReceiptNoun a cnv:Noun ;
         affi:AuditVerb ,
         affi:VarianceVerb ,
         affi:ProfileVerb ,
-        affi:ReceiptThroughputVerb ;
+        affi:ReceiptThroughputVerb ,
+
+        # CTRT court-receipt record surface (registry: validate, chain-verify)
+        affi:ReceiptValidateVerb ,
+        affi:ReceiptChainVerifyVerb ;
     rdfs:comment "Receipt noun (maximalist): emit, assemble, verify, query, analyze, audit, and govern 300+ repos"@en .
 
 # --- Shared Arguments ---
-# --- Verb: test -------------------------------------------------------------
-affi:TestVerb a cnv:Verb ;
-    cnv:hasVerbName "test" ;
-    cnv:verbAbout "A dummy test verb for ontology validation" ;
-    cnv:belongsToNoun affi:ReceiptNoun ;
-    cnv:returnType "()" .
-
 affi:FormatArg a cnv:Argument ;
     cnv:hasArgumentName "format" ;
     cnv:argumentAbout "Output format: text (default) or json" ;
@@ -2082,32 +2078,75 @@ affi:EnvelopeExportFormatArg a cnv:Argument ;
 affi:DossierNoun a cnv:Noun ;
     cnv:hasNounName "dossier" ;
     cnv:nounAbout "Seal, verify, emit, and inspect NATO STANAG 4107 court dossiers" ;
-    cnv:hasVerbs (
-        affi:DossierEmitVerb
-        affi:DossierInspectVerb
-        affi:DossierSealVerb
-        affi:DossierVerifyVerb
-    ) .
+    cnv:hasVerbs
+        affi:DossierEmitVerb ,
+        affi:DossierInspectVerb ,
+        affi:DossierSealVerb ,
+        affi:DossierVerifyVerb .
 
 affi:DossierEmitVerb a cnv:Verb ;
+    cnv:fieldName "dossier_emit" ;
     cnv:hasVerbName "emit" ;
     cnv:verbAbout "Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)" ;
     cnv:belongsToNoun affi:DossierNoun ;
-    cnv:returnType "()" .
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:DossierReceiptsDirArg ;
+    cnv:hasArgument affi:DossierOutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:DossierReceiptsDirArg affi:DossierOutArg affi:FormatArg ) .
+
+affi:DossierReceiptsDirArg a cnv:Argument ;
+    cnv:hasArgumentName "receipts-dir" ;
+    cnv:argumentAbout "Directory holding the court receipt records" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:DossierOutArg a cnv:Argument ;
+    cnv:hasArgumentName "out" ;
+    cnv:argumentAbout "Output dossier JSON path" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
 
 affi:DossierInspectVerb a cnv:Verb ;
+    cnv:fieldName "dossier_inspect" ;
     cnv:hasVerbName "inspect" ;
     cnv:verbAbout "Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature" ;
     cnv:belongsToNoun affi:DossierNoun ;
-    cnv:returnType "()" .
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:DossierPathArg ;
+    cnv:hasArgument affi:DossierVerifyPqcArg ;
+    cnv:hasArgument affi:DossierAssertMerkleArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:DossierPathArg affi:DossierVerifyPqcArg affi:DossierAssertMerkleArg affi:FormatArg ) .
+
+affi:DossierPathArg a cnv:Argument ;
+    cnv:hasArgumentName "path" ;
+    cnv:argumentAbout "Dossier JSON path" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+affi:DossierVerifyPqcArg a cnv:Argument ;
+    cnv:hasArgumentName "verify-pqc-signature" ;
+    cnv:argumentAbout "Verify the ML-DSA-65 dossier signature" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:DossierAssertMerkleArg a cnv:Argument ;
+    cnv:hasArgumentName "assert-merkle-root" ;
+    cnv:argumentAbout "Assert the recomputed Merkle root matches the sealed root" ;
+    cnv:valueType "bool" ;
+    cnv:required "true" .
 
 affi:DossierSealVerb a cnv:Verb ;
+    cnv:fieldName "dossier_seal" ;
     cnv:hasVerbName "seal" ;
     cnv:verbAbout "Seal a directory of 352-byte court records into a signed sealed-dossier wire file" ;
     cnv:belongsToNoun affi:DossierNoun ;
     cnv:returnType "()" .
 
 affi:DossierVerifyVerb a cnv:Verb ;
+    cnv:fieldName "dossier_verify" ;
     cnv:hasVerbName "verify" ;
     cnv:verbAbout "Verify a sealed-dossier wire file against the local ML-DSA-65 key store" ;
     cnv:belongsToNoun affi:DossierNoun ;
@@ -2118,13 +2157,56 @@ affi:DossierVerifyVerb a cnv:Verb ;
 # ============================================================================
 
 affi:ReceiptValidateVerb a cnv:Verb ;
+    cnv:fieldName "receipt_validate" ;
     cnv:hasVerbName "validate" ;
     cnv:verbAbout "Validate one 352-byte CTRT court receipt record (file or stdin)" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" .
 
 affi:ReceiptChainVerifyVerb a cnv:Verb ;
+    cnv:fieldName "receipt_chain_verify" ;
     cnv:hasVerbName "chain-verify" ;
     cnv:verbAbout "Replay the BLAKE3 receipt chain across all court records in a directory" ;
     cnv:belongsToNoun affi:ReceiptNoun ;
     cnv:returnType "()" .
+
+# ============================================================================
+# ADVERSARIAL STATUTORY COMPLIANCE & ATTESTATION NOUNS (v26.10.16)
+# ============================================================================
+
+affi:LegalHoldNoun a cnv:Noun ;
+    cnv:hasNounName "legal-hold" ;
+    cnv:nounAbout "FRCP 37(e) evidentiary hold audit, verification, and spoliation detection" ;
+    cnv:hasVerbs affi:LegalHoldStatusVerb .
+
+affi:LegalHoldStatusVerb a cnv:Verb ;
+    cnv:fieldName "legal_hold_status" ;
+    cnv:hasVerbName "status" ;
+    cnv:verbAbout "Audits local OCEL and CTRT event chains to certify FRCP 37(e) evidentiary hold integrity" ;
+    cnv:belongsToNoun affi:LegalHoldNoun ;
+    cnv:returnType "()" .
+
+affi:RestitutionNoun a cnv:Noun ;
+    cnv:hasNounName "restitution" ;
+    cnv:nounAbout "Liquid avoided-cloud compute tariff calculation under Restatement of Restitution § 42" ;
+    cnv:hasVerbs affi:RestitutionCalculateVerb .
+
+affi:RestitutionCalculateVerb a cnv:Verb ;
+    cnv:fieldName "restitution_calculate" ;
+    cnv:hasVerbName "calculate" ;
+    cnv:verbAbout "Computes liquidated avoided-cost distributions under Restatement of Restitution § 42" ;
+    cnv:belongsToNoun affi:RestitutionNoun ;
+    cnv:returnType "()" .
+
+affi:CertificateNoun a cnv:Noun ;
+    cnv:hasNounName "certificate" ;
+    cnv:nounAbout "Self-authenticating electronic record affidavits and evidence certificates" ;
+    cnv:hasVerbs affi:CertificateFre902Verb .
+
+affi:CertificateFre902Verb a cnv:Verb ;
+    cnv:fieldName "certificate_fre_902" ;
+    cnv:hasVerbName "fre-902" ;
+    cnv:verbAbout "Generates self-authenticating electronic records affidavit under FRE 902(14)" ;
+    cnv:belongsToNoun affi:CertificateNoun ;
+    cnv:returnType "()" .
+

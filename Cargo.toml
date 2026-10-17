@@ -1,6 +1,6 @@
 [package]
 name = "affidavit"
-version = "26.10.6"
+version = "26.10.17"
 edition = "2021"
 rust-version = "1.85"
 description = "Provenance Layer — receipt assembly and certification, with an optional crypto trust plane (signatures, post-quantum, key custody). Verify a witness against a format standard; never decide honesty."
@@ -156,6 +156,7 @@ uuid = { version = "1", features = ["v4", "serde"], optional = true }
 
 # Phase 4: Observability (OTel Stack)
 opentelemetry = { version = "0.32", features = ["trace", "metrics"], optional = true }
+opentelemetry_sdk = { version = "0.32", features = ["trace"], optional = true }
 opentelemetry-jaeger = { version = "0.22", optional = true }
 opentelemetry-prometheus = { version = "0.13", optional = true }
 prometheus = { version = "0.14", optional = true }
@@ -290,6 +291,11 @@ tempfile = { version = "3", optional = true }
 # wasm-encoder = "0.252.0"
 
 [dev-dependencies]
+# Lane: kem_dual_impl_kat (register row 30) — test-scoped only. Enables the
+# `mlkem768` module of the already-optional libcrux-ml-kem dep (root pins it
+# with default-features = false, so the module is dormant there). Feature
+# unification activates it only when compiling tests.
+libcrux-ml-kem = { version = "0.0.10", default-features = false, features = ["mlkem768"] }
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
@@ -311,6 +317,24 @@ clnrm-core = { version = "1.3" }
 # Invariant stress-testing for the advanced witness capability set.
 proptest = "1.6"
 arbitrary = { version = "1.4", features = ["derive"] }
+# Lane disclosure (register row 44, sj_projection_parity lane): test-only edge to the
+# REAL clnrm-core (never the stubs/clnrm-core fence) to consume ONLY its receipt
+# projection/shape surface (receipts::sj_projection::{SjReceipt, SjStanding,
+# SjIdentity, SjReplay, to_sj_receipt, to_sj_receipt_resolved} + ReceiptStore).
+# The sha2-based digest functions inside clnrm-core (TestReceipt::compute_id,
+# ContentHash::from_bytes) are NEVER consumed into any affidavit receipt
+# commitment — affidavit commitments stay BLAKE3-only; sha2 hashes here are
+# clnrm-internal content addresses used solely to make the SjReceipt shape
+# constructible and its validate()/standing law exercisable.
+# Renamed (package = "clnrm-core") so it coexists with the patched stub at
+# version 1.3.0; the real crate is 26.5.28 (semver-incompatible, distinct node).
+clnrm-sj-core = { package = "clnrm-core", path = "/Users/sac/clnrm/crates/clnrm-core" }
+# Lane disclosure (register #52 minimal unblock): pkcs8 0.11 is already in the
+# dependency tree via slh-dsa 0.2.0-rc.5, but slh-dsa does not re-export it, so
+# the SPKI/PKCS8 round-trip court needs a nameable path to
+# `pkcs8::{EncodePublicKey, SubjectPublicKeyInfoRef}`. dev-only, never linked
+# into non-test builds.
+pkcs8 = { version = "0.11", default-features = false, features = ["alloc"] }
 
 [features]
 # Default feature set
@@ -346,7 +370,7 @@ mutation = ["clnrm-core", "tera", "quickcheck", "uuid", "dep:rand"]
 fixture-db = ["chrono"]
 
 # Phase 4: Observability and distributed tracing (OpenTelemetry).
-otel = ["opentelemetry", "opentelemetry-jaeger", "tracing", "tracing-subscriber"]
+otel = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-jaeger", "tracing", "tracing-subscriber"]
 # Metrics collection and Prometheus exporter.
 metrics = ["otel", "prometheus", "opentelemetry-prometheus"]
 
@@ -365,6 +389,11 @@ shell = ["rustyline", "tokio", "shlex"]
 ctdd = ["dep:chicago-tdd-tools"]
 # Rich UI elements like progress bars and colors.
 ui = ["colored", "indicatif"]
+
+# Register row 24: large-file BLAKE3 hashing takes an mmap+rayon fast path
+# (blake3's update_mmap_rayon) above LARGE_FILE_MMAP_RAYON_THRESHOLD. Optional:
+# default builds do not pull mmap/rayon and take the streaming path.
+sbom-rayon-hash = ["blake3/mmap", "blake3/rayon"]
 
 # Extra: Performance & Benchmarking
 benchmarking = ["criterion", "rayon"]
@@ -412,7 +441,7 @@ secure-enclave = ["crypto-trust", "dep:security-framework"]
 smt = ["dep:monotree", "dep:bitvec"]
 # FROST threshold quorum certification (RFC 9591, Ed25519): t-of-n signing,
 # single aggregate signature verification against the group key.
-threshold-quorum = ["dep:frost-ed25519"]
+threshold-quorum = ["dep:frost-ed25519", "dep:rand_core"]
 # Zero-knowledge bounded-metric witnesses (bulletproofs range proofs over
 # Ristretto): prove 0 <= v < 2^bits without disclosing v.
 zk-range = ["dep:bulletproofs", "dep:curve25519-dalek-ng", "dep:merlin", "dep:rand_core"]
@@ -427,7 +456,7 @@ ed25519 = ["dep:ed25519-dalek"]
 # Secp256k1 BIP-340 Schnorr + ECDSA witness verification.
 secp256k1 = ["dep:k256"]
 # BLS12-381 BLS signatures with non-interactive witness aggregation.
-bls = ["dep:w3f-bls", "dep:ark-ec", "dep:ark-bls12-381", "dep:rand"]
+bls = ["dep:w3f-bls", "dep:ark-ec", "dep:ark-bls12-381", "dep:rand", "dep:rand_core"]
 # Replay detection / revocation membership (cuckoo filter, deletable).
 replay-filter = ["dep:cuckoofilter"]
 # Sequence-number contiguity certification (roaring bitmaps).
@@ -526,6 +555,11 @@ dev = ["all"]
 # pulls in a large transitive surface for an optional mutation feature; keep the
 # bounded stub until that version/feature boundary is intentionally graduated.
 clnrm-core = { path = "stubs/clnrm-core" }
+# Vendored clap-noun-verb 26.6.2 (vendor/clap-noun-verb): sole change vs
+# crates.io is suppression of the framework's print of a unit-returning
+# verb's Value::Null (the stray trailing "null" line on every success
+# path, ROADMAP B13). See vendor/clap-noun-verb/src/cli/registry.rs.
+clap-noun-verb = { path = "vendor/clap-noun-verb" }
 chicago-tdd-tools = { path = "/Users/sac/chicago-tdd-tools" }
 
 # CI/test latency: optimize crypto dependency compute without changing first-party dev checks.
@@ -583,3 +617,14 @@ required-features = ["crypto-trust"]
 getrandom = { version = "0.4", features = ["wasm_js"] }
 getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
+
+[[test]]
+name = "ed25519_strict_parity"
+required-features = ["crypto-trust"]
+[[test]]
+name = "ed25519_strict_vectors"
+required-features = ["crypto-trust"]
+
+[[test]]
+name = "kem_dual_impl_kat"
+required-features = ["pqc"]

@@ -20,6 +20,19 @@
 //!
 //! ## Doctrine: Certify, Don't Decide
 //!
+//! ## Canonical root law (batch vs sequential)
+//!
+//! monotree's tree is path-compressed, so roots are *insertion-order
+//! dependent*: inserting {k1, k2} in different orders can yield different
+//! roots. The canonical sequence is **ascending key order** — exactly what
+//! monotree's batch APIs use internally (`get_sorted_indices`). Therefore:
+//! a batch insert is byte-identical to the sorted sequential fold, and batch
+//! results are permutation-invariant. Single inserts outside sorted order
+//! produce a *different but internally consistent* root; [`StateTree`]
+//! exposes the batch APIs as the canonical fold.
+//!
+//! ## Doctrine: Certify, Don't Decide
+//!
 //! Roots and proofs certify state claims. The tree never decides whether a
 //! value is truthful — only that it was committed under a key at a root.
 
@@ -41,6 +54,15 @@ pub enum SmtError {
     /// No proof could be generated (empty tree or unreachable path).
     #[error("no proof available for key")]
     NoProof,
+    /// A batch operation received `keys.len() != values.len()`.
+    #[error("batch length mismatch: {keys} keys, {values} values")]
+    BatchLengthMismatch { keys: usize, values: usize },
+    /// A batch contains the same key twice with two divergent values.
+    ///
+    /// Typed refusal, not last-win: an ambiguous batch is never committed,
+    /// and the tree state is untouched (fail-before-fold).
+    #[error("batch contains duplicate key with divergent values: {key}")]
+    DuplicateKeyDivergentValue { key: String },
 }
 
 /// A 32-byte state key.
@@ -159,6 +181,97 @@ impl StateTree {
         self.keys.is_empty()
     }
 
+    /// Remove a batch of keys, returning the root after the final removal.
+    ///
+    /// Convenience over [`StateTree::remove`]; each key is removed in order
+    /// against the running root. An empty batch is a no-op returning the
+    /// current root.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SmtError::Tree`] if any underlying removal fails.
+    pub fn remove_batch(&mut self, keys: &[StateKey]) -> Result<Option<StateRoot>, SmtError> {
+        if keys.is_empty() {
+            return Ok(self.root());
+        }
+        let root = self
+            .tree
+            .removes(self.root.as_ref(), keys)
+            .map_err(|e| SmtError::Tree(e.to_string()))?;
+        self.root = root;
+        for k in keys {
+            self.keys.remove(k);
+        }
+        Ok(root)
+    }
+
+    /// Insert a batch of key-value commitments atomically-in-order, returning
+    /// the root after the final insert (`None` only if the batch emptied the
+    /// tree, which `insert` cannot — so in practice always `Some`).
+    ///
+    /// Wraps monotree's [`Monotree::inserts`], which internally sorts its
+    /// insertion order — so the resulting root is permutation-invariant: a
+    /// batch and its shuffles yield a byte-identical root, and the batch root
+    /// equals the root of K sequential [`StateTree::insert`] calls (the
+    /// canonical root law).
+    ///
+    /// Duplicate keys inside one batch are refused unless every occurrence
+    /// carries the identical value ([`SmtError::DuplicateKeyDivergentValue`]).
+    /// A batch key overwriting a *pre-existing committed* value is lawful
+    /// (matches sequential-`insert` semantics exactly).
+    ///
+    /// # Errors
+    ///
+    /// [`SmtError::BatchLengthMismatch`] if `keys.len() != values.len()`;
+    /// [`SmtError::DuplicateKeyDivergentValue`] on intra-batch divergence;
+    /// [`SmtError::Tree`] if the underlying tree operation fails.
+    pub fn insert_batch(
+        &mut self,
+        keys: &[StateKey],
+        values: &[StateValue],
+    ) -> Result<Option<StateRoot>, SmtError> {
+        if keys.len() != values.len() {
+            return Err(SmtError::BatchLengthMismatch {
+                keys: keys.len(),
+                values: values.len(),
+            });
+        }
+        // Fail-before-fold: refuse divergence before touching the tree, so a
+        // refused batch leaves the committed state byte-identical.
+        let mut seen: std::collections::BTreeMap<StateKey, StateValue> =
+            std::collections::BTreeMap::new();
+        for (k, v) in keys.iter().zip(values.iter()) {
+            match seen.insert(*k, *v) {
+                Some(prev) if prev != *v => {
+                    return Err(SmtError::DuplicateKeyDivergentValue { key: hex_short(k) });
+                }
+                _ => {}
+            }
+        }
+        let root = self
+            .tree
+            .inserts(self.root.as_ref(), keys, values)
+            .map_err(|e| SmtError::Tree(e.to_string()))?;
+        self.root = root;
+        for (k, v) in keys.iter().zip(values.iter()) {
+            self.keys.insert(*k, *v);
+        }
+        Ok(root)
+    }
+
+    /// Fetch a batch of committed values, position-aligned with `keys`.
+    ///
+    /// Wraps monotree's [`Monotree::gets`]. Absent keys yield `None` entries.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SmtError::Tree`] if the underlying tree operation fails.
+    pub fn get_batch(&mut self, keys: &[StateKey]) -> Result<Vec<Option<StateValue>>, SmtError> {
+        self.tree
+            .gets(self.root.as_ref(), keys)
+            .map_err(|e| SmtError::Tree(e.to_string()))
+    }
+
     /// Generate an inclusion proof for a present key.
     ///
     /// # Errors
@@ -241,6 +354,115 @@ pub fn verify_inclusion(
     )
 }
 
+/// First 4 bytes of a key, hex, for error messages (never the whole key).
+#[must_use]
+fn hex_short(k: &StateKey) -> String {
+    k[..4].iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// monotree's `BitsLen` = `u16`, big-endian (`bytes_to_int`).
+fn be16(b: [u8; 2]) -> usize {
+    (usize::from(b[0]) << 8) | usize::from(b[1])
+}
+
+/// Extract the consumed key-path range `(start, end)` and the 32-byte fixed
+/// path bit array from one monotree proof-step cut. Empirically pinned layout
+/// (monotree serializes `Unit.bits` as a fixed `BIT_ARRAY_LEN = 32` bytes with
+/// absolute bit indexing):
+/// - soft cut:      `[rs:2][re:2][path:32][0x00]` (37 bytes)
+/// - hard-left cut: `[rsL:2][reL:2][pathL:32][rsR:2][reR:2][pathR:32][hashR:32][0x01]` (105)
+/// - hard-right cut: `[hashL:32][rsL:2][reL:2][pathL:32][rsR:2][reR:2][pathR:32][0x01]` (137)
+#[must_use]
+fn step_path_range(cut: &[u8], right: bool) -> Option<(usize, usize, &[u8])> {
+    let ac = |s: usize, e: usize| {
+        let n = (e - (s - s % 8)) / 8;
+        if e % 8 == 0 {
+            n
+        } else {
+            n + 1
+        }
+    };
+    if right {
+        // [hashL:32][rsL:2][reL:2][pathL:acL][rsR:2][reR:2][pathR:acR][0x01]
+        if cut.len() < 38 || *cut.last()? != 0x01 {
+            return None;
+        }
+        let (rs_l, re_l) = (be16([cut[32], cut[33]]), be16([cut[34], cut[35]]));
+        let o = 36 + ac(rs_l, re_l);
+        if cut.len() < o + 5 {
+            return None;
+        }
+        let rs = be16([cut[o], cut[o + 1]]);
+        let re = be16([cut[o + 2], cut[o + 3]]);
+        let pl = ac(rs, re);
+        if cut.len() != o + 4 + pl + 1 {
+            return None;
+        }
+        Some((rs, re, cut.get(o + 4..o + 4 + pl)?))
+    } else {
+        if cut.len() < 4 {
+            return None;
+        }
+        let rs = be16([cut[0], cut[1]]);
+        let re = be16([cut[2], cut[3]]);
+        if re > 256 || rs >= re {
+            return None;
+        }
+        let pl = ac(rs, re);
+        match cut.len() {
+            n if n == pl + 5 && cut.get(pl + 4) == Some(&0x00) => {
+                Some((rs, re, cut.get(4..4 + pl)?))
+            }
+            n if n > pl + 5 && cut.last() == Some(&0x01) => {
+                // Hard-node left branch: [rsL:2][reL:2][pathL][rsR:2][reR:2][pathR][hashR:32][0x01]
+                let o = 4 + pl;
+                if cut.len() < o + 5 {
+                    return None;
+                }
+                let (rs_r, re_r) = (be16([cut[o], cut[o + 1]]), be16([cut[o + 2], cut[o + 3]]));
+                let pl_r = ac(rs_r, re_r);
+                if cut.len() != o + 4 + pl_r + 32 + 1 {
+                    return None;
+                }
+                Some((rs, re, cut.get(4..4 + pl)?))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Whether an inclusion proof's steps route exactly to `key`: the cut-encoded
+/// path ranges must tile the full 256-bit key space in order, and every path
+/// bit must match the key. monotree's `verify_proof` folds only the leaf value
+/// and the step cuts — the proof's `key` field is decorative — so this is the
+/// binding a revocation fence actually rests on.
+#[must_use]
+fn proof_routes_key(proof: &InclusionProof) -> bool {
+    let key = proof.key;
+    let bit = |i: usize| (key[i / 8] >> (7 - i % 8)) & 1;
+    let mut expected = 0usize;
+    for (right, cut) in &proof.steps {
+        let Some((rs, re, path)) = step_path_range(cut, *right) else {
+            return false;
+        };
+        if rs != expected || re <= rs || re > 256 {
+            return false;
+        }
+        for i in rs..re {
+            // The stored path slice begins at absolute byte floor(rs/8).
+            let Some(&byte) = path.get(i / 8 - rs / 8) else {
+                return false;
+            };
+            let bitpos = 7 - i % 8;
+            if (byte >> bitpos) & 1 != bit(i) {
+                return false;
+            }
+        }
+        expected = re;
+    }
+    expected == 256
+}
+
 /// Verify an absence witness against a root.
 ///
 /// Checks: (a) the neighbor's inclusion proof is cryptographically valid
@@ -255,6 +477,15 @@ pub fn verify_absence(
     witness: &AbsenceWitness,
 ) -> bool {
     if witness.queried_key == witness.neighbor_key {
+        return false;
+    }
+    // Key binding: the embedded proof must route exactly `neighbor_key`.
+    // Without this, a valid inclusion proof for an unrelated key (with its
+    // matching leaf value) satisfies the cryptographic check while the
+    // prefix law is argued from a different key entirely.
+    if witness.neighbor_proof.key != witness.neighbor_key
+        || !proof_routes_key(&witness.neighbor_proof)
+    {
         return false;
     }
     if !verify_inclusion(root, neighbor_value, &witness.neighbor_proof) {
@@ -336,6 +567,377 @@ mod tests {
         assert_eq!(tree.get(&key(3)).expect("get"), None);
         assert_eq!(tree.root(), None);
         assert!(tree.is_empty());
+    }
+
+    #[test]
+    fn post_revocation_absence_court() {
+        let mut tree = StateTree::new();
+        tree.insert(&key(0x10), &value(1)).expect("insert");
+        tree.insert(&key(0x20), &value(2)).expect("insert");
+        tree.insert(&key(0x30), &value(3)).expect("insert");
+        let pre_root = tree.root().expect("pre-removal root");
+
+        tree.remove(&key(0x10)).expect("remove");
+        let post_root = tree.root().expect("post-removal root");
+        assert_ne!(pre_root, post_root, "removal must advance the root");
+
+        let witness = tree.prove_absence(&key(0x10)).expect("absence witness");
+        let neighbor_value = tree
+            .get(&witness.neighbor_key)
+            .expect("get")
+            .expect("neighbor committed");
+
+        // Admits against the post-removal root.
+        assert!(verify_absence(&post_root, &neighbor_value, &witness));
+        // The same witness is refused against the pre-removal root.
+        assert!(!verify_absence(&pre_root, &neighbor_value, &witness));
+
+        // Re-insert: inclusion at the newest root.
+        let newest_root = tree.insert(&key(0x10), &value(1)).expect("re-insert");
+        let proof = tree.prove_inclusion(&key(0x10)).expect("proof");
+        assert!(verify_inclusion(&newest_root, &value(1), &proof));
+        assert_eq!(tree.root(), Some(newest_root));
+    }
+
+    #[test]
+    fn batch_removal_absence_court() {
+        let mut tree = StateTree::new();
+        tree.insert(&key(0x0F), &value(1)).expect("insert");
+        tree.insert(&key(0xF0), &value(2)).expect("insert");
+        tree.insert(&key(0x33), &value(3)).expect("insert");
+        let pre_root = tree.root().expect("pre-removal root");
+
+        let removed = [key(0x0F), key(0xF0)];
+        let final_root = tree.remove_batch(&removed).expect("remove_batch");
+        assert_eq!(final_root, tree.root());
+        assert_eq!(tree.len(), 1);
+
+        let mut witnesses = Vec::new();
+        for k in &removed {
+            let w = tree.prove_absence(k).expect("absence witness");
+            assert!(
+                !verify_absence(
+                    &pre_root,
+                    &tree.get(&w.neighbor_key).expect("get").expect("present"),
+                    &w
+                ),
+                "witness must be refused against the pre-removal root"
+            );
+            witnesses.push(w);
+        }
+        let post_root = tree.root().expect("post-removal root");
+        for w in &witnesses {
+            let nv = tree.get(&w.neighbor_key).expect("get").expect("present");
+            assert!(verify_absence(&post_root, &nv, w));
+        }
+
+        // The surviving key still proves inclusion at the newest root.
+        let survivor_proof = tree.prove_inclusion(&key(0x33)).expect("proof");
+        assert!(verify_inclusion(&post_root, &value(3), &survivor_proof));
+
+        // Vacuity: a wrong-path retirement (key 0x33 removed from the shadow
+        // index but not the tree) must flip this court — absence for 0x33
+        // would then be provable against a tree that still commits it.
+        assert_eq!(tree.prove_absence(&key(0x33)), Err(SmtError::NoProof));
+    }
+
+    // ---- Cycle-4 falsifier courts ----
+
+    // Falsifier for the absence-witness key-binding defect: the embedded
+    // neighbor_proof may route a DIFFERENT key than witness.neighbor_key,
+    // because verify_inclusion never reads `proof.key`. Attack: neighbor_key
+    // shares the claimed prefix with queried_key (prefix law holds), but the
+    // embedded proof is a valid inclusion proof for an unrelated key under
+    // the same root. If verify_absence admits this, a revocation fence could
+    // be bypassed with a proof from an unrelated subtree.
+    #[test]
+    fn absence_witness_refuses_neighbor_proof_key_mismatch() {
+        let mut tree = StateTree::new();
+        // Neighbor candidate: shares long prefix with the queried key.
+        tree.insert(&key(0x40), &value(1)).expect("insert");
+        // Unrelated key in a far subtree, under the same root.
+        tree.insert(&key(0xB0), &value(2)).expect("insert");
+        let root = tree.root().expect("root");
+
+        let queried = key(0x41); // 0b0100_0001, shares 7-bit prefix with 0x40
+        let witness = tree.prove_absence(&queried).expect("absence witness");
+        assert_eq!(witness.neighbor_key, key(0x40));
+        assert!(
+            verify_absence(&root, &value(1), &witness),
+            "honest witness must verify"
+        );
+
+        // Forge: swap in a valid inclusion proof for the unrelated key.
+        let forged = AbsenceWitness {
+            neighbor_proof: tree.prove_inclusion(&key(0xB0)).expect("unrelated proof"),
+            ..witness
+        };
+        // The attacker also supplies the matching leaf value — the verifier
+        // takes neighbor_value from the prover, so a coherent (proof, value)
+        // pair from an unrelated subtree is the real attack.
+        assert!(
+            !verify_absence(&root, &value(2), &forged),
+            "FLIP = defect CONFIRMED: proof routing an unrelated key admitted"
+        );
+    }
+
+    // Negative control for the forged-witness court: the honest witness built
+    // from prove_absence must still verify after the key-binding repair, and
+    // tampering the claimed prefix must still refuse.
+    #[test]
+    fn absence_witness_prefix_tamper_still_refused() {
+        let mut tree = StateTree::new();
+        tree.insert(&key(0x40), &value(1)).expect("insert");
+        tree.insert(&key(0xB0), &value(2)).expect("insert");
+        let root = tree.root().expect("root");
+        let mut w = tree.prove_absence(&key(0x41)).expect("witness");
+        assert!(verify_absence(&root, &value(1), &w));
+        w.claimed_prefix_bits += 1;
+        assert!(
+            !verify_absence(&root, &value(1), &w),
+            "prefix lie must refuse"
+        );
+        w.claimed_prefix_bits -= 1;
+        w.neighbor_key = key(0xB0);
+        assert!(
+            !verify_absence(&root, &value(1), &w),
+            "neighbor-key lie must refuse"
+        );
+    }
+
+    // Vacuity court: an InclusionProof with zero steps folds to the bare
+    // leaf hash under monotree's verify_proof; against a multi-entry root
+    // it must refuse, or any value could be 'proven' present.
+    #[test]
+    fn empty_step_proof_refused_against_multi_entry_root() {
+        let mut tree = StateTree::new();
+        tree.insert(&key(0x01), &value(1)).expect("insert");
+        tree.insert(&key(0x02), &value(2)).expect("insert");
+        let root = tree.root().expect("root");
+        let empty = InclusionProof {
+            key: key(0x01),
+            steps: vec![],
+        };
+        assert!(
+            !verify_inclusion(&root, &value(1), &empty),
+            "FLIP = vacuity defect: empty proof admitted against multi-entry root"
+        );
+        // Same refusal at a single-entry root: monotree's root is never the
+        // bare leaf hash, so zero steps are never sufficient. Pinned here so
+        // a monotree upgrade that changes this flips loudly.
+        let mut single = StateTree::new();
+        single.insert(&key(0x01), &value(1)).expect("insert");
+        let sroot = single.root().expect("root");
+        let empty_single = InclusionProof {
+            key: key(0x01),
+            steps: vec![],
+        };
+        assert!(
+            !verify_inclusion(&sroot, &value(1), &empty_single),
+            "monotree single-entry root semantics changed: empty proof admitted"
+        );
+    }
+
+    // ---- Cycle-5 batch courts (register row 101) ----
+
+    // Canonical root law: a K-key batch insert yields a byte-identical root
+    // to K sequential inserts of the same pairs.
+    #[test]
+    fn batch_insert_root_matches_sequential() {
+        let pairs: Vec<(StateKey, StateValue)> = (0u8..64)
+            .map(|i| (key(i.wrapping_mul(37)), value(i)))
+            .collect();
+        let (keys, values): (Vec<_>, Vec<_>) = pairs.into_iter().unzip();
+
+        let mut batched = StateTree::new();
+        let batch_root = batched
+            .insert_batch(&keys, &values)
+            .expect("batch insert")
+            .expect("non-empty root");
+
+        // monotree roots are insertion-ORDER dependent (path-compressed tree,
+        // witnessed below): the canonical sequential reference is ascending
+        // key order, which is exactly what monotree's sorted-index batch
+        // fold uses. The batch is byte-identical to that canonical sequence.
+        let mut seq_sorted: Vec<usize> = (0..keys.len()).collect();
+        seq_sorted.sort_by(|a, b| keys[*a].cmp(&keys[*b]));
+        let mut seq = StateTree::new();
+        for i in seq_sorted {
+            seq.insert(&keys[i], &values[i]).expect("sequential insert");
+        }
+        assert_eq!(
+            Some(batch_root),
+            seq.root(),
+            "FLIP = batch root diverges from sorted sequential inserts (canonical root law broken)"
+        );
+        // And the order-dependence itself is witnessed (this is a monotree
+        // property the batch API absorbs): unsorted sequential insertion can
+        // give a different root. Pinned so a monotree upgrade that makes the
+        // tree order-canonical flips this loudly.
+        let mut seq_unsorted = StateTree::new();
+        for (k, v) in keys.iter().zip(values.iter()) {
+            seq_unsorted
+                .insert(k, v)
+                .expect("unsorted sequential insert");
+        }
+        let order_dependence_witnessed = seq_unsorted.root() != seq.root();
+        assert!(
+            order_dependence_witnessed,
+            "monotree order-sensitivity premise changed: unsorted sequential now canonical too"
+        );
+        assert_eq!(batched.len(), 64);
+    }
+
+    // Root permutation invariance: a batch and its shuffles yield a
+    // byte-identical root. Keys are stride-37 so insertion order in the
+    // sorted-index path is a genuine permutation of the input order.
+    #[test]
+    fn batch_insert_permutation_invariance() {
+        let pairs: Vec<(StateKey, StateValue)> = (0u8..32)
+            .map(|i| (key(i.wrapping_mul(11).wrapping_add(5)), value(i)))
+            .collect();
+        let (keys, values): (Vec<_>, Vec<_>) = pairs.into_iter().unzip();
+
+        let mut base = StateTree::new();
+        let base_root = base
+            .insert_batch(&keys, &values)
+            .expect("batch insert")
+            .expect("root");
+
+        // Deterministic shuffles (no external rng dep): rotations and a
+        // stride-reversed walk.
+        for rot in 1usize..4 {
+            let (mut ks, mut vs) = (keys.clone(), values.clone());
+            let shift = rot * 7 % ks.len();
+            ks.rotate_left(shift);
+            vs.rotate_left(shift);
+            let mut t = StateTree::new();
+            let r = t
+                .insert_batch(&ks, &vs)
+                .expect("shuffled batch insert")
+                .expect("root");
+            assert_eq!(r, base_root, "shuffle (rotation {rot}) changed the root");
+        }
+        let mut rev_k = keys.clone();
+        rev_k.reverse();
+        let mut rev_v = values.clone();
+        rev_v.reverse();
+        let mut t = StateTree::new();
+        assert_eq!(
+            t.insert_batch(&rev_k, &rev_v)
+                .expect("reversed batch")
+                .expect("root"),
+            base_root,
+            "reversed order changed the root"
+        );
+    }
+
+    // Duplicate key with two divergent values in one batch: typed refusal
+    // (not last-win), and the tree state is untouched (fail-before-fold).
+    #[test]
+    fn batch_duplicate_divergent_value_typed_refusal() {
+        let mut tree = StateTree::new();
+        tree.insert(&key(0xAA), &value(1)).expect("seed insert");
+        let before_root = tree.root();
+
+        let keys = vec![key(0x01), key(0x02), key(0x01), key(0x03)];
+        let mut values = vec![value(10), value(20), value(11), value(30)];
+        let err = tree
+            .insert_batch(&keys, &values)
+            .expect_err("divergent duplicate must refuse");
+        assert_eq!(
+            err,
+            SmtError::DuplicateKeyDivergentValue {
+                key: hex_short(&key(0x01))
+            },
+            "refusal must be typed as DuplicateKeyDivergentValue"
+        );
+        assert_eq!(
+            tree.root(),
+            before_root,
+            "refused batch must not move the root"
+        );
+        assert_eq!(
+            tree.len(),
+            1,
+            "refused batch must not touch the shadow index"
+        );
+
+        // Negative control (vacuity): the same duplicate key with the SAME
+        // value must be ADMITTED — proving the refusal fires on divergence,
+        // not on duplication alone.
+        values[2] = value(10);
+        let root = tree
+            .insert_batch(&keys, &values)
+            .expect("agreeing duplicate batch must admit");
+        assert!(root.is_some());
+        let got = tree.get(&key(0x01)).expect("get").expect("committed");
+        assert_eq!(got, value(10));
+        assert_eq!(tree.len(), 4);
+    }
+
+    // Length mismatch: typed refusal before any tree fold.
+    #[test]
+    fn batch_length_mismatch_refused() {
+        let mut tree = StateTree::new();
+        let keys = vec![key(1), key(2)];
+        let values = vec![value(1)];
+        assert_eq!(
+            tree.insert_batch(&keys, &values),
+            Err(SmtError::BatchLengthMismatch { keys: 2, values: 1 })
+        );
+        assert_eq!(tree.root(), None);
+    }
+
+    // Empty batch is a no-op returning the current root; batch-remove then
+    // batch-insert over disjoint keys keeps the batch root equal to the
+    // mixed sequential root.
+    #[test]
+    fn batch_empty_noop_and_mixed_sequence_root_law() {
+        let mut tree = StateTree::new();
+        assert_eq!(tree.insert_batch(&[], &[]).expect("empty batch"), None);
+
+        let pairs: Vec<(StateKey, StateValue)> =
+            (0u8..8).map(|i| (key(i * 30), value(i))).collect();
+        let (keys, values): (Vec<_>, Vec<_>) = pairs.into_iter().unzip();
+
+        let mut mixed_batch = StateTree::new();
+        mixed_batch
+            .insert_batch(&keys[..4], &values[..4])
+            .expect("b1");
+        mixed_batch
+            .insert_batch(&keys[4..], &values[4..])
+            .expect("b2");
+        mixed_batch.remove_batch(&keys[..2]).expect("remove batch");
+
+        let mut mixed_seq = StateTree::new();
+        let mut order: Vec<usize> = (0..keys.len()).collect();
+        order.sort_by(|a, b| keys[*a].cmp(&keys[*b]));
+        for i in order {
+            mixed_seq.insert(&keys[i], &values[i]).expect("seq insert");
+        }
+        let mut removed: Vec<StateKey> = keys[..2].to_vec();
+        removed.sort_unstable();
+        for k in removed {
+            mixed_seq.remove(&k).expect("seq remove");
+        }
+        assert_eq!(
+            mixed_batch.root(),
+            mixed_seq.root(),
+            "FLIP = batched and sequential mixed op sequences diverge"
+        );
+
+        // get_batch is position-aligned and agrees with get.
+        let fetched = mixed_batch.get_batch(&keys).expect("get_batch");
+        for (i, slot) in fetched.iter().enumerate() {
+            let expect = if i < 2 { None } else { Some(values[i]) };
+            assert_eq!(*slot, expect);
+            assert_eq!(
+                mixed_batch.get(&keys[i]).expect("get"),
+                fetched[i],
+                "get_batch disagrees with get at index {i}"
+            );
+        }
     }
 
     #[test]

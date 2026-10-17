@@ -2,7 +2,7 @@ cargo-features = ["trim-paths"]
 
 [package]
 name = "affidavit-wasm"
-version = "26.10.6"
+version = "26.10.17"
 edition = "2021"
 rust-version = "1.78"
 description = "affidavit as a WebAssembly module: verify, assemble and mine receipt chains through a JSON-over-linear-memory ABI, byte-compatible with `affi`"
@@ -48,6 +48,11 @@ clear_on_drop = { version = "0.2", features = ["no_cc"] }
 wasmi = "1"
 wasmi_wasi = "1"
 sha2 = "0.10"
+# Real FIPS 204 key generation/signing for the PQC ABI courts (host-side).
+ml-dsa = { version = "0.1.1", default-features = false }
+# Real FIPS 205 (SLH-DSA-SHA2-128s) key generation/signing for the PQC ABI
+# courts; same pin as affidavit-core.
+slh-dsa = "0.2.0-rc.5"
 
 [profile.wasm]
 inherits = "release"

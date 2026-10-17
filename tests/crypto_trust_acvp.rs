@@ -113,7 +113,7 @@ fn acvp_ml_dsa_65_keygen_seed_to_pk_exact() {
             .try_into()
             .expect("seed is 32 bytes");
         let pk = hex_decode(v["pk"].as_str().expect("pk"), "pk");
-        let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
+        let kp = ml_dsa65_from_seed(&seed);
         assert_eq!(
             kp.public, pk,
             "ACVP ML-DSA-65 keyGen tcId {tc_id}: seed -> pk must match NIST byte-for-byte"
@@ -189,7 +189,7 @@ fn acvp_slh_dsa_128s_keygen_seeds_to_pk_exact() {
             .try_into()
             .expect("seeds are 48 bytes");
         let pk = hex_decode(v["pk"].as_str().expect("pk"), "pk");
-        let kp = slh_dsa128s_from_seed(&seeds).expect("pqc fixture key pair");
+        let kp = slh_dsa128s_from_seed(&seeds);
         assert_eq!(
             kp.public, pk,
             "ACVP SLH-DSA-SHA2-128s keyGen tcId {tc_id}: seeds -> pk must match NIST"
@@ -220,7 +220,7 @@ fn acvp_slh_dsa_128s_sign_exact_match() {
             "ACVP SLH-DSA-SHA2-128s sigGen tcId {tc_id}: plane signature must equal NIST's"
         );
         // And the verification direction holds under OUR verifier as well.
-        let pk = slh_dsa128s_from_seed(&seeds).expect("pqc fixture key pair").public;
+        let pk = slh_dsa128s_from_seed(&seeds).public;
         assert!(
             slh_dsa128s_verify(&pk, &msg, &nist_sig).expect("verify NIST signature"),
             "NIST signature must verify under the plane verifier"
@@ -262,7 +262,7 @@ fn acvp_fixture_corruption_breaks_keygen_kat_in_temp_copy() {
         "corruption must actually change the expected key"
     );
     assert_ne!(
-        ml_dsa65_from_seed(&seed).expect("pqc fixture key pair").public,
+        ml_dsa65_from_seed(&seed).public,
         bad_pk,
         "corrupted fixture vector must FAIL the KAT: the comparator has teeth"
     );
@@ -319,7 +319,7 @@ fn acvp_committed_fixtures_are_uncorrupted() {
             .expect("32-byte seed");
         let pk = hex_decode(v["pk"].as_str().expect("pk"), "pk");
         assert_eq!(
-            ml_dsa65_from_seed(&seed).expect("pqc fixture key pair").public,
+            ml_dsa65_from_seed(&seed).public,
             pk,
             "committed keyGen fixture must remain exact"
         );

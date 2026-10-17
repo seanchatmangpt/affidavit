@@ -318,15 +318,6 @@ mod tests {
     }
 
     /// A fresh, in-window envelope naming `kid`.
-    /// The domain-separated digest of a subject string — the exact law
-    /// `certify_signed` enforces against `env.subject_digest`.
-    fn subject_bound(subject: &str) -> [u8; 32] {
-        crate::crypto_trust_canonical::digest(
-            crate::crypto_trust_verify::DOMAIN_TAG,
-            &[subject.as_bytes()],
-        )
-    }
-
     fn envelope(kid: &KeyId, nonce: [u8; 16]) -> SignatureEnvelope {
         SignatureEnvelope {
             version: ENVELOPE_VERSION.to_string(),
@@ -339,8 +330,13 @@ mod tests {
             nonce,
             not_before: NOW - 1_000,
             expires_at: NOW + 1_000,
-            subject_digest: subject_bound("subject-a"),
-            audience: "affidavit.seal".to_string(),
+            // bind the literal subject the certify_signed calls use
+            // (domain_digest(DOMAIN_TAG, b"subject-a")) so the court passes.
+            subject_digest: crate::crypto_trust_canonical::digest(
+                crate::crypto_trust_canonical::DOMAIN_TAG,
+                &[b"subject-a"],
+            ),
+            audience: "affidavit.seal".to_string(), // policy allowlist (see certify_signed)
         }
     }
 

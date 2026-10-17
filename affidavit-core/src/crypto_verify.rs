@@ -2,11 +2,12 @@
 //! the twelve-field envelope document model, byte-level JSON decode, the
 //! JCS-subset canonical bytes, and the domain-separated signing pre-image.
 //!
-//! This is a zero-dependency, `no_std` port of the rendered plane's
+//! This is a `no_std` port of the rendered plane's
 //! `crypto_trust_envelope` + `crypto_trust_canonical` law (RFC-SA2A-007-errata
 //! E-E) over this crate's own discipline. What it deliberately does **not**
-//! contain: any EC or ML-DSA arithmetic. `affidavit-core` has no dependencies
-//! at all, so the signature *verifier* stays external — a consumer decodes an
+//! contain: any EC or ML-DSA arithmetic. This module adds no dependencies of
+//! its own — the crate's algorithms are external (`ml-dsa`, `slh-dsa`,
+//! `ml-kem`, `blake3`) — so the signature *verifier* stays external; a consumer decodes an
 //! envelope here, recomputes the exact bytes that must be signed, and hands
 //! those bytes (plus the signature) to its own verifier. The law this module
 //! guarantees is *which bytes are bound*, not whether a signature over them is
@@ -1780,6 +1781,115 @@ mod tests {
             EnvelopeRef::from_json(doc.as_bytes()),
             Err(EnvelopeError::Malformed(_))
         ));
+    }
+
+    #[test]
+    fn truncated_and_empty_documents_are_refused() {
+        for bad in [
+            &b""[..],                       // empty input
+            b"{",                           // unclosed object
+            b"{\"version\"",                // truncated before the colon
+            b"{\"version\":" as &[u8],      // truncated before the value
+            b"{\"version\":\"CTP-ENVELOPE", // truncated inside a string value
+            b"{\"nonce\":[1,2",             // truncated inside a byte array
+        ] {
+            assert!(
+                matches!(
+                    EnvelopeRef::from_json(bad),
+                    Err(EnvelopeError::Malformed(_))
+                ),
+                "borrowed decoder admitted truncated/empty input {bad:?}"
+            );
+            assert!(
+                matches!(
+                    SignatureEnvelope::from_json(bad),
+                    Err(EnvelopeError::Malformed(_) | EnvelopeError::WrongVersion)
+                ),
+                "owned decoder admitted truncated/empty input {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn raw_control_bytes_in_string_fields_are_refused() {
+        // 0x01 inside a string field: JSON's grammar refuses raw C0 controls.
+        let doc = V0_CANONICAL.replacen(
+            "\"audience\":\"affidavit.kat\"",
+            "\"audience\":\"affi\x01davit.kat\"",
+            1,
+        );
+        assert_ne!(doc, V0_CANONICAL, "mutation must have applied");
+        for err in [
+            EnvelopeRef::from_json(doc.as_bytes()).err(),
+            SignatureEnvelope::from_json(doc.as_bytes()).err(),
+        ] {
+            match err {
+                Some(EnvelopeError::Malformed(_)) => {}
+                other => panic!("expected Malformed for a raw control byte, got {other:?}"),
+            }
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn owned_decoder_refuses_malformed_escapes() {
+        let escape = |esc: &str| -> String {
+            V0_CANONICAL.replacen(
+                "\"audience\":\"affidavit.kat\"",
+                &format!("\"audience\":\"affi{esc}davit.kat\""),
+                1,
+            )
+        };
+        // Backs the SignatureEnvelope::from_json doc: bad \u hex, lone
+        // surrogates, and unknown designators are typed Malformed refusals.
+        for bad in [
+            escape("\\uZZZZ"),        // bad hex
+            escape("\\uD800"),        // lone high surrogate (no continuation)
+            escape("\\uD800x"),       // high surrogate not followed by an escape
+            escape("\\uD800\\u0041"), // high surrogate followed by a non-surrogate
+            escape("\\uDC00"),        // lone low surrogate
+            escape("\\q"),            // unknown escape designator
+        ] {
+            match SignatureEnvelope::from_json(bad.as_bytes()) {
+                Err(EnvelopeError::Malformed(_)) => {}
+                other => panic!("expected Malformed for {bad:?}, got {other:?}"),
+            }
+        }
+        // The happy path the refusals bracket: a real surrogate pair decodes.
+        let ok = escape("\\uD83D\\uDE00"); // U+1F600
+        let env = SignatureEnvelope::from_json(ok.as_bytes()).expect("surrogate pair decodes");
+        assert_eq!(env.audience, "affi\u{1F600}davit.kat");
+    }
+
+    #[test]
+    fn document_literal_beyond_2pow53_decodes_then_write_refuses() {
+        // scan_u64 admits any u64-shaped literal; the 2^53 law is enforced at
+        // canonicalization (check_canonical). Pin both halves of that split.
+        let doc = with_field_value(V0_CANONICAL, "policy_epoch", "9007199254740993");
+        let env =
+            EnvelopeRef::from_json(doc.as_bytes()).expect("the decoder admits u64-shaped literals");
+        assert_eq!(env.policy_epoch, 9_007_199_254_740_993);
+        match env.write_canonical(&mut [0u8; 2048]) {
+            Err(EnvelopeError::NonCanonicalNumber("policy_epoch")) => {}
+            other => panic!("expected NonCanonicalNumber at write time, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn owned_envelope_from_borrowed_view_preserves_every_field() {
+        let borrowed = EnvelopeRef::from_json(V0_CANONICAL.as_bytes()).expect("decodes");
+        let owned = SignatureEnvelope::from(borrowed);
+        assert_eq!(
+            owned,
+            SignatureEnvelope::from_json(V0_CANONICAL.as_bytes()).expect("decodes")
+        );
+        assert_eq!(owned.borrow(), borrowed);
+        assert_eq!(owned.signing_input().expect("canonicalizes"), {
+            let mut buf = [0u8; 2048];
+            let n = borrowed.write_signing_input(&mut buf).expect("fits");
+            buf[..n].to_vec()
+        });
     }
 
     #[test]

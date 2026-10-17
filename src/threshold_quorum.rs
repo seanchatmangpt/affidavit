@@ -42,6 +42,12 @@ pub enum QuorumError {
         /// Shares actually supplied.
         got: usize,
     },
+    /// A round-1 nonce draw was consumed more than once. Two Schnorr
+    /// responses under the same nonce algebraically reveal the participant's
+    /// secret share, so reuse is refused at the type level, not by caller
+    /// discipline.
+    #[error("round-1 nonce reuse refused: nonces are single-use")]
+    NonceReuse,
 }
 
 /// The group public key, serialized (32 bytes, Ed25519).
@@ -176,6 +182,58 @@ pub fn round2_sign(
         .map_err(|e| QuorumError::Protocol(e.to_string()))
 }
 
+/// A single-use wrapper over round-1 [`SigningNonces`].
+///
+/// Consumed exactly once by [`round2_sign_once`]; any second consumption —
+/// including over a different message/package — is a typed
+/// [`QuorumError::NonceReuse`] refusal. This closes the FROST row-81
+/// key-extraction class at the type level instead of relying on caller
+/// discipline.
+#[derive(Debug)]
+pub struct SingleUseNonces {
+    inner: std::cell::RefCell<Option<SigningNonces>>,
+}
+
+impl SingleUseNonces {
+    /// Wrap a fresh round-1 nonce draw.
+    pub fn new(nonces: SigningNonces) -> Self {
+        Self {
+            inner: std::cell::RefCell::new(Some(nonces)),
+        }
+    }
+
+    /// Take the inner nonces if not yet consumed; `None` on reuse.
+    fn take(&self) -> Option<SigningNonces> {
+        self.inner.borrow_mut().take()
+    }
+}
+
+impl From<SigningNonces> for SingleUseNonces {
+    fn from(nonces: SigningNonces) -> Self {
+        Self::new(nonces)
+    }
+}
+
+/// Round 2, consuming variant: produce this participant's signature share
+/// over the package, consuming the single-use nonces.
+///
+/// A second call on the same [`SingleUseNonces`] — even over a different
+/// package — returns [`QuorumError::NonceReuse`] and never reaches the
+/// Schnorr response computation, so a reused-nonce transcript cannot exist.
+///
+/// # Errors
+///
+/// [`QuorumError::NonceReuse`] on nonce reuse; see [`QuorumError::Protocol`]
+/// otherwise.
+pub fn round2_sign_once(
+    secret_share: &SecretShare,
+    nonces: &SingleUseNonces,
+    package: &SigningPackage,
+) -> Result<frost::round2::SignatureShare, QuorumError> {
+    let inner = nonces.take().ok_or(QuorumError::NonceReuse)?;
+    round2_sign(secret_share, &inner, package)
+}
+
 /// Aggregate signature shares into the single group signature (64 bytes).
 ///
 /// # Errors
@@ -306,5 +364,51 @@ mod tests {
     #[test]
     fn zero_participant_index_is_refused() {
         assert!(ParticipantId(0).to_frost().is_err());
+    }
+
+    #[test]
+    fn single_use_nonces_are_consumed_by_round2_sign_once() {
+        let quorum = generate_quorum(2, 2, &mut OsRng).expect("dealer");
+        let chosen: Vec<ParticipantId> = quorum.shares.keys().copied().collect();
+        let mut nonces = Vec::new();
+        let mut commitments = Vec::new();
+        for p in &chosen {
+            let (n, c) = round1_commit(&quorum.shares[p], &mut OsRng).expect("round1");
+            nonces.push(SingleUseNonces::new(n));
+            commitments.push((*p, c));
+        }
+        let package = signing_package(&commitments, b"once", quorum.threshold).expect("package");
+        for (i, p) in chosen.iter().enumerate() {
+            assert!(round2_sign_once(&quorum.shares[p], &nonces[i], &package).is_ok());
+        }
+    }
+
+    #[test]
+    fn nonce_reuse_across_two_packages_is_typed_refusal() {
+        let quorum = generate_quorum(2, 2, &mut OsRng).expect("dealer");
+        let chosen: Vec<ParticipantId> = quorum.shares.keys().copied().collect();
+        // ONE round-1 draw per participant.
+        let mut singles = Vec::new();
+        let mut commitments = Vec::new();
+        for p in &chosen {
+            let (n, c) = round1_commit(&quorum.shares[p], &mut OsRng).expect("round1");
+            singles.push(SingleUseNonces::from(n));
+            commitments.push((*p, c));
+        }
+        // TWO packages, same commitments, DIFFERENT messages.
+        let pkg_a = signing_package(&commitments, b"tx-A", quorum.threshold).expect("pkgA");
+        let pkg_b = signing_package(&commitments, b"tx-B", quorum.threshold).expect("pkgB");
+        // First consumption signs package A.
+        for (i, p) in chosen.iter().enumerate() {
+            assert!(round2_sign_once(&quorum.shares[p], &singles[i], &pkg_a).is_ok());
+        }
+        // The SAME draws, second consumption over a DIFFERENT message: typed
+        // refusal, never a second Schnorr response (row 81 class).
+        for (i, p) in chosen.iter().enumerate() {
+            assert_eq!(
+                round2_sign_once(&quorum.shares[p], &singles[i], &pkg_b),
+                Err(QuorumError::NonceReuse)
+            );
+        }
     }
 }

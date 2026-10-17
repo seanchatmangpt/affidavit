@@ -36,13 +36,26 @@ fn version_requested(args: &[String]) -> bool {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn main() -> clap_noun_verb::Result<()> {
+fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if version_requested(&args) {
         println!("affi {}", env!("CARGO_PKG_VERSION"));
-        return Ok(());
+        return;
     }
-    affidavit::run()
+    if let Err(err) = affidavit::run() {
+        // Framework surface errors (CommandNotFound / VerbNotFound /
+        // ArgumentError / ...) must exit with a stable code from the
+        // 1500-1599 CLI catalog in `src/diag.rs`, never a bare 1. The
+        // framework's Levenshtein "Did you mean" suggestion becomes the
+        // diagnostic hint.
+        let diag = affidavit::diag::Diag::from_noun_verb_error(&err);
+        let code = diag.code as i32;
+        eprintln!(
+            "{}",
+            serde_json::to_string(&diag).unwrap_or_else(|_| diag.message.clone())
+        );
+        std::process::exit(code);
+    }
 }
 
 /// wasm32 has no host CLI surface; the library is the product there.

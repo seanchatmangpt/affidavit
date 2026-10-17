@@ -1,0 +1,83 @@
+@prefix sj: <https://ggen-igniter.dev/ontology/semantic-jira#> .
+@prefix wo: <https://ggen-igniter.dev/sjira/affidavit/v26.10.17#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# v26.10.17 release work order for seanchatmangpt/affidavit.
+# Admission shape: ggen_igniter priv/ggen/semantic-jira-pack/shapes/work-order.shacl.ttl
+# (sj:WorkOrderShape, closed; origin law per sj:WorkOrderOriginShape;
+# admission witnesses per sj:AdmissionDigestShape).
+# Base SHA 568beb9416dc58672704f20f730c9abb7396f522 resolved via
+# `git rev-parse 568beb9^{commit}` (2026-10-17).
+# Origin witness digest = sha256 over the CHANGELOG.md [26.10.17] section
+# bytes (lines 5..56, 4860 bytes):
+#   awk 'NR>5 && /^## \[/{exit} NR>=5' CHANGELOG.md | sha256sum
+
+wo:obj-261017 a sj:StrategicObjective ;
+    rdfs:label "v26.10.17 release: post-bump re-pin and receipt projection" ;
+    dcterms:description "Land the v26.10.17 release work order: re-pin the post-bump wasm registry artifacts, and project the release evidence receipts through the semantic-jira pack." ;
+    sj:admissionDigest "sha256:0edd926f02bd5b314eeae199658bfee4b47a261486951b3907002cda523436dc" .
+
+wo:act-sync-pin a sj:Action ;
+    rdfs:label "Refresh the pinned wasm artifact registry for 26.10.17" .
+
+wo:act-project-receipts a sj:Action ;
+    rdfs:label "Project the release evidence receipts into docs/sjira/v26.10.17" .
+
+wo:cp-261017 a sj:Checkpoint ;
+    rdfs:label "v26.10.17 release gate: registry pins byte-verified, receipts projected" .
+
+wo:court-validate a sj:Court ;
+    rdfs:label "just validate (errc-court, fmt-check, build, test, doctest, clippy, completions)" .
+
+wo:court-wasm-pin a sj:Court ;
+    rdfs:label "AFFIDAVIT_WASM registry_artifact pin court (two-target-dir byte-identity, REFUSED_PIN_DRIFT on drift)" .
+
+wo:court-shacl a sj:Court ;
+    rdfs:label "SHACL admission court: mix ggen_igniter.shacl --data work-order.ttl --shapes work-order.shacl.ttl" .
+
+wo:ev-shacl-receipt a sj:EvidenceRequirement ;
+    rdfs:label "SHACL court receipt embedding real command output (command, exit code, violation count)" .
+
+wo:ev-pin-receipt a sj:EvidenceRequirement ;
+    rdfs:label "Artifact pin receipt: ARTIFACTS.sha256 entries match the byte-identical two-target-dir builds" .
+
+wo:ev-validate-receipt a sj:EvidenceRequirement ;
+    rdfs:label "just validate receipt: 835+ tests + doctests green at base 568beb9" .
+
+wo:acc-pin-match a sj:AcceptanceCriterion ;
+    rdfs:label "Every wasm artifact digest in affidavit-wasm/registry/ARTIFACTS.sha256 matches a rebuilt byte-identical artifact" .
+
+wo:acc-receipts-present a sj:AcceptanceCriterion ;
+    rdfs:label "docs/sjira/v26.10.17/evidence-receipts.md exists and every receipt embeds real command output" .
+
+wo:fals-pin-drift a sj:Falsifier ;
+    rdfs:label "A registry pin does not match the rebuilt artifact and the pin court still exits 0" .
+
+wo:fals-vacuous-receipt a sj:Falsifier ;
+    rdfs:label "A projected receipt carries no embedded command output and no court refuses it" .
+
+wo:WO-261017-01 a sj:WorkOrder ;
+    dcterms:identifier "AFFI-261017-01" ;
+    dcterms:title "v26.10.17 release: post-bump wasm re-pin + receipt projection" ;
+    dcterms:description "Release order for affidavit v26.10.17: refresh the pinned WASM artifact registry after the version bump, and project the release evidence receipts under docs/sjira/v26.10.17. Docs+receipt projection only; no actuation. Origin witnessed by the sha256 of the CHANGELOG [26.10.17] section bytes." ;
+    sj:repository "seanchatmangpt/affidavit" ;
+    sj:baseSha "568beb9416dc58672704f20f730c9abb7396f522" ;
+    sj:observedAt "2026-10-17" ;
+    sj:subject "affidavit:v26.10.17:release-work-order" ;
+    sj:standing "PARTIAL_ALIVE" ;
+    sj:evidenceCeiling "EXECUTED_VERIFIED" ;
+    sj:authorityCeiling "SELECT" ;
+    sj:promotionRule "Standing advances to ALIVE only on a verification receipt from a lane that did not write the code under test, at the exact subject SHA, with the wasm pin court and just validate green." ;
+    sj:replayIdentity "semantic-jira:affidavit:v26.10.17:AFFI-261017-01" ;
+    sj:pathScope "docs/sjira/v26.10.17/**" ;
+    sj:authorityRequirement "NONE" ;
+    sj:requiresCourt wo:court-validate, wo:court-wasm-pin, wo:court-shacl ;
+    sj:requiresEvidence wo:ev-shacl-receipt, wo:ev-pin-receipt, wo:ev-validate-receipt ;
+    sj:requiresReceiptClass "projection" ;
+    sj:acceptance wo:acc-pin-match, wo:acc-receipts-present ;
+    sj:falsifier wo:fals-pin-drift, wo:fals-vacuous-receipt ;
+    sj:projection sj:markdown-projection ;
+    sj:nextAction wo:act-sync-pin, wo:act-project-receipts ;
+    sj:nextCheckpoint wo:cp-261017 ;
+    sj:originAuthority wo:obj-261017 .

@@ -227,7 +227,11 @@ impl CtrtReceipt {
         // Body checks
         let body = &bytes[HEADER_LEN..COURT_RECEIPT_V1_LEN];
         if body[..BODY_PREFIX_LEN].iter().any(|&b| b != 0) {
-            let offset = HEADER_LEN + body[..BODY_PREFIX_LEN].iter().position(|&b| b != 0).unwrap();
+            let offset = HEADER_LEN
+                + body[..BODY_PREFIX_LEN]
+                    .iter()
+                    .position(|&b| b != 0)
+                    .unwrap();
             return Err(TrajectoryFoldError::ReservedNonzero {
                 offset,
                 value: body[offset - HEADER_LEN] as u64,
@@ -242,7 +246,10 @@ impl CtrtReceipt {
         }
 
         // Zero trailer check in name region (NAME_MAX..NAME_LEN)
-        if body[B_NAME + NAME_MAX..B_NAME + NAME_LEN].iter().any(|&b| b != 0) {
+        if body[B_NAME + NAME_MAX..B_NAME + NAME_LEN]
+            .iter()
+            .any(|&b| b != 0)
+        {
             return Err(TrajectoryFoldError::ZeroTrailerViolation);
         }
 
@@ -252,9 +259,11 @@ impl CtrtReceipt {
         let mut parent_receipt_hash = [0u8; 32];
         parent_receipt_hash.copy_from_slice(&body[B_PARENT..B_PARENT + 32]);
 
-        let timestamp_ms = u64::from_le_bytes(body[B_TIMESTAMP..B_TIMESTAMP + 8].try_into().unwrap());
+        let timestamp_ms =
+            u64::from_le_bytes(body[B_TIMESTAMP..B_TIMESTAMP + 8].try_into().unwrap());
         let run_id = u64::from_le_bytes(body[B_RUN_ID..B_RUN_ID + 8].try_into().unwrap());
-        let total_ticks = u64::from_le_bytes(body[B_TOTAL_TICKS..B_TOTAL_TICKS + 8].try_into().unwrap());
+        let total_ticks =
+            u64::from_le_bytes(body[B_TOTAL_TICKS..B_TOTAL_TICKS + 8].try_into().unwrap());
         let wall_ms = u64::from_le_bytes(body[B_WALL_MS..B_WALL_MS + 8].try_into().unwrap());
         let thermal = body[B_THERMAL];
         let outcome = body[B_OUTCOME];
@@ -267,7 +276,12 @@ impl CtrtReceipt {
         let budget_met = match body[B_BUDGET] {
             0 => false,
             1 => true,
-            bad => return Err(TrajectoryFoldError::InvalidEnum { field: "budget_met", found: bad }),
+            bad => {
+                return Err(TrajectoryFoldError::InvalidEnum {
+                    field: "budget_met",
+                    found: bad,
+                })
+            }
         };
 
         let mut positive_control = [0u8; 32];
@@ -427,7 +441,8 @@ pub fn fold_receipts(a: &CtrtReceipt, b: &CtrtReceipt) -> Result<CtrtReceipt, Tr
         }
     }
 
-    let flags = if (a.flags & FLAG_POSITIVE_CONTROL != 0) || (b.flags & FLAG_POSITIVE_CONTROL != 0) {
+    let flags = if (a.flags & FLAG_POSITIVE_CONTROL != 0) || (b.flags & FLAG_POSITIVE_CONTROL != 0)
+    {
         FLAG_POSITIVE_CONTROL | FLAG_FAIL_CLOSED
     } else {
         FLAG_FAIL_CLOSED
@@ -506,7 +521,8 @@ mod tests {
             chain_hash: [0u8; 32],
         };
         let encoded = r.encode().expect("valid encode");
-        r.chain_hash.copy_from_slice(&encoded[COURT_RECEIPT_V1_LEN..]);
+        r.chain_hash
+            .copy_from_slice(&encoded[COURT_RECEIPT_V1_LEN..]);
         r
     }
 
@@ -592,7 +608,8 @@ mod tests {
     fn with_outcome(mut r: CtrtReceipt, outcome: u8) -> CtrtReceipt {
         r.outcome = outcome;
         let encoded = r.encode().expect("valid encode");
-        r.chain_hash.copy_from_slice(&encoded[COURT_RECEIPT_V1_LEN..]);
+        r.chain_hash
+            .copy_from_slice(&encoded[COURT_RECEIPT_V1_LEN..]);
         r
     }
 
@@ -608,7 +625,10 @@ mod tests {
 
         // The same chain with only a Skip outcome folds to a DIFFERENT receipt.
         let skip_only_1 = with_outcome(create_test_receipt([0u8; 32], 12, 1, "fail_step"), 2);
-        let skip_only_2 = with_outcome(create_test_receipt(skip_only_1.chain_hash, 13, 1, "skip_step"), 2);
+        let skip_only_2 = with_outcome(
+            create_test_receipt(skip_only_1.chain_hash, 13, 1, "skip_step"),
+            2,
+        );
         let folded_skip_only = fold_receipts(&skip_only_1, &skip_only_2).expect("fold");
         assert_eq!(folded_skip_only.outcome, 2);
         assert_ne!(folded, folded_skip_only);

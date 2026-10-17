@@ -159,10 +159,10 @@ pub mod output;
 pub mod sj_record;
 pub mod standing;
 
-pub mod replay_nullifier;
-pub mod wire_ctrt;
 #[cfg(feature = "crypto-trust")]
 pub mod deontic;
+pub mod replay_nullifier;
+pub mod wire_ctrt;
 
 /// Native port of the excised `ctdd_ledger` CLI verbs (Phase D M2).
 #[cfg(feature = "ctdd")]
@@ -280,6 +280,11 @@ pub mod zero_copy;
 #[cfg(feature = "zk-range")]
 pub mod zk_range;
 
+// Lane-disclosed minimal unblock (register #39/#40 lane): src/mining.rs was
+// referenced by no module and never compiled; this wiring makes the mining
+// module (and its capability-register courts) reachable and testable.
+#[cfg(feature = "core")]
+pub mod mining;
 pub mod model_mining;
 pub mod registry;
 

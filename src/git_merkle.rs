@@ -95,7 +95,10 @@ impl GitTreeBuilder {
     }
 
     /// Build a Git tree from sorted entries and store it in the object database.
-    pub fn write_tree(&self, entries: Vec<gix_object::tree::Entry>) -> Result<ObjectId, GitMerkleError> {
+    pub fn write_tree(
+        &self,
+        entries: Vec<gix_object::tree::Entry>,
+    ) -> Result<ObjectId, GitMerkleError> {
         let mut sorted = entries;
         sorted.sort();
         let tree = Tree { entries: sorted };
@@ -113,9 +116,7 @@ impl GitTreeBuilder {
     pub fn write_dir_recursive(&self, dir: &Path) -> Result<ObjectId, GitMerkleError> {
         let mut entries = Vec::new();
 
-        let mut paths: Vec<_> = fs::read_dir(dir)?
-            .filter_map(|r| r.ok())
-            .collect();
+        let mut paths: Vec<_> = fs::read_dir(dir)?.filter_map(|r| r.ok()).collect();
         paths.sort_by_key(|e| e.file_name());
 
         for entry in paths {
@@ -350,7 +351,10 @@ impl GitDossierNotes {
             None => vec![],
         };
 
-        let message = format!("Notes added by strata-dossier for {}", target_commit_oid.to_hex());
+        let message = format!(
+            "Notes added by strata-dossier for {}",
+            target_commit_oid.to_hex()
+        );
         let notes_commit = self.builder.create_signed_commit(
             tree_oid,
             parents,
@@ -464,8 +468,8 @@ mod tests {
         fs::create_dir_all(&objects_dir).expect("create objects dir");
 
         let notes_manager = GitDossierNotes::new(dir.path());
-        let target_commit_oid = ObjectId::from_hex(b"0123456789abcdef0123456789abcdef01234567")
-            .expect("valid oid");
+        let target_commit_oid =
+            ObjectId::from_hex(b"0123456789abcdef0123456789abcdef01234567").expect("valid oid");
 
         let receipt = CtrtReceipt {
             flags: 2, // FLAG_FAIL_CLOSED

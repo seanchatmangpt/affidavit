@@ -23,10 +23,77 @@ use wasm4pm_compat::state::Admitted;
 /// let hash = Blake3Hash::from_bytes(b"hello world");
 /// assert_eq!(hash.as_hex().len(), 64);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Blake3Hash(pub String);
 
+/// Typed refusal classes for a non-canonical BLAKE3 hex commitment.
+///
+/// Named so courts and callers can match on the refusal class by kind, not by
+/// parsing an error string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Blake3HashError {
+    /// Contains characters outside [0-9a-f].
+    NotHex,
+    /// Hex length != 64 (a BLAKE3 digest is 32 bytes = 64 lowercase hex chars).
+    WrongLength(usize),
+    /// Contains uppercase hex digits — uppercase is refused as non-canonical.
+    UppercaseNonCanonical,
+}
+
+impl std::fmt::Display for Blake3HashError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Blake3HashError::NotHex => f.write_str("blake3 hex refused: not valid lowercase hex"),
+            Blake3HashError::WrongLength(n) => {
+                write!(f, "blake3 hex refused: wrong length {n} (expected 64)")
+            }
+            Blake3HashError::UppercaseNonCanonical => {
+                f.write_str("blake3 hex refused: uppercase is non-canonical")
+            }
+        }
+    }
+}
+
+impl std::error::Error for Blake3HashError {}
+
 impl Blake3Hash {
+    /// Validate a hex string as a canonical BLAKE3 digest (64 lowercase hex chars).
+    ///
+    /// Refusal classes, in check order: wrong length, non-hex characters,
+    /// uppercase (refused as non-canonical by name).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Blake3HashError`] naming the exact refusal class.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use affidavit::Blake3Hash;
+    /// let hash = Blake3Hash::try_from_hex(
+    ///     "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592",
+    /// )
+    /// .expect("valid digest");
+    /// ```
+    pub fn try_from_hex(hex: &str) -> Result<Self, Blake3HashError> {
+        Self::validate(hex)?;
+        Ok(Blake3Hash(hex.to_string()))
+    }
+
+    /// Shared validation used by both the constructor and Deserialize refuser.
+    fn validate(hex: &str) -> Result<(), Blake3HashError> {
+        if hex.len() != 64 {
+            return Err(Blake3HashError::WrongLength(hex.len()));
+        }
+        if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(Blake3HashError::NotHex);
+        }
+        if hex.bytes().any(|b| b.is_ascii_uppercase()) {
+            return Err(Blake3HashError::UppercaseNonCanonical);
+        }
+        Ok(())
+    }
+
     /// Construct a hash from raw bytes by computing their BLAKE3 digest.
     ///
     /// # Examples
@@ -41,7 +108,10 @@ impl Blake3Hash {
 
     /// Construct a hash from an already-computed lowercase hex string.
     ///
-    /// Used during deserialization round-trips where the digest is known.
+    /// Internal convenience for code paths that already hold a lowercase digest
+    /// (e.g. `blake3::Hash::to_hex` output or a validated round-trip). New code
+    /// with externally-sourced hex must use [`Blake3Hash::try_from_hex`], which
+    /// refuses malformed input; deserialization uses that validation directly.
     ///
     /// # Examples
     ///
@@ -64,6 +134,34 @@ impl Blake3Hash {
     /// ```
     pub fn as_hex(&self) -> &str {
         &self.0
+    }
+}
+
+/// Deserialization refuser (register row 48): a `Blake3Hash` decoded from any
+/// wire form must be 64 lowercase hex characters. Refusals are typed by class
+/// via [`Blake3HashError`] and named in the serde error, so a malformed
+/// commitment dies at decode time instead of surviving to a late verifier stage.
+impl<'de> Deserialize<'de> for Blake3Hash {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let hex = String::deserialize(deserializer)?;
+        Self::validate(&hex).map(|_| Blake3Hash(hex)).map_err(|e| {
+            D::Error::custom(match e {
+                Blake3HashError::NotHex => {
+                    "blake3 commitment refused at decode: not valid lowercase hex".to_string()
+                }
+                Blake3HashError::WrongLength(n) => {
+                    format!("blake3 commitment refused at decode: wrong length {n} (expected 64)")
+                }
+                Blake3HashError::UppercaseNonCanonical => {
+                    "blake3 commitment refused at decode: uppercase hex is non-canonical"
+                        .to_string()
+                }
+            })
+        })
     }
 }
 
@@ -608,6 +706,123 @@ mod tests {
                 .to_string()
                 .contains("chain hash mismatch"),
             "error should mention chain hash mismatch"
+        );
+    }
+
+    // ---- Register row 48 court: differential decode corpus -----------------
+
+    const GOOD_HEX: &str = "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592";
+
+    fn decode_blake3(json: &str) -> Result<Blake3Hash, serde_json::Error> {
+        serde_json::from_str::<Blake3Hash>(json)
+    }
+
+    #[test]
+    fn row48_valid_lowercase_hex_is_admitted() {
+        let got = decode_blake3(&format!("\"{GOOD_HEX}\"")).expect("valid digest must decode");
+        assert!(got.as_hex().len() == 64);
+        assert_eq!(got.as_hex(), GOOD_HEX);
+    }
+
+    #[test]
+    fn row48_corpus_every_malformed_row_refused_typed_at_deserialize() {
+        // 63-hex -> WrongLength(63), typed, at deserialize
+        let err = decode_blake3(&format!("\"{}\"", &GOOD_HEX[..63]))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("wrong length 63"), "63-hex row: {err}");
+
+        // 65-hex -> WrongLength(65), typed, at deserialize
+        let err = decode_blake3(&format!("\"{GOOD_HEX}0\""))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("wrong length 65"), "65-hex row: {err}");
+
+        // non-hex -> NotHex, typed, at deserialize
+        let err = decode_blake3(&format!("\"{}g\"", &GOOD_HEX[..63]))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("not valid lowercase hex"),
+            "non-hex row: {err}"
+        );
+
+        // uppercase -> refused as non-canonical, named, at deserialize
+        let err = decode_blake3(format!("\"{}\"", GOOD_HEX.to_uppercase()).as_str())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("uppercase hex is non-canonical"),
+            "uppercase row must be refused as non-canonical by name: {err}"
+        );
+
+        // Constructor parity: same typed refusals off the wire.
+        assert_eq!(
+            Blake3Hash::try_from_hex(&GOOD_HEX[..63]),
+            Err(Blake3HashError::WrongLength(63))
+        );
+        assert_eq!(
+            Blake3Hash::try_from_hex("zz"),
+            Err(Blake3HashError::WrongLength(2)) // length gate fires first for "zz"
+        );
+        assert_eq!(
+            Blake3Hash::try_from_hex(&GOOD_HEX.to_uppercase()),
+            Err(Blake3HashError::UppercaseNonCanonical)
+        );
+    }
+
+    #[test]
+    fn row48_falsifier_canary_derive_reference_cell() {
+        // Falsifier witness: with the plain `String` derive restored, the
+        // uppercase cell would deserialize successfully (flip). Pin the flip
+        // condition so reversion is detected by THIS test, not just review.
+        let upper = GOOD_HEX.to_uppercase();
+        let plain_derive_would_admit: Result<Blake3Hash, _> =
+            serde_json::from_str::<Blake3Hash>(&format!("\"{upper}\""));
+        assert!(
+            plain_derive_would_admit.is_err(),
+            "falsifier: plain-String derive admits uppercase; custom Deserialize must refuse it"
+        );
+    }
+
+    #[test]
+    fn row48_tamper_still_propagates_chain_hash() {
+        // A malformed commitment must still break the chain (tamper detection
+        // is not weakened by early typed refusal of well-formed-but-forged
+        // digests).
+        let mut asm = crate::chain::ChainAssembler::new();
+        let mut counter = crate::ocel::SeqCounter::new();
+        let event = crate::ocel::build_event(
+            "test",
+            vec![crate::ocel::object_ref("obj", "artifact")],
+            b"payload",
+            &mut counter,
+        )
+        .expect("build event");
+        asm.append(event).expect("append");
+        let honest = asm.finalize();
+        let honest_json = serde_json::to_string(&honest).expect("serialize");
+
+        // Tamper: swap one hex digit of the chain hash (still valid-lowercase,
+        // so it passes the new decode gate and must be caught by chain
+        // re-verification instead).
+        let tampered_json = honest_json.replacen(
+            &honest.chain_hash.as_hex()[..1],
+            if honest.chain_hash.as_hex().starts_with('0') {
+                "1"
+            } else {
+                "0"
+            },
+            1,
+        );
+        let result: Result<Receipt, _> = serde_json::from_str(&tampered_json);
+        assert!(
+            result
+                .as_ref()
+                .unwrap_err()
+                .to_string()
+                .contains("chain hash mismatch"),
+            "tampered chain hash must still propagate to chain mismatch"
         );
     }
 

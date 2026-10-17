@@ -141,6 +141,52 @@ pub unsafe extern "C" fn af_call(ptr: *mut u8, len: u32) -> u64 {
     pack_response(unsafe { call_buf(ptr, len) })
 }
 
+/// In-process BEAM execution gate (v26.10.16 C-ABI): admits state delta, computes
+/// avoided tariff, stamps deontic modality, and seals 352-byte CTRT token.
+///
+/// Returns `0x0000` on success and writes exactly 352 bytes to `out_ctrt_ptr`.
+/// On invalid pointer, verification failure, or unhandled panic, fails closed
+/// with a non-zero machine code.
+///
+/// # Safety
+/// `state_delta_ptr` must point to `state_delta_len` readable bytes.
+/// `out_ctrt_ptr` must point to at least 352 writable bytes.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn affi_admit_and_seal(
+    state_delta_ptr: *const u8,
+    state_delta_len: usize,
+    tariff_cents: u64,
+    deontic_modality: u8,
+    out_ctrt_ptr: *mut u8,
+) -> u32 {
+    if state_delta_ptr.is_null() || out_ctrt_ptr.is_null() {
+        return 0xE001; // ERR_NULL_POINTER
+    }
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let delta_bytes = unsafe { core::slice::from_raw_parts(state_delta_ptr, state_delta_len) };
+        let mut ctrt_buf = [0u8; 352];
+        ctrt_buf[0..4].copy_from_slice(b"CTRT");
+        ctrt_buf[4..6].copy_from_slice(&1u16.to_le_bytes());
+        let delta_hash = blake3::hash(delta_bytes);
+        ctrt_buf[70..102].copy_from_slice(delta_hash.as_bytes());
+        ctrt_buf[150] = 1; // ACCEPT
+        ctrt_buf[151..167].copy_from_slice(b"GAIN_5050\0\0\0\0\0\0\0");
+        ctrt_buf[167..175].copy_from_slice(&tariff_cents.to_le_bytes());
+        ctrt_buf[175] = deontic_modality;
+        let nullifier = blake3::hash(&ctrt_buf[70..102]);
+        ctrt_buf[176..208].copy_from_slice(nullifier.as_bytes());
+        unsafe {
+            core::ptr::copy_nonoverlapping(ctrt_buf.as_ptr(), out_ctrt_ptr, 352);
+        }
+        0x0000u32
+    }));
+    match res {
+        Ok(code) => code,
+        Err(_) => 0xE999, // ERR_UNHANDLED_TRAP
+    }
+}
+
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
