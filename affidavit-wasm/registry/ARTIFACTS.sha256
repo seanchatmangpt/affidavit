@@ -8,5 +8,5 @@
 # placeholders with the digest and size of the module built by
 #   cargo build --locked --target wasm32-wasip1 --profile wasm
 # and regenerate the pin after any src/ change.
-wasm 5cc37aea8e59f7139e2ff5d43ab3c3c82931285b6400cf45f943c61d21a41402 660847 affidavit_wasm.wasm
+wasm c0ddf0cf07228d99fc2fd2d69d3b124c8d2d75889da042ca96b510670ef13a88 713303 affidavit_wasm.wasm
 registry sha256:2fcaae611aaf069317123c0e1fe0c2978b2bd9c72aeadf2888aaee8be34d2ee5 - capability-registry.json
