@@ -1,8 +1,9 @@
 //! Content-address digests and the pluggable chain-hash trait.
 //!
 //! The verifier is hash-agnostic: it folds a receipt chain through whatever
-//! [`ChainHasher`] you give it. A zero-dependency reference hasher, [`Fnv256`],
-//! ships in-crate so the whole thing builds and tests with no external crates;
+//! [`ChainHasher`] you give it. An in-crate reference hasher (no crypto, no
+//! unsafe), [`Fnv256`], ships here so the whole thing builds and tests
+//! without a cryptographic crate;
 //! for production, use the cryptographic [`Blake3Hasher`] (or implement
 //! [`ChainHasher`] over another external crate) to get a tamper-*evident* (not
 //! merely tamper-*detecting*) chain.
@@ -61,7 +62,7 @@ pub trait ChainHasher {
     fn finish(state: Self::State) -> Digest;
 }
 
-/// A zero-dependency, **non-cryptographic** reference hasher (4-lane FNV-1a with
+/// An in-crate reference hasher (no crypto, no unsafe), **non-cryptographic** (4-lane FNV-1a with
 /// a SplitMix64 finalizer), producing a 256-bit [`Digest`].
 ///
 /// It is deterministic and diffuses input well enough to detect tampering in

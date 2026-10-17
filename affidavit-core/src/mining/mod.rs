@@ -3,7 +3,7 @@
 //! A receipt chain *is* an event log: each event's `event_type` is an *activity*
 //! and `seq` gives the order, so one receipt is one *trace*. This module brings
 //! the foundational process-mining lens to that log, holding the same discipline
-//! as the rest of the crate (zero dependencies, no `unsafe`). It needs `alloc`
+//! as the rest of the crate (no crypto, no `unsafe`). It needs `alloc`
 //! for its maps, so it lives behind the `alloc` feature.
 //!
 //! - [`Trace`] — the activity sequence of a receipt.

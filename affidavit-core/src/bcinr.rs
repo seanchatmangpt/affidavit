@@ -116,7 +116,7 @@ pub fn bcinr_chain_from_frame<H: ChainHasher>(
 /// `meta_json` is the caller's canonical serialization of
 /// `(andon, object_ids, obligation_count)` — e.g. the exact
 /// `serde_json::to_vec` bytes the emission path produces. Passing it in keeps
-/// this crate dependency-free while fixing the exact byte sequence.
+/// this module self-contained (no crypto, no unsafe) while fixing the exact byte sequence.
 #[must_use]
 pub fn bcinr_admission_frame<H: ChainHasher>(
     payload_hash: &Digest,

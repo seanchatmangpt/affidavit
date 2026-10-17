@@ -1,16 +1,19 @@
 //! # affidavit-core
 //!
-//! A **zero-dependency**, `#![no_std]`, `#![forbid(unsafe_code)]` reference
-//! verifier for affidavit-style receipt chains.
+//! A `#![no_std]`, `#![forbid(unsafe_code)]` reference verifier for
+//! affidavit-style receipt chains.
 //!
 //! The premise: the component you *verify provenance with* should be the hardest
 //! thing in the system to compromise. So this core has:
 //!
-//! * **No dependencies.** Nothing to audit, nothing to be broken by an upstream
-//!   release. (Pointedly: the sibling `affidavit` crate carries a published
-//!   dependency pin, `wasm4pm-compat =26.8.7`, that a future upstream release
-//!   could break. A verifier with an empty `[dependencies]` cannot fail that
-//!   way.)
+//! * **No cryptographic arithmetic in-crate.** Every algorithm (ML-DSA-65,
+//!   SLH-DSA-SHA2-128s, ML-KEM-768, BLAKE3) arrives as an audited external
+//!   dependency — `ml-dsa`, `slh-dsa`, `ml-kem`, `blake3`. The supply chain to
+//!   audit is exactly four crates, each externally validated; nothing here
+//!   hand-rolls lattice, hash-tree, or cipher internals. (Pointedly: the sibling
+//!   `affidavit` crate carries a published dependency pin,
+//!   `wasm4pm-compat =26.8.7`, that a future upstream release could break. Here,
+//!   only algorithm crates are pinned, each one externally validated.)
 //! * **No `std`, no `alloc` on the verify path.** [`verify`] runs over a
 //!   borrowed `&[Event]` and allocates nothing, so it works in a WASM sandbox,
 //!   an embedded HSM, or an on-chain runtime — not just on a server.
@@ -19,7 +22,7 @@
 //!   from [`ChainBuilder::finalize`]; its sealed state cannot be forged by hand
 //!   (see the `compile_fail` example below).
 //! * **A pluggable hash.** The chain folds through any [`ChainHasher`]; a
-//!   zero-dep reference hasher [`Fnv256`] ships in-crate, and a cryptographic
+//!   non-crypto reference hasher [`Fnv256`] ships in-crate, and a cryptographic
 //!   hash can be slotted in for a tamper-*evident* chain.
 //!
 //! ## Zero hand-implemented crypto

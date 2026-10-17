@@ -5,12 +5,9 @@
 //! Operator law: **no cryptographic algorithm is implemented in this crate —
 //! ever, unconditional (no feature flag).** ML-KEM arrives exactly like
 //! ML-DSA-65 does in `crate::pqc`: this module defines only the *seam*, and
-//! the lattice arithmetic lives in the external `ml-kem` crate
-//! (`// COORDINATOR: add to [dependencies]: ml-kem = { version = "0.3.2",
-//! default-features = false, features = ["getrandom"] }` — latest stable at
-//! lane time; the sibling signature surface uses `ml-dsa`). This module's
-//! adapter compiles once that dependency line lands; every other item here is
-//! dependency-free and compiles standalone today.
+//! the lattice arithmetic lives in the external `ml-kem` crate (the sibling
+//! signature surface uses `ml-dsa`). The [`ExternalMlKem768`] adapter compiles
+//! unconditionally against the pinned `ml-kem` dependency.
 //!
 //! * [`KemEncapsulator`] — the FIPS 203 encapsulation contract:
 //!   encapsulation-key bytes in, `(ciphertext, shared_secret)` out.
@@ -35,14 +32,6 @@
 //!
 //! integration: coordinator adds `pub mod kem;` to src/lib.rs
 
-// COORDINATOR: add to [dependencies]:
-//   ml-kem = { version = "0.3.2", default-features = false, features = ["getrandom"] }
-// (latest stable on crates.io at lane time is 0.3.2, not 0.4; the
-// "getrandom" feature is what lets [`ExternalMlKem768`] encapsulate with the
-// system RNG without pulling `rand_core` into this crate's dependency
-// surface). Everything else in this module needs only the existing `blake3`
-// dep. The adapter's KAT/roundtrip unit tests below activate at the
-// coordinator's gate once the dep lands.
 
 use core::fmt;
 

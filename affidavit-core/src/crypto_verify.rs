@@ -2,11 +2,12 @@
 //! the twelve-field envelope document model, byte-level JSON decode, the
 //! JCS-subset canonical bytes, and the domain-separated signing pre-image.
 //!
-//! This is a zero-dependency, `no_std` port of the rendered plane's
+//! This is a `no_std` port of the rendered plane's
 //! `crypto_trust_envelope` + `crypto_trust_canonical` law (RFC-SA2A-007-errata
 //! E-E) over this crate's own discipline. What it deliberately does **not**
-//! contain: any EC or ML-DSA arithmetic. `affidavit-core` has no dependencies
-//! at all, so the signature *verifier* stays external — a consumer decodes an
+//! contain: any EC or ML-DSA arithmetic. This module adds no dependencies of
+//! its own — the crate's algorithms are external (`ml-dsa`, `slh-dsa`,
+//! `ml-kem`, `blake3`) — so the signature *verifier* stays external; a consumer decodes an
 //! envelope here, recomputes the exact bytes that must be signed, and hands
 //! those bytes (plus the signature) to its own verifier. The law this module
 //! guarantees is *which bytes are bound*, not whether a signature over them is

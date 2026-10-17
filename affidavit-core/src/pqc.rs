@@ -4,7 +4,7 @@
 //!
 //! Operator law: **all post-quantum crypto comes from external validation
 //! dependencies — no hand-rolled PQ arithmetic in this crate, ever.** This
-//! crate is zero-dependency by invariant, so the core defines only the *seam*:
+//! crate carries no cryptographic arithmetic in-crate by invariant, so the core defines only the *seam*:
 //!
 //! * [`MlDsa65Verifier`] — the FIPS 204 ML-DSA-65 verification contract.
 //! * [`SlhDsaVerifier`] — the FIPS 205 SLH-DSA-SHA2-128s verification
@@ -35,10 +35,6 @@
 //! the coordinator extends the lib.rs re-export with `SlhDsaVerifier`,
 //! `ExternalSlhDsa128s`, and `Suite`.
 
-// COORDINATOR: add to [dependencies] of affidavit-core/Cargo.toml:
-//   slh-dsa = "=0.2.0-rc.5"
-// (same pin as the root workspace; `ExternalSlhDsa128s` below will not
-// compile until this dependency lands).
 
 use core::fmt;
 
