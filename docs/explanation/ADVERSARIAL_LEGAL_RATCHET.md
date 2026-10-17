@@ -26,7 +26,7 @@ In corporate disputes involving high-throughput software systems, traditional de
         [ In-Memory Execution: smalt Substrate ]
                          │
                          ▼
-        [ affidavit v26.10.16 Runtime Turnstile ]
+        [ affidavit v26.10.17 Runtime Turnstile ]
    ├─► 1. 352-Byte CTRT Token Minted (Deontic Modality: 0x02 OBLIGATED)
    ├─► 2. Liquid Avoided-Tariff Accrued (Restitution § 42 Cents Basis)
    ├─► 3. FIPS 204 ML-DSA-65 / BLAKE3 Rolling Chain Hash Sealed

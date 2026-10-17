@@ -7,7 +7,7 @@
 
 ## 1. Cryptographic Algorithms & Parameters
 
-Affidavit v26.10.16 implements pure-Rust post-quantum cryptographic primitives:
+Affidavit v26.10.17 implements pure-Rust post-quantum cryptographic primitives:
 
 - **ML-DSA-65 (FIPS 204):** NIST Security Level 3 lattice-based digital signature algorithm. Public key length: 1,952 bytes; signature length: 3,309 bytes.
 - **SLH-DSA-128s (FIPS 205):** Stateless hash-based digital signature algorithm.

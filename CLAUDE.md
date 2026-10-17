@@ -26,7 +26,7 @@ The root build situation changed — earlier docs that say "the root crate canno
 - The root `affidavit` crate **builds and tests**. The real published `wasm4pm-compat 26.8.7` is the admitted structural dependency; `wasm4pm` and `clnrm-core` remain fenced by local stubs via `[patch.crates-io]` in `Cargo.toml` (`stubs/`). `cargo build --all-targets` and `cargo test --all-targets` pass (counts are receipt-only — the `just validate` ladder is the gate, see CHANGELOG 26.10.16 receipts); `cargo fmt --all -- --check` passes. Run the whole validation ladder with `just validate`.
 - `cargo clippy --all-targets -- -D warnings` passes too: `src/lib.rs` denies `clippy::print_stdout`, and library output routes through `src/output.rs` (via the crate-internal `outln!` / `out!` macros) instead of raw `println!`. Use `outln!` (or an `Out`) for new library output; the `clippy` CI job now blocks. Don't delete `stubs/` or the `[patch]` block to "fix" deps.
 - Buildable, tested subprojects also live elsewhere: **`affidavit-core/`** (zero-dep `no_std` verifier + process mining — `cargo test` green), **`web/`** (Next.js — `npx tsc --noEmit`), **`tools/confevo/`** (Python — `python3 -m unittest`).
-- **`affidavit-wasm/`** (v26.10.16) — the verifier as a WASI module with a JSON ABI, byte-compatible with `affi` (`cd affidavit-wasm && cargo test`; guide: [`docs/WASM.md`](docs/WASM.md), invariants: `affidavit-wasm/AGENTS.md`).
+- **`affidavit-wasm/`** (v26.10.17) — the verifier as a WASI module with a JSON ABI, byte-compatible with `affi` (`cd affidavit-wasm && cargo test`; guide: [`docs/WASM.md`](docs/WASM.md), invariants: `affidavit-wasm/AGENTS.md`).
 - Full operational map, per-area validate commands, and conventions: **[`AGENTS.md`](AGENTS.md)** (and **[`affidavit-core/AGENTS.md`](affidavit-core/AGENTS.md)** for that crate's strict invariants).
 
 Everything below describes the *intended* `affidavit` design — treat it as the spec, not the current build state.
@@ -202,7 +202,7 @@ The CLI exposes **101 canonical verbs** across 11 groups, defined in `src/regist
 
 ### Core Commands (Noun-Verb Pattern)
 
-Affidavit v26.10.16 provides a comprehensive CLI organized into 10 primary verb families:
+Affidavit v26.10.17 provides a comprehensive CLI organized into 10 primary verb families:
 
 **Core Provenance (11 verbs):**
 `emit`, `assemble`, `verify`, `show`, `inspect`, `diagnose`, `stats`, `graph`, `replay`, `model`, `conformance`

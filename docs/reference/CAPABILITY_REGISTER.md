@@ -156,3 +156,9 @@ Cycle-4 defect-class: SMT absence-witness key-binding gap (verify_absence never 
 |---|---|---|---|---|---|
 | 101 | BehaviorCoverage grounding court (coverage cell increments as admission metric) | clnrm-core | new tests/behavior_coverage_court.rs | S/M | deleting an increment leaves cell green = vacuous FAIL |
 | 102 | Dark-matter synthesis corpus import (hermeticity-violation scenarios as seeded fixtures) | clnrm-core | new tests/synthesis_corpus_court.rs | M | synthesized violation admitted, or non-deterministic across runs = FAIL |
+
+## Registered divergences (KD-nn; smalt register format: surface / divergence / evidence / close condition)
+
+| id | surface | divergence | evidence receipt | close condition |
+|---|---|---|---|---|
+| KD-BLS-1 | Aggregate signature verification (BLS) | Forgery via rogue-key compensation verifies; the all-identity aggregate verifies over arbitrary messages | commit 84a430f; `tests/bls_rogue_key.rs` (2 ignored DEFECT rows) | PoP (proof-of-possession) infrastructure lands, or the BLS aggregate module is de-scoped — operator decision |

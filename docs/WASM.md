@@ -1,4 +1,4 @@
-# affidavit as WebAssembly (v26.10.16)
+# affidavit as WebAssembly (v26.10.17)
 
 `affidavit-wasm/` builds the provenance layer's verifier as a sandboxed WASI
 module. Hosts (Elixir/Wasmex, Node, Python, edge runtimes) verify, assemble and
