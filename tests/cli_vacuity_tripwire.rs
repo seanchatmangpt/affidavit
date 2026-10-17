@@ -23,8 +23,30 @@ fn bin() -> &'static str {
 /// binary) and flaked when raced in parallel; serial order is the court's
 /// contract (see emit-build flake receipt 2026-10-17).
 static SUITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+thread_local! {
+    static SUITE_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
 fn lock_suite() -> std::sync::MutexGuard<'static, ()> {
-    SUITE_LOCK.lock().unwrap_or_else(|p| p.into_inner())
+    // Reentrant per-thread: cells may nest fixture/scratch helpers; a plain
+    // std Mutex deadlocks on the second acquire (witnessed: parallel run hung).
+    if SUITE_DEPTH.with(|d| d.get()) == 0 {
+        let g = SUITE_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        SUITE_DEPTH.with(|d| d.set(1));
+        return Guard { g, held: true };
+    }
+    Guard { g: SUITE_LOCK.try_lock().ok(), held: false }
+}
+struct Guard {
+    g: Option<std::sync::MutexGuard<'static, ()>>,
+    held: bool,
+}
+impl Drop for Guard {
+    fn drop(&mut self) {
+        if self.held {
+            self.g = None;
+            SUITE_DEPTH.with(|d| d.set(0));
+        }
+    }
 }
 
 fn scratch(tag: &str) -> PathBuf {
