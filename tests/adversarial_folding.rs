@@ -3,6 +3,7 @@ use affidavit::trajectory_folding::{
     COURT_RECORD_LEN,
 };
 
+#[allow(clippy::too_many_arguments)] // test fixture builder; arity mirrors the wire fields
 fn create_receipt(
     parent: [u8; 32],
     ticks: u64,
@@ -114,7 +115,7 @@ fn test_monoidal_associativity_ticks_wall_and_properties() {
         r_ab.budget_met && r_c.budget_met,
         r_a.budget_met && r_bc.budget_met
     );
-    assert_eq!(r_ab.budget_met && r_c.budget_met, false);
+    assert!(!(r_ab.budget_met && r_c.budget_met));
 
     // 5. Thermal (semilattice max): max(max(1, 2), 3) == max(1, max(2, 3))
     assert_eq!(r_ab.thermal.max(r_c.thermal), r_a.thermal.max(r_bc.thermal));
