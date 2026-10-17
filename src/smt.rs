@@ -159,6 +159,23 @@ impl StateTree {
         self.keys.is_empty()
     }
 
+    /// Remove a batch of keys, returning the root after the final removal.
+    ///
+    /// Convenience over [`StateTree::remove`]; each key is removed in order
+    /// against the running root. An empty batch is a no-op returning the
+    /// current root.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SmtError::Tree`] if any underlying removal fails.
+    pub fn remove_batch(&mut self, keys: &[StateKey]) -> Result<Option<StateRoot>, SmtError> {
+        let mut root = self.root();
+        for k in keys {
+            root = self.remove(k)?;
+        }
+        Ok(root)
+    }
+
     /// Generate an inclusion proof for a present key.
     ///
     /// # Errors
@@ -336,6 +353,78 @@ mod tests {
         assert_eq!(tree.get(&key(3)).expect("get"), None);
         assert_eq!(tree.root(), None);
         assert!(tree.is_empty());
+    }
+
+    #[test]
+    fn post_revocation_absence_court() {
+        let mut tree = StateTree::new();
+        tree.insert(&key(0x10), &value(1)).expect("insert");
+        tree.insert(&key(0x20), &value(2)).expect("insert");
+        tree.insert(&key(0x30), &value(3)).expect("insert");
+        let pre_root = tree.root().expect("pre-removal root");
+
+        tree.remove(&key(0x10)).expect("remove");
+        let post_root = tree.root().expect("post-removal root");
+        assert_ne!(pre_root, post_root, "removal must advance the root");
+
+        let witness = tree.prove_absence(&key(0x10)).expect("absence witness");
+        let neighbor_value = tree
+            .get(&witness.neighbor_key)
+            .expect("get")
+            .expect("neighbor committed");
+
+        // Admits against the post-removal root.
+        assert!(verify_absence(&post_root, &neighbor_value, &witness));
+        // The same witness is refused against the pre-removal root.
+        assert!(!verify_absence(&pre_root, &neighbor_value, &witness));
+
+        // Re-insert: inclusion at the newest root.
+        let newest_root = tree.insert(&key(0x10), &value(1)).expect("re-insert");
+        let proof = tree.prove_inclusion(&key(0x10)).expect("proof");
+        assert!(verify_inclusion(&newest_root, &value(1), &proof));
+        assert_eq!(tree.root(), Some(newest_root));
+    }
+
+    #[test]
+    fn batch_removal_absence_court() {
+        let mut tree = StateTree::new();
+        tree.insert(&key(0x0F), &value(1)).expect("insert");
+        tree.insert(&key(0xF0), &value(2)).expect("insert");
+        tree.insert(&key(0x33), &value(3)).expect("insert");
+        let pre_root = tree.root().expect("pre-removal root");
+
+        let removed = [key(0x0F), key(0xF0)];
+        let final_root = tree.remove_batch(&removed).expect("remove_batch");
+        assert_eq!(final_root, tree.root());
+        assert_eq!(tree.len(), 1);
+
+        let mut witnesses = Vec::new();
+        for k in &removed {
+            let w = tree.prove_absence(k).expect("absence witness");
+            assert!(
+                !verify_absence(
+                    &pre_root,
+                    &tree.get(&w.neighbor_key).expect("get").expect("present"),
+                    &w
+                ),
+                "witness must be refused against the pre-removal root"
+            );
+            witnesses.push(w);
+        }
+        let post_root = tree.root().expect("post-removal root");
+        for w in &witnesses {
+            let nv = tree.get(&w.neighbor_key).expect("get").expect("present");
+            assert!(verify_absence(&post_root, &nv, w));
+        }
+
+        // The surviving key still proves inclusion at the newest root.
+        let survivor_proof = tree.prove_inclusion(&key(0x33)).expect("proof");
+        assert!(verify_inclusion(&post_root, &value(3), &survivor_proof));
+
+        // Vacuity: a wrong-path retirement (key 0x33 removed from the shadow
+        // index but not the tree) must flip this court — absence for 0x33
+        // would then be provable against a tree that still commits it.
+        assert_eq!(tree.prove_absence(&key(0x33)), Err(SmtError::NoProof));
     }
 
     #[test]
