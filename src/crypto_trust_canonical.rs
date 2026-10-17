@@ -56,64 +56,99 @@ pub fn jcs(value: &Value) -> Result<String, CanonicalError> {
     Ok(out)
 }
 
-fn write_value(out: &mut String, value: &Value) -> Result<(), CanonicalError> {
+/// Canonical-byte sink: the one-pass target of [`write_value`]. Implemented
+/// for `String` (the render path, [`jcs`]) and for [`blake3::Hasher`] via its
+/// `io::Write` impl (the streaming digest path, [`jcs_digest`]) so both paths
+/// share one canonical writer and cannot drift.
+trait JcsSink {
+    /// Neither sink can fail: `String::push_str` is infallible and
+    /// `blake3::Hasher`'s `io::Write` impl is unconditionally successful.
+    fn sink(&mut self, s: &str);
+}
+
+impl JcsSink for String {
+    fn sink(&mut self, s: &str) {
+        self.push_str(s);
+    }
+}
+
+/// Adapts [`blake3::Hasher`] to [`JcsSink`]: canonical bytes fold into the
+/// digest as they are produced — one pass, no intermediate `String`.
+struct HasherSink<'a>(&'a mut blake3::Hasher);
+
+impl JcsSink for HasherSink<'_> {
+    fn sink(&mut self, s: &str) {
+        use std::io::Write;
+        // blake3::Hasher's io::Write impl is write_all-trivially successful;
+        // the bound exists for the trait contract, not a real failure mode.
+        self.0
+            .write_all(s.as_bytes())
+            .expect("blake3::Hasher write is infallible");
+    }
+}
+
+fn write_value<W: JcsSink>(out: &mut W, value: &Value) -> Result<(), CanonicalError> {
     match value {
-        Value::Null => out.push_str("null"),
-        Value::Bool(true) => out.push_str("true"),
-        Value::Bool(false) => out.push_str("false"),
-        Value::Number(n) => out.push_str(&canonical_number(n)?),
+        Value::Null => out.sink("null"),
+        Value::Bool(true) => out.sink("true"),
+        Value::Bool(false) => out.sink("false"),
+        Value::Number(n) => out.sink(&canonical_number(n)?),
         Value::String(s) => write_escaped(out, s),
         Value::Array(items) => {
-            out.push('[');
+            out.sink("[");
             for (i, item) in items.iter().enumerate() {
                 if i > 0 {
-                    out.push(',');
+                    out.sink(",");
                 }
                 write_value(out, item)?;
             }
-            out.push(']');
+            out.sink("]");
         }
         Value::Object(map) => {
             let mut entries: Vec<(&String, &Value)> = map.iter().collect();
             entries.sort_by(|(a, _), (b, _)| a.encode_utf16().cmp(b.encode_utf16()));
-            out.push('{');
+            out.sink("{");
             for (i, (key, val)) in entries.iter().enumerate() {
                 if i > 0 {
-                    out.push(',');
+                    out.sink(",");
                 }
                 write_escaped(out, key);
-                out.push(':');
+                out.sink(":");
                 write_value(out, val)?;
             }
-            out.push('}');
+            out.sink("}");
         }
     }
     Ok(())
 }
 
 /// RFC 8785 §3.2.2.2 string serialization: minimal escaping, lowercase hex.
-fn write_escaped(out: &mut String, s: &str) {
+fn write_escaped<W: JcsSink>(out: &mut W, s: &str) {
     const HEX: &[u8; 16] = b"0123456789abcdef";
-    out.push('"');
+    out.sink("\"");
     for c in s.chars() {
         match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\u{0008}' => out.push_str("\\b"),
-            '\u{0009}' => out.push_str("\\t"),
-            '\u{000A}' => out.push_str("\\n"),
-            '\u{000C}' => out.push_str("\\f"),
-            '\u{000D}' => out.push_str("\\r"),
+            '"' => out.sink("\\\""),
+            '\\' => out.sink("\\\\"),
+            '\u{0008}' => out.sink("\\b"),
+            '\u{0009}' => out.sink("\\t"),
+            '\u{000A}' => out.sink("\\n"),
+            '\u{000C}' => out.sink("\\f"),
+            '\u{000D}' => out.sink("\\r"),
             ch if (ch as u32) < 0x20 => {
                 let v = ch as u32;
-                out.push_str("\\u00");
-                out.push(HEX[((v >> 4) & 0xf) as usize] as char);
-                out.push(HEX[(v & 0xf) as usize] as char);
+                out.sink("\\u00");
+                out.sink(
+                    (HEX[((v >> 4) & 0xf) as usize] as char)
+                        .to_string()
+                        .as_str(),
+                );
+                out.sink((HEX[(v & 0xf) as usize] as char).to_string().as_str());
             }
-            c => out.push(c),
+            c => out.sink(c.to_string().as_str()),
         }
     }
-    out.push('"');
+    out.sink("\"");
 }
 
 /// RFC 8785 §3.2.2.3 number serialization: ECMAScript `Number::toString` over
@@ -232,6 +267,16 @@ pub fn digest_hex(domain: &str, parts: &[&[u8]]) -> String {
         s.push(HEX[(b & 0x0f) as usize] as char);
     }
     s
+}
+
+/// One-pass streaming digest of the canonical (JCS) bytes of `value`: the
+/// canonical writer feeds a [`blake3::Hasher`] directly, so no intermediate
+/// canonical `String` is ever materialized. Byte-equivalent to
+/// `blake3::hash(jcs(value)?.as_bytes())` — differential-tested below.
+pub fn jcs_digest(value: &Value) -> Result<[u8; 32], CanonicalError> {
+    let mut hasher = blake3::Hasher::new();
+    write_value(&mut HasherSink(&mut hasher), value)?;
+    Ok(hasher.finalize().into())
 }
 
 #[cfg(test)]
@@ -458,5 +503,109 @@ mod tests {
         let e: [u8; 32] = blake3::hash(&domain_separated("dom", &[])).into();
         assert_eq!(d, e);
         assert_ne!(d, [0u8; 32]);
+    }
+
+    // --- streaming digest court: differential equivalence + mutation control ---
+
+    fn parsed(input: &str) -> Value {
+        serde_json::from_str(input).expect("test json parses")
+    }
+
+    #[test]
+    fn jcs_digest_matches_blake3_of_jcs_string_over_corpus() {
+        let corpus: &[&str] = &[
+            r#"null"#,
+            r#"true"#,
+            r#"false"#,
+            r#"0"#,
+            r#""abc""#,
+            r#"[]"#,
+            r#"{}"#,
+            r#"{"b":1,"a":2}"#,
+            r#"{"numbers":[333333333.3333333,1E30,4.50,2e-3,0.000000000000000000000000001]}"#,
+            r#"{"string":"\u20ac$\u000F\u000aA'\u0042\u0022\u005c\\\"/"}"#,
+            r#"{"o":{"b":1,"a":[true,false,null,1.5]}}"#,
+            r#"[1e-7,1e20,1e21,9.007199254740992e15,5e-324,-0.0,-1.5]"#,
+            r#"{"�":1,"𐀀":2}"#,
+        ];
+        for input in corpus {
+            let value = parsed(input);
+            let via_string: [u8; 32] =
+                blake3::hash(jcs(&value).expect("canonicalizes").as_bytes()).into();
+            let via_writer = jcs_digest(&value).expect("streams");
+            assert_eq!(
+                via_writer, via_string,
+                "writer-path digest diverged from string path for {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn jcs_digest_handles_large_synthetic_record() {
+        // 5,000 keys x nested arrays: large enough that per-chunk hashing
+        // across many sink calls must still fold identically.
+        let mut value = serde_json::Map::new();
+        for i in 0..5_000u32 {
+            let key = format!("field_{i:04}");
+            let inner = serde_json::json!({
+                "idx": i,
+                "ratio": f64::from(i) / 7.5,
+                "tags": [format!("t{i}"), null, i % 2 == 0],
+            });
+            value.insert(key, inner);
+        }
+        let big = Value::Object(value);
+        let via_string: [u8; 32] =
+            blake3::hash(jcs(&big).expect("canonicalizes").as_bytes()).into();
+        assert_eq!(
+            jcs_digest(&big).expect("streams"),
+            via_string,
+            "large-record writer digest diverged"
+        );
+    }
+
+    #[test]
+    fn jcs_digest_is_a_real_mutation_control() {
+        // A dropped key and a reordered array must each flip the digest; a
+        // semantically identical re-serialization must not.
+        let base = parsed(r#"{"alpha":[1,2,3],"beta":{"k":"v"},"gamma":1.5}"#);
+        let baseline = jcs_digest(&base).expect("streams");
+
+        let dropped = parsed(r#"{"alpha":[1,2,3],"beta":{"k":"v"}}"#);
+        assert_ne!(
+            jcs_digest(&dropped).expect("streams"),
+            baseline,
+            "dropping a key did not flip the digest"
+        );
+
+        let reordered_array = parsed(r#"{"alpha":[3,2,1],"beta":{"k":"v"},"gamma":1.5}"#);
+        assert_ne!(
+            jcs_digest(&reordered_array).expect("streams"),
+            baseline,
+            "array reordering did not flip the digest"
+        );
+
+        // Same content, keys written in reverse insertion order: JCS sorts, so
+        // the digest must be IDENTICAL (order-invariance, not a mutation).
+        let reordered_keys = parsed(r#"{"gamma":1.5,"beta":{"k":"v"},"alpha":[1,2,3]}"#);
+        assert_eq!(
+            jcs_digest(&reordered_keys).expect("streams"),
+            baseline,
+            "key reordering changed the digest (JCS sort broke?)"
+        );
+
+        // And the writer path flips exactly when the string path flips.
+        let flipped_string_path: [u8; 32] =
+            blake3::hash(jcs(&dropped).expect("canonicalizes").as_bytes()).into();
+        assert_ne!(flipped_string_path, baseline);
+    }
+
+    #[test]
+    fn jcs_digest_propagates_non_canonical_number_refusal() {
+        let value = parsed("18446744073709551615");
+        match jcs_digest(&value) {
+            Err(CanonicalError::NonCanonicalNumber(_)) => {}
+            other => panic!("expected NonCanonicalNumber from streaming path, got {other:?}"),
+        }
     }
 }
