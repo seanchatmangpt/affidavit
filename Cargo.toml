@@ -13,6 +13,17 @@ readme = "README.md"
 keywords = ["provenance", "receipt", "blake3", "signature", "post-quantum"]
 categories = ["security", "development-tools", "cryptography"]
 exclude = [
+  # js/npm carries node_modules (tens of MB) — consumer app, not crate content.
+  "js/",
+  "dist/",
+  "stubs/",
+  "vendor/",
+  "affidavit-core/",
+  "affidavit-wasm/",
+  "completions/",
+  "examples/",
+  "mutations/",
+  "bench/",
   "thesis/",
   "praxis/",
   "tools/",
