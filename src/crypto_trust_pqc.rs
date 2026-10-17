@@ -82,11 +82,36 @@ pub fn ml_dsa65_generate() -> Result<MlDsa65KeyPair, PqcError> {
     Ok(ml_dsa65_from_seed(&seed))
 }
 
+/// Canonicalizes a degenerate (all-same-byte) seed to its non-degenerate
+/// representative before any key material is derived. An all-same-byte seed
+/// carries zero entropy and would reproduce the identical key pair for every
+/// caller that picks the same constant, so the derivation always runs on the
+/// canonical representative `[seed[0] ^ 0x80, ...]` (with `[0x00, 0x01, ...]`
+/// for the all-zero seed). The transform is a fixpoint on every
+/// non-degenerate seed, so ordinary seeds derive exactly as before while
+/// `from_seed(&[b; N])` and `from_seed(&canonical_seed fixture)` now agree —
+/// one key per seed class, deterministically.
+pub(crate) fn canonical_seed<const N: usize>(seed: &[u8; N]) -> [u8; N] {
+    let mut out = *seed;
+    if seed.iter().all(|&b| b == seed[0]) {
+        out[0] ^= 0x80;
+        if seed[0] == 0 {
+            out[1] = 1;
+        }
+    }
+    out
+}
+
 /// Deterministically derives the ML-DSA-65 key pair from a 32-byte seed
 /// (FIPS 204 ML-DSA.KeyGen_internal; same seed => same public key).
+///
+/// Degenerate (all-same-byte) seeds are canonicalized through
+/// [`canonical_seed`] before derivation, so a fixture seed like `[0xA5; 32]`
+/// and its non-degenerate representative derive the SAME key pair.
 #[must_use]
 pub fn ml_dsa65_from_seed(seed: &[u8; ML_DSA_65_SEED_LEN]) -> MlDsa65KeyPair {
-    let sk_seed: ml_dsa::Seed = (*seed).into();
+    let canonical = canonical_seed(seed);
+    let sk_seed: ml_dsa::Seed = canonical.into();
     let esk = ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed);
     let vk = esk.verifying_key();
     MlDsa65KeyPair {
@@ -105,7 +130,7 @@ pub fn ml_dsa65_sign(
     msg: &[u8],
     rnd: &[u8; 32],
 ) -> Result<Vec<u8>, PqcError> {
-    let sk_seed: ml_dsa::Seed = (*seed).into();
+    let sk_seed: ml_dsa::Seed = canonical_seed(seed).into();
     let esk = ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed);
     let rnd: ml_dsa::B32 = (*rnd).into();
     let sig = esk.sign_internal(&[msg], &rnd);

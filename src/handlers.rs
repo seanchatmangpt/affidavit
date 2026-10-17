@@ -4554,11 +4554,12 @@ THRESHOLD_INDEX={}
 MONITOR_OUTPUT=$(affi receipt monitor --watch . --rules all --output json 2>&1)
 MONITOR_EXIT=$?
 
-# If monitor command itself failed, exit with error
+# If monitor command itself failed, exit with error — enforcement is the
+# hook's whole job; CRITICAL violations now exit non-zero upstream (monitor
+# verdict-determined exits), so this line is the commit gate.
 if [ $MONITOR_EXIT -ne 0 ]; then
     echo "affi monitor exited with code $MONITOR_EXIT" >&2
-    # Note: we allow this to pass for now; comment out next line to enforce monitor success
-    # exit 1
+    exit 1
 fi
 
 # Parse JSON violations (if output is valid JSON)

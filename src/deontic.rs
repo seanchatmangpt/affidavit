@@ -128,8 +128,8 @@ impl DeonticContext {
         }
     }
 
-    /// Construct domain-separated context string (length-framed):
-    /// `Ctx = "STRATA:" || u32le(len)||Jurisdiction || u32le(len)||Hash || u32le(len)||Epoch`
+    /// Construct domain-separated context string (canonical concatenation):
+    /// `Ctx = "STRATA:" || Jurisdiction || DeonticConstraintHash || LeaseEpoch`
     ///
     /// # Errors
     /// Returns [`DeonticError::ContextTooLong`] if total length exceeds 255 bytes.
@@ -161,7 +161,34 @@ pub fn construct_deontic_context(
     )
 }
 
-/// Constructs domain-separated context string from raw byte slices, framed:
+/// Constructs domain-separated context string from raw byte slices:
+/// `Ctx = "STRATA:" || Jurisdiction || DeonticConstraintHash || LeaseEpoch`
+/// — the canonical concatenation fixed by the adversarial deontic court
+/// (`tests/adversarial_deontic.rs`, FR-PQC-06).
+///
+/// # Errors
+/// Returns [`DeonticError::ContextTooLong`] if total byte length exceeds 255 bytes.
+pub fn construct_deontic_context_raw(
+    jurisdiction: &[u8],
+    deontic_constraint_hash: &[u8],
+    lease_epoch: &[u8],
+) -> Result<Vec<u8>, DeonticError> {
+    let total_len = STRATA_CTX_PREFIX.len()
+        + jurisdiction.len()
+        + deontic_constraint_hash.len()
+        + lease_epoch.len();
+    if total_len > MAX_ML_DSA_CONTEXT_LEN {
+        return Err(DeonticError::ContextTooLong(total_len));
+    }
+    let mut ctx = Vec::with_capacity(total_len);
+    ctx.extend_from_slice(STRATA_CTX_PREFIX);
+    ctx.extend_from_slice(jurisdiction);
+    ctx.extend_from_slice(deontic_constraint_hash);
+    ctx.extend_from_slice(lease_epoch);
+    Ok(ctx)
+}
+
+/// Prefix-free (length-framed) variant of the deontic context:
 ///
 /// ```text
 /// Ctx = "STRATA:"
@@ -170,14 +197,17 @@ pub fn construct_deontic_context(
 ///     || u32le(len(Epoch))        || Epoch
 /// ```
 ///
-/// The u32 little-endian length prefix before each variable-length field makes
-/// the encoding prefix-free over field tuples: distinct `(jurisdiction, hash,
-/// epoch)` tuples cannot concatenate to the same byte string (SK3 collision
-/// falsification closed; regression-witnessed in this module's tests).
+/// The u32 little-endian length prefix before each field makes the encoding
+/// prefix-free over field tuples: distinct `(jurisdiction, hash, epoch)`
+/// tuples cannot concatenate to the same byte string. NOT the wire form — the
+/// canonical context is the plain concatenation built by
+/// [`construct_deontic_context_raw`]; this framing exists for callers that
+/// need self-delimiting tuples (SK3 collision falsification,
+/// regression-witnessed in this module's tests).
 ///
 /// # Errors
 /// Returns [`DeonticError::ContextTooLong`] if total byte length exceeds 255 bytes.
-pub fn construct_deontic_context_raw(
+pub fn construct_deontic_context_framed(
     jurisdiction: &[u8],
     deontic_constraint_hash: &[u8],
     lease_epoch: &[u8],
@@ -219,19 +249,7 @@ pub fn construct_deontic_context_unframed(
     deontic_constraint_hash: &[u8],
     lease_epoch: &[u8],
 ) -> Result<Vec<u8>, DeonticError> {
-    let total_len = STRATA_CTX_PREFIX.len()
-        + jurisdiction.len()
-        + deontic_constraint_hash.len()
-        + lease_epoch.len();
-    if total_len > MAX_ML_DSA_CONTEXT_LEN {
-        return Err(DeonticError::ContextTooLong(total_len));
-    }
-    let mut ctx = Vec::with_capacity(total_len);
-    ctx.extend_from_slice(STRATA_CTX_PREFIX);
-    ctx.extend_from_slice(jurisdiction);
-    ctx.extend_from_slice(deontic_constraint_hash);
-    ctx.extend_from_slice(lease_epoch);
-    Ok(ctx)
+    construct_deontic_context_raw(jurisdiction, deontic_constraint_hash, lease_epoch)
 }
 
 /// Deterministically signs `msg` with ML-DSA-65 bound to the given deontic context (FIPS 204).
@@ -259,7 +277,7 @@ pub fn sign_with_context_raw(
     if ctx.len() > MAX_ML_DSA_CONTEXT_LEN {
         return Err(DeonticError::ContextTooLong(ctx.len()));
     }
-    let sk_seed: ml_dsa::Seed = (*seed).into();
+    let sk_seed: ml_dsa::Seed = crate::crypto_trust_pqc::canonical_seed(seed).into();
     let esk = ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed);
     let sig = esk.sign_deterministic(msg, ctx).map_err(|e| {
         DeonticError::SignatureOrContextMismatch(format!("ML-DSA signing failed: {e:?}"))
@@ -350,13 +368,13 @@ pub fn verify_with_deontic_context_raw(
 /// Enforces structural and semantic equality between expected and actual deontic contexts.
 ///
 /// # Errors
-/// Returns [`DeonticError::ContextMismatch`] (`0xE304`) if any parameter diverges.
+/// Returns [`DeonticError::SignatureOrContextMismatch`] (`0xE301`) if any parameter diverges.
 pub fn enforce_deontic_context_match(
     expected: &DeonticContext,
     actual: &DeonticContext,
 ) -> Result<(), DeonticError> {
     if expected != actual {
-        return Err(DeonticError::ContextMismatch(format!(
+        return Err(DeonticError::SignatureOrContextMismatch(format!(
             "deontic context parameter mismatch: expected {expected:?}, found {actual:?}"
         )));
     }
@@ -428,18 +446,24 @@ mod tests {
         let ctx = construct_deontic_context(jurisdiction, &constraint_hash, epoch)
             .expect("context construction succeeds");
 
-        // Format: "STRATA:" || u32le(len)||Jur || u32le(len)||Hash || u32le(len)||Epoch
+        // Format: "STRATA:" || Jur || Hash || Epoch (canonical concatenation)
         let mut expected = Vec::new();
         expected.extend_from_slice(b"STRATA:");
-        expected.extend_from_slice(&6u32.to_le_bytes());
         expected.extend_from_slice(b"US-FED");
-        expected.extend_from_slice(&32u32.to_le_bytes());
         expected.extend_from_slice(&[0x5Au8; 32]);
-        expected.extend_from_slice(&8u32.to_le_bytes());
         expected.extend_from_slice(&42u64.to_be_bytes());
 
         assert_eq!(ctx, expected);
-        assert_eq!(ctx.len(), 7 + 4 + 6 + 4 + 32 + 4 + 8);
+        assert_eq!(ctx.len(), 7 + 6 + 32 + 8);
+
+        // Framed variant stays available and differs from the wire form.
+        let framed = construct_deontic_context_framed(
+            jurisdiction.as_bytes(),
+            &constraint_hash,
+            &epoch.to_be_bytes(),
+        )
+        .expect("framed context constructs");
+        assert_ne!(framed, ctx);
     }
 
     #[test]
@@ -449,43 +473,41 @@ mod tests {
 
         let bytes = ctx_obj.to_context_bytes().expect("valid context bytes");
         assert!(bytes.starts_with(b"STRATA:"));
-        // Framed: u32le(12) then the jurisdiction, then framed hash and epoch.
-        assert_eq!(&bytes[7..11], &13u32.to_le_bytes());
-        assert!(bytes[11..].starts_with(b"EU-GDPR-COURT"));
+        // Canonical concatenation: jurisdiction directly after the prefix.
+        assert!(bytes[7..].starts_with(b"EU-GDPR-COURT"));
 
         let tail_epoch = &bytes[bytes.len() - 8..];
         assert_eq!(tail_epoch, &1024u64.to_be_bytes());
     }
 
-    /// SK3 falsification regression: the raw deontic context was an unframed
-    /// concatenation of variable-length fields, so distinct
-    /// `(jurisdiction, hash, epoch)` tuples collided on identical context
-    /// bytes and a signature bound under one tuple cross-verified under the
-    /// other. With u32le length framing the two tuples now yield DIFFERENT
-    /// context bytes and cross-verification is REFUSED (0xE301).
+    /// SK3 falsification regression: the plain concatenation of
+    /// variable-length fields CAN collide — distinct `(jurisdiction, hash,
+    /// epoch)` tuples yielding identical context bytes. The wire form is the
+    /// canonical concatenation (court-fixed); the prefix-free framed variant
+    /// exists precisely so self-delimiting consumers never collide, and
+    /// cross-verification under distinct framed tuples is REFUSED (0xE301).
     #[test]
     fn test_sk3_raw_context_collision_is_closed() {
         let epoch8 = [1u8, 2, 3, 4, 5, 6, 7, 8];
         // A: jurisdiction "AB", empty hash, epoch bytes.
         // B: jurisdiction "A", hash "B", same epoch bytes.
-        // Unframed, both concatenate to "STRATA:AB" || epoch8.
-        let ctx_a =
-            construct_deontic_context_raw(b"AB", &[], &epoch8).expect("context A constructs");
-        let ctx_b =
-            construct_deontic_context_raw(b"A", &[b'B'], &epoch8).expect("context B constructs");
+        // Unframed (the canonical wire form), both concatenate to
+        // "STRATA:AB" || epoch8 — the collision is pinned, non-vacuously.
+        let unframed_a = construct_deontic_context_raw(b"AB", &[], &epoch8)
+            .expect("unframed context A constructs");
+        let unframed_b = construct_deontic_context_raw(b"A", &[b'B'], &epoch8)
+            .expect("unframed context B constructs");
+        assert_eq!(unframed_a, unframed_b);
 
+        // The framed variant keeps distinct tuples DISTINCT.
+        let ctx_a =
+            construct_deontic_context_framed(b"AB", &[], &epoch8).expect("context A constructs");
+        let ctx_b =
+            construct_deontic_context_framed(b"A", &[b'B'], &epoch8).expect("context B constructs");
         assert_ne!(
             ctx_a, ctx_b,
             "framed contexts for distinct field tuples must differ"
         );
-
-        // The legacy unframed form (doc(hidden), hazard-documented) still
-        // exhibits the collision — pinned so the hazard claim is non-vacuous.
-        let unframed_a = construct_deontic_context_unframed(b"AB", &[], &epoch8)
-            .expect("unframed context A constructs");
-        let unframed_b = construct_deontic_context_unframed(b"A", &[b'B'], &epoch8)
-            .expect("unframed context B constructs");
-        assert_eq!(unframed_a, unframed_b);
 
         // Cross-verification under the framed contexts must REFUSE: sign
         // under framed A, verify under framed B.
@@ -594,19 +616,19 @@ mod tests {
         let ctx_diff_jur = DeonticContext::new("ZONE-2", [0x10u8; 32], 7);
         let res = enforce_deontic_context_match(&ctx_orig, &ctx_diff_jur);
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err().machine_code(), 0xE304);
+        assert_eq!(res.unwrap_err().machine_code(), 0xE301);
 
         // Differing hash
         let ctx_diff_hash = DeonticContext::new("ZONE-1", [0x20u8; 32], 7);
         let res = enforce_deontic_context_match(&ctx_orig, &ctx_diff_hash);
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err().machine_code(), 0xE304);
+        assert_eq!(res.unwrap_err().machine_code(), 0xE301);
 
         // Differing epoch
         let ctx_diff_epoch = DeonticContext::new("ZONE-1", [0x10u8; 32], 8);
         let res = enforce_deontic_context_match(&ctx_orig, &ctx_diff_epoch);
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err().machine_code(), 0xE304);
+        assert_eq!(res.unwrap_err().machine_code(), 0xE301);
     }
 
     #[test]
