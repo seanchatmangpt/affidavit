@@ -16,7 +16,7 @@ default:
 # --- the verification ladder (AGENTS.md §6) ---------------------------------
 
 # Run the full ladder, cheapest high-information court first. This is the gate.
-validate: errc-court fmt-check build test doctest clippy completions
+validate: errc-court fmt-check build test doctest clippy completions core-validate golden wasm-build wasm-test
     @echo "validate: every court passed"
 
 # Exact-head ERRC fast court unit tests (cheapest court, no Rust build).
@@ -90,6 +90,30 @@ web-check:
 core-test:
     cd affidavit-core && cargo test
 
+# Full core-crate gate: tests, feature planes, lint, fmt, doc build.
+core-validate: core-test core-ocel-test core-no-default core-clippy core-fmt-check core-doc
+
+# ocel-compat plane: mining module against wasm4pm-compat OCEL v2 types.
+core-ocel-test:
+    cd affidavit-core && cargo test --features ocel-compat --lib mining
+
+# Prove the verifier works without an allocator.
+core-no-default:
+    cd affidavit-core && cargo build --no-default-features
+
+# Lint both feature planes (core is outside the root workspace; root clippy cannot see it).
+core-clippy:
+    cd affidavit-core && cargo clippy --all-targets -- -D warnings
+    cd affidavit-core && cargo clippy --no-default-features -- -D warnings
+
+# Formatting for the non-workspace core crate (root fmt-check cannot see it).
+core-fmt-check:
+    cd affidavit-core && cargo fmt --all -- --check
+
+# Core doc build must be warning-free.
+core-doc:
+    cd affidavit-core && RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+
 # The stdlib-only Python genetic Cargo-feature optimizer.
 confevo-test:
     cd tools/confevo && python3 -m unittest
@@ -113,16 +137,16 @@ completions:
 # --- mutation court (crypto trust surface) -----------------------------------
 
 # Targeted cargo-mutants regression court over the crypto-critical files.
-# Runs the `crypto_trust`-filtered lib suite plus the certified-receipts
-# integration falsifiers so the mutants meet real cryptographic assertions.
-# Baseline (2026-10-05, affidavit@HEAD): 129 mutants, 116+ caught,
+# Crypto is unconditional by law: ML-DSA-65 via the external `ml-dsa` crate
+# (affidavit-core/src/pqc.rs) and BLAKE3 via the external `blake3` crate
+# (affidavit-core/src/digest.rs, crypto_verify.rs). No feature flags, no
+# hand-rolled primitives. Baseline (2026-10-05): 129 mutants, 116+ caught,
 # <= 3 survivors, all classified equivalent (see mutations/BASELINE.json).
 mutate-crypto:
-    cargo mutants \
-        --file src/crypto_trust_verify.rs \
-        --file src/receipts_certified.rs \
-        --file src/crypto_trust_keys.rs \
+    cd affidavit-core && cargo mutants \
+        --file src/pqc.rs \
+        --file src/crypto_verify.rs \
+        --file src/digest.rs \
         --timeout 300 \
         -j 4 \
-        -- --lib --test receipts_certified --test crypto_trust_mutation_court \
-            --features crypto-trust,certified-receipts -- crypto_trust
+        -- --lib --test blake3_chain_court --test pqc_external_validation
