@@ -1287,9 +1287,227 @@ pub fn search(query: &str) -> Vec<&'static VerbEntry> {
     scored.into_iter().map(|(_, e)| e).collect()
 }
 
+
+// ─── Runtime registry twin (row 21) ─────────────────────────────────────────
+//
+// The compile-time parity courts above pin REGISTRY to the `#[verb]` source
+// text. This is the RUNTIME twin: it assembles the framework registry via
+// `clap_noun_verb`'s linkme-backed `cli::registry::CommandRegistry` and
+// cross-checks it against the hand REGISTRY.
+//
+// Falsifier reasoning (why this court can fail where the others cannot):
+// a duplicate `#[verb("receipt", "emit")]` stub on a second function COMPILES
+// (linkme simply appends another registration fn to `__VERB_REGISTRY`), and
+// the runtime maps then dedupe it silently — `register_verb_with_args` does
+// `HashMap::insert`, so the LAST stub wins the handler binding and no error
+// surfaces anywhere. Count parity against the hand REGISTRY could also still
+// pass if the map dedup hides the extra registration. The court below detects
+// it because the raw `__VERB_REGISTRY` distributed-slice length counts every
+// compiled `#[verb]` invocation while the populated maps count only UNIQUE
+// (noun, verb) keys: total > unique ⇒ a duplicate stub is live in the binary.
+// (We assert the reasoning, not the mutation — the mutation itself is
+// exercised by the mutation-court lanes, not by adding a stub here.)
+//
+// Framework-API note: `CommandRegistry::validate()` / `command_structure()`
+// in `vendor/clap-noun-verb/src/registry.rs` belong to the BUILDER registry,
+// which only sees hand-constructed `NounCommand`s and is never populated by
+// the `#[verb]` macro. The macro (clap-noun-verb-macros, lib.rs ~1641) writes
+// into `cli::registry`, whose `CommandRegistry` has no `validate()`. So this
+// function re-implements the `validate()` checks that apply to the runtime
+// maps (duplicate nouns/verbs, empty nouns) over `command_structure()`-equivalent
+// data, plus the slice-vs-map duplicate detector the framework lacks.
+
+/// A `(noun, verb)` pair as seen by the framework runtime registry.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RuntimeVerbPair {
+    pub noun: String,
+    pub verb: String,
+}
+
+/// Verdict of the runtime registry cross-check.
+#[derive(Debug)]
+pub struct RuntimeRegistryReport {
+    /// Total `#[verb]` registrations compiled into the binary
+    /// (`__VERB_REGISTRY` distributed-slice length).
+    pub verb_registrations: usize,
+    /// Unique verbs in the populated framework registry.
+    pub unique_verbs: usize,
+    /// Unique nouns in the populated framework registry.
+    pub unique_nouns: usize,
+    /// The runtime command structure (noun -> sorted verbs).
+    pub structure: Vec<(String, Vec<String>)>,
+}
+
+/// Assemble the framework registry at runtime and cross-check it against the
+/// hand [`REGISTRY`].
+///
+/// Checks (in order):
+/// 1. *validate() twin*: no duplicate noun, no empty noun (a noun with zero
+///    verbs), no duplicate (noun, verb) registration — the duplicate class is
+///    caught as `__VERB_REGISTRY.len() != unique verbs` (see the falsifier
+///    comment above).
+/// 2. *command_structure() parity*: the runtime noun/verb counts equal the
+///    hand REGISTRY counts, and the runtime `(noun, verb)` set equals the
+///    hand REGISTRY set exactly (both directions).
+///
+/// Returns [`RuntimeRegistryReport`] on success; the `Err` string names the
+/// first failed check with both sides of the mismatch.
+pub fn validate_registry_runtime() -> Result<RuntimeRegistryReport, String> {
+    use std::collections::BTreeMap;
+
+    // Raw registration count BEFORE init (init only folds the slice into the
+    // maps; the slice itself is link-time populated and read-only here).
+    let verb_registrations = clap_noun_verb::cli::registry::__VERB_REGISTRY.len();
+    let noun_registrations = clap_noun_verb::cli::registry::__NOUN_REGISTRY.len();
+
+    // Populate + read the framework registry.
+    let registry_mutex = clap_noun_verb::cli::registry::CommandRegistry::get();
+    let reg = registry_mutex.lock().unwrap_or_else(|e| e.into_inner());
+
+    // command_structure()-equivalent: noun -> verbs from the live maps.
+    let mut structure: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (noun_name, _about) in reg.get_nouns() {
+        structure.insert(noun_name.to_string(), Vec::new());
+    }
+    let mut unique_verbs = 0usize;
+    for (noun_name, verbs) in structure.iter_mut() {
+        for (verb_name, _about) in reg.get_verbs(noun_name) {
+            verbs.push(verb_name.to_string());
+        }
+        verbs.sort();
+        unique_verbs += verbs.len();
+    }
+    let unique_nouns = structure.len();
+    drop(reg);
+
+    // ── Check 1: validate() twin — no InvalidStructure-equivalent state ────
+    // Empty noun (noun with no verbs).
+    if let Some((noun, _)) = structure.iter().find(|(_, v)| v.is_empty()) {
+        return Err(format!(
+            "InvalidStructure: noun '{noun}' has no verbs"
+        ));
+    }
+    // Duplicate (noun, verb) registration: the maps dedupe silently, so a
+    // live duplicate is visible only as slice total > map unique.
+    if verb_registrations != unique_verbs {
+        return Err(format!(
+            "InvalidStructure: {verb_registrations} #[verb] registrations compiled in but only {unique_verbs} unique (noun, verb) keys in the runtime registry — a duplicate #[verb] stub is live"
+        ));
+    }
+    // A #[noun] registration for a noun the #[verb] projections never use
+    // would be a phantom noun in the CLI surface.
+    if noun_registrations > unique_nouns {
+        return Err(format!(
+            "InvalidStructure: {noun_registrations} #[noun] registrations but only {unique_nouns} unique nouns carry verbs"
+        ));
+    }
+
+    // ── Check 2: command_structure() parity with the hand REGISTRY ─────────
+    let hand_verbs = REGISTRY.len();
+    if unique_verbs != hand_verbs {
+        return Err(format!(
+            "runtime registry has {unique_verbs} verbs but hand REGISTRY has {hand_verbs}"
+        ));
+    }
+    let hand_nouns: usize =
+        REGISTRY.iter().map(|e| e.noun).collect::<std::collections::BTreeSet<_>>().len();
+    if unique_nouns != hand_nouns {
+        return Err(format!(
+            "runtime registry has {unique_nouns} nouns but hand REGISTRY has {hand_nouns}"
+        ));
+    }
+    let mut runtime_pairs: Vec<RuntimeVerbPair> = Vec::with_capacity(unique_verbs);
+    for (noun, verbs) in &structure {
+        for verb in verbs {
+            runtime_pairs.push(RuntimeVerbPair {
+                noun: noun.clone(),
+                verb: verb.clone(),
+            });
+        }
+    }
+    runtime_pairs.sort();
+    let mut hand_pairs: Vec<RuntimeVerbPair> = REGISTRY
+        .iter()
+        .map(|e| RuntimeVerbPair {
+            noun: e.noun.to_string(),
+            verb: e.verb.to_string(),
+        })
+        .collect();
+    hand_pairs.sort();
+    if runtime_pairs != hand_pairs {
+        let missing: Vec<&RuntimeVerbPair> = hand_pairs
+            .iter()
+            .filter(|p| !runtime_pairs.contains(p))
+            .collect();
+        let extra: Vec<&RuntimeVerbPair> = runtime_pairs
+            .iter()
+            .filter(|p| !hand_pairs.contains(p))
+            .collect();
+        return Err(format!(
+            "runtime (noun, verb) set diverges from hand REGISTRY: missing={missing:?} extra={extra:?}"
+        ));
+    }
+
+    Ok(RuntimeRegistryReport {
+        verb_registrations,
+        unique_verbs,
+        unique_nouns,
+        structure: structure.into_iter().collect(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn runtime_registry_twins_hand_registry() {
+        // The court: assembles the linkme-populated framework registry and
+        // cross-checks validate()-class structure + command_structure() parity.
+        let report = validate_registry_runtime().expect("runtime registry court failed");
+        // Pinned surface constants (v26.10.16): 100 verbs across 13 nouns.
+        assert_eq!(report.verb_registrations, 100, "raw #[verb] registrations");
+        assert_eq!(report.unique_verbs, 100);
+        assert_eq!(report.unique_nouns, 13);
+        // The report's structure is exactly the hand REGISTRY projection.
+        let hand: Vec<(String, Vec<String>)> = {
+            let mut m: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+            for e in REGISTRY {
+                m.entry(e.noun.to_string()).or_default().push(e.verb.to_string());
+            }
+            for v in m.values_mut() {
+                v.sort();
+            }
+            m.into_iter().collect()
+        };
+        assert_eq!(report.structure, hand);
+    }
+
+    #[test]
+    fn runtime_registry_slice_cannot_silently_dedupe() {
+        // Anti-vacuity: the raw distributed-slice length must equal the hand
+        // REGISTRY count. If a duplicate #[verb] stub is ever compiled in,
+        // this fails BEFORE validate_registry_runtime()'s map check would,
+        // proving the slice counter is not laundered through the deduping maps.
+        let raw = clap_noun_verb::cli::registry::__VERB_REGISTRY.len();
+        assert_eq!(raw, verb_count(), "raw #[verb] slice length diverges from hand REGISTRY");
+    }
+
+#[test]
+fn probe_runtime_diff() {
+    use std::collections::BTreeMap;
+    let m = clap_noun_verb::cli::registry::CommandRegistry::get();
+    let r = m.lock().unwrap_or_else(|e| e.into_inner());
+    let mut rt: std::collections::BTreeSet<(String,String)> = Default::default();
+    for (n, _) in r.get_nouns() {
+        for (v, _) in r.get_verbs(n) { rt.insert((n.to_string(), v.to_string())); }
+    }
+    for e in crate::registry::REGISTRY {
+        let p = (e.noun.to_string(), e.verb.to_string());
+        if !rt.contains(&p) { println!("MISSING {:?}", p); }
+    }
+    println!("total slice={}", clap_noun_verb::cli::registry::__VERB_REGISTRY.len());
+}
 
     #[test]
     fn registry_entry_count_matches_constant() {

@@ -280,7 +280,7 @@ fn qg05_ctrt_deserialize_timing_invariance() {
 fn qg05_ml_dsa65_sign_timing_invariance() {
     let samples = samples_from_env(100_000);
     let fx = MlDsaFixture::new();
-    let kp = ml_dsa65_from_seed(&fx.seed).expect("pqc fixture key pair");
+    let kp = ml_dsa65_from_seed(&fx.seed);
     let subj0 = [0xA5u8; 32];
     let subj1 = {
         let mut s = [0x5Au8; 32];

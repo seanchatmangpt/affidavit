@@ -113,7 +113,7 @@ fn acvp_ml_dsa_65_keygen_seed_to_pk_exact() {
             .try_into()
             .expect("seed is 32 bytes");
         let pk = hex_decode(v["pk"].as_str().expect("pk"), "pk");
-        let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
+        let kp = ml_dsa65_from_seed(&seed);
         assert_eq!(
             kp.public, pk,
             "ACVP ML-DSA-65 keyGen tcId {tc_id}: seed -> pk must match NIST byte-for-byte"
@@ -189,7 +189,7 @@ fn acvp_slh_dsa_128s_keygen_seeds_to_pk_exact() {
             .try_into()
             .expect("seeds are 48 bytes");
         let pk = hex_decode(v["pk"].as_str().expect("pk"), "pk");
-        let kp = slh_dsa128s_from_seed(&seeds).expect("pqc fixture key pair");
+        let kp = slh_dsa128s_from_seed(&seeds);
         assert_eq!(
             kp.public, pk,
             "ACVP SLH-DSA-SHA2-128s keyGen tcId {tc_id}: seeds -> pk must match NIST"

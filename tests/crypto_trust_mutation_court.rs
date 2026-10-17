@@ -135,7 +135,7 @@ fn crypto_trust_mutation_court_every_admitted_algorithm_verifies_its_own_signatu
 
     // -- ML-DSA-65 --
     let mldsa_seed = ndseed(0xA5, ML_DSA_65_SEED_LEN);
-    let mldsa_kp = ml_dsa65_from_seed(&mldsa_seed).expect("pqc fixture key pair");
+    let mldsa_kp = ml_dsa65_from_seed(&mldsa_seed);
     let mldsa_record = record_for(
         SUBJECT,
         AlgorithmId::MlDsa65,
@@ -151,7 +151,7 @@ fn crypto_trust_mutation_court_every_admitted_algorithm_verifies_its_own_signatu
 
     // -- SLH-DSA-SHA2-128s --
     let slh_seeds = ndseed(0x5A, SLH_DSA_128S_SEED_LEN);
-    let slh_kp = slh_dsa128s_from_seed(&slh_seeds).expect("pqc fixture key pair");
+    let slh_kp = slh_dsa128s_from_seed(&slh_seeds);
     let slh_record = record_for(
         SUBJECT,
         AlgorithmId::SlhDsa128s,

@@ -195,8 +195,7 @@ mod tests {
     /// p256's own group modulus in
     /// [`hardcoded_order_matches_p256_modulus`], so the law's `n` is the
     /// curve's, never a transcription of a comment.
-    const P256_ORDER_HEX: &str =
-        "FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551";
+    const P256_ORDER_HEX: &str = "FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551";
 
     fn hex_decode(hex: &str) -> Vec<u8> {
         assert_eq!(hex.len() % 2, 0, "hex must be byte-aligned");
@@ -471,7 +470,10 @@ mod tests {
         let s_low = to_scalar32(s);
         assert!(!is_high_s(&s_low), "the signer must emit low-s");
         let s_mirror = scalar_neg_mod_n(&s_low, &p256_order_bytes());
-        assert!(is_high_s(&s_mirror), "the n − s mirror of low-s must be high-s");
+        assert!(
+            is_high_s(&s_mirror),
+            "the n − s mirror of low-s must be high-s"
+        );
         let mirror_der = der_frame(&to_scalar32(r), &s_mirror);
 
         // Control: the identical framing with the original low-s s verifies,

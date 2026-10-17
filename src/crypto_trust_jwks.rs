@@ -43,6 +43,22 @@ pub enum JwksError {
     /// arithmetic); the record cannot export without it.
     #[error("ES256K export requires the secp256k1 feature (point decompression)")]
     FeatureRequired,
+    /// The JWK declares a `kty` this importer does not serve (import serves
+    /// EC and OKP only; foreign kty values refuse rather than guess).
+    #[error("unsupported JWK kty {0}; import supports EC and OKP only")]
+    UnsupportedKeyType(String),
+    /// The JWK declares a `crv` the family does not carry (e.g. crv=P-384
+    /// under kty=EC, crv=X25519 under kty=OKP). Refused typed, never guessed.
+    #[error("unsupported crv {0} for kty={1}")]
+    UnsupportedCurve(String, String),
+    /// An explicit `alg` field contradicts the kty/crv pair; a JWK whose own
+    /// fields disagree is ambiguous about what it is a key FOR.
+    #[error("JWK alg {0} contradicts kty/crv {1}")]
+    AlgorithmMismatch(String, String),
+    /// The coordinate pair is well-formed wire but not a member of the named
+    /// curve — the invalid-curve / twist-attack feed. Refused typed.
+    #[error("{0} point validation failed: {1}")]
+    InvalidPoint(String, String),
     /// Two records in one exported set share a `kid`. A relying party that
     /// resolves kid -> key could pick the wrong algorithm family and verify a
     /// cross-family forgery, so a duplicate-kid set refuses WHOLE.
@@ -175,6 +191,233 @@ pub fn export_jwks(records: &[KeyRecord]) -> Result<serde_json::Value, JwksError
         .map(|record| export_jwk(record))
         .collect::<Result<_, _>>()?;
     Ok(serde_json::json!({ "keys": keys }))
+}
+
+// ============================================================================
+// IMPORT (JWK wire -> registry-side key material) — register row 32, the
+// classical half. Import performs the same point-level validation the export
+// boundary assumes: the JOSE form carries x/y coordinates, but coordinates
+// that are not a curve member are not a key. Every refusal is typed.
+// ============================================================================
+
+/// RFC 4648 base64url WITHOUT padding decoder (the JOSE alphabet). Refuses
+/// '=' padding and non-alphabet bytes; a padded or non-canonical JWK field
+/// would let two distinct wire strings import as one key identity.
+fn b64url_decode(s: &str) -> Result<Vec<u8>, JwksError> {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    if s.contains('=') {
+        return Err(JwksError::MalformedPublicKey(
+            "<import>".to_string(),
+            "JWK base64url must be unpadded per RFC 7515 (('=' is not in the JOSE alphabet))"
+                .to_string(),
+        ));
+    }
+    let mut out: Vec<u8> = Vec::with_capacity(s.len() / 4 * 3 + 3);
+    let mut acc: u32 = 0;
+    let mut bits: u32 = 0;
+    for c in s.bytes() {
+        let v = ALPHABET.iter().position(|&a| a == c).ok_or_else(|| {
+            JwksError::MalformedPublicKey(
+                "<import>".to_string(),
+                format!("byte 0x{:02x} is not base64url", c),
+            )
+        })? as u32;
+        acc = (acc << 6) | v;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
+    }
+    Ok(out)
+}
+
+/// Import one JWK (JSON object) into registry-side public key material.
+///
+/// WIRE LAW (mirror of [`export_jwk`]):
+/// - `kty=EC, crv=P-256` imports as [`PublicKeyMaterial::Es256Sec1`] holding
+///   the canonical 65-byte uncompressed SEC1 point (`0x04 || X || Y`). The
+///   coordinates are validated as a curve member through the external p256
+///   implementation ([`p256::ecdsa::VerifyingKey::from_sec1_bytes`]) — a
+///   coordinate pair that is not on the P-256 curve (the classic
+///   invalid-curve / twist-attack feed) refuses typed, never imports.
+/// - `kty=EC, crv=secp256k1` imports as [`PublicKeyMaterial::Es256kSec1`]
+///   holding the canonical 33-byte compressed SEC1 point. The stored form is
+///   compressed because that is the plane's canonical ES256K encoding (the
+///   export path decompresses from exactly this form, so import -> export is
+///   byte-stable).
+/// - `kty=OKP, crv=Ed25519` imports as [`PublicKeyMaterial::Ed25519`]. The
+///   32-byte `x` is validated through the external dalek implementation
+///   ([`ed25519_dalek::VerifyingKey::from_bytes`]). LAW PIN (named reason):
+///   dalek 2.x `from_bytes` admits non-canonical y encodings (y >= p reduce
+///   silently at decode) — canonicity is enforced at *signature verification*
+///   time by dalek's strict RFC 8032 verification, not at decode. We do not
+///   re-implement that arithmetic in-house (operator law: every algorithm is
+///   an external dependency); import therefore pins the decode law of the
+///   implementation that owns verification, and the strictness court lives in
+///   the signature-verify path, not here.
+///
+/// Wrong `kty`, wrong `crv`, and `alg` fields that contradict the kty/crv
+/// pair all refuse typed. Post-quantum/hybrid JWKs have no JOSE mapping and
+/// refuse [`JwksError::UnsupportedAlgorithm`], mirroring export.
+pub fn import_jwk(jwk: &serde_json::Value) -> Result<(AlgorithmId, PublicKeyMaterial), JwksError> {
+    let kty = jwk.get("kty").and_then(|v| v.as_str()).ok_or_else(|| {
+        JwksError::MalformedPublicKey(
+            "<import>".to_string(),
+            "missing or non-string kty".to_string(),
+        )
+    })?;
+    match kty {
+        "EC" => {
+            let crv = jwk.get("crv").and_then(|v| v.as_str()).ok_or_else(|| {
+                JwksError::MalformedPublicKey(
+                    "<import>".to_string(),
+                    "EC JWK requires a string crv".to_string(),
+                )
+            })?;
+            let alg = match crv {
+                "P-256" => AlgorithmId::Es256,
+                "secp256k1" => AlgorithmId::Es256k,
+                other => {
+                    return Err(JwksError::UnsupportedCurve(
+                        other.to_string(),
+                        "EC".to_string(),
+                    ));
+                }
+            };
+            if let Some(declared) = jwk.get("alg").and_then(|v| v.as_str()) {
+                if declared != alg.as_str() {
+                    return Err(JwksError::AlgorithmMismatch(
+                        declared.to_string(),
+                        format!("kty=EC crv={}", crv),
+                    ));
+                }
+            }
+            let x = b64url_decode(jwk.get("x").and_then(|v| v.as_str()).ok_or_else(|| {
+                JwksError::MalformedPublicKey(
+                    "<import>".to_string(),
+                    "EC JWK requires a string x".to_string(),
+                )
+            })?)?;
+            let y = b64url_decode(jwk.get("y").and_then(|v| v.as_str()).ok_or_else(|| {
+                JwksError::MalformedPublicKey(
+                    "<import>".to_string(),
+                    "EC JWK requires a string y".to_string(),
+                )
+            })?)?;
+            if x.len() != 32 || y.len() != 32 {
+                return Err(JwksError::MalformedPublicKey(
+                    "<import>".to_string(),
+                    format!(
+                        "EC JWK coordinates must be 32 bytes each, got x={} y={}",
+                        x.len(),
+                        y.len()
+                    ),
+                ));
+            }
+            // Canonical uncompressed SEC1 feed for point validation.
+            let mut sec1 = Vec::with_capacity(65);
+            sec1.push(0x04u8);
+            sec1.extend_from_slice(&x);
+            sec1.extend_from_slice(&y);
+            match alg {
+                AlgorithmId::Es256 => {
+                    use p256::ecdsa::VerifyingKey as P256VerifyingKey;
+                    P256VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| {
+                        JwksError::InvalidPoint(
+                            "P-256".to_string(),
+                            "coordinates are not a P-256 curve member (invalid-curve feed refused)"
+                                .to_string(),
+                        )
+                    })?;
+                    Ok((AlgorithmId::Es256, PublicKeyMaterial::Es256Sec1(sec1)))
+                }
+                _ => {
+                    // crv=secp256k1 branch (alg == AlgorithmId::Es256k).
+                    #[cfg(feature = "secp256k1")]
+                    {
+                        use k256::ecdsa::VerifyingKey as K256VerifyingKey;
+                        let vk = K256VerifyingKey::from_sec1_bytes(&sec1).map_err(|_| {
+                            JwksError::InvalidPoint(
+                                "secp256k1".to_string(),
+                                "coordinates are not a secp256k1 curve member (invalid-curve feed refused)".to_string(),
+                            )
+                        })?;
+                        // Canonical stored form: compressed SEC1 (33 bytes).
+                        use k256::elliptic_curve::sec1::ToSec1Point as _;
+                        let compressed = vk.as_affine().to_encoded_point(true);
+                        Ok((
+                            AlgorithmId::Es256k,
+                            PublicKeyMaterial::Es256kSec1(compressed.as_bytes().to_vec()),
+                        ))
+                    }
+                    #[cfg(not(feature = "secp256k1"))]
+                    {
+                        let _ = sec1;
+                        Err(JwksError::FeatureRequired)
+                    }
+                }
+            }
+        }
+        "OKP" => {
+            let crv = jwk.get("crv").and_then(|v| v.as_str()).ok_or_else(|| {
+                JwksError::MalformedPublicKey(
+                    "<import>".to_string(),
+                    "OKP JWK requires a string crv".to_string(),
+                )
+            })?;
+            if crv != "Ed25519" {
+                return Err(JwksError::UnsupportedCurve(
+                    crv.to_string(),
+                    "OKP".to_string(),
+                ));
+            }
+            if let Some(declared) = jwk.get("alg").and_then(|v| v.as_str()) {
+                if declared != AlgorithmId::Ed25519.as_str() {
+                    return Err(JwksError::AlgorithmMismatch(
+                        declared.to_string(),
+                        "kty=OKP crv=Ed25519".to_string(),
+                    ));
+                }
+            }
+            let x = b64url_decode(jwk.get("x").and_then(|v| v.as_str()).ok_or_else(|| {
+                JwksError::MalformedPublicKey(
+                    "<import>".to_string(),
+                    "OKP JWK requires a string x".to_string(),
+                )
+            })?)?;
+            if x.len() != 32 {
+                return Err(JwksError::MalformedPublicKey(
+                    "<import>".to_string(),
+                    format!("Ed25519 OKP x must be 32 bytes, got {}", x.len()),
+                ));
+            }
+            #[cfg(feature = "ed25519")]
+            {
+                let bytes: [u8; 32] = <[u8; 32]>::try_from(x.as_slice()).map_err(|_| {
+                    JwksError::MalformedPublicKey(
+                        "<import>".to_string(),
+                        "Ed25519 OKP x must be 32 bytes".to_string(),
+                    )
+                })?;
+                let key = ed25519_dalek::VerifyingKey::from_bytes(&bytes)
+                .map_err(|_| {
+                    JwksError::InvalidPoint(
+                        "Ed25519".to_string(),
+                        "x does not decode to an Ed25519 curve point".to_string(),
+                    )
+                })?;
+                let _ = key; // validation is the product; the raw bytes are the material
+                Ok((AlgorithmId::Ed25519, PublicKeyMaterial::Ed25519(x)))
+            }
+            #[cfg(not(feature = "ed25519"))]
+            {
+                let _ = x;
+                Err(JwksError::FeatureRequired)
+            }
+        }
+        other => Err(JwksError::UnsupportedKeyType(other.to_string())),
+    }
 }
 
 #[cfg(test)]
@@ -372,6 +615,200 @@ mod tests {
     }
 
     #[cfg(all(feature = "ed25519", feature = "secp256k1"))]
+    // ------------------ import courts (register row 32, classical half) --
+
+    #[test]
+    fn import_round_trip_is_byte_stable_p256() {
+        let signing = crate::crypto_trust_es256::Es256SigningKey::from_seed(&[11u8; 32])
+            .expect("valid scalar seed");
+        let sec1 = signing.public_key_sec1();
+        let rec = record(
+            AlgorithmId::Es256,
+            PublicKeyMaterial::Es256Sec1(sec1.clone()),
+            11,
+        );
+        let jwk = export_jwk(&rec).expect("exports");
+        let (alg, material) = import_jwk(&jwk).expect("round-trips");
+        assert_eq!(alg, AlgorithmId::Es256);
+        assert_eq!(material, PublicKeyMaterial::Es256Sec1(sec1));
+    }
+
+    #[cfg(feature = "secp256k1")]
+    #[test]
+    fn import_round_trip_is_byte_stable_secp256k1() {
+        let signing = crate::secp256k1_witness::WitnessSigningKey::from_seed(&[12u8; 32])
+            .expect("valid scalar seed");
+        let compressed = signing.public_key_sec1().to_vec();
+        let rec = record(
+            AlgorithmId::Es256k,
+            PublicKeyMaterial::Es256kSec1(compressed),
+            12,
+        );
+        let jwk = record_jwk(&rec);
+        let (alg, material) = import_jwk(&jwk).expect("round-trips");
+        assert_eq!(alg, AlgorithmId::Es256k);
+        // Byte-stability is against the CANONICAL stored form (compressed):
+        // import recompresses, so export-after-import reproduces the
+        // registry-side bytes exactly.
+        assert_eq!(
+            material,
+            PublicKeyMaterial::Es256kSec1(compressed.clone())
+        );
+    }
+
+    // helper used by the secp256k1 court above
+    #[cfg(feature = "secp256k1")]
+    fn record_jwk(rec: &KeyRecord) -> serde_json::Value {
+        export_jwk(rec).expect("exports")
+    }
+
+    #[cfg(feature = "ed25519")]
+    #[test]
+    fn import_round_trip_is_byte_stable_ed25519() {
+        let kp = crate::ed25519_witness::WitnessKeyPair::generate();
+        let raw = kp.public().to_vec();
+        let rec = record(
+            AlgorithmId::Ed25519,
+            PublicKeyMaterial::Ed25519(raw.clone()),
+            13,
+        );
+        let jwk = export_jwk(&rec).expect("exports");
+        let (alg, material) = import_jwk(&export_fixup(&jwk, &rec)).expect("round-trips");
+        assert_eq!(alg, AlgorithmId::Ed25519
+        );
+        assert_eq!(material, PublicKeyMaterial::Ed25519(raw));
+        let _ = jwk;
+    }
+
+    // Export drops no fields the importer needs; a fixup is not required, so
+    // this helper is the identity — kept named so the court reads as court.
+    #[cfg(feature = "ed25519")]
+    fn export_fixup(jwk: &serde_json::Value, rec: &KeyRecord) -> serde_json::Value {
+        assert_eq!(jwk["kid"], rec.id.to_string());
+        jwk.clone()
+    }
+
+    #[test]
+    fn invalid_curve_point_refused_typed() {
+        // 32 x 0xff coordinates: not a P-256 curve member.
+        let jwk = serde_json::json!({
+            "kty": "EC", "crv": "P-256", "alg": "ES256",
+            "x": b64url(&[0xffu8; 32]),
+            "y": b64url(&[0xffu8; 32]),
+        });
+        assert!(matches!(
+            import_jwk(&jwk),
+            Err(JwksError::InvalidPoint(crv, _)) if crv == "P-256"
+        ));
+    }
+
+    #[cfg(feature = "secp256k1")]
+    #[test]
+    fn invalid_secp256k1_point_refused_typed() {
+        let jwk = serde_json::json!({
+            "kty": "EC", "crv": "secp256k1", "alg": "ES256K",
+            "x": b64url(&[0xffu8; 32]),
+            "y": b64url(&[0xffu8; 32]),
+        });
+        assert!(matches!(
+            import_jwk(&jwk),
+            Err(JwksError::InvalidPoint(crv, _)) if crv == "secp256k1"
+        ));
+    }
+
+    #[test]
+    fn wrong_crv_refused_typed() {
+        let p384 = serde_json::json!({
+            "kty": "EC", "crv": "P-384",
+            "x": b64url(&[1u8; 48]),
+            "y": b64url(&[1u8; 48]),
+        });
+        assert_eq!(
+            import_jwk(&p384),
+            Err(JwksError::UnsupportedCurve("P-384".to_string(), "EC".to_string()))
+        );
+        let x25519 = serde_json::json!({
+            "kty": "OKP", "crv": "X25519",
+            "x": b64url(&[2u8; 32]),
+        });
+        assert_eq!(
+            import_jwk(&x25519),
+            Err(JwksError::UnsupportedCurve(
+                "X25519".to_string(),
+                "OKP".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn wrong_kty_refused_typed() {
+        let oct = serde_json::json!({"kty": "oct", "k": b64url(b"secret")});
+        assert_eq!(
+            import_jwk(&oct),
+            Err(JwksError::UnsupportedKeyType("oct".to_string()))
+        );
+        // Missing kty: the field is mandatory (RFC 7517 §4.1).
+        assert!(matches!(
+            import_jwk(&serde_json::json!({ "crv": "P-256" })),
+            Err(JwksError::MalformedPublicKey(_, _))
+        ));
+    }
+
+    #[test]
+    fn contradicting_alg_refused_typed() {
+        let jwk = serde_json::json!({
+            "kty": "EC", "crv": "P-256", "alg": "ES256K",
+            "x": b64url(&[1u8; 32]),
+            "y": b64url(&[1u8; 32]),
+        });
+        assert_eq!(
+            import_jwk(&jwk),
+            Err(JwksError::AlgorithmMismatch(
+                "ES256K".to_string(),
+                "kty=EC crv=P-256".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn padded_and_nonalphabet_b64url_refused() {
+        let padded = serde_json::json!({
+            "kty": "OKP", "crv": "Ed25519",
+            "x": format!("{}=", b64url(&[3u8; 32])),
+        });
+        assert!(matches!(
+            import_jwk(&padded),
+            Err(JwksError::MalformedPublicKey(_, _))
+        ));
+    }
+
+    #[cfg(feature = "ed25519")]
+    #[test]
+    fn ed25519_non_canonical_x_law_pin() {
+        // LAW PIN (named reason): dalek 2.x VerifyingKey::from_bytes admits
+        // non-canonical y encodings (y >= p reduce at decode); canonicity is
+        // enforced at signature-verification time by dalek's strict RFC 8032
+        // verification. Import pins the decode law of the implementation
+        // that owns verification — it must NOT refuse where dalek accepts.
+        // Encoding of y = p = 2^255-19 (reduces to 0 at decode), sign bit 0.
+        let p_le: [u8; 32] = [
+            0xed, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f,
+        ];
+        let jwk = serde_json::json!({
+            "kty": "OKP", "crv": "Ed25519",
+            "x": b64url(&p_le),
+        });
+        match import_jwk(&jwk) {
+            Ok((AlgorithmId::Ed25519, PublicKeyMaterial::Ed25519(x))) => {
+                assert_eq!(x, p_le.to_vec());
+            }
+            other => panic!("law pin broken: dalek decode law changed: {:?}", other),
+        }
+    }
+
     #[test]
     fn jwks_set_is_deterministic_and_ordered_by_kid() {
         let signing = crate::crypto_trust_es256::Es256SigningKey::from_seed(&[9u8; 32])

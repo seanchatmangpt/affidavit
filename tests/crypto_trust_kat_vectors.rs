@@ -192,7 +192,7 @@ fn family_material(index: usize) -> FamilyMaterial {
         }
         1 => {
             let seed = seed32(index, "mldsa65");
-            let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
+            let kp = ml_dsa65_from_seed(&seed);
             FamilyMaterial {
                 algorithm: AlgorithmId::MlDsa65,
                 profile: CryptoProfile::Pqc,
@@ -205,7 +205,7 @@ fn family_material(index: usize) -> FamilyMaterial {
             let es_seed = seed32(index, "hybrid-es256");
             let ml_seed = seed32(index, "hybrid-mldsa65");
             let es = Es256SigningKey::from_seed(&es_seed).expect("hybrid es256 fixture scalar");
-            let ml = ml_dsa65_from_seed(&ml_seed).expect("pqc fixture key pair");
+            let ml = ml_dsa65_from_seed(&ml_seed);
             let mut seed_bytes = es_seed.to_vec();
             seed_bytes.extend_from_slice(&ml_seed);
             FamilyMaterial {
