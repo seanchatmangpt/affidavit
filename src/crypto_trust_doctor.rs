@@ -37,7 +37,7 @@ use crate::crypto_trust_es256::{verify_es256, Es256SigningKey};
 use crate::crypto_trust_keys::{AlgorithmId, CryptoProfile, KeyId};
 use crate::crypto_trust_pqc::{ml_dsa65_from_seed, ml_dsa65_sign, ml_dsa65_verify};
 use crate::crypto_trust_store::{FileKeyStore, StoreError, STORE_FILE};
-use crate::doctor_check::{DoctorCheck, Finding, DOCTOR_CHECKS};
+use crate::doctor_check::{DoctorCheck, DoctorContext, Finding, DOCTOR_CHECKS};
 use linkme::distributed_slice;
 use std::path::Path;
 
@@ -125,12 +125,13 @@ impl DoctorCheck for StoreIntegrityCheck {
     fn id(&self) -> &'static str {
         STORE_INTEGRITY_CHECK_ID
     }
-    fn run(&self) -> Finding {
-        store_integrity_finding(Path::new(STORE_FILE))
+    fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
+        vec![
+            store_integrity_finding(Path::new(STORE_FILE)),
+        ]
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _STORE_INTEGRITY_CHECK: &dyn DoctorCheck = &StoreIntegrityCheck;
 
@@ -179,12 +180,13 @@ impl DoctorCheck for Es256SelftestCheck {
     fn id(&self) -> &'static str {
         ES256_SELFTEST_CHECK_ID
     }
-    fn run(&self) -> Finding {
-        es256_selftest_finding()
+    fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
+        vec![
+            es256_selftest_finding(),
+        ]
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _ES256_SELFTEST_CHECK: &dyn DoctorCheck = &Es256SelftestCheck;
 
@@ -264,12 +266,13 @@ impl DoctorCheck for EnvelopeLawCheck {
     fn id(&self) -> &'static str {
         ENVELOPE_LAW_CHECK_ID
     }
-    fn run(&self) -> Finding {
-        envelope_law_finding()
+    fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
+        vec![
+            envelope_law_finding(),
+        ]
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _ENVELOPE_LAW_CHECK: &dyn DoctorCheck = &EnvelopeLawCheck;
 
@@ -285,16 +288,7 @@ pub fn pqc_selftest_finding() -> Finding {
     let seed = doctor_fixture("ml-dsa-65-seed");
     let msg = doctor_fixture("ml-dsa-65-message");
     let rnd = doctor_fixture("ml-dsa-65-rnd");
-    let key = match ml_dsa65_from_seed(&seed) {
-        Ok(k) => k,
-        Err(e) => {
-            return Finding::fail(
-                PQC_SELFTEST_CHECK_ID,
-                format!("ML-DSA-65 self-test key derivation refused: {e}"),
-                "The crypto-trust feature is compromised or miscompiled; do not trust plane signatures until resolved",
-            )
-        }
-    };
+    let key = ml_dsa65_from_seed(&seed);
     match ml_dsa65_sign(&seed, &msg, &rnd) {
         Ok(sig) => {
             // Round-trip: the exact (message, signature) pair must verify.
@@ -347,12 +341,13 @@ impl DoctorCheck for PqcSelftestCheck {
     fn id(&self) -> &'static str {
         PQC_SELFTEST_CHECK_ID
     }
-    fn run(&self) -> Finding {
-        pqc_selftest_finding()
+    fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
+        vec![
+            pqc_selftest_finding(),
+        ]
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[distributed_slice(DOCTOR_CHECKS)]
 static _PQC_SELFTEST_CHECK: &dyn DoctorCheck = &PqcSelftestCheck;
 
