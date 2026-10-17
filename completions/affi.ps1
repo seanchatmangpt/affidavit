@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 101, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 100, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `. /path/to/completions/affi.ps1` to your $PROFILE.
@@ -18,20 +18,20 @@ $script:AffiCompletions = [ordered]@{
         'fre-902' = 'Generates self-authenticating electronic records affidavit under FRE 902(14)'
     }
     'dossier' = [ordered]@{
-        'emit' = 'Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)'
-        'inspect' = 'Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature'
-        'seal' = 'Seal a directory of 352-byte court records into a signed sealed-dossier wire file'
-        'verify' = 'Verify a sealed-dossier wire file against the local ML-DSA-65 key store'
+        'emit' = '[crypto-trust] Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)'
+        'inspect' = '[crypto-trust] Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature'
+        'seal' = '[ctdd] Seal a directory of 352-byte court records into a signed sealed-dossier wire file'
+        'verify' = '[ctdd] Verify a sealed-dossier wire file against the local ML-DSA-65 key store'
     }
     'ecosystem' = [ordered]@{
         'certify' = 'Federate sealed member standing receipts into one quorum-scored receipt'
         'verify' = 'Re-run the federation law over a sealed ecosystem receipt'
     }
     'envelope' = [ordered]@{
-        'export' = 'Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)'
-        'list' = 'List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)'
-        'sign' = 'Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document'
-        'verify' = 'Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)'
+        'export' = '[crypto-trust] Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)'
+        'list' = '[crypto-trust] List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)'
+        'sign' = '[crypto-trust] Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document'
+        'verify' = '[crypto-trust] Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)'
     }
     'errc' = [ordered]@{
         'assure' = 'Seal a one-witness-per-claim assurance ledger over a sealed ERRC receipt'
@@ -40,20 +40,20 @@ $script:AffiCompletions = [ordered]@{
         'verify-assurance' = 'Re-run the claim-assurance law, optionally binding to the exact parent ERRC receipt'
     }
     'evidence' = [ordered]@{
-        'crl-apply' = 'Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)'
-        'crl-publish' = 'Publish the signed revocation list (CTP-CRL-v1) for the store''s recorded revocations under the registered issuer key'
-        'heads' = 'Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)'
-        'journal' = 'Record a receipt''s cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry'
+        'crl-apply' = '[crypto-trust] Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)'
+        'crl-publish' = '[crypto-trust] Publish the signed revocation list (CTP-CRL-v1) for the store''s recorded revocations under the registered issuer key'
+        'heads' = '[crypto-trust] Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)'
+        'journal' = '[crypto-trust] Record a receipt''s cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry'
     }
     'guide' = [ordered]@{
         'search' = 'Search the verb registry by keyword to discover relevant commands'
     }
     'keys' = [ordered]@{
-        'generate' = 'Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)'
-        'import' = 'Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)'
-        'list' = 'List registered key records: kid, algorithm, fingerprint, custodian'
-        'revoke' = 'Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store'
-        'rotate' = 'Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store'
+        'generate' = '[crypto-trust] Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)'
+        'import' = '[crypto-trust] Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)'
+        'list' = '[crypto-trust] List registered key records: kid, algorithm, fingerprint, custodian'
+        'revoke' = '[crypto-trust] Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store'
+        'rotate' = '[crypto-trust] Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store'
     }
     'legal-hold' = [ordered]@{
         'status' = 'Audits local OCEL and CTRT event chains to certify FRCP 37(e) evidentiary hold integrity'
@@ -61,14 +61,14 @@ $script:AffiCompletions = [ordered]@{
     'receipt' = [ordered]@{
         'anomaly-detect' = 'Detect anomalous events in the receipt chain using statistical outlier analysis'
         'assemble' = 'Finalize the working receipt into an immutable sealed file'
-        'assemble-and-notarize' = 'Assemble and attach a local trust-plane notarization in one step (no external TSA)'
-        'assemble-with-signature' = 'Assemble and immediately sign the receipt in a single atomic operation'
-        'attest' = 'Create a signed SLSA attestation document from a sealed receipt'
+        'assemble-and-notarize' = '[crypto-trust] Assemble and attach a local trust-plane notarization in one step (no external TSA)'
+        'assemble-with-signature' = '[crypto-trust] Assemble and immediately sign the receipt in a single atomic operation'
+        'attest' = 'Create an unsigned SLSA-style attestation document from a sealed receipt (no signature fields; notarize adds signatures)'
         'audit' = 'Run a full audit pass over a receipt: chain integrity, commitments, and event completeness'
         'bus-factor' = 'Compute the bus factor for each object in the chain based on contributor events'
         'catalog' = 'Index a directory of receipts into a local catalog for fast search and lookup'
         'causality-chain' = 'Build a causality chain graph linking events by causal relationships'
-        'chain-verify' = 'Replay the BLAKE3 receipt chain across all court records in a directory'
+        'chain-verify' = '[ctdd] Replay the BLAKE3 receipt chain across all court records in a directory'
         'conformance' = 'Check a receipt against custom conformance rules or a named profile'
         'coverage-analysis' = 'Measure what fraction of defined event types appear in the receipt'
         'dependency-matrix' = 'Build an object-to-object dependency matrix from co-occurrence in receipt events'
@@ -95,7 +95,7 @@ $script:AffiCompletions = [ordered]@{
         'license-compliance' = 'Check that dependency licenses in the receipt satisfy the project''s license policy'
         'model' = 'Extract the type schema from a receipt (event types, object types, qualifiers)'
         'monitor' = 'Watch a working receipt file and stream events to stdout as they are appended'
-        'notarize' = 'Attach a local trust-plane notarization to a receipt (unsigned attestation request, or a real ES256 attestation with AFFI_NOTARY_KEY)'
+        'notarize' = '[crypto-trust] Attach a local trust-plane notarization to a receipt (unsigned attestation request, or a real ES256 attestation with AFFI_NOTARY_KEY)'
         'orphaned-code' = 'Identify object references in the receipt that have no corresponding emit events'
         'pci-dss' = 'Collect PCI-DSS control evidence from receipt events for auditor review'
         'policy-enforce' = 'Evaluate receipt events against a Rego or CEL policy file'
@@ -114,20 +114,19 @@ $script:AffiCompletions = [ordered]@{
         'search' = 'Search the local receipt catalog by event type, object, date range, or keyword'
         'security-debt' = 'Surface security-relevant events with missing or weak commitments'
         'show' = 'Human-readable dump of the receipt chain with event details'
-        'sign' = 'Cryptographically sign a sealed receipt with an ES256 key (raw-hex key file; production custody via HSM/Secure Enclave)'
+        'sign' = '[crypto-trust] Cryptographically sign a sealed receipt with an ES256 key (raw-hex key file; production custody via HSM/Secure Enclave)'
         'soc2-audit' = 'Collect SOC 2 trust-service-criteria evidence from receipts for auditor review'
         'stats' = 'Chain metrics: event count, hash distribution, event-type histogram'
         'team-velocity' = 'Measure team throughput and cycle time from emit/assemble event pairs'
         'tech-debt' = 'Identify stale or low-quality events that signal accumulated technical debt'
-        'test' = 'Run the built-in receipt self-test suite to validate the local installation'
         'timeline' = 'Render a temporal timeline of events ordered by sequence number'
         'trend-analysis' = 'Compute rolling trends over event frequency, latency, and error rates across receipts'
-        'validate' = 'Validate one 352-byte CTRT court receipt record (file or stdin)'
+        'validate' = '[ctdd] Validate one 352-byte CTRT court receipt record (file or stdin)'
         'variance' = 'Measure variance in event timing and payload size across a collection of receipts'
         'verify' = 'Run the 7-stage certify pipeline against a receipt (exit 0=ACCEPT, 2=REJECT)'
         'verify-compliance' = 'Check evidence presence for a compliance framework (evidence present/absent — not a legal determination)'
         'verify-family' = 'Verify a family of related receipts all satisfy shared constraints'
-        'verify-sla' = 'Verify that receipt events satisfy defined SLA thresholds and time windows'
+        'verify-sla' = 'Verify that receipt event counts satisfy the min_events SLA threshold (time-window checks are refused: core/v1 receipts carry no timestamps)'
         'visualize' = 'Generate an interactive HTML or SVG visualization of the receipt chain'
         'why' = 'Explain in plain language why a receipt was rejected, with stage-by-stage remediation steps'
     }

@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 101, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 100, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install (pick one):
@@ -35,7 +35,7 @@ _affi() {
     local guide_verbs="search"
     local keys_verbs="generate import list revoke rotate"
     local legal_hold_verbs="status"
-    local receipt_verbs="anomaly-detect assemble assemble-and-notarize assemble-with-signature attest audit bus-factor catalog causality-chain chain-verify conformance coverage-analysis dependency-matrix diagnose diff dora-metrics emit emit-batch emit-from-cicd emit-from-cloud emit-from-github emit-from-gitlab emit-from-monitoring emit-from-sbom emit-from-security explain-incident find-blast-radius fix gdpr-proof graph hipaa inspect install-git-hook license-compliance model monitor notarize orphaned-code pci-dss policy-enforce portfolio-health predict profile query receipt-throughput replay root-cause sbom-attest sbom-blast-radius sbom-compliance sbom-ntia sbom-scan search security-debt show sign soc2-audit stats team-velocity tech-debt test timeline trend-analysis validate variance verify verify-compliance verify-family verify-sla visualize why"
+    local receipt_verbs="anomaly-detect assemble assemble-and-notarize assemble-with-signature attest audit bus-factor catalog causality-chain chain-verify conformance coverage-analysis dependency-matrix diagnose diff dora-metrics emit emit-batch emit-from-cicd emit-from-cloud emit-from-github emit-from-gitlab emit-from-monitoring emit-from-sbom emit-from-security explain-incident find-blast-radius fix gdpr-proof graph hipaa inspect install-git-hook license-compliance model monitor notarize orphaned-code pci-dss policy-enforce portfolio-health predict profile query receipt-throughput replay root-cause sbom-attest sbom-blast-radius sbom-compliance sbom-ntia sbom-scan search security-debt show sign soc2-audit stats team-velocity tech-debt timeline trend-analysis validate variance verify verify-compliance verify-family verify-sla visualize why"
     local restitution_verbs="calculate"
     local standing_verbs="certify verify"
 

@@ -421,14 +421,14 @@ pub static REGISTRY: &[VerbEntry] = &[
         "sign",
         "receipt",
         VerbGroup::Attestation,
-        "Cryptographically sign a sealed receipt with an ES256 key (raw-hex key file; production custody via HSM/Secure Enclave)",
+        "[crypto-trust] Cryptographically sign a sealed receipt with an ES256 key (raw-hex key file; production custody via HSM/Secure Enclave)",
         &["sign", "signature", "cryptography", "private-key", "pem"],
     ),
     VerbEntry::new(
         "notarize",
         "receipt",
         VerbGroup::Attestation,
-        "Attach a local trust-plane notarization to a receipt (unsigned attestation request, or a real ES256 attestation with AFFI_NOTARY_KEY)",
+        "[crypto-trust] Attach a local trust-plane notarization to a receipt (unsigned attestation request, or a real ES256 attestation with AFFI_NOTARY_KEY)",
         &["notarize", "notarization", "transparency", "sigstore", "rekor", "timestamp"],
     ),
     VerbEntry::new(
@@ -442,14 +442,14 @@ pub static REGISTRY: &[VerbEntry] = &[
         "assemble-with-signature",
         "receipt",
         VerbGroup::Attestation,
-        "Assemble and immediately sign the receipt in a single atomic operation",
+        "[crypto-trust] Assemble and immediately sign the receipt in a single atomic operation",
         &["assemble_with_signature", "sign", "assemble", "atomic", "seal"],
     ),
     VerbEntry::new(
         "assemble-and-notarize",
         "receipt",
         VerbGroup::Attestation,
-        "Assemble and attach a local trust-plane notarization in one step (no external TSA)",
+        "[crypto-trust] Assemble and attach a local trust-plane notarization in one step (no external TSA)",
         &["assemble_and_notarize", "notarize", "assemble", "atomic", "rekor"],
     ),
     VerbEntry::new(
@@ -647,7 +647,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "emit",
         "dossier",
         VerbGroup::Attestation,
-        "Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)",
+        "[crypto-trust] Emit a signed NATO STANAG 4107 JSON dossier from 20 court receipts (N01..N20.json)",
         &["dossier", "nato", "stanag", "emit", "court"],
     )
     .with_example("affi dossier emit --receipts-dir docs/receipts --out dossier.json"),
@@ -655,7 +655,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "inspect",
         "dossier",
         VerbGroup::Attestation,
-        "Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature",
+        "[crypto-trust] Inspect a CTT-DOSSIER-v1 dossier: recompute the Merkle root, optionally verify the ML-DSA-65 signature",
         &["dossier", "nato", "stanag", "inspect", "merkle", "pqc"],
     )
     .with_example("affi dossier inspect dossier.json --verify-pqc-signature ML-DSA-65"),
@@ -663,7 +663,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "seal",
         "dossier",
         VerbGroup::Attestation,
-        "Seal a directory of 352-byte court records into a signed sealed-dossier wire file",
+        "[ctdd] Seal a directory of 352-byte court records into a signed sealed-dossier wire file",
         &["dossier", "seal", "merkle", "chain", "court"],
     )
     .with_example("affi dossier seal ./records --output sealed.bin"),
@@ -671,7 +671,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "verify",
         "dossier",
         VerbGroup::Attestation,
-        "Verify a sealed-dossier wire file against the local ML-DSA-65 key store",
+        "[ctdd] Verify a sealed-dossier wire file against the local ML-DSA-65 key store",
         &["dossier", "verify", "merkle", "tamper", "pqc"],
     )
     .with_example("affi dossier verify sealed.bin"),
@@ -680,7 +680,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "validate",
         "receipt",
         VerbGroup::Core,
-        "Validate one 352-byte CTRT court receipt record (file or stdin)",
+        "[ctdd] Validate one 352-byte CTRT court receipt record (file or stdin)",
         &["validate", "ctrt", "record", "court", "ledger"],
     )
     .with_example("affi receipt validate record.ctrt"),
@@ -688,7 +688,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "chain-verify",
         "receipt",
         VerbGroup::Core,
-        "Replay the BLAKE3 receipt chain across all court records in a directory",
+        "[ctdd] Replay the BLAKE3 receipt chain across all court records in a directory",
         &["chain", "verify", "ledger", "replay", "court"],
     )
     .with_example("affi receipt chain-verify ./records"),
@@ -783,7 +783,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "generate",
         "keys",
         VerbGroup::Attestation,
-        "Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)",
+        "[crypto-trust] Generate a real ES256 signing key and append its public record to the key store (the secret never touches disk)",
         &["generate", "keys", "keygen", "es256", "trust-plane"],
     )
     .with_example("affi keys generate ES256 alice --out .affi/keys.json"),
@@ -791,7 +791,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "list",
         "keys",
         VerbGroup::Attestation,
-        "List registered key records: kid, algorithm, fingerprint, custodian",
+        "[crypto-trust] List registered key records: kid, algorithm, fingerprint, custodian",
         &["list", "keys", "registry", "trust-plane"],
     )
     .with_example("affi keys list --store .affi/keys.json"),
@@ -799,7 +799,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "sign",
         "envelope",
         VerbGroup::Attestation,
-        "Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document",
+        "[crypto-trust] Seal a receipt under an ES256 key: CTP envelope + signature as a PQ-SEAL-v1 document",
         &["sign", "envelope", "seal", "es256", "trust-plane"],
     )
     .with_example("affi envelope sign receipt.json key.hex --out sealed.json"),
@@ -807,7 +807,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "verify",
         "envelope",
         VerbGroup::Attestation,
-        "Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)",
+        "[crypto-trust] Adjudicate a PQ-SEAL-v1 sealed receipt against the registered keys and print the standing VERDICT (exit 0=VALID, 2=decided otherwise)",
         &["verify", "envelope", "verdict", "standing", "trust-plane"],
     )
     .with_example("affi envelope verify sealed.json --store .affi/keys.json"),
@@ -816,7 +816,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "list",
         "envelope",
         VerbGroup::Attestation,
-        "List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)",
+        "[crypto-trust] List key-store records an envelope may bind to: kid, algorithm, profile, fingerprint, custodian (read-only)",
         &["list", "envelope", "keys", "profile", "trust-plane"],
     )
     .with_example("affi envelope list --store .affi/keys.json"),
@@ -824,7 +824,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "export",
         "envelope",
         VerbGroup::Attestation,
-        "Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)",
+        "[crypto-trust] Export the attestation envelope of a PQ-SEAL-v1 sealed document: json = the CTP-ENVELOPE-v1 document (default), sa2a = the SA2A-C2-APPROVAL-v1 approval (JCS-canonical)",
         &["export", "envelope", "sa2a", "interop", "trust-plane"],
     )
     .with_example("affi envelope export sealed.json --format sa2a"),
@@ -832,7 +832,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "import",
         "keys",
         VerbGroup::Attestation,
-        "Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)",
+        "[crypto-trust] Import an externally-held public key (hex) into the key store: fingerprint it and register it under a custodian (origin Imported)",
         &["import", "keys", "external", "fingerprint", "trust-plane"],
     )
     .with_example("affi keys import ES256 04a5f1... alice --out .affi/keys.json"),
@@ -840,7 +840,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "revoke",
         "keys",
         VerbGroup::Attestation,
-        "Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store",
+        "[crypto-trust] Revoke a registered key: append a tamper-evident revocation entry to the checksummed sidecar beside the key store",
         &["revoke", "keys", "revocation", "compromise", "trust-plane"],
     )
     .with_example("affi keys revoke afk1_0123456789abcdef compromised --store .affi/keys.json"),
@@ -848,7 +848,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "rotate",
         "keys",
         VerbGroup::Attestation,
-        "Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store",
+        "[crypto-trust] Rotate a registered ES256 key to a freshly generated ES256 successor: the successor signs the rotation record and its public record joins the store",
         &["rotate", "keys", "rotation", "successor", "rekey", "trust-plane"],
     )
     .with_example("affi keys rotate afk1_0123456789abcdef --store .affi/keys.json --out rotation.json"),
@@ -856,7 +856,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "journal",
         "evidence",
         VerbGroup::Attestation,
-        "Record a receipt's cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry",
+        "[crypto-trust] Record a receipt's cryptographic standing as durable journal evidence: assemble a real receipt, seal it under the custody key, adjudicate the standing, append the hash-chained journal entry",
         &["journal", "evidence", "standing", "receipt", "trust-plane"],
     )
     .with_example("affi evidence journal release-v26.9.28 --out entry.json"),
@@ -864,7 +864,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "crl-publish",
         "evidence",
         VerbGroup::Attestation,
-        "Publish the signed revocation list (CTP-CRL-v1) for the store's recorded revocations under the registered issuer key",
+        "[crypto-trust] Publish the signed revocation list (CTP-CRL-v1) for the store's recorded revocations under the registered issuer key",
         &["crl", "publish", "revocation", "sign", "trust-plane"],
     )
     .with_example("affi evidence crl-publish afk1_0123456789abcdef 0 --store .affi/keys.json"),
@@ -872,7 +872,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "crl-apply",
         "evidence",
         VerbGroup::Attestation,
-        "Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)",
+        "[crypto-trust] Admit a published CRL file into a fresh revocation list: issuer signature first, then epoch freshness, then merge (atomic on any refusal)",
         &["crl", "apply", "revocation", "admit", "trust-plane"],
     )
     .with_example("affi evidence crl-apply .affi/crl.json --store .affi/keys.json"),
@@ -880,7 +880,7 @@ pub static REGISTRY: &[VerbEntry] = &[
         "heads",
         "evidence",
         VerbGroup::Attestation,
-        "Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)",
+        "[crypto-trust] Audit the standing journal and report the RFC 9162 tree head re-derived from the journal entries alone (signed when custody resolves)",
         &["heads", "audit", "merkle", "transparency", "trust-plane"],
     )
     .with_example("affi evidence heads --journal-file .affi/standing-journal.jsonl"),
@@ -1608,6 +1608,66 @@ mod tests {
                 !entries.is_empty(),
                 "group {:?} has no entries in REGISTRY",
                 group
+            );
+        }
+    }
+
+    #[test]
+    fn feature_gated_verbs_carry_feature_prefix_in_summary() {
+        // Court for CLI_VACUITY_AUDIT_26_10_17 REDUCE row: verbs whose handler
+        // emits REFUSED_UNSUPPORTED on the default binary (no `crypto-trust`
+        // feature) must state the requirement at discovery time, prefixing the
+        // REGISTRY summary with "[crypto-trust] ". The ctdd-gated four (compiled
+        // out entirely without the feature, Cargo.toml `ctdd`) carry "[ctdd] ".
+        // Hardcoded from docs/reference/CLI_VACUITY_AUDIT_26_10_17.md + the
+        // REFUSED_UNSUPPORTED sites in src/handlers.rs — drift on either side
+        // (a verb gains/loses the gate or the prefix) flips this test.
+        const CRYPTO_TRUST: &[(&str, &str)] = &[
+            ("sign", "receipt"),
+            ("notarize", "receipt"),
+            ("assemble-with-signature", "receipt"),
+            ("assemble-and-notarize", "receipt"),
+            ("generate", "keys"),
+            ("list", "keys"),
+            ("import", "keys"),
+            ("revoke", "keys"),
+            ("rotate", "keys"),
+            ("sign", "envelope"),
+            ("verify", "envelope"),
+            ("list", "envelope"),
+            ("export", "envelope"),
+            ("journal", "evidence"),
+            ("crl-publish", "evidence"),
+            ("crl-apply", "evidence"),
+            ("heads", "evidence"),
+            ("emit", "dossier"),
+            ("inspect", "dossier"),
+        ];
+        const CTDD: &[(&str, &str)] = &[
+            ("validate", "receipt"),
+            ("chain-verify", "receipt"),
+            ("seal", "dossier"),
+            ("verify", "dossier"),
+        ];
+        for (verb, noun) in CRYPTO_TRUST {
+            let entry = lookup(verb, noun)
+                .unwrap_or_else(|| panic!("registry lost ({verb}, {noun})"));
+            assert!(
+                entry.summary.starts_with("[crypto-trust] "),
+                "({verb}, {noun}) refuses with REFUSED_UNSUPPORTED on the \
+                 default binary but its summary does not carry the \
+                 [crypto-trust] prefix: {:?}",
+                entry.summary
+            );
+        }
+        for (verb, noun) in CTDD {
+            let entry = lookup(verb, noun)
+                .unwrap_or_else(|| panic!("registry lost ({verb}, {noun})"));
+            assert!(
+                entry.summary.starts_with("[ctdd] "),
+                "({verb}, {noun}) is ctdd-gated but its summary does not \
+                 carry the [ctdd] prefix: {:?}",
+                entry.summary
             );
         }
     }
