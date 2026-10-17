@@ -345,7 +345,7 @@ pub fn import_jwk(jwk: &serde_json::Value) -> Result<(AlgorithmId, PublicKeyMate
                         })?;
                         // Canonical stored form: compressed SEC1 (33 bytes).
                         use k256::elliptic_curve::sec1::ToSec1Point as _;
-                        let compressed = vk.as_affine().to_encoded_point(true);
+                        let compressed = vk.as_affine().to_sec1_point(true);
                         Ok((
                             AlgorithmId::Es256k,
                             PublicKeyMaterial::Es256kSec1(compressed.as_bytes().to_vec()),
@@ -639,21 +639,19 @@ mod tests {
         let signing = crate::secp256k1_witness::WitnessSigningKey::from_seed(&[12u8; 32])
             .expect("valid scalar seed");
         let compressed = signing.public_key_sec1().to_vec();
+        let expected = compressed.clone();
         let rec = record(
             AlgorithmId::Es256k,
             PublicKeyMaterial::Es256kSec1(compressed),
             12,
         );
-        let jwk = record_jwk(&rec);
+        let jwk = export_jwk(&rec).expect("exports");
         let (alg, material) = import_jwk(&jwk).expect("round-trips");
         assert_eq!(alg, AlgorithmId::Es256k);
         // Byte-stability is against the CANONICAL stored form (compressed):
-        // import recompresses, so export-after-import reproduces the
-        // registry-side bytes exactly.
-        assert_eq!(
-            material,
-            PublicKeyMaterial::Es256kSec1(compressed.clone())
-        );
+        // import recompresses the JWK coordinates, so import reproduces the
+        // registry-side bytes exactly and export-after-import is identity.
+        assert_eq!(material, PublicKeyMaterial::Es256kSec1(expected));
     }
 
     // helper used by the secp256k1 court above

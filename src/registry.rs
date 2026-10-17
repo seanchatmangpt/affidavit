@@ -1317,6 +1317,21 @@ pub fn search(query: &str) -> Vec<&'static VerbEntry> {
 // maps (duplicate nouns/verbs, empty nouns) over `command_structure()`-equivalent
 // data, plus the slice-vs-map duplicate detector the framework lacks.
 
+
+/// `#[verb]` stubs compiled only under the `ctdd` feature. Under default
+/// features these wrappers (and their framework registrations) do not exist,
+/// so the runtime court compares the runtime set against REGISTRY minus this
+/// table; with `--features ctdd` the table is empty and all 100 must appear.
+#[cfg(not(feature = "ctdd"))]
+pub(crate) const CTDD_GATED_VERBS: &[(&str, &str)] = &[
+    ("dossier", "seal"),
+    ("dossier", "verify"),
+    ("receipt", "validate"),
+    ("receipt", "chain-verify"),
+];
+#[cfg(feature = "ctdd")]
+pub(crate) const CTDD_GATED_VERBS: &[(&str, &str)] = &[];
+
 /// A `(noun, verb)` pair as seen by the framework runtime registry.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RuntimeVerbPair {
@@ -1403,7 +1418,15 @@ pub fn validate_registry_runtime() -> Result<RuntimeRegistryReport, String> {
     }
 
     // ── Check 2: command_structure() parity with the hand REGISTRY ─────────
-    let hand_verbs = REGISTRY.len();
+    let hand_pairs_all: Vec<RuntimeVerbPair> = REGISTRY
+        .iter()
+        .filter(|e| !CTDD_GATED_VERBS.contains(&(e.noun, e.verb)))
+        .map(|e| RuntimeVerbPair {
+            noun: e.noun.to_string(),
+            verb: e.verb.to_string(),
+        })
+        .collect();
+    let hand_verbs = hand_pairs_all.len();
     if unique_verbs != hand_verbs {
         return Err(format!(
             "runtime registry has {unique_verbs} verbs but hand REGISTRY has {hand_verbs}"
@@ -1426,13 +1449,7 @@ pub fn validate_registry_runtime() -> Result<RuntimeRegistryReport, String> {
         }
     }
     runtime_pairs.sort();
-    let mut hand_pairs: Vec<RuntimeVerbPair> = REGISTRY
-        .iter()
-        .map(|e| RuntimeVerbPair {
-            noun: e.noun.to_string(),
-            verb: e.verb.to_string(),
-        })
-        .collect();
+    let mut hand_pairs = hand_pairs_all;
     hand_pairs.sort();
     if runtime_pairs != hand_pairs {
         let missing: Vec<&RuntimeVerbPair> = hand_pairs
@@ -1465,14 +1482,18 @@ mod tests {
         // The court: assembles the linkme-populated framework registry and
         // cross-checks validate()-class structure + command_structure() parity.
         let report = validate_registry_runtime().expect("runtime registry court failed");
-        // Pinned surface constants (v26.10.16): 100 verbs across 13 nouns.
-        assert_eq!(report.verb_registrations, 100, "raw #[verb] registrations");
-        assert_eq!(report.unique_verbs, 100);
+        // Pinned surface constants (v26.10.16): 100 verbs across 13 nouns in
+        // the hand REGISTRY; 96 compile in under default features (4 ctdd-gated).
+        let expected = 100 - CTDD_GATED_VERBS.len();
+        assert_eq!(report.verb_registrations, expected, "raw #[verb] registrations");
+        assert_eq!(report.unique_verbs, expected);
         assert_eq!(report.unique_nouns, 13);
+        #[cfg(feature = "ctdd")]
+        assert_eq!(expected, 100);
         // The report's structure is exactly the hand REGISTRY projection.
         let hand: Vec<(String, Vec<String>)> = {
             let mut m: std::collections::BTreeMap<String, Vec<String>> = Default::default();
-            for e in REGISTRY {
+            for e in REGISTRY.iter().filter(|e| !CTDD_GATED_VERBS.contains(&(e.noun, e.verb))) {
                 m.entry(e.noun.to_string()).or_default().push(e.verb.to_string());
             }
             for v in m.values_mut() {
@@ -1490,24 +1511,13 @@ mod tests {
         // this fails BEFORE validate_registry_runtime()'s map check would,
         // proving the slice counter is not laundered through the deduping maps.
         let raw = clap_noun_verb::cli::registry::__VERB_REGISTRY.len();
-        assert_eq!(raw, verb_count(), "raw #[verb] slice length diverges from hand REGISTRY");
+        assert_eq!(
+            raw,
+            verb_count() - CTDD_GATED_VERBS.len(),
+            "raw #[verb] slice length diverges from hand REGISTRY (feature-adjusted)"
+        );
     }
 
-#[test]
-fn probe_runtime_diff() {
-    use std::collections::BTreeMap;
-    let m = clap_noun_verb::cli::registry::CommandRegistry::get();
-    let r = m.lock().unwrap_or_else(|e| e.into_inner());
-    let mut rt: std::collections::BTreeSet<(String,String)> = Default::default();
-    for (n, _) in r.get_nouns() {
-        for (v, _) in r.get_verbs(n) { rt.insert((n.to_string(), v.to_string())); }
-    }
-    for e in crate::registry::REGISTRY {
-        let p = (e.noun.to_string(), e.verb.to_string());
-        if !rt.contains(&p) { println!("MISSING {:?}", p); }
-    }
-    println!("total slice={}", clap_noun_verb::cli::registry::__VERB_REGISTRY.len());
-}
 
     #[test]
     fn registry_entry_count_matches_constant() {

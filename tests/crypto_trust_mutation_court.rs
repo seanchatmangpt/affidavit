@@ -172,7 +172,6 @@ fn crypto_trust_mutation_court_every_admitted_algorithm_verifies_its_own_signatu
     };
     let es256_public = hybrid.es256.public_key_sec1();
     let mldsa_public = ml_dsa65_from_seed(&hybrid.mldsa65_seed)
-        .expect("pqc fixture key pair")
         .public;
     let hybrid_record = record_for(
         SUBJECT,

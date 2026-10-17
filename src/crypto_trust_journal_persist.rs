@@ -269,7 +269,7 @@ fn lock_is_stale(body: Option<&str>, mtime_age: Option<Duration>, now_unix: u64)
             return now_unix.saturating_sub(acquired) >= LOCK_STALE_SECONDS;
         }
     }
-    mtime_age.map_or(false, |age| age >= Duration::from_secs(LOCK_STALE_SECONDS))
+    mtime_age.is_some_and(|age| age >= Duration::from_secs(LOCK_STALE_SECONDS))
 }
 
 /// A held transition lock. Drop removes the lock file — but only if the
