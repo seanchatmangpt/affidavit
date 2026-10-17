@@ -31,7 +31,7 @@ In complex corporate and technical architectures, subjective honesty is undecida
   feature flag); in the root crate it is available under the `crypto-trust`
   feature.
 - ⚡ **affidavit-wasm (660,847 bytes pinned; see `affidavit-wasm/registry/ARTIFACTS.sha256`):** Sandboxed WASI-only binary exporting the `af_*` JSON-ABI surface (`af_abi_version`/`af_alloc`/`af_free`/`af_call`) plus the `affi_admit_and_seal` gate — admit-and-seal targets sub-100µs in-process BEAM execution; null and oversize requests return typed errors instead of trapping.
-- 🤖 **101 Canonical Verbs:** Governed by RDF ontology (`ontology/affi-cli.ttl`) with strict drift-parity enforcement across Bash, Zsh, Fish, PowerShell, and Nushell.
+- 🤖 **100 Canonical Verbs:** Governed by RDF ontology (`ontology/affi-cli.ttl`) with strict drift-parity enforcement across Bash, Zsh, Fish, PowerShell, and Nushell.
 - 📜 **Statutory Verbs:**
   - `affi legal-hold status`: Verifies historical chain continuity and outputs FRCP 37(e) spoliation status.
   - `affi restitution calculate`: Computes liquidated avoided compute spend under Restatement of Restitution § 42.
