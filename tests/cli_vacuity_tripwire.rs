@@ -26,24 +26,20 @@ static SUITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 thread_local! {
     static SUITE_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
-fn lock_suite() -> std::sync::MutexGuard<'static, ()> {
+fn lock_suite() -> SuiteGuard {
     // Reentrant per-thread: cells may nest fixture/scratch helpers; a plain
     // std Mutex deadlocks on the second acquire (witnessed: parallel run hung).
     if SUITE_DEPTH.with(|d| d.get()) == 0 {
         let g = SUITE_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         SUITE_DEPTH.with(|d| d.set(1));
-        return Guard { g, held: true };
+        return SuiteGuard(Some(g));
     }
-    Guard { g: SUITE_LOCK.try_lock().ok(), held: false }
+    SuiteGuard(None)
 }
-struct Guard {
-    g: Option<std::sync::MutexGuard<'static, ()>>,
-    held: bool,
-}
-impl Drop for Guard {
+struct SuiteGuard(Option<std::sync::MutexGuard<'static, ()>>);
+impl Drop for SuiteGuard {
     fn drop(&mut self) {
-        if self.held {
-            self.g = None;
+        if self.0.is_some() {
             SUITE_DEPTH.with(|d| d.set(0));
         }
     }
