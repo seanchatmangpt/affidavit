@@ -73,7 +73,12 @@ fn real_receipt(payload: &[u8]) -> Receipt {
 
 /// A deterministic ES256 signing key + its registry record.
 fn es256_fixture(tag: u8) -> (Es256SigningKey, KeyRecord) {
-    let signing = Es256SigningKey::from_seed(&[tag; 32]).expect("valid fixture scalar");
+    // SK3 screening refuses all-identical seeds; derive a varied one per tag.
+    let mut seed = [0u8; 32];
+    for (i, b) in seed.iter_mut().enumerate() {
+        *b = tag ^ (i as u8).wrapping_mul(0x1F);
+    }
+    let signing = Es256SigningKey::from_seed(&seed).expect("valid fixture scalar");
     let public = PublicKeyMaterial::Es256Sec1(signing.public_key_sec1());
     let fingerprint = fingerprint_public_key(AlgorithmId::Es256, &public);
     let record = KeyRecord {
@@ -303,7 +308,11 @@ fn es256_full_cycle_from_receipt_to_standing_to_seal() {
 fn wrong_signer_yields_a_decided_invalid_verdict() {
     let receipt = real_receipt(b"wrong-signer");
     let (_honest, record) = es256_fixture(8);
-    let impostor = Es256SigningKey::from_seed(&[0xBB; 32]).expect("valid impostor scalar");
+    let mut imp_seed = [0u8; 32];
+    for (i, b) in imp_seed.iter_mut().enumerate() {
+        *b = 0xBB ^ (i as u8).wrapping_mul(0x2D);
+    }
+    let impostor = Es256SigningKey::from_seed(&imp_seed).expect("valid impostor scalar");
 
     let subject = subject_digest_of(&receipt).expect("subject digest");
     let envelope = envelope_over(subject, &record.id, 0x22);
