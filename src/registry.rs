@@ -1,4 +1,4 @@
-//! # Verb Registry — Single Source of Truth for All 90 Verbs
+//! # Verb Registry — Single Source of Truth for All 101 Verbs
 //!
 //! This module is the W4 keystone: a compile-time static registry that eliminates
 //! drift between documentation, shell completions, and the actual verb set.
@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 98);
+//! assert_eq!(verb_count(), 101);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
