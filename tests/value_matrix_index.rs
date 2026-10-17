@@ -105,6 +105,7 @@ fn marker_pairs() -> BTreeSet<(String, String)> {
         })
         .collect();
     files.sort();
+    let marker_re = regex::Regex::new(MARKER_RE_SRC).unwrap();
     for path in files {
         let body = fs::read_to_string(&path).expect("read marker file");
         for cap in marker_re.captures_iter(&body) {
