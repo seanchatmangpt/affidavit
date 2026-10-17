@@ -143,7 +143,7 @@ fn docs_verb_parity_every_registry_entry_has_exact_page() {
                 .map(|f| f.path())
                 .collect::<Vec<_>>()
         })
-        .filter(|p| p.extension().map_or(false, |x| x == "md"))
+        .filter(|p| p.extension().is_some_and(|x| x == "md"))
         .collect();
     rendered.sort();
 

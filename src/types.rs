@@ -748,7 +748,7 @@ mod tests {
         );
 
         // uppercase -> refused as non-canonical, named, at deserialize
-        let err = decode_blake3(&format!("\"{}\"", GOOD_HEX.to_uppercase()).as_str())
+        let err = decode_blake3(format!("\"{}\"", GOOD_HEX.to_uppercase()).as_str())
             .unwrap_err()
             .to_string();
         assert!(

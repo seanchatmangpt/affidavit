@@ -113,10 +113,12 @@ fn bridge_to_sj(
     let mut prev: Option<ContentHash> = None;
     let mut out = Vec::new();
     for ev in events {
-        let mut r = TestReceipt::default();
-        r.scenario_id = ScenarioId::from(format!("affidavit:{}:{}", ev.seq, ev.event_type));
-        r.sigma_hash = ContentHash::from_string(SIGMA);
-        r.previous_receipt = prev.clone();
+        let mut r = TestReceipt {
+            scenario_id: ScenarioId::from(format!("affidavit:{}:{}", ev.seq, ev.event_type)),
+            sigma_hash: ContentHash::from_string(SIGMA),
+            previous_receipt: prev.clone(),
+            ..TestReceipt::default()
+        };
         r.metadata
             .insert("sj:authority".to_string(), authority.to_string());
         r.metadata.insert(
@@ -288,7 +290,7 @@ fn sj_mutation_control_broken_chain_link_refuses() {
     // Mutation 1: forge a head whose previous link points outside the store
     // — the resolved projection must refuse it: BLOCKED (broken link).
     let mut forged = head.clone();
-    forged.previous_receipt = Some(ContentHash::from_string(&"f".repeat(64)));
+    forged.previous_receipt = Some(ContentHash::from_string("f".repeat(64)));
     forged.id = forged.compute_id();
     let forged_sj = to_sj_receipt_resolved(&forged, &store);
     assert_eq!(
@@ -307,7 +309,7 @@ fn sj_mutation_control_broken_chain_link_refuses() {
     // Mutation 3 (store plane): ReceiptStore.put refuses an orphan whose
     // previous link is absent from the store.
     let mut orphan = TestReceipt::default();
-    orphan.previous_receipt = Some(ContentHash::from_string(&"f".repeat(64)));
+    orphan.previous_receipt = Some(ContentHash::from_string("f".repeat(64)));
     orphan.id = orphan.compute_id();
     assert!(store.put(orphan).is_err(), "store refuses orphan link");
 
