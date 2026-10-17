@@ -388,9 +388,9 @@ fn fre_902_verifier_rejected_chain_is_typed_refusal_224() {
     let ch = v["chain_hash"].as_str().unwrap().to_string();
     // flip the first hex digit (chain hashes are lowercase; '0'/'1' both in-alphabet)
     let flipped = if ch.starts_with('0') {
-        format!("1{}", &ch[1..])
+        format!("1{}", ch.get(1..).unwrap_or(""))
     } else {
-        format!("{}1{}", &ch[..1], &ch[1..])
+        format!("{}1{}", &ch[..1], ch.get(1..).unwrap_or(""))
     };
     v["chain_hash"] = serde_json::json!(flipped);
     fs::write(&p, serde_json::to_string_pretty(&v).expect("serialize")).expect("rewrite");
