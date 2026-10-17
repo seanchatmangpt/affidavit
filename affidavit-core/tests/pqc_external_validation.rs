@@ -339,3 +339,112 @@ fn pqc_court_dual_suite_accepts_and_refuses_over_real_keys() {
         "court accepted a flipped ML-DSA half"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Register #27 — SLH opt_rand pinned-randomizer determinism/divergence court.
+// ---------------------------------------------------------------------------
+
+/// The keys below are all built from the same fixed seeds as
+/// [`real_slh_sig_over`], so the public randomizer (pk_seed) is exactly
+/// `SLH_PK_SEED` — the same value the crate's default `try_sign` (opt_rand
+/// = None) falls back to.
+#[test]
+fn slh_opt_rand_determinism_divergence_and_default_equivalence() {
+    use slh_dsa::signature::SignatureEncoding as SlhSigEncoding;
+
+    let msg = b"affidavit opt_rand court message";
+    let sk = SlhSigningKey::<Sha2_128s>::slh_keygen_internal(&SLH_SEED, &SLH_PRF, &SLH_PK_SEED);
+    let vk = sk.verifying_key();
+    let pk: [u8; 32] = vk.to_bytes().into();
+    let pk_seed = SLH_PK_SEED;
+
+    // (a) Same key + the same explicit opt_rand twice => byte-identical sigs.
+    let sig_a1 = sk
+        .try_sign_with_context(msg, &[], Some(&pk_seed))
+        .expect("sign with opt_rand A");
+    let sig_a2 = sk
+        .try_sign_with_context(msg, &[], Some(&pk_seed))
+        .expect("sign again with opt_rand A");
+    assert_eq!(
+        sig_a1.to_bytes(),
+        sig_a2.to_bytes(),
+        "same opt_rand must reproduce byte-identical signatures"
+    );
+
+    // (b) opt_rand A vs B => sigs differ, and BOTH verify through the
+    //     in-crate ExternalSlhDsa128s adapter.
+    let opt_rand_b = [99u8; 16];
+    assert_ne!(pk_seed, opt_rand_b, "test fixture degenerate");
+    let sig_b = sk
+        .try_sign_with_context(msg, &[], Some(&opt_rand_b))
+        .expect("sign with opt_rand B");
+    let sig_a_bytes = sig_a1.to_bytes().to_vec();
+    let sig_b_bytes = sig_b.to_bytes().to_vec();
+    assert_ne!(
+        sig_a_bytes, sig_b_bytes,
+        "different opt_rand must change the signature bytes"
+    );
+    assert!(
+        ExternalSlhDsa128s.verify(msg, &sig_a_bytes, &pk),
+        "opt_rand-A signature must verify"
+    );
+    assert!(
+        ExternalSlhDsa128s.verify(msg, &sig_b_bytes, &pk),
+        "opt_rand-B signature must verify"
+    );
+
+    // (c) Default try_sign (opt_rand = None -> pk_seed) equals explicit
+    //     opt_rand = Some(pk_seed) byte-for-byte.
+    use slh_dsa::signature::Signer as SlhSigner;
+    let default_sig = sk.sign(msg);
+    assert_eq!(
+        default_sig.to_bytes().as_slice(),
+        sig_a_bytes.as_slice(),
+        "default sign must equal explicit opt_rand = pk_seed"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Register #28 — SLH vk/sig wire-budget pins + ±1-byte typed refusal boundary.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn slh_wire_budget_pins_and_off_by_one_refusals() {
+    let msg = b"affidavit wire-budget court message";
+    let sk = SlhSigningKey::<Sha2_128s>::slh_keygen_internal(&SLH_SEED, &SLH_PRF, &SLH_PK_SEED);
+    let vk = sk.verifying_key();
+    let sig = sk.sign(msg); // default Signer impl (deterministic)
+
+    use slh_dsa::signature::SignatureEncoding as SlhSigEncoding;
+
+    // Pin the exact wire budgets from real keygen.
+    assert_eq!(vk.to_bytes().len(), 32, "SLH-DSA-SHA2-128s vk must be 32 bytes");
+    assert_eq!(sig.to_bytes().len(), 7856, "SLH-DSA-SHA2-128s sig must be 7856 bytes");
+
+    let vk_bytes: [u8; 32] = vk.to_bytes().into();
+    let sig_bytes: [u8; 7856] = sig.to_bytes().into();
+
+    // Round-trip: try_from(vk bytes) -> to_bytes is byte-exact.
+    let vk_rt = SlhVerifyingKey::<Sha2_128s>::try_from(vk_bytes.as_slice())
+        .expect("32-byte vk decodes");
+    assert_eq!(
+        vk_rt.to_bytes().as_slice(),
+        vk_bytes.as_slice(),
+        "vk round-trip must be byte-exact"
+    );
+
+    // ±1-byte boundaries through the adapter: wrong lengths must return
+    // false (typed refusal path), never panic. 31/33 pk, 7855/7857 sig.
+    for pk_len in [31usize, 33] {
+        let mut bad = vk_bytes.to_vec();
+        bad.resize(pk_len, 0xEE);
+        let ok = std::panic::catch_unwind(|| ExternalSlhDsa128s.verify(msg, &sig_bytes, &bad));
+        assert!(matches!(ok, Ok(false)), "pk len {pk_len} must be refused, not panic");
+    }
+    for sig_len in [7855usize, 7857] {
+        let mut bad = sig_bytes.to_vec();
+        bad.resize(sig_len, 0xEE);
+        let ok = std::panic::catch_unwind(|| ExternalSlhDsa128s.verify(msg, &bad, &vk_bytes));
+        assert!(matches!(ok, Ok(false)), "sig len {sig_len} must be refused, not panic");
+    }
+}
