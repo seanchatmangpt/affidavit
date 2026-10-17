@@ -34,7 +34,7 @@ use chicago_tdd_tools::ledger::LedgerExitCode;
 
 /// Deterministic signer per seed byte (real ML-DSA-65 key, no mocks).
 fn signer(seed: u8) -> Signer {
-    Signer::from_seed([seed; 32])
+    Signer::from_seed([seed; 32]).expect("deterministic signer from seed")
 }
 
 /// One valid 352-byte chained record for `court_id` (Pass, budget met).

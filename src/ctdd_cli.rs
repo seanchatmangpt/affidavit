@@ -130,7 +130,7 @@ pub fn load_signer() -> Result<Signer, String> {
     let key = KeyStore::new()
         .load_or_create()
         .map_err(|e: SealError| one_line(e))?;
-    Signer::from_signing_key(key).map_err(|e| one_line(e))
+    Signer::from_signing_key(key).map_err(one_line)
 }
 
 /// [`load_signer`] for verb entry points: custody failures print and exit 2.
