@@ -13,14 +13,16 @@
 //! (b) A stale SigningPackage replayed with fresh round-1 nonces through
 //!     `round2_sign` succeeds indistinguishably from an honest session ⇒
 //!     no commitment binding at the seam ⇒ DEFECT, named-reason assert.
-//! (c) The same nonces sign two different packages and both transcripts
-//!     aggregate to verifying group signatures ⇒ the seam has no
-//!     nonce-reuse guard and the transcript leaks the shares ⇒ this is
-//!     the DEFECT verdict the court reports (pinned as observed behavior,
-//!     not papered over — see test (c)'s doc comment for the disposition).
+//! (c) The same nonces are presented for two different packages ⇒ the
+//!     seam must refuse the second consumption typed
+//!     (`QuorumError::NonceReuse`) and never emit a second Schnorr
+//!     response. FLIPPED 2026-10-17: the `SingleUseNonces` consuming
+//!     newtype + `round2_sign_once` landed; reuse is now a typed refusal
+//!     and the court asserts it.
 
 use affidavit::threshold_quorum::{
-    aggregate_signature, generate_quorum, round1_commit, round2_sign, signing_package, verify_quorum, DealtQuorum, ParticipantId, QuorumError,
+    aggregate_signature, generate_quorum, round1_commit, round2_sign, round2_sign_once,
+    signing_package, verify_quorum, DealtQuorum, ParticipantId, QuorumError, SingleUseNonces,
 };
 use rand_core::OsRng;
 
@@ -148,26 +150,20 @@ fn b_stale_package_with_fresh_nonces_is_refused_typed() {
     }
 }
 
-/// (c) THE PINNED FAULT: one participant reuses the SAME nonces across two
-/// different packages (both consistent with their single round-1 commit).
-/// This is the exact catastrophic class of register row 81.
+/// (c) THE FORMER PINNED FAULT, FLIPPED (FM-row81c): one participant
+/// reuses the SAME round-1 nonces across two different packages (both
+/// consistent with their single round-1 commit). This is the exact
+/// catastrophic class of register row 81.
 ///
-/// Observed FROST behavior being pinned: frost round 2 has no nonce-reuse
-/// guard ( SigningNonces are moved by value, once), so both signings
-/// succeed and both transcripts aggregate. Two group signatures over two
-/// different messages under the same nonces = the participant secret share
-/// is algebraically extractable from the transcript.
-///
-/// DEFECT VERDICT (court result, not papered over): the
-/// `threshold_quorum` seam exposes `round2_sign(secret_share, nonces,
-/// package)` with NO state to detect reuse and NO typed refusal for it.
-/// Defense currently lives entirely in caller discipline ("discard nonces
-/// after one use"), which the seam does not enforce. A guard (e.g. a
-/// `SingleUseNonces` newtype consumed by `round2_sign`, emitting
-/// `QuorumError::NonceReuse`) is the repair lane; this court will flip to
-/// refusal-class asserts when it lands.
+/// Repair landed: the `threshold_quorum` seam now exposes
+/// `round2_sign_once(secret_share, &SingleUseNonces, package)` — the
+/// consuming newtype marks the draw consumed on first use, and the second
+/// consumption over ANY package (different message included) is a typed
+/// `QuorumError::NonceReuse` refusal that never reaches the Schnorr
+/// response computation. The legacy borrowing `round2_sign` remains only
+/// for out-of-lane callers.
 #[test]
-fn c_nonce_reuse_across_two_packages_is_accepted_and_leaks() {
+fn c_nonce_reuse_across_two_packages_is_refused_typed() {
     let quorum = generate_quorum(5, 3, &mut OsRng).expect("dealer");
     let chosen: Vec<ParticipantId> = quorum.shares.keys().copied().take(3).collect();
 
@@ -183,64 +179,83 @@ fn c_nonce_reuse_across_two_packages_is_accepted_and_leaks() {
     let pkg_a = signing_package(&commitments, b"tx-A", quorum.threshold).expect("pkgA");
     let pkg_b = signing_package(&commitments, b"tx-B", quorum.threshold).expect("pkgB");
 
-    // Round 2 with the SAME nonces for both packages.
+    // Round 2 with the SAME nonces wrapped single-use for both packages.
+    let singles: Vec<_> = nonces
+        .iter()
+        .map(|(_, n)| SingleUseNonces::new(n.clone()))
+        .collect();
+
+    // First consumption over package A: succeeds (honest single use).
     let sign_a: Vec<_> = chosen
         .iter()
         .enumerate()
-        .map(|(i, p)| round2_sign(&quorum.shares[p], &nonces[i].1, &pkg_a))
-        .collect();
-    let sign_b: Vec<_> = chosen
-        .iter()
-        .enumerate()
-        .map(|(i, p)| round2_sign(&quorum.shares[p], &nonces[i].1, &pkg_b))
+        .map(|(i, p)| round2_sign_once(&quorum.shares[p], &singles[i], &pkg_a))
         .collect();
 
-    // Named-reason pin: the seam accepted the reuse. If a future repair adds
-    // the guard, THIS assert is what must flip — update it alongside the
-    // QuorumError::NonceReuse arm.
+    // Second consumption of the SAME draw over package B: typed refusal.
     for (i, p) in chosen.iter().enumerate() {
-        assert!(
-            sign_a[i].is_ok() && sign_b[i].is_ok(),
-            "behavior changed (FM-row81c): round2_sign refused nonce reuse for \
-             participant {:?} — a nonce-reuse guard has landed; update this court \
-             to assert the typed QuorumError::NonceReuse refusal",
+        assert_eq!(
+            round2_sign_once(&quorum.shares[p], &singles[i], &pkg_b),
+            Err(QuorumError::NonceReuse),
+            "DEFECT(FM-row81c): nonce reuse for participant {:?} was NOT refused \
+             typed — the single-use guard regressed and the transcript again \
+             leaks the participant's secret share",
             p
         );
     }
 
+    // The refused transcript must not have leaked a usable signature for the
+    // reused draw over message B: only transcript A's shares exist, and they
+    // must aggregate and verify over exactly their committed message.
     let shares_a: Vec<_> = chosen
         .iter()
         .enumerate()
-        .map(|(i, p)| (*p, sign_a[i].as_ref().expect("pinned ok above").clone()))
+        .map(|(i, p)| (*p, sign_a[i].as_ref().expect("first use signs").clone()))
         .collect();
-    let shares_b: Vec<_> = chosen
-        .iter()
-        .enumerate()
-        .map(|(i, p)| (*p, sign_b[i].as_ref().expect("pinned ok above").clone()))
-        .collect();
-
-    let agg_a = aggregate_signature(&pkg_a, &shares_a, &quorum.public_key_package, quorum.threshold)
-        .expect("DEFECT(FM-row81c): reused-nonce transcript A failed to aggregate");
-    let agg_b = aggregate_signature(&pkg_b, &shares_b, &quorum.public_key_package, quorum.threshold)
-        .expect("DEFECT(FM-row81c): reused-nonce transcript B failed to aggregate");
-
-    // The leak, demonstrated end to end: BOTH group signatures verify, over
-    // two different messages, from ONE round-1 nonce draw. This transcript
-    // is a key-extraction oracle for every participant's secret share.
+    let agg_a = aggregate_signature(
+        &pkg_a,
+        &shares_a,
+        &quorum.public_key_package,
+        quorum.threshold,
+    )
+    .expect("DEFECT(FM-row81c): single-use transcript A failed to aggregate");
     assert!(
         verify_quorum(&quorum.group_key, b"tx-A", &agg_a).is_ok(),
         "DEFECT(FM-row81c): transcript A signature does not verify"
     );
+
+    // Package B still signs honestly under a FRESH round-1 draw (fresh
+    // nonces + their commitments over the same message) — the guard refuses
+    // reuse, not signing.
+    let mut fresh_nonces = Vec::new();
+    let mut fresh_commitments = Vec::new();
+    for p in &chosen {
+        let (n, c) = round1_commit(&quorum.shares[p], &mut OsRng).expect("round1");
+        fresh_nonces.push(SingleUseNonces::new(n));
+        fresh_commitments.push((*p, c));
+    }
+    let pkg_b_fresh =
+        signing_package(&fresh_commitments, b"tx-B", quorum.threshold).expect("packageB-fresh");
+    let sign_b: Vec<_> = chosen
+        .iter()
+        .enumerate()
+        .map(|(i, p)| round2_sign_once(&quorum.shares[p], &fresh_nonces[i], &pkg_b_fresh))
+        .collect();
+    let shares_b: Vec<_> = chosen
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (*p, sign_b[i].as_ref().expect("fresh nonces sign").clone()))
+        .collect();
+    let agg_b = aggregate_signature(
+        &pkg_b_fresh,
+        &shares_b,
+        &quorum.public_key_package,
+        quorum.threshold,
+    )
+    .expect("DEFECT(FM-row81c): fresh-nonce transcript B failed to aggregate");
     assert!(
         verify_quorum(&quorum.group_key, b"tx-B", &agg_b).is_ok(),
         "DEFECT(FM-row81c): transcript B signature does not verify"
-    );
-    // The transcripts are distinguishable (different messages ⇒ different
-    // signatures under the same nonces) — which is precisely what makes the
-    // pair a solvable linear system for the shares.
-    assert_ne!(
-        agg_a, agg_b,
-        "DEFECT(FM-row81c): signatures under identical nonces unexpectedly equal"
     );
 }
 
