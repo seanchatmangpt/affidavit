@@ -722,7 +722,6 @@ mod tests {
             let material = PublicKeyMaterial::Hybrid {
                 es256: secret.es256.public_key_sec1(),
                 mldsa65: ml_dsa65_from_seed(&secret.mldsa65_seed)
-                    .expect("pqc fixture key pair")
                     .public,
             };
             register(
