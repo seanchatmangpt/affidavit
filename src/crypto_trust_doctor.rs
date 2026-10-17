@@ -126,9 +126,7 @@ impl DoctorCheck for StoreIntegrityCheck {
         STORE_INTEGRITY_CHECK_ID
     }
     fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
-        vec![
-            store_integrity_finding(Path::new(STORE_FILE)),
-        ]
+        vec![store_integrity_finding(Path::new(STORE_FILE))]
     }
 }
 
@@ -181,9 +179,7 @@ impl DoctorCheck for Es256SelftestCheck {
         ES256_SELFTEST_CHECK_ID
     }
     fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
-        vec![
-            es256_selftest_finding(),
-        ]
+        vec![es256_selftest_finding()]
     }
 }
 
@@ -267,9 +263,7 @@ impl DoctorCheck for EnvelopeLawCheck {
         ENVELOPE_LAW_CHECK_ID
     }
     fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
-        vec![
-            envelope_law_finding(),
-        ]
+        vec![envelope_law_finding()]
     }
 }
 
@@ -342,9 +336,7 @@ impl DoctorCheck for PqcSelftestCheck {
         PQC_SELFTEST_CHECK_ID
     }
     fn run(&self, _ctx: &DoctorContext) -> Vec<Finding> {
-        vec![
-            pqc_selftest_finding(),
-        ]
+        vec![pqc_selftest_finding()]
     }
 }
 
