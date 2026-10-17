@@ -259,7 +259,6 @@ fn diagnose_mirrors_verify_on_honest_receipt() {
     let (vcode, _, _) = w.run(&[
         "receipt",
         "verify",
-        "--receipt",
         honest.file_name().unwrap().to_str().unwrap(),
     ]);
     assert_eq!(
@@ -327,8 +326,10 @@ fn diagnose_distinguishes_the_two_worlds() {
     let w = World::new("diag-worlds");
     let (honest, tampered) = w.receipt_pair();
     let name = |p: &Path| p.file_name().unwrap().to_str().unwrap().to_string();
-    let (_, out_honest, _) = w.run(&["receipt", "diagnose", &name(&honest)]);
-    let (_, out_tampered, _) = w.run(&["receipt", "diagnose", &name(&tampered)]);
+    let (_, oh, eh) = w.run(&["receipt", "diagnose", &name(&honest)]);
+    let (_, ot, et) = w.run(&["receipt", "diagnose", &name(&tampered)]);
+    let out_honest = format!("{oh}{eh}");
+    let out_tampered = format!("{ot}{et}");
     assert_ne!(
         out_honest, out_tampered,
         "[diagnose] ACCEPT world and REJECT world must diagnose differently"

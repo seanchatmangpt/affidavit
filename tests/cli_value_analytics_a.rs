@@ -325,13 +325,24 @@ fn audit_rejects_a_tampered_chain_with_exit_2() {
     );
     let dir = receipts.parent().unwrap().to_path_buf();
 
-    // Tamper: rewrite an event_type in the assembled JSON (chain hash no longer
-    // matches the recomputed rolling hash).
+    // Tamper class 1: rewrite an event_type in the assembled JSON. The chain
+    // hash no longer matches, so the trusting loader refuses the file — the
+    // audit counts it in `failures` (rejected) and exits 2.
     let path = receipts.join("a.json");
     let raw = fs::read_to_string(&path).unwrap();
     let tampered = raw.replace("\"build\"", "\"buildx\"");
     assert_ne!(raw, tampered, "tamper must actually change the bytes");
-    fs::write(&path, tampered).unwrap();
+    let tamper1 = receipts.join("tamper1.json");
+    fs::write(&tamper1, tampered).unwrap();
+
+    // Tamper class 2: rewrite format_version only. The chain hash still
+    // recomputes (it folds events, not the header), so the file LOADS but the
+    // verifier's check_format stage rejects it.
+    let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    let mut v2 = v.clone();
+    v2["format_version"] = serde_json::Value::String("core/v9".into());
+    let tamper2 = receipts.join("tamper2.json");
+    fs::write(&tamper2, serde_json::to_string_pretty(&v2).unwrap()).unwrap();
 
     let (code, stdout, stderr) = run(
         &args(&["receipt", "audit"]),
@@ -340,11 +351,19 @@ fn audit_rejects_a_tampered_chain_with_exit_2() {
     );
     assert_eq!(
         code, 2,
-        "tampered chain must exit 2 (REJECT): {stdout}{stderr}"
+        "tampered chains must exit 2 (REJECT): {stdout}{stderr}"
     );
     assert!(
-        stdout.contains("\"rejected\": 1") && stdout.contains("REJECT"),
-        "audit must report the rejected chain with real counts: {stdout}{stderr}"
+        stdout.contains("\"rejected\": 2") && stdout.contains("REJECT"),
+        "audit must report both tampered chains with real counts: {stdout}{stderr}"
+    );
+    assert!(
+        stdout.contains("unloadable"),
+        "chain-law tamper must surface as unloadable: {stdout}"
+    );
+    assert!(
+        stdout.contains("check_format"),
+        "header tamper must surface as a verifier-stage rejection: {stdout}"
     );
 }
 
@@ -538,7 +557,7 @@ fn conformance_computes_real_metrics_from_the_chain() {
     for line in out.lines() {
         if line.contains("fitness") || line.contains("coverage") || line.contains("simplicity") {
             let val = line.rsplit(':').next().unwrap().trim();
-            let num = val.parse::<f64>();
+            let num = val.split_whitespace().next().unwrap().parse::<f64>();
             assert!(
                 num.is_ok(),
                 "metric must be a real number, got '{val}': {out}"

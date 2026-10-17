@@ -358,11 +358,6 @@ fn v6_errc_assure_names_each_missing_witness_field() {
 fn v7_errc_verify_assurance_rejects_wrong_profile_input() {
     let dir = TempDir::new().expect("tempdir");
     let source = admitted_source(&dir);
-    let observation = write(
-        &dir,
-        "errc-obs.json",
-        &errc_observation_json(&"5".repeat(64)),
-    );
 
     // A valid sealed *standing* receipt is still the wrong profile here.
     let obs = write(&dir, "obs.json", ALIVE_OBSERVATION);
