@@ -668,8 +668,7 @@ mod boundary_corpus {
         // `identity.uri != expected_spiffe_id` comparison.
         let upper = SpiffeIdRef::parse("spiffe://PROD.acme.com/billing").unwrap();
         assert_eq!(
-            upper.trust_domain,
-            "PROD.acme.com",
+            upper.trust_domain, "PROD.acme.com",
             "reason: trust-domain body is case-preserving by grammar (no folding)"
         );
         assert_eq!(upper.uri, "spiffe://PROD.acme.com/billing");
@@ -696,8 +695,7 @@ mod boundary_corpus {
         // upstream verifier already accepted.
         let dbl = SpiffeIdRef::parse("spiffe://td.example//x").unwrap();
         assert_eq!(
-            dbl.path,
-            "//x",
+            dbl.path, "//x",
             "reason: path passes through unvalidated by design"
         );
     }
@@ -710,8 +708,7 @@ mod boundary_corpus {
         let id = SpiffeIdRef::parse("spiffe://td.example").unwrap();
         assert_eq!(id.trust_domain, "td.example");
         assert_eq!(
-            id.path,
-            "",
+            id.path, "",
             "reason: no '/' in input; grammar yields empty path and preserves uri exactly"
         );
         assert_eq!(id.uri, "spiffe://td.example");

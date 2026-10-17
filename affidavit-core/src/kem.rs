@@ -904,7 +904,7 @@ mod tests {
 
     #[test]
     fn reg80_wrong_set_ct_is_length_refused_and_ne_implies_cross_set_success() {
-        use ml_kem::{DecapsulationKey, Encapsulate, KeyExport, MlKem1024, MlKem512, MlKem768};
+        use ml_kem::{DecapsulationKey, Encapsulate, MlKem1024, MlKem512, MlKem768};
 
         let seed = [0x82u8; DECAPSULATION_SEED_LEN];
 
