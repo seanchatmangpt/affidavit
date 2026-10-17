@@ -35,15 +35,28 @@
 // Consumed query columns (kat.rq): domain_tag, envelope_version, algs.
 
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use signature::Signer;
 
+#[cfg(test)]
+use crate::crypto_trust_canonical::digest;
 use crate::crypto_trust_canonical::jcs;
+#[cfg(test)]
+use crate::crypto_trust_es256::Es256SigningKey;
 use crate::crypto_trust_es256::{verify_es256, PUBLIC_KEY_LENGTH};
+#[cfg(test)]
+use crate::crypto_trust_pqc::{
+    hybrid_sign, ml_dsa65_from_seed, ml_dsa65_sign, slh_dsa128s_from_seed, slh_dsa128s_sign,
+    HybridSecret,
+};
 use crate::crypto_trust_pqc::{
     ml_dsa65_verify, slh_dsa128s_verify, ML_DSA_65_PUBLIC_KEY_LEN, ML_DSA_65_SEED_LEN,
     SLH_DSA_128S_SEED_LEN,
 };
 use crate::ed25519_witness::verify_witness;
 use crate::secp256k1_witness::verify_ecdsa;
+#[cfg(test)]
+use crate::secp256k1_witness::WitnessSigningKey;
 
 /// KAT corpus schema version. Bumped ONLY on a wire-incompatible change to
 /// [`KatVector`]; the golden literals and every downstream runtime pin it.
