@@ -990,3 +990,241 @@ mod seeded_opening_tests {
         a.cmp(b)
     }
 }
+
+/// A **joint multi-party** range proof (register row 48): `N >= 2` parties,
+/// each holding a secret receipt metric, produce one compact
+/// [`RangeProof`] certifying every party's value lies in `[0, 2^bits)`.
+///
+/// Built ON row 34's [`RangeBatch`] machinery — the prove/verify kernels are
+/// the same `RangeProof::prove_multiple`/`verify_multiple` pair over shared
+/// gens. The multi-party semantics added here: (a) gens are always
+/// constructed with `party_count > 1` (`BulletproofGens::new(bits, parties)`
+/// with `parties >= 2` — a lone party's lawful path is [`prove_range_batch`],
+/// and the aggregate API refuses `N < 2` so the two rows stay distinct),
+/// and (b) an explicit `parties` count plus a measured size witness seam
+/// ([`RangeAggregate::proof_len`]) so the compactness claim is asserted,
+/// never guessed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RangeAggregate {
+    /// Number of parties in the joint proof (power of two, `>= 2`).
+    pub parties: usize,
+    /// Per-party commitment + secret blinding (prover custody only).
+    pub members: Vec<RangeBatchMember>,
+    /// The one joint proof covering all parties. Private: mutate only via
+    /// a fresh [`prove_range_aggregate`] run, so a proof swap is a
+    /// construction-site change, not a field write.
+    proof: Vec<u8>,
+    /// The bit range every party's value was constructed over.
+    pub bits: usize,
+}
+
+impl RangeAggregate {
+    /// Serialized length of the joint proof in bytes — the measured half of
+    /// the compactness witness.
+    pub fn proof_len(&self) -> usize {
+        self.proof.len()
+    }
+
+    /// The joint proof bytes, for [`verify_range_aggregate`] callers that
+    /// ferry the proof across a boundary.
+    pub fn proof_bytes(&self) -> &[u8] {
+        &self.proof
+    }
+}
+
+/// Prove `0 <= value_i < 2^bits` for all `N >= 2` parties as one joint
+/// proof over [`BulletproofGens`] with `party_count = N` (padded up to a
+/// power of two with value-0 members, exactly as the row-34 batch path).
+///
+/// # Errors
+///
+/// [`RangeProofError::Generation`] for fewer than 2 parties, an unsupported
+/// bit range (`{8, 16, 32, 64}`), or any value that does not fit in `bits`.
+///
+/// # Panics
+///
+/// Never panics; out-of-range members are typed refusals.
+pub fn prove_range_aggregate<R: RngCore>(
+    values: &[u64],
+    bits: usize,
+    label: &'static [u8],
+    rng: &mut R,
+) -> Result<RangeAggregate, RangeProofError> {
+    if values.len() < 2 {
+        return Err(RangeProofError::Generation(format!(
+            "aggregate requires at least 2 parties, got {}",
+            values.len()
+        )));
+    }
+    // Row 34's batch path already pads to the next power of two with
+    // value-0 members and sizes the gens' party capacity to that padded
+    // count — i.e. party_count > 1 for every reachable input here.
+    let batch = prove_range_batch_bound(values, bits, label, None, rng)?;
+    Ok(RangeAggregate {
+        parties: batch.members.len(),
+        members: batch.members,
+        proof: batch.proof,
+        bits: batch.bits,
+    })
+}
+
+/// Verify a joint multi-party proof over the same label (and optional
+/// receipt-hash binding) used at proving time. One refusal covers the whole
+/// aggregate: if any single party's commitment does not carry an in-range
+/// value — or any proof byte, label, or binding differs — the joint proof
+/// fails loudly with [`RangeProofError::VerificationFailed`], never a
+/// silent pass for the honest N-1.
+///
+/// # Errors
+///
+/// [`RangeProofError::Generation`] for fewer than 2 parties or an
+/// unsupported bit range; [`RangeProofError::MalformedEncoding`] for
+/// undecodable proof bytes; [`RangeProofError::VerificationFailed`] when the
+/// joint proof does not hold.
+pub fn verify_range_aggregate(
+    aggregate: &RangeAggregate,
+    label: &'static [u8],
+    receipt_hash: Option<&[u8; 32]>,
+) -> Result<(), RangeProofError> {
+    if aggregate.parties < 2 || aggregate.members.len() != aggregate.parties {
+        return Err(RangeProofError::Generation(format!(
+            "aggregate requires at least 2 parties and members == parties, got {} members / {} parties",
+            aggregate.members.len(),
+            aggregate.parties
+        )));
+    }
+    let batch = RangeBatch {
+        members: aggregate.members.clone(),
+        proof: aggregate.proof_bytes().to_vec(),
+        bits: aggregate.bits,
+    };
+    verify_range_batch(&batch, label, receipt_hash)
+}
+
+#[cfg(test)]
+mod aggregate_tests {
+    //! Register row 48: joint multi-party aggregate range proofs.
+
+    use super::*;
+    use rand_core::OsRng;
+
+    const LABEL: &[u8] = b"affidavit:zk-range:v1:joint-aggregate";
+
+    #[test]
+    fn honest_multi_party_aggregate_verifies() {
+        // Honest N-member proof verifies, for several N (power-of-two pads
+        // exercised via non-power-of-two inputs).
+        for n in [2usize, 3, 5, 8, 9] {
+            let values: Vec<u64> = (0..n as u64).map(|i| 1_000 + i * 7).collect();
+            let agg = prove_range_aggregate(&values, 32, LABEL, &mut OsRng).expect("prove");
+            assert_eq!(agg.parties, n.next_power_of_two());
+            assert_eq!(
+                verify_range_aggregate(&agg, LABEL, None),
+                Ok(()),
+                "honest aggregate of {n} parties must verify"
+            );
+        }
+    }
+
+    #[test]
+    fn single_out_of_range_member_refuses_the_whole_aggregate() {
+        // The falsifier: one bad member must sink the joint proof. An
+        // out-of-range *value* is refused at generation; an out-of-range
+        // *commitment* (value swapped for a different member's blinding) is
+        // refused at verification — both loudly, for the whole aggregate.
+        let values: Vec<u64> = [10u64, 20, 30, 40].to_vec();
+        let agg = prove_range_aggregate(&values, 32, LABEL, &mut OsRng).expect("prove");
+
+        // (a) generation-side: an out-of-range member poisons the prove.
+        let poisoned: Vec<u64> = [10u64, 20, 1 << 33, 40].to_vec();
+        assert!(prove_range_aggregate(&poisoned, 32, LABEL, &mut OsRng).is_err());
+
+        // (b) verification-side: corrupt one member's commitment inside an
+        // otherwise honest aggregate — the joint proof must refuse.
+        let mut tampered = agg.clone();
+        tampered.members[2].commitment[0] ^= 0x01;
+        assert_eq!(
+            verify_range_aggregate(&tampered, LABEL, None),
+            Err(RangeProofError::VerificationFailed)
+        );
+    }
+
+    #[test]
+    fn aggregate_is_strictly_smaller_than_n_independent_proofs() {
+        // Size-comparison witness: MEASURED, not guessed. Serialize N
+        // independent single-party proofs and compare byte lengths against
+        // the one joint proof.
+        let n = 8usize;
+        let values: Vec<u64> = (0..n as u64).map(|i| 500 * (i as u64 + 1)).collect();
+        let agg = prove_range_aggregate(&values, 32, LABEL, &mut OsRng).expect("prove");
+        let independent: usize = values
+            .iter()
+            .map(|&v| {
+                let w = prove_range(v, 32, b"affidavit:zk-range:v1:effect-budget", &mut OsRng)
+                    .expect("independent prove");
+                w.proof.len()
+            })
+            .sum();
+        assert_eq!(agg.parties, n);
+        assert_eq!(agg.proof_len(), agg.proof_bytes().len());
+        assert!(
+            agg.proof_len() < independent,
+            "joint proof ({} B) must be strictly smaller than {n} independent proofs ({} B)",
+            agg.proof_len(),
+            independent
+        );
+    }
+
+    #[test]
+    fn fewer_than_two_parties_is_a_typed_refusal() {
+        assert!(prove_range_aggregate(&[], 32, LABEL, &mut OsRng).is_err());
+        assert!(prove_range_aggregate(&[5], 32, LABEL, &mut OsRng).is_err());
+        // Structural: parties field disagreeing with members is refused.
+        let agg = prove_range_aggregate(&[1, 2], 32, LABEL, &mut OsRng).expect("prove");
+        let mut broken = agg.clone();
+        broken.parties = 1;
+        assert!(matches!(
+            verify_range_aggregate(&broken, LABEL, None),
+            Err(RangeProofError::Generation(_))
+        ));
+    }
+
+    #[test]
+    fn wrong_label_or_binding_refuses_the_joint_proof() {
+        let values: Vec<u64> = [3, 9, 27, 81].to_vec();
+        let h: [u8; 32] = [9u8; 32];
+        let agg = prove_range_aggregate(&values, 32, LABEL, &mut OsRng).expect("prove");
+        assert_eq!(
+            verify_range_aggregate(&agg, b"affidavit:zk-range:v1:other", None),
+            Err(RangeProofError::VerificationFailed)
+        );
+        assert_eq!(
+            verify_range_aggregate(&agg, LABEL, Some(&h)),
+            Err(RangeProofError::VerificationFailed)
+        );
+        assert_eq!(verify_range_aggregate(&agg, LABEL, None), Ok(()));
+    }
+
+    #[test]
+    fn tampered_joint_proof_bytes_fail_loudly() {
+        let values: Vec<u64> = [11, 22, 33, 44].to_vec();
+        let agg = prove_range_aggregate(&values, 32, LABEL, &mut OsRng).expect("prove");
+        let other = prove_range_aggregate(&values, 32, LABEL, &mut OsRng).expect("prove 2");
+        // Cross-aggregate proof swap: `proof` is private, so the swap must
+        // go through reconstruction — the swapped construction cannot
+        // verify because commitments bind the joint proof.
+        let swapped = RangeAggregate {
+            parties: agg.parties,
+            members: agg.members.clone(),
+            proof: other.proof_bytes().to_vec(),
+            bits: agg.bits,
+        };
+        // The private field is only reachable inside the module; this
+        // literal works because the test module is a child module. Assert
+        // the swap is refused.
+        assert_eq!(
+            verify_range_aggregate(&swapped, LABEL, None),
+            Err(RangeProofError::VerificationFailed)
+        );
+    }
+}
