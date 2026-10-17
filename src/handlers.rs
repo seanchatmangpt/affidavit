@@ -955,7 +955,11 @@ pub fn verify_sla(receipt: String, sla_file: String, format: Option<String>) -> 
     // so there is no time data to compare a TTL against. A key that is read and
     // then silently ignored launders an unenforced claim into a passing check;
     // refuse it as a typed UNSUPPORTED_ENFORCEMENT instead.
-    if sla.get("max_chain_ttl_ms").map(|v| !v.is_null()).unwrap_or(false) {
+    if sla
+        .get("max_chain_ttl_ms")
+        .map(|v| !v.is_null())
+        .unwrap_or(false)
+    {
         return Err(NounVerbError::execution_error(
             "UNSUPPORTED_ENFORCEMENT: max_chain_ttl_ms cannot be enforced — core/v1 receipts carry no timestamps (events are ordered by monotonic seq, not wall-clock); only min_events is enforced by verify-sla",
         ));
@@ -4116,9 +4120,7 @@ pub fn monitor(
 
     #[cfg(feature = "file-watch")]
     {
-        outln!(
-            "monitor: watching {watch_path_str} (interval: {poll_interval}s) — Ctrl-C to stop"
-        );
+        outln!("monitor: watching {watch_path_str} (interval: {poll_interval}s) — Ctrl-C to stop");
         use crate::quality::file_watcher::FileWatcher;
         let debounce_ms = poll_interval * 1000;
         let mut watcher = adapt(FileWatcher::new(watch_path_str, debounce_ms))?;
@@ -8904,10 +8906,11 @@ pub fn certificate_fre_902() -> Result<()> {
         "events_certified": total_events,
         "chains": verified,
     });
+    outln!("AFFIDAVIT OF AUTHENTICITY PURSUANT TO FEDERAL RULE OF EVIDENCE 902(14)");
     outln!(
-        "AFFIDAVIT OF AUTHENTICITY PURSUANT TO FEDERAL RULE OF EVIDENCE 902(14)"
+        "{}",
+        adapt(serde_json::to_string_pretty(&affidavit).map_err(anyhow::Error::from))?
     );
-    outln!("{}", adapt(serde_json::to_string_pretty(&affidavit).map_err(anyhow::Error::from))?);
     Ok(())
 }
 
@@ -8937,7 +8940,10 @@ fn tariff_rate(schedule: &str) -> Option<f64> {
 /// - `REFUSED_NO_COMPUTE_EVENTS` — zero chains or zero compute-class events,
 ///   i.e. nothing in the input to compute from.
 pub fn restitution_calculate(tariff_schedule: Option<String>) -> Result<()> {
-    let schedule_name = tariff_schedule.as_deref().unwrap_or("azure").to_ascii_lowercase();
+    let schedule_name = tariff_schedule
+        .as_deref()
+        .unwrap_or("azure")
+        .to_ascii_lowercase();
     let rate = tariff_rate(&schedule_name).ok_or_else(|| {
         NounVerbError::execution_error(format!(
             "REFUSED_UNKNOWN_TARIFF_SCHEDULE: \"{schedule_name}\" is not a built-in \

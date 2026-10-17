@@ -401,7 +401,7 @@ fn receipt_audit_refuses_no_chains_on_empty_dir() {
     let out = Command::new(bin())
         .args(["receipt", "audit"])
         .env("AFFI_RECEIPTS_PATH", dir.join("receipts"))
-    .output()
+        .output()
         .expect("run affi receipt audit (empty dir)");
 
     let stderr = String::from_utf8_lossy(&out.stderr);
@@ -424,21 +424,45 @@ fn certificate_fre_902_recomputes_chain() {
         .output()
         .expect("run affi certificate fre-902");
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert_eq!(out.status.code(), Some(0), "real chains must certify: {stdout}");
-    assert!(stdout.contains("SELF_AUTHENTICATING_FRE_902_VALID"), "{stdout}");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "real chains must certify: {stdout}"
+    );
+    assert!(
+        stdout.contains("SELF_AUTHENTICATING_FRE_902_VALID"),
+        "{stdout}"
+    );
     assert!(stdout.contains("\"chains_certified\": 2"), "{stdout}");
     // events_certified must equal the sum of the per-chain event counts shown.
     let per_chain: usize = stdout
         .lines()
         .filter(|l| l.contains("\"events\": "))
-        .filter_map(|l| l.split(": ").nth(1)?.trim_end_matches(',').trim().parse::<usize>().ok())
+        .filter_map(|l| {
+            l.split(": ")
+                .nth(1)?
+                .trim_end_matches(',')
+                .trim()
+                .parse::<usize>()
+                .ok()
+        })
         .sum();
     let claimed: usize = stdout
         .lines()
         .find(|l| l.contains("\"events_certified\": "))
-        .and_then(|l| l.split(": ").nth(1)?.trim_end_matches(',').trim().parse::<usize>().ok())
+        .and_then(|l| {
+            l.split(": ")
+                .nth(1)?
+                .trim_end_matches(',')
+                .trim()
+                .parse::<usize>()
+                .ok()
+        })
         .expect("events_certified present");
-    assert!(per_chain > 0 && claimed == per_chain, "actual counts embedded: {stdout}");
+    assert!(
+        per_chain > 0 && claimed == per_chain,
+        "actual counts embedded: {stdout}"
+    );
     assert!(
         stdout.contains("chain_hash"),
         "affidavit must embed actual chain hashes: {stdout}"
@@ -455,7 +479,11 @@ fn certificate_fre_902_recomputes_chain() {
         .output()
         .expect("run affi certificate fre-902 empty");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert_eq!(out.status.code(), Some(224), "empty dir must refuse: {stderr}");
+    assert_eq!(
+        out.status.code(),
+        Some(224),
+        "empty dir must refuse: {stderr}"
+    );
     assert!(stderr.contains("REFUSED_NO_CHAINS"), "{stderr}");
 
     // Falsifier 3: a tampered chain (flipped payload byte -> chain-hash mismatch)
@@ -469,7 +497,11 @@ fn certificate_fre_902_recomputes_chain() {
         .split_once("\"chain_hash\"")
         .expect("chain_hash field present");
     let mut tampered = prefix.to_string() + "\"chain_hash\": \"deadbeef";
-    tampered.push_str(hash_line.trim_start_matches(char::is_alphanumeric).trim_start_matches('"'));
+    tampered.push_str(
+        hash_line
+            .trim_start_matches(char::is_alphanumeric)
+            .trim_start_matches('"'),
+    );
     fs::write(&chain1, tampered).unwrap();
     let out = Command::new(bin())
         .args(["certificate", "fre-902"])
@@ -477,7 +509,11 @@ fn certificate_fre_902_recomputes_chain() {
         .output()
         .expect("run affi certificate fre-902 tampered");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert_eq!(out.status.code(), Some(224), "tampered chain must refuse: {stderr}");
+    assert_eq!(
+        out.status.code(),
+        Some(224),
+        "tampered chain must refuse: {stderr}"
+    );
     assert!(stderr.contains("REFUSED_"), "{stderr}");
 }
 
@@ -492,7 +528,12 @@ fn restitution_calculate_derives_from_schedule() {
             .env("AFFI_RECEIPTS_PATH", &receipts)
             .output()
             .expect("run affi restitution calculate");
-        assert_eq!(out.status.code(), Some(0), "{sched}: {}", String::from_utf8_lossy(&out.stderr));
+        assert_eq!(
+            out.status.code(),
+            Some(0),
+            "{sched}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
         String::from_utf8_lossy(&out.stdout).to_string()
     };
     let azure = run("azure");
@@ -517,7 +558,10 @@ fn restitution_calculate_derives_from_schedule() {
     assert_ne!(a, g, "azure vs gcp must differ on the same chain");
     assert_ne!(w, g, "aws vs gcp must differ on the same pairwise chain");
     // Figures are derived: 1 build event × rate, gain share = 50%.
-    assert!(azure.contains("\"compute_events\": 2") && azure.contains("0.12"), "{azure}");
+    assert!(
+        azure.contains("\"compute_events\": 2") && azure.contains("0.12"),
+        "{azure}"
+    );
 
     // Falsifier 2: a chain with zero compute-class events refuses typed.
     let _g = lock_suite();
@@ -530,7 +574,11 @@ fn restitution_calculate_derives_from_schedule() {
         .output()
         .expect("run affi restitution calculate empty");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert_eq!(out.status.code(), Some(224), "empty dir must refuse: {stderr}");
+    assert_eq!(
+        out.status.code(),
+        Some(224),
+        "empty dir must refuse: {stderr}"
+    );
     assert!(stderr.contains("REFUSED_NO_COMPUTE_EVENTS"), "{stderr}");
 
     // Falsifier 3: an unknown schedule refuses typed (never a fabricated figure).
@@ -542,8 +590,15 @@ fn restitution_calculate_derives_from_schedule() {
         .output()
         .expect("run affi restitution calculate bad schedule");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert_eq!(out.status.code(), Some(224), "unknown schedule must refuse: {stderr}");
-    assert!(stderr.contains("REFUSED_UNKNOWN_TARIFF_SCHEDULE"), "{stderr}");
+    assert_eq!(
+        out.status.code(),
+        Some(224),
+        "unknown schedule must refuse: {stderr}"
+    );
+    assert!(
+        stderr.contains("REFUSED_UNKNOWN_TARIFF_SCHEDULE"),
+        "{stderr}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -571,14 +626,28 @@ static WORLD_SEQ: AtomicUsize = AtomicUsize::new(0);
 /// One event emission (payload on stdin) into the working chain of `dir`.
 fn emit_stdin(dir: &Path, ty: &str, object: &str, payload: &str) {
     let mut child = std::process::Command::new(bin())
-        .args(["receipt", "emit", "--type", ty, "--object", object, "--payload", "-"])
+        .args([
+            "receipt",
+            "emit",
+            "--type",
+            ty,
+            "--object",
+            object,
+            "--payload",
+            "-",
+        ])
         .current_dir(dir)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
         .expect("spawn affi emit");
-    child.stdin.take().expect("emit stdin").write_all(payload.as_bytes()).expect("write payload");
+    child
+        .stdin
+        .take()
+        .expect("emit stdin")
+        .write_all(payload.as_bytes())
+        .expect("write payload");
     let st = child.wait().expect("wait emit");
     assert!(st.success(), "emit {ty} failed");
 }
@@ -602,7 +671,12 @@ fn build_world(dir: &Path, policy: &str, events: &[(&str, &str, &str)]) -> PathB
         .filter(|p| p.file_name().and_then(|f| f.to_str()) != Some("policy.json"))
         .collect();
     receipts.sort();
-    assert_eq!(receipts.len(), 1, "expected exactly one assembled receipt in {}", dir.display());
+    assert_eq!(
+        receipts.len(),
+        1,
+        "expected exactly one assembled receipt in {}",
+        dir.display()
+    );
     receipts.remove(0)
 }
 
@@ -649,7 +723,13 @@ fn worlds() -> Worlds {
             ("deploy", "svc:api", "beta third event payload"),
         ],
     );
-    Worlds { receipt_a, receipt_b, dir_a, dir_b, _keep: vec![] }
+    Worlds {
+        receipt_a,
+        receipt_b,
+        dir_a,
+        dir_b,
+        _keep: vec![],
+    }
 }
 
 /// One court cell: two deliberate invocations that must differ.
@@ -667,12 +747,19 @@ fn receipt_cell(
     receipt_b: &Path,
 ) -> DiffCell {
     let mk = |r: &Path| {
-        let mut args: Vec<String> =
-            noun_verb.iter().chain(tail.iter()).map(|s| s.to_string()).collect();
+        let mut args: Vec<String> = noun_verb
+            .iter()
+            .chain(tail.iter())
+            .map(|s| s.to_string())
+            .collect();
         args.push(r.to_string_lossy().into_owned());
         args
     };
-    DiffCell { name, args_a: mk(receipt_a), args_b: mk(receipt_b) }
+    DiffCell {
+        name,
+        args_a: mk(receipt_a),
+        args_b: mk(receipt_b),
+    }
 }
 
 fn dir_cell(name: &'static str, verb: &[&str], flag: &str, dir_a: &Path, dir_b: &Path) -> DiffCell {
@@ -682,7 +769,11 @@ fn dir_cell(name: &'static str, verb: &[&str], flag: &str, dir_a: &Path, dir_b: 
         args.push(d.to_string_lossy().into_owned());
         args
     };
-    DiffCell { name, args_a: mk(dir_a), args_b: mk(dir_b) }
+    DiffCell {
+        name,
+        args_a: mk(dir_a),
+        args_b: mk(dir_b),
+    }
 }
 
 /// Court assertion: both invocations must exit 0 and outputs must differ.
@@ -729,27 +820,63 @@ macro_rules! diff_control {
 }
 
 diff_control!(positive_show_differs_across_worlds, |w: &Worlds| {
-    receipt_cell("receipt show", &["receipt", "show"], &[], &w.receipt_a, &w.receipt_b)
+    receipt_cell(
+        "receipt show",
+        &["receipt", "show"],
+        &[],
+        &w.receipt_a,
+        &w.receipt_b,
+    )
 });
 
 diff_control!(positive_inspect_differs_across_worlds, |w: &Worlds| {
-    receipt_cell("receipt inspect", &["receipt", "inspect"], &[], &w.receipt_a, &w.receipt_b)
+    receipt_cell(
+        "receipt inspect",
+        &["receipt", "inspect"],
+        &[],
+        &w.receipt_a,
+        &w.receipt_b,
+    )
 });
 
 diff_control!(positive_stats_differs_across_worlds, |w: &Worlds| {
-    receipt_cell("receipt stats", &["receipt", "stats"], &[], &w.receipt_a, &w.receipt_b)
+    receipt_cell(
+        "receipt stats",
+        &["receipt", "stats"],
+        &[],
+        &w.receipt_a,
+        &w.receipt_b,
+    )
 });
 
 diff_control!(positive_graph_differs_across_worlds, |w: &Worlds| {
-    receipt_cell("receipt graph", &["receipt", "graph"], &[], &w.receipt_a, &w.receipt_b)
+    receipt_cell(
+        "receipt graph",
+        &["receipt", "graph"],
+        &[],
+        &w.receipt_a,
+        &w.receipt_b,
+    )
 });
 
 diff_control!(positive_replay_differs_across_worlds, |w: &Worlds| {
-    receipt_cell("receipt replay", &["receipt", "replay"], &[], &w.receipt_a, &w.receipt_b)
+    receipt_cell(
+        "receipt replay",
+        &["receipt", "replay"],
+        &[],
+        &w.receipt_a,
+        &w.receipt_b,
+    )
 });
 
 diff_control!(positive_model_differs_across_worlds, |w: &Worlds| {
-    receipt_cell("receipt model", &["receipt", "model"], &[], &w.receipt_a, &w.receipt_b)
+    receipt_cell(
+        "receipt model",
+        &["receipt", "model"],
+        &[],
+        &w.receipt_a,
+        &w.receipt_b,
+    )
 });
 
 diff_control!(positive_diff_differs_across_worlds, |w: &Worlds| {
@@ -771,7 +898,13 @@ diff_control!(positive_diff_differs_across_worlds, |w: &Worlds| {
 });
 
 diff_control!(positive_conformance_differs_across_worlds, |w: &Worlds| {
-    receipt_cell("receipt conformance", &["receipt", "conformance"], &[], &w.receipt_a, &w.receipt_b)
+    receipt_cell(
+        "receipt conformance",
+        &["receipt", "conformance"],
+        &[],
+        &w.receipt_a,
+        &w.receipt_b,
+    )
 });
 
 diff_control!(positive_search_differs_across_worlds, |w: &Worlds| {

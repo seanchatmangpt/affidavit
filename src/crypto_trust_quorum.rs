@@ -721,8 +721,7 @@ mod tests {
         let hybrid_kid = {
             let material = PublicKeyMaterial::Hybrid {
                 es256: secret.es256.public_key_sec1(),
-                mldsa65: ml_dsa65_from_seed(&secret.mldsa65_seed)
-                    .public,
+                mldsa65: ml_dsa65_from_seed(&secret.mldsa65_seed).public,
             };
             register(
                 &mut registry,

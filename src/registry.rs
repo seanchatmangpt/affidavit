@@ -1650,8 +1650,8 @@ mod tests {
             ("verify", "dossier"),
         ];
         for (verb, noun) in CRYPTO_TRUST {
-            let entry = lookup(verb, noun)
-                .unwrap_or_else(|| panic!("registry lost ({verb}, {noun})"));
+            let entry =
+                lookup(verb, noun).unwrap_or_else(|| panic!("registry lost ({verb}, {noun})"));
             assert!(
                 entry.summary.starts_with("[crypto-trust] "),
                 "({verb}, {noun}) refuses with REFUSED_UNSUPPORTED on the \
@@ -1661,8 +1661,8 @@ mod tests {
             );
         }
         for (verb, noun) in CTDD {
-            let entry = lookup(verb, noun)
-                .unwrap_or_else(|| panic!("registry lost ({verb}, {noun})"));
+            let entry =
+                lookup(verb, noun).unwrap_or_else(|| panic!("registry lost ({verb}, {noun})"));
             assert!(
                 entry.summary.starts_with("[ctdd] "),
                 "({verb}, {noun}) is ctdd-gated but its summary does not \
