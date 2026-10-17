@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "affidavit-core"
-version = "26.10.16"
+version = "26.10.17"
 dependencies = [
  "blake3",
  "ml-dsa",
@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "affidavit-wasm"
-version = "26.10.16"
+version = "26.10.17"
 dependencies = [
  "affidavit-core",
  "blake3",

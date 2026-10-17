@@ -31,7 +31,7 @@ fn dual_impl_kat_requires_both_implementations() {
 
 #[cfg(all(feature = "crypto-trust", feature = "pqc-verified-oracle"))]
 mod dual_impl_kat {
-    use ml_kem::{B32, DecapsulationKey, KeyExport, MlKem768};
+    use ml_kem::{DecapsulationKey, KeyExport, MlKem768, B32};
 
     const SEED: [u8; 64] = [0x4Du8; 64];
     const M: [u8; 32] = [0x2Au8; 32];
@@ -67,8 +67,7 @@ mod dual_impl_kat {
         let (ct_a, ss_a) = ek.encapsulate_deterministic(&B32::from(M));
 
         // Implementation B: libcrux portable oracle, fixed 32-byte m.
-        let (ct_b, ss_b) =
-            libcrux_ml_kem::mlkem768::portable::encapsulate(kp_b.public_key(), M);
+        let (ct_b, ss_b) = libcrux_ml_kem::mlkem768::portable::encapsulate(kp_b.public_key(), M);
 
         assert_eq!(ct_a.as_slice().len(), MLKEM768_CT_LEN);
         assert_eq!(ss_a.as_slice().len(), MLKEM768_SS_LEN);
@@ -99,10 +98,8 @@ mod dual_impl_kat {
         let (ct_a2, ss_a2) = ek.encapsulate_deterministic(&B32::from(m2));
 
         let kp_b = libcrux_ml_kem::mlkem768::portable::generate_key_pair(SEED);
-        let (ct_b1, ss_b1) =
-            libcrux_ml_kem::mlkem768::portable::encapsulate(kp_b.public_key(), M);
-        let (ct_b2, ss_b2) =
-            libcrux_ml_kem::mlkem768::portable::encapsulate(kp_b.public_key(), m2);
+        let (ct_b1, ss_b1) = libcrux_ml_kem::mlkem768::portable::encapsulate(kp_b.public_key(), M);
+        let (ct_b2, ss_b2) = libcrux_ml_kem::mlkem768::portable::encapsulate(kp_b.public_key(), m2);
 
         // A flips on the bit-flip...
         assert_ne!(ct_a1.as_slice(), ct_a2.as_slice());
@@ -119,16 +116,12 @@ mod dual_impl_kat {
     fn kat_cross_decapsulation() {
         let dk = DecapsulationKey::<MlKem768>::from_seed(SEED.into());
         let kp_b = libcrux_ml_kem::mlkem768::portable::generate_key_pair(SEED);
-        let (ct_b, ss_b) =
-            libcrux_ml_kem::mlkem768::portable::encapsulate(kp_b.public_key(), M);
+        let (ct_b, ss_b) = libcrux_ml_kem::mlkem768::portable::encapsulate(kp_b.public_key(), M);
 
         let ek = dk.encapsulation_key();
         let (_, ss_a) = ek.encapsulate_deterministic(&B32::from(M));
 
-        let ss_rec = libcrux_ml_kem::mlkem768::portable::decapsulate(
-            kp_b.private_key(),
-            &ct_b,
-        );
+        let ss_rec = libcrux_ml_kem::mlkem768::portable::decapsulate(kp_b.private_key(), &ct_b);
         assert_eq!(ss_rec.as_slice(), ss_b.as_slice());
         assert_eq!(
             ss_rec.as_slice(),

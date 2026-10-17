@@ -276,15 +276,16 @@ mod adversarial_double_mix {
     /// Forged chain: frame `t` (0-based, t in 0..3) is built by `leg` instead
     /// of the honest builder; frames after `t` are rebuilt honestly from the
     /// forged hash (the real attack shape: one edit, rest re-derived).
-    fn forged_chain<H: ChainHasher>(
-        t: u64,
-        leg: impl Fn(Digest) -> BcinrFrame,
-    ) -> [Digest; 4] {
+    fn forged_chain<H: ChainHasher>(t: u64, leg: impl Fn(Digest) -> BcinrFrame) -> [Digest; 4] {
         let g = bcinr_genesis_hash::<H>();
         let mut out = [g; 4];
         let mut prior = g;
         for id in 0..3u64 {
-            let f = if id == t { leg(prior) } else { frame(id, prior) };
+            let f = if id == t {
+                leg(prior)
+            } else {
+                frame(id, prior)
+            };
             let h = bcinr_chain_from_frame::<H>(&prior, &f);
             out[id as usize + 1] = h;
             prior = h;
@@ -320,7 +321,10 @@ mod adversarial_double_mix {
         assert_eq!(forged[0], honest[0], "genesis is input, never mutated");
         // Links 0..=t cover frames 0..t and must be UNCHANGED; every link
         // after the mutated frame must change.
-        assert_eq!(forged[1], honest[1], "link covering frames 0..1 is untouched");
+        assert_eq!(
+            forged[1], honest[1],
+            "link covering frames 0..1 is untouched"
+        );
         for i in 2..4 {
             assert_ne!(
                 forged[i], honest[i],
@@ -343,7 +347,10 @@ mod adversarial_double_mix {
             f
         });
         assert_eq!(forged[0], honest[0]);
-        assert_eq!(forged[1], honest[1], "link covering frames 0..1 is untouched");
+        assert_eq!(
+            forged[1], honest[1],
+            "link covering frames 0..1 is untouched"
+        );
         for i in 2..4 {
             assert_ne!(
                 forged[i], honest[i],
@@ -365,8 +372,8 @@ mod adversarial_double_mix {
         bad_prepend.0[31] ^= 0x80;
 
         let k1 = bcinr_chain_from_frame::<Blake3Chain>(
-            &bad_prepend,          // prepended leg mutated ONLY
-            &frame(1, honest[1]),  // in-frame leg honest
+            &bad_prepend,         // prepended leg mutated ONLY
+            &frame(1, honest[1]), // in-frame leg honest
         );
         assert_ne!(k1, honest[2], "prepended-leg flip must move the link hash");
 
@@ -389,8 +396,14 @@ mod adversarial_double_mix {
             f
         });
         for i in 3..4 {
-            assert_ne!(forged[i], honest[i], "Fnv256: mutation must propagate to link {i}");
+            assert_ne!(
+                forged[i], honest[i],
+                "Fnv256: mutation must propagate to link {i}"
+            );
         }
-        assert_eq!(forged[2], honest[2], "Fnv256: link before the mutated frame is untouched");
+        assert_eq!(
+            forged[2], honest[2],
+            "Fnv256: link before the mutated frame is untouched"
+        );
     }
 }

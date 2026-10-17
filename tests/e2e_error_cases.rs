@@ -43,7 +43,7 @@ fn show_nonexistent_file_exits_nonzero() {
     let out = affi(&["receipt", "show", &path]);
     assert_eq!(
         out.status.code(),
-        Some(224 % 256),
+        Some(224),
         "show on missing file must exit 224%256 (CliExecutionError, diag range)"
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
