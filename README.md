@@ -66,7 +66,7 @@ cargo test --test adversarial_wire_ctrt --test verifier_stages --test adversaria
 
 ## 💻 Canonical CLI Surface (101 Verbs)
 
-Affidavit ships 101 canonical verbs across 11 groups, backed by a compile-time static registry (`src/registry.rs`) held in byte-level agreement with `ontology/affi-cli.ttl`:
+Affidavit ships 100 canonical verbs across 11 groups, backed by a compile-time static registry (`src/registry.rs`) held in byte-level agreement with `ontology/affi-cli.ttl`:
 
 ### Core Provenance Loop:
 * `affi emit` — Record a new operation-event.
