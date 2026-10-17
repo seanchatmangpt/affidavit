@@ -62,34 +62,6 @@ pub enum PqcError {
     MalformedPublicKey,
     #[error("malformed signature")]
     MalformedSignature,
-    /// The seed passed to a `*_from_seed` constructor is degenerate (zero
-    /// entropy). Refused set: all 48/32 bytes identical — which subsumes the
-    /// all-zero seed — OR the all-but-one-byte class (every byte zero except
-    /// exactly one, at any position). Such seeds carry no usable entropy and
-    /// any two parties that "independently" pick the same constant derive the
-    /// identical key pair. Active only outside test builds (SX5-F2); see
-    /// [`ml_dsa65_from_seed`].
-    #[error("degenerate seed: all bytes identical or all-but-one-byte zero (zero-entropy)")]
-    DegenerateSeed,
-}
-
-impl PqcError {
-    /// Return the canonical numeric machine code corresponding to this PQC error.
-    ///
-    /// - `0xE301`: ML-DSA-65 signature check failure / malformed signature
-    /// - `0xE302`: Decapsulation failure / malformed key
-    /// - `0xE303`: Formal oracle detected output divergence
-    /// - `0xE305`: Degenerate (zero-entropy) seed refused by a `*_from_seed`
-    ///   constructor (SX5-F2)
-    #[must_use]
-    pub const fn machine_code(&self) -> u16 {
-        match self {
-            Self::MlDsa(_) | Self::MalformedSignature => 0xE301,
-            Self::MalformedPublicKey => 0xE302,
-            Self::SlhDsa(_) | Self::Es256Half(_) => 0xE303,
-            Self::DegenerateSeed => 0xE305,
-        }
-    }
 }
 
 // ── ML-DSA-65 (FIPS 204) ────────────────────────────────────────────────────
@@ -107,87 +79,37 @@ pub struct MlDsa65KeyPair {
 pub fn ml_dsa65_generate() -> Result<MlDsa65KeyPair, PqcError> {
     let mut seed = [0u8; ML_DSA_65_SEED_LEN];
     rand_core::OsRng.fill_bytes(&mut seed);
-    ml_dsa65_from_seed(&seed)
+    Ok(ml_dsa65_from_seed(&seed))
 }
 
-/// HAZARD: seed-derived keys are for TEST FIXTURES and KAT vectors only.
-/// Production must derive keys from a real entropy source; a degenerate seed
-/// here would reproduce the identical key pair for every caller that picks
-/// the same constant.
-///
-/// Degenerate-seed screening (SX5-F2, forward-ported from the ES256 path):
-/// outside test builds (`cfg!(test)` false), a seed that is ALL the same
-/// byte — including the all-zero seed — or in the all-but-one-byte class
-/// (every byte zero except exactly one) is refused with
-/// [`PqcError::DegenerateSeed`] before any key material is derived. Test
-/// builds permit them so the fixed-seed fixtures in this crate keep running.
-///
 /// Deterministically derives the ML-DSA-65 key pair from a 32-byte seed
 /// (FIPS 204 ML-DSA.KeyGen_internal; same seed => same public key).
-///
-/// # Errors
-/// [`PqcError::DegenerateSeed`] outside test builds when the seed is in the
-/// refused set above. FIPS 204 itself accepts any 32-byte seed.
-pub fn ml_dsa65_from_seed(seed: &[u8; ML_DSA_65_SEED_LEN]) -> Result<MlDsa65KeyPair, PqcError> {
-    if !cfg!(test) && seed_is_degenerate(seed) {
-        return Err(PqcError::DegenerateSeed);
-    }
+#[must_use]
+pub fn ml_dsa65_from_seed(seed: &[u8; ML_DSA_65_SEED_LEN]) -> MlDsa65KeyPair {
     let sk_seed: ml_dsa::Seed = (*seed).into();
     let esk = ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed);
     let vk = esk.verifying_key();
-    Ok(MlDsa65KeyPair {
+    MlDsa65KeyPair {
         seed: *seed,
         public: vk.encode().as_slice().to_vec(),
-    })
-}
-
-/// Cached ML-DSA-65 signing key: the seed is expanded into the
-/// `ExpandedSigningKey<MlDsa65>` ONCE at construction (with degenerate-seed
-/// screening preserved — construction refuses a zero-entropy seed outside
-/// test builds exactly as [`ml_dsa65_from_seed`] does), so repeated
-/// signatures amortize the FIPS 204 expansion. Same seed + msg + rnd gives
-/// byte-identical output to the one-shot [`ml_dsa65_sign`] path.
-pub struct MlDsa65Signer {
-    esk: ml_dsa::ExpandedSigningKey<ml_dsa::MlDsa65>,
-}
-
-impl MlDsa65Signer {
-    /// Builds a cached signer from a 32-byte seed
-    /// (FIPS 204 ML-DSA.KeyGen_internal).
-    ///
-    /// # Errors
-    /// [`PqcError::DegenerateSeed`] outside test builds when the seed is in
-    /// the refused zero-entropy set (see [`ml_dsa65_from_seed`]).
-    pub fn from_seed(seed: &[u8; ML_DSA_65_SEED_LEN]) -> Result<Self, PqcError> {
-        if !cfg!(test) && seed_is_degenerate(seed) {
-            return Err(PqcError::DegenerateSeed);
-        }
-        let sk_seed: ml_dsa::Seed = (*seed).into();
-        Ok(Self {
-            esk: ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed),
-        })
-    }
-
-    /// Signs `msg` under the EXPLICIT 32-byte randomizer `rnd`
-    /// (FIPS 204 ML-DSA.Sign_internal). Returns the raw fixed-length encoding
-    /// (exactly [`ML_DSA_65_SIGNATURE_LEN`] bytes).
-    #[must_use]
-    pub fn sign(&self, msg: &[u8], rnd: &[u8; 32]) -> Vec<u8> {
-        let rnd: ml_dsa::B32 = (*rnd).into();
-        let sig = self.esk.sign_internal(&[msg], &rnd);
-        sig.encode().as_slice().to_vec()
     }
 }
 
-/// One-shot convenience wrapper over [`MlDsa65Signer`]: expands the seed,
-/// signs once, and drops the expanded key. Deterministic — same seed, message
-/// and rnd give byte-identical signatures.
+/// Signs `msg` with ML-DSA-65 under an EXPLICIT 32-byte randomizer `rnd`
+/// (FIPS 204 ML-DSA.Sign_internal: the caller owns rnd, so signing is
+/// reproducible — same seed, message and rnd give byte-identical signatures).
+/// Returns the raw fixed-length encoding (exactly
+/// [`ML_DSA_65_SIGNATURE_LEN`] bytes).
 pub fn ml_dsa65_sign(
     seed: &[u8; ML_DSA_65_SEED_LEN],
     msg: &[u8],
     rnd: &[u8; 32],
 ) -> Result<Vec<u8>, PqcError> {
-    Ok(MlDsa65Signer::from_seed(seed)?.sign(msg, rnd))
+    let sk_seed: ml_dsa::Seed = (*seed).into();
+    let esk = ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed);
+    let rnd: ml_dsa::B32 = (*rnd).into();
+    let sig = esk.sign_internal(&[msg], &rnd);
+    Ok(sig.encode().as_slice().to_vec())
 }
 
 /// Verifies a raw encoded ML-DSA-65 signature over `msg` under the raw
@@ -216,21 +138,6 @@ pub struct SlhDsa128sKeyPair {
     pub public: Vec<u8>,
 }
 
-/// Degenerate-seed predicate (SX5-F2, shared with the ES256 path's
-/// [`crate::crypto_trust_es256::seed_is_degenerate`]): a seed is degenerate
-/// when EVERY byte is identical — the all-zero seed is the `b == 0` case —
-/// OR when it is in the all-but-one-byte class: every byte zero except
-/// exactly one nonzero byte, at any position. Exposed crate-internally so
-/// callers and tests witness the one law on both PQC paths.
-pub(crate) fn seed_is_degenerate(seed: &[u8]) -> bool {
-    let all_same = seed[1..].iter().all(|&b| b == seed[0]);
-    if all_same {
-        return true;
-    }
-    let nonzero = seed.iter().filter(|&&b| b != 0).count();
-    nonzero <= 1
-}
-
 /// Splits the 48-byte seed triplet into its three n-byte FIPS 205 slices.
 #[must_use]
 fn slh_dsa128s_split(seeds: &[u8; SLH_DSA_128S_SEED_LEN]) -> (&[u8], &[u8], &[u8]) {
@@ -242,36 +149,22 @@ fn slh_dsa128s_split(seeds: &[u8; SLH_DSA_128S_SEED_LEN]) -> (&[u8], &[u8], &[u8
 pub fn slh_dsa128s_generate() -> Result<SlhDsa128sKeyPair, PqcError> {
     let mut seeds = [0u8; SLH_DSA_128S_SEED_LEN];
     rand_core::OsRng.fill_bytes(&mut seeds);
-    slh_dsa128s_from_seed(&seeds)
+    Ok(slh_dsa128s_from_seed(&seeds))
 }
 
-/// HAZARD: seed-derived keys are for TEST FIXTURES and KAT vectors only.
-/// Degenerate-seed screening (SX5-F2, same law and same `cfg!(test)` gate as
-/// [`ml_dsa65_from_seed`]): outside test builds an all-same-byte seed
-/// (including all-zero) or an all-but-one-byte seed (every byte zero except
-/// exactly one) is refused with [`PqcError::DegenerateSeed`].
-///
 /// Deterministically derives the SLH-DSA-SHA2-128s key pair from the 48-byte
 /// seed triplet (FIPS 205 slh_keygen_internal; same seeds => same public key).
-///
-/// # Errors
-/// [`PqcError::DegenerateSeed`] outside test builds when the seed triplet is
-/// in the refused set above. FIPS 205 itself accepts any seed triplet.
-pub fn slh_dsa128s_from_seed(
-    seeds: &[u8; SLH_DSA_128S_SEED_LEN],
-) -> Result<SlhDsa128sKeyPair, PqcError> {
+#[must_use]
+pub fn slh_dsa128s_from_seed(seeds: &[u8; SLH_DSA_128S_SEED_LEN]) -> SlhDsa128sKeyPair {
     use slh_dsa::signature::Keypair;
 
-    if !cfg!(test) && seed_is_degenerate(seeds) {
-        return Err(PqcError::DegenerateSeed);
-    }
     let (sk_seed, sk_prf, pk_seed) = slh_dsa128s_split(seeds);
     let sk =
         slh_dsa::SigningKey::<slh_dsa::Sha2_128s>::slh_keygen_internal(sk_seed, sk_prf, pk_seed);
-    Ok(SlhDsa128sKeyPair {
+    SlhDsa128sKeyPair {
         seeds: *seeds,
         public: sk.verifying_key().to_bytes().to_vec(),
-    })
+    }
 }
 
 /// Signs `msg` with SLH-DSA-SHA2-128s. Deterministic by construction: the
@@ -388,7 +281,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_round_trip() {
-        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let kp = ml_dsa65_from_seed(&SEED_A);
         let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("ml-dsa sign");
         let ok = ml_dsa65_verify(&kp.public, MSG, &sig).expect("ml-dsa verify");
         assert!(ok);
@@ -405,7 +298,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_encoded_lengths_match_the_graph_consts() {
-        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let kp = ml_dsa65_from_seed(&SEED_A);
         assert_eq!(kp.public.len(), ML_DSA_65_PUBLIC_KEY_LEN);
         let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("ml-dsa sign");
         assert_eq!(
@@ -420,8 +313,8 @@ mod tests {
         let sig1 = ml_dsa65_sign(&SEED_A, MSG, &RND_A).expect("sign 1");
         let sig2 = ml_dsa65_sign(&SEED_A, MSG, &RND_A).expect("sign 2");
         assert_eq!(sig1, sig2, "same seed+msg+rnd must give identical bytes");
-        let kp1 = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
-        let kp2 = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let kp1 = ml_dsa65_from_seed(&SEED_A);
+        let kp2 = ml_dsa65_from_seed(&SEED_A);
         assert_eq!(kp1, kp2);
     }
 
@@ -438,7 +331,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_tamper_msg_falsifier() {
-        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let kp = ml_dsa65_from_seed(&SEED_A);
         let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
         let mut tampered_msg = MSG.to_vec();
         tampered_msg[0] ^= 0x01;
@@ -447,7 +340,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_tamper_sig_falsifier() {
-        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let kp = ml_dsa65_from_seed(&SEED_A);
         let mut sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
         sig[0] ^= 0x01;
         assert!(!ml_dsa65_verify(&kp.public, MSG, &sig).expect("verify"));
@@ -455,15 +348,15 @@ mod tests {
 
     #[test]
     fn ml_dsa65_cross_key_refusal() {
-        let kp_a = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
-        let kp_b = ml_dsa65_from_seed(&SEED_B).expect("pqc fixture key pair");
+        let kp_a = ml_dsa65_from_seed(&SEED_A);
+        let kp_b = ml_dsa65_from_seed(&SEED_B);
         let sig = ml_dsa65_sign(&kp_a.seed, MSG, &RND_A).expect("sign under A");
         assert!(!ml_dsa65_verify(&kp_b.public, MSG, &sig).expect("verify under B"));
     }
 
     #[test]
     fn ml_dsa65_malformed_public_key_is_typed() {
-        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let kp = ml_dsa65_from_seed(&SEED_A);
         let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
         let short = [0u8; ML_DSA_65_PUBLIC_KEY_LEN - 1];
         let err = ml_dsa65_verify(&short, MSG, &sig).expect_err("short pk refused");
@@ -472,7 +365,7 @@ mod tests {
 
     #[test]
     fn ml_dsa65_malformed_signature_is_typed() {
-        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let kp = ml_dsa65_from_seed(&SEED_A);
         let short = [0u8; ML_DSA_65_SIGNATURE_LEN - 1];
         let err = ml_dsa65_verify(&kp.public, MSG, &short).expect_err("short sig refused");
         assert!(matches!(err, PqcError::MalformedSignature), "got {err:?}");
@@ -480,7 +373,7 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_round_trip() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
         let sig = slh_dsa128s_sign(&kp.seeds, MSG).expect("slh-dsa sign");
         let ok = slh_dsa128s_verify(&kp.public, MSG, &sig).expect("slh-dsa verify");
         assert!(ok);
@@ -497,7 +390,7 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_encoded_lengths_match_fips_205() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
         assert_eq!(kp.seeds.len(), SLH_DSA_128S_SEED_LEN);
         assert_eq!(
             kp.public.len(),
@@ -517,14 +410,14 @@ mod tests {
         let sig1 = slh_dsa128s_sign(&SLH_SEEDS_A, MSG).expect("sign 1");
         let sig2 = slh_dsa128s_sign(&SLH_SEEDS_A, MSG).expect("sign 2");
         assert_eq!(sig1, sig2, "same seeds+msg must give identical bytes");
-        let kp1 = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
-        let kp2 = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
+        let kp1 = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let kp2 = slh_dsa128s_from_seed(&SLH_SEEDS_A);
         assert_eq!(kp1, kp2);
     }
 
     #[test]
     fn slh_dsa128s_tamper_msg_falsifier() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
         let sig = slh_dsa128s_sign(&kp.seeds, MSG).expect("sign");
         let mut tampered_msg = MSG.to_vec();
         tampered_msg[1] ^= 0x80;
@@ -533,7 +426,7 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_tamper_sig_falsifier() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
         let mut sig = slh_dsa128s_sign(&kp.seeds, MSG).expect("sign");
         sig[100] ^= 0x01;
         assert!(!slh_dsa128s_verify(&kp.public, MSG, &sig).expect("verify"));
@@ -541,15 +434,15 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_cross_key_refusal() {
-        let kp_a = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
-        let kp_b = slh_dsa128s_from_seed(&SLH_SEEDS_B).expect("pqc fixture slh key");
+        let kp_a = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let kp_b = slh_dsa128s_from_seed(&SLH_SEEDS_B);
         let sig = slh_dsa128s_sign(&kp_a.seeds, MSG).expect("sign under A");
         assert!(!slh_dsa128s_verify(&kp_b.public, MSG, &sig).expect("verify under B"));
     }
 
     #[test]
     fn slh_dsa128s_malformed_public_key_is_typed() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
         let sig = slh_dsa128s_sign(&kp.seeds, MSG).expect("sign");
         let short = [0u8; 2 * SLH_DSA_128S_N - 1];
         let err = slh_dsa128s_verify(&short, MSG, &sig).expect_err("short pk refused");
@@ -558,7 +451,7 @@ mod tests {
 
     #[test]
     fn slh_dsa128s_malformed_signature_is_typed() {
-        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("pqc fixture slh key");
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
         let short = [0u8; 100];
         let err = slh_dsa128s_verify(&kp.public, MSG, &short).expect_err("short sig refused");
         assert!(matches!(err, PqcError::MalformedSignature), "got {err:?}");
@@ -578,7 +471,7 @@ mod tests {
     #[test]
     fn hybrid_round_trip() {
         let secret = hybrid_secret_a();
-        let mldsa_kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let mldsa_kp = ml_dsa65_from_seed(&SEED_A);
         let es256_pk = secret.es256.public_key_sec1();
         let sig = hybrid_sign(&secret, MSG).expect("hybrid sign");
         let ok = hybrid_verify(&es256_pk, &mldsa_kp.public, MSG, &sig).expect("hybrid verify");
@@ -599,7 +492,7 @@ mod tests {
     #[test]
     fn hybrid_tamper_es256_half_only_falsifier() {
         let secret = hybrid_secret_a();
-        let mldsa_kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let mldsa_kp = ml_dsa65_from_seed(&SEED_A);
         let es256_pk = secret.es256.public_key_sec1();
         let mut sig = hybrid_sign(&secret, MSG).expect("hybrid sign");
         sig.es256_der[0] ^= 0x01;
@@ -613,7 +506,7 @@ mod tests {
     #[test]
     fn hybrid_tamper_mldsa_half_only_falsifier() {
         let secret = hybrid_secret_a();
-        let mldsa_kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let mldsa_kp = ml_dsa65_from_seed(&SEED_A);
         let es256_pk = secret.es256.public_key_sec1();
         let mut sig = hybrid_sign(&secret, MSG).expect("hybrid sign");
         let last = sig.mldsa65.len() - 1;
@@ -628,7 +521,7 @@ mod tests {
     #[test]
     fn hybrid_wrong_msg_falsifier() {
         let secret = hybrid_secret_a();
-        let mldsa_kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let mldsa_kp = ml_dsa65_from_seed(&SEED_A);
         let es256_pk = secret.es256.public_key_sec1();
         let sig = hybrid_sign(&secret, MSG).expect("hybrid sign");
         assert!(
@@ -645,7 +538,7 @@ mod tests {
             mldsa65_seed: SEED_B,
         };
         let es256_pk_b = secret_b.es256.public_key_sec1();
-        let mldsa_kp_b = ml_dsa65_from_seed(&SEED_B).expect("pqc fixture key pair");
+        let mldsa_kp_b = ml_dsa65_from_seed(&SEED_B);
         let sig = hybrid_sign(&secret_a, MSG).expect("hybrid sign under A");
         assert!(
             !hybrid_verify(&es256_pk_b, &mldsa_kp_b.public, MSG, &sig).expect("verify"),
@@ -685,245 +578,268 @@ mod tests {
         assert!(matches!(pqc_err, PqcError::Es256Half(_)), "got {pqc_err:?}");
         assert!(pqc_err.to_string().starts_with("es256 half of hybrid: "));
     }
+    // ── Register #52: SLH-DSA SPKI/PKCS8 export-import round-trip court ─────
+    //
+    // Falsifier: tampered alg-id OID SPKI or truncated vk bytes must return a
+    // typed Err (never panic); the honest round-trip must be byte-exact.
 
-    // ── SX5-F2: degenerate-seed screening on both PQC from_seed paths ───────
-
-    /// SX5-F2 refused-set table for the shared predicate: the all-same-byte
-    /// class (all-zero is the `0x00` member), the all-but-one-byte class
-    /// ([0,…,0,x] with the single nonzero byte at first/last/middle
-    /// positions), versus admitted seeds (fully random-looking, and two-byte
-    /// entropy like [0, …, 0, x, y]).
-    #[test]
-    fn sx5f2_degenerate_seed_predicate_refused_set() {
-        // All-same-byte class (includes all-zero).
-        for b in [0x00u8, 0x01, 0x2A, 0xA5, 0xFF] {
-            assert!(seed_is_degenerate(&[b; 32]), "all-{b:02X}-byte refused");
-            assert!(seed_is_degenerate(&[b; 48]), "all-{b:02X}-byte refused");
+    /// Locator for the last content byte of the algorithm OID inside an
+    /// SLH-DSA SubjectPublicKeyInfo: outer SEQUENCE (0x30) wrapping
+    /// [SEQUENCE (0x30) { OID (0x06, len, bytes) } BIT STRING (0x03)].
+    fn slh_spki_last_oid_byte_index(spki_der: &[u8]) -> Option<usize> {
+        if spki_der.first() != Some(&0x30) || spki_der.get(2) != Some(&0x30) {
+            return None;
         }
-        // All-but-one-byte class: single nonzero byte at any position.
-        for pos in [0usize, 1, 15, 16, 31, 47] {
-            let mut s32 = [0u8; 32];
-            s32[pos.min(31)] = 0x80;
-            assert!(seed_is_degenerate(&s32), "single byte at {pos} refused");
-            let mut s48 = [0u8; 48];
-            s48[pos] = 0x01;
-            assert!(seed_is_degenerate(&s48), "single byte at {pos} refused");
+        if spki_der.get(4) != Some(&0x06) {
+            return None;
         }
-        // Near-degenerate two-byte class: [0,…,0,1] with a second differing
-        // byte is ADMITTED (documented boundary of the refused set).
-        let mut two_byte = [0u8; 32];
-        two_byte[30] = 1;
-        two_byte[31] = 2;
-        assert!(!seed_is_degenerate(&two_byte));
-        let mut two_byte48 = [0u8; 48];
-        two_byte48[0] = 1;
-        two_byte48[47] = 2;
-        assert!(!seed_is_degenerate(&two_byte48));
+        let oid_len = *spki_der.get(5)?;
+        if oid_len == 0 || 6 + oid_len as usize > spki_der.len() {
+            return None;
+        }
+        Some(6 + oid_len as usize - 1)
     }
 
-    /// SX5-F2: near-degenerate `[0,…,0,1]` is refused by the predicate on
-    /// both seed lengths (the single-nonzero-byte member of the refused set).
     #[test]
-    fn sx5f2_near_degenerate_single_unit_seed_refused() {
-        let mut unit32 = [0u8; 32];
-        unit32[31] = 1;
-        assert!(seed_is_degenerate(&unit32));
-        let mut unit48 = [0u8; 48];
-        unit48[0] = 1;
-        assert!(seed_is_degenerate(&unit48));
-    }
+    fn slh_dsa128s_spki_pkcs8_round_trip_is_byte_exact() {
+        use pkcs8::der::Decode;
+        use pkcs8::{EncodePublicKey, SubjectPublicKeyInfoRef};
 
-    /// SX5-F2: both PQC `from_seed` paths enforce the same law. Under
-    /// `cfg!(test)` the screening is disabled so the fixed-seed fixtures in
-    /// this crate (and the KAT/ACVP vector surfaces that call `from_seed`)
-    /// keep working — asserted here; the production refusal branch is the
-    /// exact predicate table above. Legitimate (entropy-bearing) seeds
-    /// construct and round-trip on both paths.
-    #[test]
-    fn sx5f2_from_seed_paths_share_the_degenerate_seed_law() {
-        // Legitimate seeds: construct (Result Ok) and derive real keys.
-        let legit32 = [0xA5u8; 32];
-        let mut legit32b = legit32;
-        legit32b[0] ^= 0xFF;
-        let kp_a = ml_dsa65_from_seed(&legit32).expect("legit seed constructs");
-        let kp_b = ml_dsa65_from_seed(&legit32b).expect("legit seed constructs");
-        assert_ne!(kp_a.public, kp_b.public, "distinct seeds, distinct keys");
-        assert!(kp_a.public.len() == ML_DSA_65_PUBLIC_KEY_LEN);
+        // Real keys (fresh OS-RNG + fixture seed triplets): the court
+        // witnesses the surface, not a hardcoded vector.
+        let mut fresh = [0u8; SLH_DSA_128S_SEED_LEN];
+        rand_core::OsRng.fill_bytes(&mut fresh);
+        for seeds in [SLH_SEEDS_A, SLH_SEEDS_B, fresh] {
+            let kp = slh_dsa128s_from_seed(&seeds);
+            let vk = slh_dsa::VerifyingKey::<slh_dsa::Sha2_128s>::try_from(kp.public.as_slice())
+                .expect("stored pk decodes structurally");
 
-        let slh_a = slh_dsa128s_from_seed(&SLH_SEEDS_A).expect("legit slh seeds construct");
-        let mut slh_b = SLH_SEEDS_A;
-        slh_b[0] ^= 0xFF;
-        let slh_b = slh_dsa128s_from_seed(&slh_b).expect("legit slh seeds construct");
-        assert_ne!(slh_a.public, slh_b.public, "distinct seeds, distinct keys");
-        assert_eq!(slh_a.public.len(), 2 * SLH_DSA_128S_N);
+            // Export: vk -> SPKI DER (pkcs8 EncodePublicKey).
+            let der = vk.to_public_key_der().expect("SPKI DER export");
+            let spki_der_bytes = der.as_bytes().to_vec();
 
-        // The refused set, wired through the constructors: under test builds
-        // they admit (fixture contract); outside test builds they return
-        // `PqcError::DegenerateSeed` (0xE305). The branch is
-        // `!cfg!(test) && seed_is_degenerate(seed)` — the same structural
-        // wiring the ES256 path landed in R32/SK3.
-        let refused32: [[u8; 32]; 3] = [[0u8; 32], [0xA5u8; 32], {
-            let mut s = [0u8; 32];
-            s[17] = 1;
-            s
-        }];
-        let refused48: [[u8; 48]; 3] = [[0u8; 48], [0x11u8; 48], {
-            let mut s = [0u8; 48];
-            s[47] = 0xFF;
-            s
-        }];
-        for seed in refused32 {
-            if cfg!(test) {
-                assert!(ml_dsa65_from_seed(&seed).is_ok());
-            } else {
-                let err = ml_dsa65_from_seed(&seed).unwrap_err();
-                assert_eq!(err.machine_code(), 0xE305);
-            }
-        }
-        for seeds in refused48 {
-            if cfg!(test) {
-                assert!(slh_dsa128s_from_seed(&seeds).is_ok());
-            } else {
-                let err = slh_dsa128s_from_seed(&seeds).unwrap_err();
-                assert_eq!(err.machine_code(), 0xE305);
-            }
-        }
-        // The machine code is bound to the variant, independent of build.
-        assert_eq!(PqcError::DegenerateSeed.machine_code(), 0xE305);
-    }
-    // ── Register #25: cached signer differential court ──────────────────────
+            // Import: DER -> SubjectPublicKeyInfoRef -> VerifyingKey.
+            let spki =
+                SubjectPublicKeyInfoRef::from_der(&spki_der_bytes).expect("honest SPKI parses");
+            let imported: slh_dsa::VerifyingKey<slh_dsa::Sha2_128s> =
+                slh_dsa::VerifyingKey::<slh_dsa::Sha2_128s>::try_from(spki).expect("SPKI import");
 
-    #[test]
-    fn mldsa65_cached_and_one_shot_signatures_are_byte_identical() {
-        let corpus: [([u8; 32], &[u8], [u8; 32]); 4] = [
-            (SEED_A, MSG, RND_A),
-            (SEED_B, MSG, RND_A),
-            (SEED_A, b"other message", [0x7Du8; 32]),
-            (SEED_B, b"", [0u8; 32]),
-        ];
-        for (seed, msg, rnd) in corpus {
-            let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
-            let signer = MlDsa65Signer::from_seed(&seed).expect("cached signer");
-            let cached = signer.sign(msg, &rnd);
-            let oneshot = ml_dsa65_sign(&seed, msg, &rnd).expect("one-shot sign");
+            // Byte-exact round trip, and the imported key still VERIFIES.
+            let raw = vk.to_bytes();
             assert_eq!(
-                cached, oneshot,
-                "cached and one-shot must agree byte-for-byte"
+                imported.to_bytes(),
+                raw,
+                "SPKI export/import must round-trip byte-exactly"
             );
-            assert_eq!(cached.len(), ML_DSA_65_SIGNATURE_LEN);
+            let sig = slh_dsa128s_sign(&seeds, MSG).expect("slh-dsa sign");
+            use slh_dsa::signature::Verifier;
+            let parsed = slh_dsa::Signature::<slh_dsa::Sha2_128s>::try_from(&sig[..])
+                .expect("signature parses");
             assert!(
-                ml_dsa65_verify(&kp.public, msg, &cached).expect("verify cached"),
-                "cached signer output must verify"
-            );
-            // Reuse of the cached signer is lawful: second sig still identical.
-            assert_eq!(
-                signer.sign(msg, &rnd),
-                cached,
-                "cached signer is deterministic"
+                imported.verify(MSG, &parsed).is_ok(),
+                "imported vk must verify an honest signature"
             );
         }
     }
 
     #[test]
-    fn mldsa65_cached_signer_screening_preserved() {
-        // Same refused-set law as ml_dsa65_from_seed, bound to machine code
-        // 0xE305 independent of build mode.
-        let degenerate = [0u8; 32];
-        let mut one_byte = [0u8; 32];
-        one_byte[17] = 0xFF;
-        for seed in [degenerate, one_byte] {
-            if cfg!(test) {
-                assert!(MlDsa65Signer::from_seed(&seed).is_ok());
-            } else {
-                match MlDsa65Signer::from_seed(&seed) {
-                    Ok(_) => panic!("degenerate seed must be refused outside test builds"),
-                    Err(err) => assert_eq!(err.machine_code(), 0xE305),
-                }
-            }
+    fn slh_dsa128s_spki_tampered_alg_id_oid_refuses_typed() {
+        use pkcs8::der::Decode;
+        use pkcs8::{EncodePublicKey, SubjectPublicKeyInfoRef};
+
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        let vk = slh_dsa::VerifyingKey::<slh_dsa::Sha2_128s>::try_from(kp.public.as_slice())
+            .expect("stored pk decodes structurally");
+        let der = vk.to_public_key_der().expect("SPKI DER export");
+        let honest = der.as_bytes().to_vec();
+
+        let oid_end = slh_spki_last_oid_byte_index(&honest).expect("well-formed SPKI layout");
+        // Flip one bit in the LAST OID content byte and one in the FIRST:
+        // either way the algorithm identifier no longer names SLH-DSA.
+        for offset in [oid_end, 6] {
+            let mut tampered = honest.clone();
+            tampered[offset] ^= 0x01;
+            // The tampered DER is still structurally parseable SPKI (no
+            // length moved) — the refusal must come from the OID check.
+            let spki = SubjectPublicKeyInfoRef::from_der(&tampered)
+                .expect("tampered alg-id is still well-formed DER");
+            assert!(
+                slh_dsa::VerifyingKey::<slh_dsa::Sha2_128s>::try_from(spki).is_err(),
+                "tampered alg-id OID at {offset} must refuse typed"
+            );
+            // Positive control: the honest SPKI still imports.
+            let honest_spki = SubjectPublicKeyInfoRef::from_der(&honest).expect("parse");
+            assert!(
+                slh_dsa::VerifyingKey::<slh_dsa::Sha2_128s>::try_from(honest_spki).is_ok(),
+                "positive control: honest SPKI must import"
+            );
         }
     }
 
-    // ── Register #26: pk encode/decode round-trip court ─────────────────────
+    #[test]
+    fn slh_dsa128s_truncated_vk_bytes_refuse_typed() {
+        use pkcs8::der::Decode;
+        use pkcs8::{EncodePublicKey, SubjectPublicKeyInfoRef};
+
+        // Raw-byte import path: any truncation is a typed Err, never a panic.
+        let kp = slh_dsa128s_from_seed(&SLH_SEEDS_A);
+        for len in [0usize, 1, 15, 16, 31] {
+            assert!(
+                slh_dsa::VerifyingKey::<slh_dsa::Sha2_128s>::try_from(&kp.public[..len]).is_err(),
+                "truncated vk of {len} bytes must refuse"
+            );
+        }
+        // SPKI import path: a BIT STRING carrying truncated vk bytes
+        // (structurally valid SPKI, wrong key length) must also refuse.
+        let vk = slh_dsa::VerifyingKey::<slh_dsa::Sha2_128s>::try_from(kp.public.as_slice())
+            .expect("stored pk decodes structurally");
+        let honest = vk
+            .to_public_key_der()
+            .expect("SPKI DER export")
+            .as_bytes()
+            .to_vec();
+        let mut truncated_der = honest.clone();
+        truncated_der.pop();
+        assert!(SubjectPublicKeyInfoRef::from_der(&truncated_der).is_err());
+        // Locate the BIT STRING header by tag, shrink its length and the
+        // outer SEQUENCE length by one, and drop the last key byte.
+        // The OID sits directly inside the algorithm SEQUENCE (offset 4), so
+        // the algorithm identifier ends at 6 + oid_len; the BIT STRING follows.
+        let alg_end = 6 + usize::from(honest[5]);
+        let bs_idx = honest[alg_end..]
+            .iter()
+            .position(|&b| b == 0x03)
+            .expect("BIT STRING tag present")
+            + alg_end;
+        assert_eq!(honest[bs_idx], 0x03, "located the BIT STRING tag");
+        let bs_len = usize::from(honest[bs_idx + 1]);
+        assert_eq!(
+            bs_idx + 2 + bs_len,
+            honest.len(),
+            "BIT STRING spans the tail"
+        );
+        let mut shrunk = honest.clone();
+        shrunk[1] -= 1; // outer SEQUENCE length
+        shrunk[bs_idx + 1] -= 1; // BIT STRING content length
+        shrunk.remove(honest.len() - 1); // drop the last vk byte
+        let spki = SubjectPublicKeyInfoRef::from_der(&shrunk)
+            .expect("shrunk SPKI is still well-formed DER");
+        assert!(
+            slh_dsa::VerifyingKey::<slh_dsa::Sha2_128s>::try_from(spki).is_err(),
+            "SPKI carrying truncated vk bytes must refuse typed"
+        );
+    }
+
+    // ── Register #67: ml-dsa ExpandedSigningKeyBytes wire round-trip court ──
 
     #[test]
-    fn mldsa65_pk_round_trip_corpus() {
-        // Real-key corpus: fixture seeds plus fresh OS-RNG keys.
-        let mut seeds: Vec<[u8; 32]> = vec![SEED_A, SEED_B, [0x01u8; 32], [0xFEu8; 32]];
+    #[allow(deprecated)] // from_expanded/to_expanded are deprecated in ml-dsa 0.1.1
+    fn mldsa65_expanded_signing_key_bytes_round_trip_is_byte_identical() {
+        use ml_dsa::{ExpandedSigningKey, ExpandedSigningKeyBytes, MlDsa65};
+
         let mut fresh = [0u8; 32];
         rand_core::OsRng.fill_bytes(&mut fresh);
-        seeds.push(fresh);
-        for seed in &seeds {
-            let kp = ml_dsa65_from_seed(seed).expect("pqc fixture key pair");
-            let pk = ml_dsa::EncodedVerifyingKey::<ml_dsa::MlDsa65>::try_from(kp.public.as_slice())
-                .expect("stored pk decodes structurally");
-            let vk = ml_dsa::VerifyingKey::<ml_dsa::MlDsa65>::decode(&pk);
-            let re = vk.encode();
+        let corpus: Vec<[u8; 32]> = vec![SEED_A, SEED_B, [0x01u8; 32], [0xFEu8; 32], fresh];
+        for seed in &corpus {
+            let sk_seed: ml_dsa::Seed = (*seed).into();
+            let esk = ExpandedSigningKey::<MlDsa65>::from_seed(&sk_seed);
+            let bytes: ExpandedSigningKeyBytes<MlDsa65> = esk.to_expanded();
+            // The encoded form is exactly the FIPS 204 expanded-sk size.
             assert_eq!(
-                re.as_slice(),
-                kp.public.as_slice(),
-                "decode(encode) must round-trip"
+                bytes.len(),
+                4032,
+                "ML-DSA-65 expanded signing key = 4032 bytes"
             );
-            assert_eq!(kp.public.len(), ML_DSA_65_PUBLIC_KEY_LEN);
-            // A valid signature verifies under the round-tripped pk.
-            let sig = ml_dsa65_sign(seed, MSG, &RND_A).expect("sign");
-            assert!(ml_dsa65_verify(re.as_slice(), MSG, &sig).expect("verify"));
-        }
-    }
-
-    #[test]
-    fn mldsa65_mutated_pk_never_accepts_a_valid_signature() {
-        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
-        let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
-        // Mutate the pk at every byte position, one at a time. Each mutated
-        // key must either be structurally refused OR verify Ok(false) —
-        // never Ok(true).
-        for i in 0..kp.public.len() {
-            let mut mutated = kp.public.clone();
-            mutated[i] ^= 0x01;
-            match ml_dsa65_verify(&mutated, MSG, &sig) {
-                Err(PqcError::MalformedPublicKey) => {}
-                Ok(false) => {}
-                other => panic!("mutated pk at byte {i} must not accept: {other:?}"),
-            }
-        }
-    }
-
-    #[test]
-    fn mldsa65_pk_error_taxonomy_is_pinned() {
-        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
-        let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
-        // Wrong-length pk -> MalformedPublicKey.
-        for len in [
-            0usize,
-            1,
-            ML_DSA_65_PUBLIC_KEY_LEN - 1,
-            ML_DSA_65_PUBLIC_KEY_LEN + 1,
-        ] {
-            let err = ml_dsa65_verify(&vec![0u8; len], MSG, &sig).unwrap_err();
+            let esk2 = ExpandedSigningKey::<MlDsa65>::from_expanded(&bytes);
+            // Byte-identical signatures under the same message + rnd...
+            let sig1 = esk.sign_internal(&[MSG], &RND_A.into());
+            let sig2 = esk2.sign_internal(&[MSG], &RND_A.into());
+            assert_eq!(
+                sig1.encode().as_slice(),
+                sig2.encode().as_slice(),
+                "from_expanded(to_expanded(esk)) must sign byte-identically"
+            );
+            // ...and identical to the crate's one-shot seed path.
+            let via_seed = ml_dsa65_sign(seed, MSG, &RND_A).expect("one-shot sign");
+            assert_eq!(
+                via_seed,
+                sig1.encode().as_slice(),
+                "expanded round-trip must agree with the seed path"
+            );
+            let kp = ml_dsa65_from_seed(seed);
             assert!(
-                matches!(err, PqcError::MalformedPublicKey),
-                "len {len}: {err:?}"
+                ml_dsa65_verify(&kp.public, MSG, &sig2.encode().as_slice().to_vec(),)
+                    .expect("verify"),
+                "round-tripped key's signature verifies under the seed's vk"
             );
         }
-        // Structurally-bad sig -> MalformedSignature (wrong length).
-        let err = ml_dsa65_verify(&kp.public, MSG, &[]).unwrap_err();
-        assert!(matches!(err, PqcError::MalformedSignature), "{err:?}");
-        let short = [0u8; ML_DSA_65_SIGNATURE_LEN - 1];
-        let err = ml_dsa65_verify(&kp.public, MSG, &short).unwrap_err();
-        assert!(matches!(err, PqcError::MalformedSignature), "{err:?}");
-        let long = [0u8; ML_DSA_65_SIGNATURE_LEN + 1];
-        let err = ml_dsa65_verify(&kp.public, MSG, &long).unwrap_err();
-        assert!(matches!(err, PqcError::MalformedSignature), "{err:?}");
-        // Well-formed sig under the WRONG pk -> Ok(false), not an error.
-        let kp_b = ml_dsa65_from_seed(&SEED_B).expect("pqc fixture key pair");
-        assert!(!ml_dsa65_verify(&kp_b.public, MSG, &sig).expect("cross-key verify"));
-        // And a well-formed but structurally-corrupt sig body is either
-        // MalformedSignature or Ok(false) — never Ok(true).
-        let mut corrupt = sig.clone();
-        corrupt[ML_DSA_65_SIGNATURE_LEN / 2] ^= 0x80;
-        match ml_dsa65_verify(&kp.public, MSG, &corrupt) {
-            Err(PqcError::MalformedSignature) | Ok(false) => {}
-            other => panic!("corrupt sig must not verify: {other:?}"),
+    }
+
+    #[test]
+    fn mldsa65_expanded_buffer_length_refusals_are_typed() {
+        use ml_dsa::{ExpandedSigningKey, ExpandedSigningKeyBytes, MlDsa65};
+
+        let sk_seed: ml_dsa::Seed = SEED_A.into();
+        let esk = ExpandedSigningKey::<MlDsa65>::from_seed(&sk_seed);
+        #[allow(deprecated)]
+        let bytes = esk.to_expanded();
+
+        // ±1-byte and empty buffers refuse with a typed Err — never a panic,
+        // never a silent accept.
+        for len in [0usize, 1, 4031] {
+            assert!(
+                ExpandedSigningKeyBytes::<MlDsa65>::try_from(&bytes.as_slice()[..len]).is_err(),
+                "expanded buffer of {len} bytes must refuse typed"
+            );
+        }
+        let mut over = bytes.as_slice().to_vec();
+        over.push(0);
+        assert!(
+            ExpandedSigningKeyBytes::<MlDsa65>::try_from(over.as_slice()).is_err(),
+            "over-long (4033-byte) expanded buffer must refuse"
+        );
+        // Positive control: the exact 4032-byte buffer admits.
+        assert!(
+            ExpandedSigningKeyBytes::<MlDsa65>::try_from(bytes.as_slice()).is_ok(),
+            "positive control: exact-length expanded buffer must admit"
+        );
+    }
+
+    // ── Register #68: ml-dsa SigningKey seed-identity court ─────────────────
+
+    #[test]
+    fn mldsa65_seed_identity_to_seed_from_seed_is_exact() {
+        use ml_dsa::{MlDsa65, SigningKey};
+
+        let mut fresh = [0u8; 32];
+        rand_core::OsRng.fill_bytes(&mut fresh);
+        let corpus: Vec<[u8; 32]> = vec![SEED_A, SEED_B, [0x07u8; 32], fresh];
+        for seed in &corpus {
+            let sk_seed: ml_dsa::Seed = (*seed).into();
+            let sk = SigningKey::<MlDsa65>::from_seed(&sk_seed);
+            // to_seed(from_seed(s)) == s, byte-exact.
+            let recovered = sk.to_seed();
+            assert_eq!(recovered.as_slice(), seed.as_slice(), "seed identity");
+            // A key rebuilt from the recovered seed signs identically
+            // (deterministic Sign_internal under the same rnd).
+            let rebuilt_seed: ml_dsa::Seed = recovered.as_slice().try_into().expect("32 bytes");
+            let rebuilt = SigningKey::<MlDsa65>::from_seed(&rebuilt_seed);
+            let sig_orig = sk.expanded_key().sign_internal(&[MSG], &RND_A.into());
+            let sig_rebuilt = rebuilt.expanded_key().sign_internal(&[MSG], &RND_A.into());
+            assert_eq!(
+                sig_orig.encode().as_slice(),
+                sig_rebuilt.encode().as_slice(),
+                "seed-rebuilt key must sign identically"
+            );
+            // And the rebuilt key matches the crate's one-shot path.
+            let kp = ml_dsa65_from_seed(seed);
+            let one_shot = ml_dsa65_sign(seed, MSG, &RND_A).expect("sign");
+            assert_eq!(
+                one_shot,
+                sig_rebuilt.encode().as_slice().to_vec(),
+                "rebuilt SigningKey agrees with the one-shot module path"
+            );
+            assert!(ml_dsa65_verify(&kp.public, MSG, &one_shot).expect("verify"));
         }
     }
 }
