@@ -25,9 +25,29 @@ fn fixed_hex(req: &Value, name: &str) -> Res<[u8; HASH_LEN]> {
         .map_err(|_| err("bad_field", format!("`{name}` must be {HASH_LEN} bytes")))
 }
 
-/// `jcs_canonicalize`: RFC 8785 canonical bytes + BLAKE3 commitment for an
-/// arbitrary JSON document. The canonical form is the byte-exact preimage
-/// any verifier must reproduce before hashing or signing.
+/// Domain-separation tag for the commitment digest. Same tag the root trust
+/// plane digests under (`src/crypto_trust_canonical.rs::DOMAIN_TAG`), so a
+/// wasm commitment and a root-plane digest are members of one key space, not
+/// two collision-adjacent hash domains.
+const JCS_DOMAIN_TAG: &str = "affidavit.crypto-trust-plane.v1";
+
+/// `jcs_canonicalize`: RFC 8785 canonical bytes + domain-separated BLAKE3
+/// commitment for an arbitrary JSON document. The canonical form is the
+/// byte-exact preimage any verifier must reproduce before hashing or signing.
+///
+/// BEHAVIOR CHANGE (register rows 60 + 80; both breaking, both pinned by
+/// `tests/jcs_parity.rs`):
+/// 1. Duplicate object keys are REFUSED with a typed `bad_json` error whose
+///    message begins `malformed:` — the former parse layer silently took the
+///    last occurrence (RFC 8785 / I-JSON require unique names). Detection is
+///    a depth- and escape-aware raw-byte scan over the input, so a duplicate
+///    is caught at ANY object depth, including keys that only collide after
+///    escape decoding (`"a"` vs `"\\u0061"`).
+/// 2. The commitment is domain-separated: BLAKE3 in key-derivation mode
+///    under `JCS_DOMAIN_TAG` (`Hasher::new_derive_key`), NOT the unkeyed
+///    `blake3(canonical)` previously emitted. Verifiers pinning the old
+///    unkeyed digest formula must migrate; the untagged digest of the same
+///    canonical bytes will not verify.
 ///
 /// Key ordering is RFC 8785 \u00a73.2.3: object keys sort by their UTF-16
 /// code-unit sequence (ES6 `Array.prototype.sort` semantics), NOT by Unicode
@@ -42,12 +62,161 @@ pub fn op_jcs_canonicalize(req: &Value) -> Res<Map<String, Value>> {
     let raw = field(req, "json")?
         .as_str()
         .ok_or_else(|| err("bad_field", "`json` must be a string containing JSON"))?;
+    if let Some(name) = first_duplicate_key(raw) {
+        return Err(err(
+            "bad_json",
+            format!("malformed: duplicate object key `{name}`; RFC 8785/I-JSON require unique member names"),
+        ));
+    }
     let parsed: Value = serde_json::from_str(raw).map_err(|e| err("bad_json", e.to_string()))?;
     let canonical = jcs_serialize(&parsed);
-    let commitment = blake3::hash(canonical.as_bytes()).to_hex().to_string();
+    let commitment = jcs_commitment(&canonical);
     Ok(obj(
         json!({"canonical_json": canonical, "commitment": commitment}),
     ))
+}
+
+/// Domain-separated commitment over the canonical bytes: BLAKE3 keyed via the
+/// key-derivation mode under [`JCS_DOMAIN_TAG`] (external blake3 crate API),
+/// not an unkeyed hash — the same domain tag the root trust plane uses.
+fn jcs_commitment(canonical: &str) -> String {
+    let mut hasher = blake3::Hasher::new_derive_key(JCS_DOMAIN_TAG);
+    hasher.update(canonical.as_bytes());
+    hasher.finalize().to_hex().to_string()
+}
+
+/// One open container during the raw-byte duplicate-key scan.
+struct ScanFrame {
+    is_object: bool,
+    /// Member names already seen in this object (escape-decoded).
+    keys: Vec<String>,
+    /// Object frames: `true` while the next string token is a member NAME.
+    expect_key: bool,
+}
+
+/// Depth- and escape-aware raw-byte scan for duplicate object member names at
+/// ANY object depth. Returns the first colliding name, if any. Raw bytes, not
+/// the parsed `Value`: by the time this runs, `serde_json` has already
+/// last-wins-folded any duplicates out of the parsed tree, so only the input
+/// text still carries the evidence. String tokens are fully escape-decoded
+/// (including `\\uXXXX` surrogate pairs), so `"a"` and `"\\u0061"` collide.
+fn first_duplicate_key(raw: &str) -> Option<String> {
+    let b = raw.as_bytes();
+    let mut i = 0usize;
+    let mut stack: Vec<ScanFrame> = Vec::new();
+    while i < b.len() {
+        match b[i] {
+            b' ' | b'\t' | b'\n' | b'\r' => i += 1,
+            b'{' => stack.push(ScanFrame {
+                is_object: true,
+                keys: Vec::new(),
+                expect_key: true,
+            }),
+            b'[' => stack.push(ScanFrame {
+                is_object: false,
+                keys: Vec::new(),
+                expect_key: false,
+            }),
+            b'}' | b']' => {
+                stack.pop();
+            }
+            b',' => {
+                if let Some(top) = stack.last_mut() {
+                    top.expect_key = top.is_object;
+                }
+            }
+            b'"' => {
+                let (name, next) = scan_json_string(b, i);
+                if matches!(
+                    stack.last(),
+                    Some(ScanFrame {
+                        is_object: true,
+                        expect_key: true,
+                        ..
+                    })
+                ) {
+                    let top = stack.last_mut().expect("just matched");
+                    if top.keys.iter().any(|k| k == &name) {
+                        return Some(name);
+                    }
+                    top.keys.push(name);
+                    top.expect_key = false;
+                }
+                i = next;
+                continue;
+            }
+            // Numbers, `true`/`false`/`null` literals, `:` — no key
+            // information; the input has already parsed as valid JSON, so
+            // byte-stepping over them is sound.
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Decode a JSON string literal starting at `start` (a `b'"'` byte); returns
+/// the escape-decoded name and the index just past the closing quote.
+fn scan_json_string(b: &[u8], start: usize) -> (String, usize) {
+    let mut out = String::new();
+    let mut i = start + 1;
+    while i < b.len() {
+        match b[i] {
+            b'"' => return (out, i + 1),
+            b'\\' => {
+                i += 1;
+                if i >= b.len() {
+                    return (out, i);
+                }
+                match b[i] {
+                    b'"' => out.push('"'),
+                    b'\\' => out.push('\\'),
+                    b'/' => out.push('/'),
+                    b'b' => out.push('\u{0008}'),
+                    b'f' => out.push('\u{000C}'),
+                    b'n' => out.push('\n'),
+                    b'r' => out.push('\r'),
+                    b't' => out.push('\t'),
+                    b'u' => {
+                        let hi = hex4(b, i + 1);
+                        i += 4;
+                        if (0xD800..=0xDBFF).contains(&hi) {
+                            // High surrogate: the low half follows as \uXXXX.
+                            if i + 2 < b.len() && b[i + 1] == b'\\' && b[i + 2] == b'u' {
+                                let lo = hex4(b, i + 3);
+                                i += 5;
+                                let cp =
+                                    0x10000 + ((hi - 0xD800) << 10) + (lo.wrapping_sub(0xDC00));
+                                if let Some(c) = char::from_u32(cp) {
+                                    out.push(c);
+                                }
+                            }
+                        } else if let Some(c) = char::from_u32(hi) {
+                            out.push(c);
+                        }
+                    }
+                    other => out.push(other as char),
+                }
+            }
+            byte => out.push(byte as char),
+        }
+        i += 1;
+    }
+    (out, i)
+}
+
+/// Four hex digits at `at` as a u32 (0 on malformed — inputs are pre-validated
+/// by the serde parse, so this path is defensive only).
+fn hex4(b: &[u8], at: usize) -> u32 {
+    let mut v = 0u32;
+    for k in 0..4 {
+        let digit = b
+            .get(at + k)
+            .and_then(|&c| (c as char).to_digit(16))
+            .unwrap_or(0);
+        v = v * 16 + digit;
+    }
+    v
 }
 
 /// RFC 8785 canonical serialization with UTF-16 code-unit key ordering.
@@ -241,7 +410,8 @@ mod tests {
     #[test]
     fn jcs_canonicalizes_and_commits() {
         // Keys arrive unsorted; the canonical form sorts them, strips
-        // whitespace, and the commitment is the BLAKE3 of those bytes.
+        // whitespace, and the commitment is the domain-separated BLAKE3
+        // (key-derivation mode under JCS_DOMAIN_TAG) of those bytes.
         let req = json!({"op":"jcs_canonicalize","json":"{ \"b\": 1, \"a\": 2 }"});
         let out = op_jcs_canonicalize(&req).expect("canonicalize");
         assert_eq!(out["canonical_json"], r#"{"a":2,"b":1}"#);
@@ -350,5 +520,50 @@ mod tests {
         });
         let out = op_smt_absence_verify(&req).expect("total");
         assert_eq!(out["admitted"], Value::Bool(false));
+    }
+    #[test]
+    fn jcs_refuses_duplicate_keys_at_any_depth() {
+        // Top-level duplicate: the former surface silently last-wins'd to 2.
+        let top = json!({"op":"jcs_canonicalize","json":r#"{"a":1,"b":2,"a":3}"#});
+        let e = op_jcs_canonicalize(&top).expect_err("top-level duplicate refused");
+        assert_eq!(e.code, "bad_json");
+        assert!(e.message.contains("malformed: duplicate object key `a`"));
+
+        // Nested duplicate: only the inner object collides.
+        let nested =
+            json!({"op":"jcs_canonicalize","json":r#"{"outer":{"x":1,"y":{"x":2,"x":3}}}"#});
+        let e = op_jcs_canonicalize(&nested).expect_err("nested duplicate refused");
+        assert_eq!(e.code, "bad_json");
+        assert!(e.message.contains("`x`"));
+
+        // Escape-decoded collision: distinct raw bytes, same member name.
+        let escaped = json!({"op":"jcs_canonicalize","json":r#"{"a":1,"\u0061":2}"#});
+        let e = op_jcs_canonicalize(&escaped).expect_err("escape-decoded duplicate refused");
+        assert_eq!(e.code, "bad_json");
+
+        // Same name in SIBLING objects is lawful, not a duplicate.
+        let siblings = json!({"op":"jcs_canonicalize","json":r#"{"p":{"k":1},"q":{"k":2}}"#});
+        let out = op_jcs_canonicalize(&siblings).expect("sibling keys are lawful");
+        assert_eq!(out["canonical_json"], r#"{"p":{"k":1},"q":{"k":2}}"#);
+    }
+
+    #[test]
+    fn jcs_commitment_is_domain_separated_not_unkeyed() {
+        let req = json!({"op":"jcs_canonicalize","json":r#"{"b":1,"a":2}"#});
+        let out = op_jcs_canonicalize(&req).expect("canonicalize");
+        let canonical = out["canonical_json"].as_str().expect("canonical");
+        let commitment = out["commitment"].as_str().expect("hex");
+
+        let mut keyed = blake3::Hasher::new_derive_key(JCS_DOMAIN_TAG);
+        keyed.update(canonical.as_bytes());
+        assert_eq!(commitment, keyed.finalize().to_hex().to_string());
+
+        // The untagged digest of the same bytes must NOT verify — a host
+        // still pinning the old unkeyed formula fails loudly.
+        assert_ne!(
+            commitment,
+            blake3::hash(canonical.as_bytes()).to_hex().to_string(),
+            "commitment must not be the unkeyed blake3(canonical)"
+        );
     }
 }

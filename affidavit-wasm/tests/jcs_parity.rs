@@ -6,7 +6,14 @@
 //! root differential court `tests/crypto_trust_jcs_differential.rs` uses).
 //!
 //! Invariants under court:
-//!   1. `commitment == blake3(canonical bytes)` for every case.
+//!   1. `commitment == blake3(KDF, DOMAIN_TAG, canonical bytes)` for every
+//!      case — the commitment is domain-separated under
+//!      "affidavit.crypto-trust-plane.v1" (the root trust plane's tag,
+//!      `src/crypto_trust_canonical.rs::DOMAIN_TAG`) via the blake3 crate's
+//!      key-derivation mode (`Hasher::new_derive_key`); the UNTAGGED
+//!      `blake3(canonical)` digest must be refused acceptance (register
+//!      row 80). Duplicate-key refusal (register row 60) is courted by
+//!      `jcs_duplicate_key_corpus_refuses_typed` below.
 //!   2. Canonical bytes are a fixed point: re-canonicalizing the output
 //!      reproduces the output byte-exact.
 //!   3. Agreement with the independent Python sidecar
@@ -43,12 +50,18 @@ use serde_json::{json, Value};
 const CORPUS_RELPATH: &str = "../fixtures/crypto_trust_jcs_corpus.json";
 const EXPECTED_RELPATH: &str = "../fixtures/crypto_trust_jcs_expected.json";
 
+/// Drive one input text through the real wasm ABI export path; returns the
+/// raw response envelope (ok/error) for refusal-court use.
+fn call_jcs_raw(input_text: &str) -> Value {
+    let req = json!({"op": "jcs_canonicalize", "json": input_text});
+    let out = affidavit_wasm::abi::call(&serde_json::to_vec(&req).unwrap());
+    serde_json::from_slice(&out).unwrap()
+}
+
 /// Drive one input text through the real wasm ABI export path; returns
 /// (canonical_json, commitment_hex).
 fn call_jcs(input_text: &str) -> (String, String) {
-    let req = json!({"op": "jcs_canonicalize", "json": input_text});
-    let out = affidavit_wasm::abi::call(&serde_json::to_vec(&req).unwrap());
-    let r: Value = serde_json::from_slice(&out).unwrap();
+    let r = call_jcs_raw(input_text);
     assert_eq!(
         r["ok"], true,
         "wasm ABI refused a case it must canonicalize: input={input_text} response={r}"
@@ -131,12 +144,23 @@ fn jcs_corpus_parity_and_commitment_invariant() {
         let input_text = serde_json::to_string(&row.value).unwrap();
         let (canonical, commitment) = call_jcs(&input_text);
 
-        // Invariant 1: commitment == blake3(canonical bytes), recomputed
-        // host-side with the same external blake3 crate the ABI uses.
+        // Invariant 1: commitment == BLAKE3 key-derivation mode under the
+        // root trust plane's DOMAIN_TAG over the canonical bytes, recomputed
+        // host-side with the same external blake3 crate the ABI uses. The
+        // unkeyed digest must NOT be accepted — the domain separation is the
+        // point (register row 80).
+        let mut keyed = blake3::Hasher::new_derive_key("affidavit.crypto-trust-plane.v1");
+        keyed.update(canonical.as_bytes());
         assert_eq!(
             commitment,
+            keyed.finalize().to_hex().to_string(),
+            "case {}: commitment is not the domain-separated blake3 of the canonical bytes",
+            row.id
+        );
+        assert_ne!(
+            commitment,
             blake3::hash(canonical.as_bytes()).to_hex().to_string(),
-            "case {}: commitment is not blake3 of the canonical bytes",
+            "case {}: commitment is the UNTAGGED blake3(canonical); domain separation regressed",
             row.id
         );
 
@@ -264,10 +288,98 @@ fn float_precision_2p53_neighbors_round_trip() {
         );
         let parsed: Value = serde_json::from_str(&canonical).unwrap();
         assert!(parsed.is_number(), "round-trip must stay a number");
+        let mut keyed = blake3::Hasher::new_derive_key("affidavit.crypto-trust-plane.v1");
+        keyed.update(canonical.as_bytes());
         assert_eq!(
             commitment,
+            keyed.finalize().to_hex().to_string(),
+            "commitment must bind the round-tripped canonical bytes (domain-separated)"
+        );
+        assert_ne!(
+            commitment,
             blake3::hash(canonical.as_bytes()).to_hex().to_string(),
-            "commitment must bind the round-tripped canonical bytes"
+            "untagged digest must not be accepted"
         );
     }
+}
+
+#[test]
+fn jcs_duplicate_key_corpus_refuses_typed() {
+    // Register row 60: the parse layer used to last-wins on duplicate object
+    // keys; the op must refuse them typed at ANY object depth, and the
+    // de-duplicated twin of each row must canonicalize byte-exact.
+    struct Case {
+        name: &'static str,
+        dup: &'static str,
+        twin: &'static str,
+    }
+    let corpus = [
+        Case {
+            name: "top_level",
+            dup: r#"{"a":1,"b":2,"a":3}"#,
+            twin: r#"{"a":3,"b":2}"#,
+        },
+        Case {
+            name: "nested_two_deep",
+            dup: r#"{"outer":{"x":1,"x":2}}"#,
+            twin: r#"{"outer":{"x":2}}"#,
+        },
+        Case {
+            name: "deep_three_levels",
+            dup: r#"{"o":{"m":{"inner":{"k":1,"k":2}}}}"#,
+            twin: r#"{"o":{"m":{"inner":{"k":2}}}}"#,
+        },
+        Case {
+            name: "escape_decoded_collision",
+            dup: r#"{"a":1,"\u0061":2}"#,
+            twin: r#"{"a":2}"#,
+        },
+        Case {
+            name: "sibling_objects_same_name_lawful",
+            dup: "", // not a duplicate row: positive control inside the corpus
+            twin: r#"{"p":{"k":1},"q":{"k":2}}"#,
+        },
+    ];
+
+    let mut refused = 0usize;
+    for case in &corpus {
+        if case.dup.is_empty() {
+            continue; // positive control below
+        }
+        let r = call_jcs_raw(case.dup);
+        assert_eq!(
+            r["ok"], false,
+            "case {}: duplicate-key row must REFUSE; got {r}",
+            case.name
+        );
+        assert_eq!(
+            r["error"]["code"], "bad_json",
+            "case {}: refusal must be typed bad_json",
+            case.name
+        );
+        let msg = r["error"]["message"].as_str().unwrap_or("");
+        assert!(
+            msg.starts_with("malformed: duplicate object key"),
+            "case {}: refusal must be a malformed/duplicate-key message; got {msg}",
+            case.name
+        );
+        refused += 1;
+
+        // The de-duplicated twin canonicalizes byte-exact.
+        let (canonical, commitment) = call_jcs(case.twin);
+        let mut keyed = blake3::Hasher::new_derive_key("affidavit.crypto-trust-plane.v1");
+        keyed.update(canonical.as_bytes());
+        assert_eq!(commitment, keyed.finalize().to_hex().to_string());
+    }
+
+    // The lawful sibling-name row canonicalizes untouched.
+    let (canonical, _) = call_jcs(corpus[4].twin);
+    assert_eq!(canonical, corpus[4].twin);
+
+    // Vacuity sweep: this court can fail in both directions — stripping the
+    // scan flips every refusal row, and a scan that refused a lawful row
+    // (sibling names, or every row here whose twin must admit) flips the
+    // positive controls. Assert the refused count so a silently-emptied
+    // corpus cannot pass.
+    assert_eq!(refused, 4, "duplicate-key refusal corpus shrank");
 }
