@@ -522,6 +522,18 @@ pub enum SbomError {
     /// A required field was missing.
     #[error("missing required field: {0}")]
     MissingField(String),
+    /// Filesystem I/O failure while hashing an artifact file.
+    #[error("artifact hash io error: {0}")]
+    Io(String),
+    /// Typed identical-or-refuse violation: the mmap+rayon fast path produced a
+    /// digest that does not match the streaming path. Never silently tolerated.
+    #[error("fast-path digest divergence: mmap-rayon {fast} != streaming {streaming}")]
+    FastPathDivergence {
+        /// Digest produced by the mmap+rayon fast path.
+        fast: String,
+        /// Digest produced by the streaming fallback path.
+        streaming: String,
+    },
 }
 
 /// Detect the SBOM format from a parsed JSON document.
@@ -916,6 +928,89 @@ pub fn parse_sbom_json(json: &str) -> Result<Sbom, SbomError> {
     }
 }
 
+/// Size threshold (bytes) above which [`hash_artifact_file`] takes the
+/// mmap+rayon fast path (register row 24). Files at or above this size hash via
+/// `blake3::Hasher::update_mmap_rayon` when the `sbom-rayon-hash` feature is
+/// enabled; everything else takes the streaming fallback.
+pub const LARGE_FILE_MMAP_RAYON_THRESHOLD: u64 = 8 * 1024 * 1024;
+
+/// Which code path [`hash_artifact_file`] used to produce a digest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileHashPath {
+    /// Chunked streaming update through `std::io::copy` into a BLAKE3 hasher.
+    Streaming,
+    /// `blake3::Hasher::update_mmap_rayon` (mmap + multithreaded SIMD).
+    MmapRayon,
+}
+
+/// A digest produced by [`hash_artifact_file`], tagged with the path taken so
+/// courts can assert the branch decision, not just the value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileDigest {
+    /// BLAKE3 digest of the bytes actually hashed (lowercase hex).
+    pub digest: Blake3Hash,
+    /// Branch taken (`Streaming` or `MmapRayon`).
+    pub path: FileHashPath,
+}
+
+/// BLAKE3-hash a file with a parallel fast path for large artifacts.
+///
+/// Identical-or-refuse law: when the fast path is taken, its digest is
+/// cross-checked against the streaming path in tested (`debug_assertions`)
+/// builds and any divergence is a typed [`SbomError::FastPathDivergence`],
+/// never a silent value. Release builds rely on BLAKE3's tree-hash invariance
+/// (both paths are the same hash function over the same bytes).
+///
+/// TOCTOU (stat vs. hash): the path decision and the hashing both re-observe
+/// the file at open time; a file truncated, mutated, or removed between the
+/// size check and the read yields a digest of the bytes actually hashed — or a
+/// typed [`SbomError::Io`] refusal (e.g. file removed), never a stale digest.
+pub fn hash_artifact_file(path: &std::path::Path) -> Result<FileDigest, SbomError> {
+    // Fast-path admission: feature on AND large enough to amortize the mmap +
+    // thread-pool setup. A stat failure here is a typed Io refusal.
+    let meta = std::fs::metadata(path).map_err(|e| SbomError::Io(e.to_string()))?;
+    #[cfg(feature = "sbom-rayon-hash")]
+    if meta.len() >= LARGE_FILE_MMAP_RAYON_THRESHOLD {
+        let mut hasher = blake3::Hasher::new();
+        hasher
+            .update_mmap_rayon(path)
+            .map_err(|e| SbomError::Io(e.to_string()))?;
+        let fast = hasher.finalize();
+        // Identical-or-refuse: in every build we test, prove the fast path
+        // agrees with the streaming path over the same bytes.
+        if cfg!(debug_assertions) {
+            let streaming = streaming_blake3_hex(path)?;
+            if fast.to_hex().as_str() != streaming {
+                return Err(SbomError::FastPathDivergence {
+                    fast: fast.to_hex().to_string(),
+                    streaming,
+                });
+            }
+        }
+        return Ok(FileDigest {
+            digest: Blake3Hash::from_hex(fast.to_hex().to_string()),
+            path: FileHashPath::MmapRayon,
+        });
+    }
+    #[cfg(not(feature = "sbom-rayon-hash"))]
+    let _ = meta;
+    let digest = streaming_blake3_hex(path)?;
+    Ok(FileDigest {
+        digest: Blake3Hash::from_hex(digest),
+        path: FileHashPath::Streaming,
+    })
+}
+
+/// Streaming BLAKE3 over a file's current bytes (chunked `io::copy` into the
+/// hasher, constant memory). The reference path for the identical-or-refuse
+/// law; also the fallback for small files and when `sbom-rayon-hash` is off.
+pub fn streaming_blake3_hex(path: &std::path::Path) -> Result<String, SbomError> {
+    let mut file = std::fs::File::open(path).map_err(|e| SbomError::Io(e.to_string()))?;
+    let mut hasher = blake3::Hasher::new();
+    std::io::copy(&mut file, &mut hasher).map_err(|e| SbomError::Io(e.to_string()))?;
+    Ok(hasher.finalize().to_hex().to_string())
+}
+
 /// Best-effort ISO-8601 → Unix-seconds conversion without a date dependency.
 ///
 /// Parses the common `YYYY-MM-DDThh:mm:ssZ` shape used by SPDX/CycloneDX. On any
@@ -1168,5 +1263,100 @@ mod tests {
         let h = Hash::new("sha256", "ABCDEF");
         assert_eq!(h.algorithm, "SHA-256");
         assert_eq!(h.value, "abcdef");
+    }
+
+    // ---- Register row 24 court: parallel large-file hashing fast path ----
+
+    /// Loud-skip guard: the rayon/mmap court only runs when the feature is on.
+    /// When it is off, this is a named skip, never a silent pass.
+    #[test]
+    fn row24_large_file_fast_path_matches_streaming() {
+        #[cfg(not(feature = "sbom-rayon-hash"))]
+        {
+            // Loud skip, never a silent pass: stderr (crate denies print_stdout).
+            eprintln!("[SKIP] row24 mmap+rayon court: sbom-rayon-hash feature off");
+        }
+        #[cfg(feature = "sbom-rayon-hash")]
+        {
+            use std::io::Write;
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("large.bin");
+            // 9 MiB: past the fast-path threshold.
+            let payload: Vec<u8> = (0..9 * 1024 * 1024).map(|i| (i % 251) as u8).collect();
+            let mut f = std::fs::File::create(&path).unwrap();
+            f.write_all(&payload).unwrap();
+            drop(f);
+            let fd = hash_artifact_file(&path).expect("large-file hash");
+            assert_eq!(fd.path, FileHashPath::MmapRayon, "9MiB must take fast path");
+            let streaming = streaming_blake3_hex(&path).unwrap();
+            assert_eq!(
+                fd.digest.as_hex(),
+                streaming,
+                "identical-or-refuse: fast path must equal streaming path"
+            );
+            // Digest must also equal a direct one-shot hash of the same bytes.
+            assert_eq!(fd.digest.as_hex(), blake3::hash(&payload).to_hex().as_str());
+        }
+    }
+
+    #[test]
+    fn row24_small_file_takes_streaming_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("small.bin");
+        std::fs::write(&path, b"small artifact").unwrap();
+        let fd = hash_artifact_file(&path).unwrap();
+        assert_eq!(fd.path, FileHashPath::Streaming);
+        assert_eq!(
+            fd.digest.as_hex(),
+            blake3::hash(b"small artifact").to_hex().as_str()
+        );
+    }
+
+    #[test]
+    fn row24_truncated_file_hashes_bytes_actually_present() {
+        // stat-then-hash TOCTOU: the file is truncated after a large size would
+        // have been observed; the digest must be correct for the bytes actually
+        // hashed (the current content), on whichever path is admitted.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("truncated.bin");
+        std::fs::write(&path, vec![7u8; 16 * 1024 * 1024]).unwrap();
+        let stat_len = std::fs::metadata(&path).unwrap().len();
+        assert!(stat_len >= LARGE_FILE_MMAP_RAYON_THRESHOLD);
+        // Mutate between stat and hash: truncate below the threshold.
+        let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.set_len(1024).unwrap();
+        drop(file);
+        let fd = hash_artifact_file(&path).unwrap();
+        let streaming = streaming_blake3_hex(&path).unwrap();
+        assert_eq!(fd.path, FileHashPath::Streaming);
+        assert_eq!(fd.digest.as_hex(), streaming);
+        assert_eq!(
+            fd.digest.as_hex(),
+            blake3::hash(&vec![7u8; 1024]).to_hex().as_str()
+        );
+    }
+
+    #[test]
+    fn row24_removed_file_is_typed_refusal_not_stale_digest() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("gone.bin");
+        std::fs::write(&path, b"transient").unwrap();
+        // Remove between "stat" (caller's observation) and the hash call.
+        std::fs::remove_file(&path).unwrap();
+        let err = hash_artifact_file(&path).unwrap_err();
+        assert!(
+            matches!(err, SbomError::Io(_)),
+            "typed Io refusal, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn row24_empty_file_hashes_deterministically() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty.bin");
+        std::fs::write(&path, b"").unwrap();
+        let fd = hash_artifact_file(&path).unwrap();
+        assert_eq!(fd.path, FileHashPath::Streaming);
+        assert_eq!(fd.digest.as_hex(), blake3::hash(b"").to_hex().as_str());
     }
 }
