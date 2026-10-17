@@ -53,6 +53,11 @@ pub enum MiningError {
     /// An error occurred during alignment fitness calculation.
     #[error("alignment fitness failed: {0}")]
     Alignment(String),
+
+    /// Data-quality grounding preflight refused (capability row #76): no
+    /// fitness may follow an ungrounded quality claim or log.
+    #[error("data quality grounding refused: {0}")]
+    DataQuality(String),
 }
 
 /// Interpret a raw fitness score as a named category.
@@ -424,6 +429,8 @@ mod tests {
 
 // ── Capability-register courts (rows #39, #40) ──────────────────────────────
 
+#[cfg(feature = "core")]
+pub mod data_quality_gate;
 #[cfg(feature = "core")]
 pub mod ocel_alignment_court;
 #[cfg(feature = "core")]
