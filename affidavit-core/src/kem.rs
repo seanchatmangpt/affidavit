@@ -502,4 +502,32 @@ mod tests {
         .to_string()
         .is_empty());
     }
+    #[test]
+    fn external_mlkem768_roundtrip_recovers_shared_secret() {
+        use ml_kem::{DecapsulationKey, KeyExport, MlKem768};
+        // Real ML-KEM-768 keypair, expanded from a fixed 64-byte (d, z)
+        // seed — the keypair is the external crate's, never this crate's.
+        let seed = [0x5Au8; DECAPSULATION_SEED_LEN];
+        let dk = DecapsulationKey::<MlKem768>::from_seed(seed.into());
+        let pk: [u8; ENCAPSULATION_KEY_LEN] =
+            dk.encapsulation_key().to_bytes().into();
+        let court = KemCourt::new()
+            .with_encapsulator(&ExternalMlKem768)
+            .with_decapsulator(&ExternalMlKem768);
+        let out = match court.judge_encapsulation(&pk) {
+            KemVerdict::Accept(o) => o,
+            KemVerdict::Refuse(r) => panic!("encapsulation refused: {r}"),
+        };
+        let recovered = match court.judge_decapsulation(&seed, &out.ciphertext) {
+            KemVerdict::Accept(ss) => ss,
+            KemVerdict::Refuse(r) => panic!("decapsulation refused: {r}"),
+        };
+        // Mutation-sensitive assert: the shared secret decapsulated from the
+        // ciphertext must be byte-equal to the one encapsulated to pk.
+        assert_eq!(
+            recovered.as_slice(),
+            out.shared_secret.as_slice(),
+            "decapsulated shared secret != encapsulated shared secret"
+        );
+    }
 }

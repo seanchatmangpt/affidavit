@@ -24,10 +24,11 @@
 
 use affidavit_core::crypto_verify::{SignatureEnvelope, DOMAIN_TAG, ENVELOPE_VERSION};
 use affidavit_core::pqc::{
-    ExternalMlDsa65, MlDsa65Verifier, PqcCourt, PqcProfile, PqcRefusal, PqcVerdict, Suite,
+    ExternalMlDsa65, ExternalSlhDsa128s, MlDsa65Verifier, PqcCourt, PqcProfile, PqcRefusal,
+    PqcVerdict, SlhDsaVerifier, Suite,
 };
 
-// External FIPS 204 implementation — the only signature algorithm in play.
+// External FIPS 204 implementation — one of the two signature algorithms in play.
 use ml_dsa::{KeyInit, Keypair, MlDsa65, SignatureEncoding, Signer, SigningKey};
 
 // No coordinator dev-dependency action is required: ml-dsa is an unconditional
@@ -221,4 +222,122 @@ fn real_sig_over(msg: &[u8], seed: [u8; 32]) -> (Vec<u8>, Vec<u8>) {
     let pk: [u8; 1952] = vk.encode().into();
     let sig_bytes: [u8; 3309] = sig.to_bytes().into();
     (pk.to_vec(), sig_bytes.to_vec())
+}
+
+// ---------------------------------------------------------------------------
+// Layer 3 — external SLH-DSA-SHA2-128s (FIPS 205) end-to-end.
+// ---------------------------------------------------------------------------
+
+// External FIPS 205 implementation — the second signature algorithm in play.
+use slh_dsa::{Sha2_128s, Signature as SlhSignature, SigningKey as SlhSigningKey,
+    VerifyingKey as SlhVerifyingKey};
+use slh_dsa::signature::Verifier as SlhVerifier;
+
+/// Fixed 32-byte seeds for the FIPS 205 key generation (slh_keygen_internal,
+/// the FIPS-205 KAT constructor). Arbitrary constants; determinism is what
+/// matters, secrecy of these literals does not.
+const SLH_SEED: [u8; 16] = [42u8; 16];
+const SLH_PRF: [u8; 16] = [43u8; 16];
+const SLH_PK_SEED: [u8; 16] = [44u8; 16];
+
+/// Real external slh-dsa sign over a fixed message with a fixed-seed key;
+/// returns (pk, sig) wire bytes via the external crate's encodings only.
+fn real_slh_sig_over(msg: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let sk = SlhSigningKey::<Sha2_128s>::slh_keygen_internal(
+        &SLH_SEED,
+        &SLH_PRF,
+        &SLH_PK_SEED,
+    );
+    let vk = sk.verifying_key();
+    let sig = sk.sign(msg); // deterministic Signer impl
+    let pk: [u8; 32] = vk.to_bytes().into();
+    let sig_bytes: [u8; 7856] = sig.to_bytes().into();
+    (pk.to_vec(), sig_bytes.to_vec())
+}
+
+/// Sign a fixed message with a real external `slh_dsa::SigningKey<Sha2_128s>`
+/// from a fixed seed and have the in-crate [`ExternalSlhDsa128s`] adapter
+/// (which calls the external crate's verifier) accept it; a bit-flipped
+/// message must be refused.
+#[test]
+fn external_slh_dsa128s_accepts_genuine_signature() {
+    let msg = b"affidavit slh-dsa-128s external validation message";
+    let (pk, sig) = real_slh_sig_over(msg);
+    assert_eq!(pk.len(), 32);
+    assert_eq!(sig.len(), 7856);
+    assert!(
+        ExternalSlhDsa128s.verify(msg, &sig, &pk),
+        "ExternalSlhDsa128s refused a genuine FIPS 205 signature"
+    );
+
+    // Sabotage twin: one flipped message bit must be refused — the acceptance
+    // above pins real verification, not a constant echo.
+    let mut forged_msg = *msg;
+    forged_msg[0] ^= 0x01;
+    assert!(
+        !ExternalSlhDsa128s.verify(&forged_msg, &sig, &pk),
+        "ExternalSlhDsa128s accepted a bit-flipped message"
+    );
+
+    // Cross-check that the adapter's verdict tracks the external crate's own
+    // verifier on the same bytes (adapter cannot diverge from the dependency).
+    let vk = SlhVerifyingKey::<Sha2_128s>::try_from(pk.as_slice()).expect("pk decodes");
+    let sigma = SlhSignature::<Sha2_128s>::try_from(sig.as_slice()).expect("sig decodes");
+    assert!(vk.verify(msg, &sigma).is_ok());
+    assert!(vk.verify(&forged_msg, &sigma).is_err());
+}
+
+/// Real keypairs for BOTH algorithms through [`PqcCourt`] under
+/// [`Suite::Dual`]: genuine halves accept; a flipped SLH half refuses with
+/// the typed `SlhDsaRejected` (fail-fast after the genuine ML-DSA half).
+#[test]
+fn pqc_court_dual_suite_accepts_and_refuses_over_real_keys() {
+    let msg = b"affidavit dual-suite external validation message";
+    let (ml_pk, ml_sig) = real_sig_over(msg, [31u8; 32]);
+    let (slh_pk, slh_sig) = real_slh_sig_over(msg);
+
+    let court = PqcCourt::new()
+        .with_ml_dsa(&ExternalMlDsa65)
+        .with_slh_dsa(&ExternalSlhDsa128s);
+    assert!(court.has_ml_dsa() && court.has_slh_dsa());
+
+    // Genuine both halves: accept.
+    assert_eq!(
+        court.judge(
+            PqcProfile::Pqc(Suite::Dual),
+            msg,
+            (&ml_sig, &ml_pk),
+            (&slh_sig, &slh_pk)
+        ),
+        PqcVerdict::Accept,
+        "court refused a genuine dual-suite signature pair"
+    );
+
+    // Forged SLH half (bit-flipped sig) after a genuine ML-DSA half: refusal.
+    let mut forged_slh = slh_sig.clone();
+    forged_slh[0] ^= 0x01;
+    assert_eq!(
+        court.judge(
+            PqcProfile::Pqc(Suite::Dual),
+            msg,
+            (&ml_sig, &ml_pk),
+            (&forged_slh, &slh_pk)
+        ),
+        PqcVerdict::Refuse(PqcRefusal::SlhDsaRejected),
+        "court accepted a flipped SLH-DSA half"
+    );
+
+    // Sabotage twin for the ML-DSA half too: the refusal must be ML-typed.
+    let mut forged_ml = ml_sig.clone();
+    forged_ml[0] ^= 0x01;
+    assert_eq!(
+        court.judge(
+            PqcProfile::Pqc(Suite::Dual),
+            msg,
+            (&forged_ml, &ml_pk),
+            (&slh_sig, &slh_pk)
+        ),
+        PqcVerdict::Refuse(PqcRefusal::MlDsa65Rejected),
+        "court accepted a flipped ML-DSA half"
+    );
 }
