@@ -41,12 +41,14 @@ pub const ENVELOPE_VERSION: &str = "CTP-ENVELOPE-v1";
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_992;
 
 /// Typed refusal of an uncanonicalizable value.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum CanonicalError {
     #[error("json canonicalization: {0}")]
     Json(String),
     #[error("number not canonical: {0}")]
     NonCanonicalNumber(String),
+    #[error("input is not canonical JCS ({class:?}): {detail}")]
+    NotCanonical { class: Divergence, detail: String },
 }
 
 /// RFC 8785 JSON canonicalization (JCS) of a parsed `serde_json` value.
@@ -56,99 +58,64 @@ pub fn jcs(value: &Value) -> Result<String, CanonicalError> {
     Ok(out)
 }
 
-/// Canonical-byte sink: the one-pass target of [`write_value`]. Implemented
-/// for `String` (the render path, [`jcs`]) and for [`blake3::Hasher`] via its
-/// `io::Write` impl (the streaming digest path, [`jcs_digest`]) so both paths
-/// share one canonical writer and cannot drift.
-trait JcsSink {
-    /// Neither sink can fail: `String::push_str` is infallible and
-    /// `blake3::Hasher`'s `io::Write` impl is unconditionally successful.
-    fn sink(&mut self, s: &str);
-}
-
-impl JcsSink for String {
-    fn sink(&mut self, s: &str) {
-        self.push_str(s);
-    }
-}
-
-/// Adapts [`blake3::Hasher`] to [`JcsSink`]: canonical bytes fold into the
-/// digest as they are produced — one pass, no intermediate `String`.
-struct HasherSink<'a>(&'a mut blake3::Hasher);
-
-impl JcsSink for HasherSink<'_> {
-    fn sink(&mut self, s: &str) {
-        use std::io::Write;
-        // blake3::Hasher's io::Write impl is write_all-trivially successful;
-        // the bound exists for the trait contract, not a real failure mode.
-        self.0
-            .write_all(s.as_bytes())
-            .expect("blake3::Hasher write is infallible");
-    }
-}
-
-fn write_value<W: JcsSink>(out: &mut W, value: &Value) -> Result<(), CanonicalError> {
+fn write_value(out: &mut String, value: &Value) -> Result<(), CanonicalError> {
     match value {
-        Value::Null => out.sink("null"),
-        Value::Bool(true) => out.sink("true"),
-        Value::Bool(false) => out.sink("false"),
-        Value::Number(n) => out.sink(&canonical_number(n)?),
+        Value::Null => out.push_str("null"),
+        Value::Bool(true) => out.push_str("true"),
+        Value::Bool(false) => out.push_str("false"),
+        Value::Number(n) => out.push_str(&canonical_number(n)?),
         Value::String(s) => write_escaped(out, s),
         Value::Array(items) => {
-            out.sink("[");
+            out.push('[');
             for (i, item) in items.iter().enumerate() {
                 if i > 0 {
-                    out.sink(",");
+                    out.push(',');
                 }
                 write_value(out, item)?;
             }
-            out.sink("]");
+            out.push(']');
         }
         Value::Object(map) => {
             let mut entries: Vec<(&String, &Value)> = map.iter().collect();
             entries.sort_by(|(a, _), (b, _)| a.encode_utf16().cmp(b.encode_utf16()));
-            out.sink("{");
+            out.push('{');
             for (i, (key, val)) in entries.iter().enumerate() {
                 if i > 0 {
-                    out.sink(",");
+                    out.push(',');
                 }
                 write_escaped(out, key);
-                out.sink(":");
+                out.push(':');
                 write_value(out, val)?;
             }
-            out.sink("}");
+            out.push('}');
         }
     }
     Ok(())
 }
 
 /// RFC 8785 §3.2.2.2 string serialization: minimal escaping, lowercase hex.
-fn write_escaped<W: JcsSink>(out: &mut W, s: &str) {
+fn write_escaped(out: &mut String, s: &str) {
     const HEX: &[u8; 16] = b"0123456789abcdef";
-    out.sink("\"");
+    out.push('"');
     for c in s.chars() {
         match c {
-            '"' => out.sink("\\\""),
-            '\\' => out.sink("\\\\"),
-            '\u{0008}' => out.sink("\\b"),
-            '\u{0009}' => out.sink("\\t"),
-            '\u{000A}' => out.sink("\\n"),
-            '\u{000C}' => out.sink("\\f"),
-            '\u{000D}' => out.sink("\\r"),
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{0008}' => out.push_str("\\b"),
+            '\u{0009}' => out.push_str("\\t"),
+            '\u{000A}' => out.push_str("\\n"),
+            '\u{000C}' => out.push_str("\\f"),
+            '\u{000D}' => out.push_str("\\r"),
             ch if (ch as u32) < 0x20 => {
                 let v = ch as u32;
-                out.sink("\\u00");
-                out.sink(
-                    (HEX[((v >> 4) & 0xf) as usize] as char)
-                        .to_string()
-                        .as_str(),
-                );
-                out.sink((HEX[(v & 0xf) as usize] as char).to_string().as_str());
+                out.push_str("\\u00");
+                out.push(HEX[((v >> 4) & 0xf) as usize] as char);
+                out.push(HEX[(v & 0xf) as usize] as char);
             }
-            c => out.sink(c.to_string().as_str()),
+            c => out.push(c),
         }
     }
-    out.sink("\"");
+    out.push('"');
 }
 
 /// RFC 8785 §3.2.2.3 number serialization: ECMAScript `Number::toString` over
@@ -236,6 +203,196 @@ fn format_double(f: f64) -> Result<String, CanonicalError> {
     Ok(out)
 }
 
+/// Whether an input byte sequence already passes through the JCS writer unchanged.
+///
+/// Re-canonicalizes the parsed value and byte-compares against the input. On
+/// mismatch, a typed [`CanonicalError::NotCanonical`] names the cheapest
+/// diagnosable divergence class, probed in this order:
+/// 1. [`Divergence::Number`] — a raw number literal in the input text is not
+///    the module's canonical rendering of the double it denotes (`4.50`, `1E30`).
+/// 2. [`Divergence::Ordering`] — object keys in the raw text are not in
+///    non-decreasing UTF-16 code-unit order (RFC 8785 §3.2.3).
+/// 3. [`Divergence::Escaping`] — a string token uses escape sequences the
+///    module would render differently (`A` for `A`, uppercase hex, `\/`).
+/// 4. [`Divergence::Structural`] — anything else (invalid UTF-8, invalid JSON,
+///    whitespace-only differences, unrepresentable numbers).
+pub fn jcs_verify(bytes: &[u8]) -> Result<(), CanonicalError> {
+    fn refuse(class: Divergence, detail: impl Into<String>) -> CanonicalError {
+        CanonicalError::NotCanonical {
+            class,
+            detail: detail.into(),
+        }
+    }
+    let text = std::str::from_utf8(bytes)
+        .map_err(|_| refuse(Divergence::Structural, "input is not valid UTF-8"))?;
+    let value: Value = serde_json::from_str(text).map_err(|e| {
+        refuse(
+            Divergence::Structural,
+            format!("input is not valid JSON: {e}"),
+        )
+    })?;
+    let canonical = jcs(&value).map_err(|e| refuse(Divergence::Number, e.to_string()))?;
+    if bytes == canonical.as_bytes() {
+        return Ok(());
+    }
+    let class = if number_token_divergence(text) {
+        Divergence::Number
+    } else if key_order_violation(text) {
+        Divergence::Ordering
+    } else if escaping_divergence(text) {
+        Divergence::Escaping
+    } else {
+        Divergence::Structural
+    };
+    let mut snippet = canonical.clone();
+    if snippet.len() > 96 {
+        snippet.truncate(96);
+        snippet.push_str("...");
+    }
+    Err(refuse(class, format!("canonical form would be {snippet}")))
+}
+
+/// Divergence class carried by [`CanonicalError::NotCanonical`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Divergence {
+    /// Raw number literal differs from its canonical rendering.
+    Number,
+    /// Object keys not in non-decreasing UTF-16 code-unit order.
+    Ordering,
+    /// String escape sequences differ from minimal JCS escaping.
+    Escaping,
+    /// Anything else: invalid UTF-8/JSON, whitespace, unrepresentable numbers.
+    Structural,
+}
+
+/// A raw number literal in `text` is not the canonical rendering of its double.
+fn number_token_divergence(text: &str) -> bool {
+    let b = text.as_bytes();
+    let mut i = 0;
+    let mut in_str = false;
+    let mut esc = false;
+    while i < b.len() {
+        if in_str {
+            if esc {
+                esc = false;
+            } else if b[i] == b'\\' {
+                esc = true;
+            } else if b[i] == b'"' {
+                in_str = false;
+            }
+            i += 1;
+            continue;
+        }
+        match b[i] {
+            b'"' => {
+                in_str = true;
+                i += 1;
+            }
+            b'-' | b'0'..=b'9' => {
+                let start = i;
+                while i < b.len() && matches!(b[i], b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-')
+                {
+                    i += 1;
+                }
+                let tok = &text[start..i];
+                if let Ok(n) = serde_json::from_str::<serde_json::Number>(tok) {
+                    match canonical_number(&n) {
+                        Ok(c) if c == tok => {}
+                        _ => return true,
+                    }
+                }
+            }
+            _ => i += 1,
+        }
+    }
+    false
+}
+
+/// End index (exclusive) of the JSON string token starting at `start` (`"`).
+fn scan_string_end(text: &str, start: usize) -> Option<usize> {
+    let b = text.as_bytes();
+    let mut i = start + 1;
+    while i < b.len() {
+        match b[i] {
+            b'\\' => i += 2,
+            b'"' => return Some(i + 1),
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+/// True when some object's keys, in raw-text appearance order, violate JCS order.
+fn key_order_violation(text: &str) -> bool {
+    let b = text.as_bytes();
+    let mut i = 0;
+    let mut last_key: Vec<Option<String>> = vec![None];
+    while i < b.len() {
+        match b[i] {
+            b'"' => {
+                let end = match scan_string_end(text, i) {
+                    Some(e) => e,
+                    None => return false,
+                };
+                if text[end..].trim_start().starts_with(':') {
+                    let raw = &text[i..end];
+                    if let Ok(key) = serde_json::from_str::<String>(raw) {
+                        let top = match last_key.last_mut() {
+                            Some(t) => t,
+                            None => return false,
+                        };
+                        if let Some(prev) = top {
+                            if !key.encode_utf16().gt(prev.encode_utf16()) {
+                                return true;
+                            }
+                        }
+                        *top = Some(key);
+                    }
+                }
+                i = end;
+            }
+            b'{' => {
+                last_key.push(None);
+                i += 1;
+            }
+            b'}' => {
+                last_key.pop();
+                i += 1;
+            }
+            _ => i += 1,
+        }
+    }
+    false
+}
+
+/// True when some string token's escaping differs from the module's writer.
+fn escaping_divergence(text: &str) -> bool {
+    let b = text.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'"' {
+            let end = match scan_string_end(text, i) {
+                Some(e) => e,
+                None => return false,
+            };
+            let raw = &text[i..end];
+            if raw.contains('\\') {
+                if let Ok(s) = serde_json::from_str::<String>(raw) {
+                    let mut re = String::new();
+                    write_escaped(&mut re, &s);
+                    if re != raw {
+                        return true;
+                    }
+                }
+            }
+            i = end;
+        } else {
+            i += 1;
+        }
+    }
+    false
+}
+
 /// Domain-separated pre-image: `DOMAIN_TAG || 0x00 || domain || 0x00 ||` for
 /// each part its 8-byte big-endian length then the part bytes. The explicit
 /// length prefixes make part boundaries unambiguous under concatenation.
@@ -267,16 +424,6 @@ pub fn digest_hex(domain: &str, parts: &[&[u8]]) -> String {
         s.push(HEX[(b & 0x0f) as usize] as char);
     }
     s
-}
-
-/// One-pass streaming digest of the canonical (JCS) bytes of `value`: the
-/// canonical writer feeds a [`blake3::Hasher`] directly, so no intermediate
-/// canonical `String` is ever materialized. Byte-equivalent to
-/// `blake3::hash(jcs(value)?.as_bytes())` — differential-tested below.
-pub fn jcs_digest(value: &Value) -> Result<[u8; 32], CanonicalError> {
-    let mut hasher = blake3::Hasher::new();
-    write_value(&mut HasherSink(&mut hasher), value)?;
-    Ok(hasher.finalize().into())
 }
 
 #[cfg(test)]
@@ -498,114 +645,154 @@ mod tests {
     }
 
     #[test]
-    fn empty_parts_digest_is_blake3_of_header() {
-        let d = digest("dom", &[]);
-        let e: [u8; 32] = blake3::hash(&domain_separated("dom", &[])).into();
-        assert_eq!(d, e);
-        assert_ne!(d, [0u8; 32]);
-    }
-
-    // --- streaming digest court: differential equivalence + mutation control ---
-
-    fn parsed(input: &str) -> Value {
-        serde_json::from_str(input).expect("test json parses")
-    }
-
-    #[test]
-    fn jcs_digest_matches_blake3_of_jcs_string_over_corpus() {
-        let corpus: &[&str] = &[
-            r#"null"#,
-            r#"true"#,
-            r#"false"#,
-            r#"0"#,
-            r#""abc""#,
-            r#"[]"#,
-            r#"{}"#,
-            r#"{"b":1,"a":2}"#,
-            r#"{"numbers":[333333333.3333333,1E30,4.50,2e-3,0.000000000000000000000000001]}"#,
-            r#"{"string":"\u20ac$\u000F\u000aA'\u0042\u0022\u005c\\\"/"}"#,
-            r#"{"o":{"b":1,"a":[true,false,null,1.5]}}"#,
-            r#"[1e-7,1e20,1e21,9.007199254740992e15,5e-324,-0.0,-1.5]"#,
-            r#"{"�":1,"𐀀":2}"#,
+    fn jcs_verify_accepts_canonical_fixture_corpus() {
+        let cases: &[(&str, &str)] = &[
+            (r#"{}"#, r#"{}"#),
+            (r#"[]"#, r#"[]"#),
+            (r#""abc""#, r#""abc""#),
+            (r#"null"#, r#"null"#),
+            (r#"true"#, r#"true"#),
+            (r#"{"b":1,"a":2}"#, r#"{"a":2,"b":1}"#),
+            (
+                r#"{"numbers":[333333333.3333333,1E30,4.50,2e-3,0.000000000000000000000000001]}"#,
+                r#"{"numbers":[333333333.3333333,1e+30,4.5,0.002,1e-27]}"#,
+            ),
+            (
+                r#"{"string":"\u20ac$\u000F\u000aA'\u0042\u0022\u005c\\\"/"}"#,
+                r#"{"string":"€$\u000f\nA'B\"\\\\\"/"}"#,
+            ),
+            (
+                r#"{"o":{"b":1,"a":[true,false,null,1.5]}}"#,
+                r#"{"o":{"a":[true,false,null,1.5],"b":1}}"#,
+            ),
         ];
-        for input in corpus {
-            let value = parsed(input);
-            let via_string: [u8; 32] =
-                blake3::hash(jcs(&value).expect("canonicalizes").as_bytes()).into();
-            let via_writer = jcs_digest(&value).expect("streams");
+        for (_, canonical) in cases {
             assert_eq!(
-                via_writer, via_string,
-                "writer-path digest diverged from string path for {input}"
+                jcs_verify(canonical.as_bytes()),
+                Ok(()),
+                "canonical fixture refused: {canonical}"
             );
         }
     }
 
     #[test]
-    fn jcs_digest_handles_large_synthetic_record() {
-        // 5,000 keys x nested arrays: large enough that per-chunk hashing
-        // across many sink calls must still fold identically.
-        let mut value = serde_json::Map::new();
-        for i in 0..5_000u32 {
-            let key = format!("field_{i:04}");
-            let inner = serde_json::json!({
-                "idx": i,
-                "ratio": f64::from(i) / 7.5,
-                "tags": [format!("t{i}"), null, i % 2 == 0],
-            });
-            value.insert(key, inner);
+    fn jcs_verify_is_fixpoint_of_jcs() {
+        let inputs = [
+            r#"{"b":1,"a":[1.0,-0.0],"s":"é�"}"#,
+            r#"{"z":[1,{"k":"v"},"à"],"_":null,"A":1e30}"#,
+            r#"{"numbers":[333333333.3333333,1E30,4.50,2e-3,0.000000000000000000000000001]}"#,
+        ];
+        for input in inputs {
+            let c = canon(input);
+            assert_eq!(jcs_verify(c.as_bytes()), Ok(()));
         }
-        let big = Value::Object(value);
-        let via_string: [u8; 32] =
-            blake3::hash(jcs(&big).expect("canonicalizes").as_bytes()).into();
-        assert_eq!(
-            jcs_digest(&big).expect("streams"),
-            via_string,
-            "large-record writer digest diverged"
-        );
     }
 
     #[test]
-    fn jcs_digest_is_a_real_mutation_control() {
-        // A dropped key and a reordered array must each flip the digest; a
-        // semantically identical re-serialization must not.
-        let base = parsed(r#"{"alpha":[1,2,3],"beta":{"k":"v"},"gamma":1.5}"#);
-        let baseline = jcs_digest(&base).expect("streams");
-
-        let dropped = parsed(r#"{"alpha":[1,2,3],"beta":{"k":"v"}}"#);
-        assert_ne!(
-            jcs_digest(&dropped).expect("streams"),
-            baseline,
-            "dropping a key did not flip the digest"
-        );
-
-        let reordered_array = parsed(r#"{"alpha":[3,2,1],"beta":{"k":"v"},"gamma":1.5}"#);
-        assert_ne!(
-            jcs_digest(&reordered_array).expect("streams"),
-            baseline,
-            "array reordering did not flip the digest"
-        );
-
-        // Same content, keys written in reverse insertion order: JCS sorts, so
-        // the digest must be IDENTICAL (order-invariance, not a mutation).
-        let reordered_keys = parsed(r#"{"gamma":1.5,"beta":{"k":"v"},"alpha":[1,2,3]}"#);
-        assert_eq!(
-            jcs_digest(&reordered_keys).expect("streams"),
-            baseline,
-            "key reordering changed the digest (JCS sort broke?)"
-        );
-
-        // And the writer path flips exactly when the string path flips.
-        let flipped_string_path: [u8; 32] =
-            blake3::hash(jcs(&dropped).expect("canonicalizes").as_bytes()).into();
-        assert_ne!(flipped_string_path, baseline);
+    fn jcs_verify_names_ordering_on_swapped_keys() {
+        let err = jcs_verify(br#"{"b":1,"a":2}"#).expect_err("must refuse");
+        match err {
+            CanonicalError::NotCanonical {
+                class: Divergence::Ordering,
+                ..
+            } => {}
+            other => panic!("expected Ordering, got {other:?}"),
+        }
     }
 
     #[test]
-    fn jcs_digest_propagates_non_canonical_number_refusal() {
-        let value = parsed("18446744073709551615");
-        match jcs_digest(&value) {
-            Err(CanonicalError::NonCanonicalNumber(_)) => {}
-            other => panic!("expected NonCanonicalNumber from streaming path, got {other:?}"),
+    fn jcs_verify_names_number_on_non_es6_rendering() {
+        for input in [br#"{"n":4.50}"#.as_ref(), br#"{"n":1E30}"#] {
+            let err = jcs_verify(input).expect_err("must refuse");
+            match err {
+                CanonicalError::NotCanonical {
+                    class: Divergence::Number,
+                    ..
+                } => {}
+                other => panic!(
+                    "expected Number for {:?}, got {other:?}",
+                    String::from_utf8_lossy(input)
+                ),
+            }
         }
+    }
+
+    #[test]
+    fn jcs_verify_names_escaping_on_re_escaped_string() {
+        // \\u0041 is 'A'; the writer emits the literal character, so the byte
+        // forms differ and the probe order (number, ordering, escaping) lands
+        // the divergence on Escaping. Pinned to actual behavior.
+        let err = jcs_verify(br#"{"s":"\u0041"}"#).expect_err("must refuse");
+        match err {
+            CanonicalError::NotCanonical {
+                class: Divergence::Escaping,
+                ..
+            } => {}
+            other => panic!("expected Escaping, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn jcs_verify_refuses_empty_input() {
+        let err = jcs_verify(b"").expect_err("must refuse");
+        match err {
+            CanonicalError::NotCanonical {
+                class: Divergence::Structural,
+                ..
+            } => {}
+            other => panic!("expected Structural, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn jcs_verify_refuses_non_utf8_as_structural() {
+        let err = jcs_verify(&[0xff, 0xfe]).expect_err("must refuse");
+        match err {
+            CanonicalError::NotCanonical {
+                class: Divergence::Structural,
+                ..
+            } => {}
+            other => panic!("expected Structural, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn jcs_verify_names_structural_on_whitespace() {
+        let err = jcs_verify(br#"{"a": 1}"#).expect_err("must refuse");
+        match err {
+            CanonicalError::NotCanonical {
+                class: Divergence::Structural,
+                ..
+            } => {}
+            other => panic!("expected Structural, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn jcs_verify_names_ordering_nested() {
+        let err = jcs_verify(br#"{"a":{"d":1,"c":2},"b":3}"#).expect_err("must refuse");
+        match err {
+            CanonicalError::NotCanonical {
+                class: Divergence::Ordering,
+                ..
+            } => {}
+            other => panic!("expected Ordering, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn jcs_verify_number_probe_ignores_numbers_inside_strings() {
+        // "4.50" sits inside a string; the number probe must not fire and the
+        // value is byte-identical to its canonical form, so this ACCEPTS.
+        // (A court that pins acceptance is still a court.)
+        assert_eq!(jcs_verify(br#"{"k":"4.50"}"#), Ok(()));
+    }
+
+    #[test]
+    fn empty_parts_digest_is_blake3_of_header() {
+        let d = digest("dom", &[]);
+        let e: [u8; 32] = blake3::hash(&domain_separated("dom", &[])).into();
+        assert_eq!(d, e);
+        assert_ne!(d, [0u8; 32]);
     }
 }
