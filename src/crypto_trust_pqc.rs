@@ -141,21 +141,53 @@ pub fn ml_dsa65_from_seed(seed: &[u8; ML_DSA_65_SEED_LEN]) -> Result<MlDsa65KeyP
     })
 }
 
-/// Signs `msg` with ML-DSA-65 under an EXPLICIT 32-byte randomizer `rnd`
-/// (FIPS 204 ML-DSA.Sign_internal: the caller owns rnd, so signing is
-/// reproducible — same seed, message and rnd give byte-identical signatures).
-/// Returns the raw fixed-length encoding (exactly
-/// [`ML_DSA_65_SIGNATURE_LEN`] bytes).
+/// Cached ML-DSA-65 signing key: the seed is expanded into the
+/// `ExpandedSigningKey<MlDsa65>` ONCE at construction (with degenerate-seed
+/// screening preserved — construction refuses a zero-entropy seed outside
+/// test builds exactly as [`ml_dsa65_from_seed`] does), so repeated
+/// signatures amortize the FIPS 204 expansion. Same seed + msg + rnd gives
+/// byte-identical output to the one-shot [`ml_dsa65_sign`] path.
+pub struct MlDsa65Signer {
+    esk: ml_dsa::ExpandedSigningKey<ml_dsa::MlDsa65>,
+}
+
+impl MlDsa65Signer {
+    /// Builds a cached signer from a 32-byte seed
+    /// (FIPS 204 ML-DSA.KeyGen_internal).
+    ///
+    /// # Errors
+    /// [`PqcError::DegenerateSeed`] outside test builds when the seed is in
+    /// the refused zero-entropy set (see [`ml_dsa65_from_seed`]).
+    pub fn from_seed(seed: &[u8; ML_DSA_65_SEED_LEN]) -> Result<Self, PqcError> {
+        if !cfg!(test) && seed_is_degenerate(seed) {
+            return Err(PqcError::DegenerateSeed);
+        }
+        let sk_seed: ml_dsa::Seed = (*seed).into();
+        Ok(Self {
+            esk: ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed),
+        })
+    }
+
+    /// Signs `msg` under the EXPLICIT 32-byte randomizer `rnd`
+    /// (FIPS 204 ML-DSA.Sign_internal). Returns the raw fixed-length encoding
+    /// (exactly [`ML_DSA_65_SIGNATURE_LEN`] bytes).
+    #[must_use]
+    pub fn sign(&self, msg: &[u8], rnd: &[u8; 32]) -> Vec<u8> {
+        let rnd: ml_dsa::B32 = (*rnd).into();
+        let sig = self.esk.sign_internal(&[msg], &rnd);
+        sig.encode().as_slice().to_vec()
+    }
+}
+
+/// One-shot convenience wrapper over [`MlDsa65Signer`]: expands the seed,
+/// signs once, and drops the expanded key. Deterministic — same seed, message
+/// and rnd give byte-identical signatures.
 pub fn ml_dsa65_sign(
     seed: &[u8; ML_DSA_65_SEED_LEN],
     msg: &[u8],
     rnd: &[u8; 32],
 ) -> Result<Vec<u8>, PqcError> {
-    let sk_seed: ml_dsa::Seed = (*seed).into();
-    let esk = ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed);
-    let rnd: ml_dsa::B32 = (*rnd).into();
-    let sig = esk.sign_internal(&[msg], &rnd);
-    Ok(sig.encode().as_slice().to_vec())
+    Ok(MlDsa65Signer::from_seed(seed)?.sign(msg, rnd))
 }
 
 /// Verifies a raw encoded ML-DSA-65 signature over `msg` under the raw
@@ -758,5 +790,140 @@ mod tests {
         }
         // The machine code is bound to the variant, independent of build.
         assert_eq!(PqcError::DegenerateSeed.machine_code(), 0xE305);
+    }
+    // ── Register #25: cached signer differential court ──────────────────────
+
+    #[test]
+    fn mldsa65_cached_and_one_shot_signatures_are_byte_identical() {
+        let corpus: [([u8; 32], &[u8], [u8; 32]); 4] = [
+            (SEED_A, MSG, RND_A),
+            (SEED_B, MSG, RND_A),
+            (SEED_A, b"other message", [0x7Du8; 32]),
+            (SEED_B, b"", [0u8; 32]),
+        ];
+        for (seed, msg, rnd) in corpus {
+            let kp = ml_dsa65_from_seed(&seed).expect("pqc fixture key pair");
+            let signer = MlDsa65Signer::from_seed(&seed).expect("cached signer");
+            let cached = signer.sign(msg, &rnd);
+            let oneshot = ml_dsa65_sign(&seed, msg, &rnd).expect("one-shot sign");
+            assert_eq!(
+                cached, oneshot,
+                "cached and one-shot must agree byte-for-byte"
+            );
+            assert_eq!(cached.len(), ML_DSA_65_SIGNATURE_LEN);
+            assert!(
+                ml_dsa65_verify(&kp.public, msg, &cached).expect("verify cached"),
+                "cached signer output must verify"
+            );
+            // Reuse of the cached signer is lawful: second sig still identical.
+            assert_eq!(
+                signer.sign(msg, &rnd),
+                cached,
+                "cached signer is deterministic"
+            );
+        }
+    }
+
+    #[test]
+    fn mldsa65_cached_signer_screening_preserved() {
+        // Same refused-set law as ml_dsa65_from_seed, bound to machine code
+        // 0xE305 independent of build mode.
+        let degenerate = [0u8; 32];
+        let mut one_byte = [0u8; 32];
+        one_byte[17] = 0xFF;
+        for seed in [degenerate, one_byte] {
+            if cfg!(test) {
+                assert!(MlDsa65Signer::from_seed(&seed).is_ok());
+            } else {
+                match MlDsa65Signer::from_seed(&seed) {
+                    Ok(_) => panic!("degenerate seed must be refused outside test builds"),
+                    Err(err) => assert_eq!(err.machine_code(), 0xE305),
+                }
+            }
+        }
+    }
+
+    // ── Register #26: pk encode/decode round-trip court ─────────────────────
+
+    #[test]
+    fn mldsa65_pk_round_trip_corpus() {
+        // Real-key corpus: fixture seeds plus fresh OS-RNG keys.
+        let mut seeds: Vec<[u8; 32]> = vec![SEED_A, SEED_B, [0x01u8; 32], [0xFEu8; 32]];
+        let mut fresh = [0u8; 32];
+        rand_core::OsRng.fill_bytes(&mut fresh);
+        seeds.push(fresh);
+        for seed in &seeds {
+            let kp = ml_dsa65_from_seed(seed).expect("pqc fixture key pair");
+            let pk = ml_dsa::EncodedVerifyingKey::<ml_dsa::MlDsa65>::try_from(kp.public.as_slice())
+                .expect("stored pk decodes structurally");
+            let vk = ml_dsa::VerifyingKey::<ml_dsa::MlDsa65>::decode(&pk);
+            let re = vk.encode();
+            assert_eq!(
+                re.as_slice(),
+                kp.public.as_slice(),
+                "decode(encode) must round-trip"
+            );
+            assert_eq!(kp.public.len(), ML_DSA_65_PUBLIC_KEY_LEN);
+            // A valid signature verifies under the round-tripped pk.
+            let sig = ml_dsa65_sign(seed, MSG, &RND_A).expect("sign");
+            assert!(ml_dsa65_verify(re.as_slice(), MSG, &sig).expect("verify"));
+        }
+    }
+
+    #[test]
+    fn mldsa65_mutated_pk_never_accepts_a_valid_signature() {
+        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
+        // Mutate the pk at every byte position, one at a time. Each mutated
+        // key must either be structurally refused OR verify Ok(false) —
+        // never Ok(true).
+        for i in 0..kp.public.len() {
+            let mut mutated = kp.public.clone();
+            mutated[i] ^= 0x01;
+            match ml_dsa65_verify(&mutated, MSG, &sig) {
+                Err(PqcError::MalformedPublicKey) => {}
+                Ok(false) => {}
+                other => panic!("mutated pk at byte {i} must not accept: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn mldsa65_pk_error_taxonomy_is_pinned() {
+        let kp = ml_dsa65_from_seed(&SEED_A).expect("pqc fixture key pair");
+        let sig = ml_dsa65_sign(&kp.seed, MSG, &RND_A).expect("sign");
+        // Wrong-length pk -> MalformedPublicKey.
+        for len in [
+            0usize,
+            1,
+            ML_DSA_65_PUBLIC_KEY_LEN - 1,
+            ML_DSA_65_PUBLIC_KEY_LEN + 1,
+        ] {
+            let err = ml_dsa65_verify(&vec![0u8; len], MSG, &sig).unwrap_err();
+            assert!(
+                matches!(err, PqcError::MalformedPublicKey),
+                "len {len}: {err:?}"
+            );
+        }
+        // Structurally-bad sig -> MalformedSignature (wrong length).
+        let err = ml_dsa65_verify(&kp.public, MSG, &[]).unwrap_err();
+        assert!(matches!(err, PqcError::MalformedSignature), "{err:?}");
+        let short = [0u8; ML_DSA_65_SIGNATURE_LEN - 1];
+        let err = ml_dsa65_verify(&kp.public, MSG, &short).unwrap_err();
+        assert!(matches!(err, PqcError::MalformedSignature), "{err:?}");
+        let long = [0u8; ML_DSA_65_SIGNATURE_LEN + 1];
+        let err = ml_dsa65_verify(&kp.public, MSG, &long).unwrap_err();
+        assert!(matches!(err, PqcError::MalformedSignature), "{err:?}");
+        // Well-formed sig under the WRONG pk -> Ok(false), not an error.
+        let kp_b = ml_dsa65_from_seed(&SEED_B).expect("pqc fixture key pair");
+        assert!(!ml_dsa65_verify(&kp_b.public, MSG, &sig).expect("cross-key verify"));
+        // And a well-formed but structurally-corrupt sig body is either
+        // MalformedSignature or Ok(false) — never Ok(true).
+        let mut corrupt = sig.clone();
+        corrupt[ML_DSA_65_SIGNATURE_LEN / 2] ^= 0x80;
+        match ml_dsa65_verify(&kp.public, MSG, &corrupt) {
+            Err(PqcError::MalformedSignature) | Ok(false) => {}
+            other => panic!("corrupt sig must not verify: {other:?}"),
+        }
     }
 }
