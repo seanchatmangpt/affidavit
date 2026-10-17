@@ -517,4 +517,107 @@ mod tests {
             "decapsulated shared secret != encapsulated shared secret"
         );
     }
+
+    // ------------------------------------------------------------------
+    // Seed-identity court (register #29): the 64-byte (d, z) seed is the
+    // canonical identity of a decapsulation key. Law under test:
+    //   (a) to_seed(from_seed(s)) == s, byte-exact;
+    //   (b) key_id(pk) is stable across from_seed re-derivation;
+    //   (c) an expanded-form key (built WITHOUT from_seed, via the
+    //       external crate's deprecated `from_expanded`) carries NO seed:
+    //       to_seed() == None -> the typed-refusal path, never a
+    //       fabricated seed. The adapter path structurally cannot accept
+    //       expanded-form keys: KemDecapsulator::decapsulate takes the
+    //       64-byte seed form only, and a 2400-byte expanded blob fails
+    //       the DECAPSULATION_SEED_LEN try_into and collapses to `None`
+    //       (asserted below). The `to_seed() == None` branch is therefore
+    //       exercised here against a REAL expanded-form key, not mocked.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn seed_identity_roundtrip_is_byte_exact() {
+        use ml_kem::{DecapsulationKey, MlKem768};
+        let seed = [0x5Au8; DECAPSULATION_SEED_LEN];
+        let dk = DecapsulationKey::<MlKem768>::from_seed(seed.into());
+        let recovered: [u8; DECAPSULATION_SEED_LEN] = dk
+            .to_seed()
+            .expect("seed-derived key must re-export its seed")
+            .as_slice()
+            .try_into()
+            .expect("to_seed returns the 64-byte seed");
+        assert_eq!(
+            recovered, seed,
+            "to_seed(from_seed(s)) must be byte-exact identity"
+        );
+    }
+
+    #[test]
+    fn key_id_is_stable_across_seed_rederivation() {
+        use ml_kem::{DecapsulationKey, KeyExport, MlKem768};
+        let seed = [0x5Au8; DECAPSULATION_SEED_LEN];
+        let pk_1: [u8; ENCAPSULATION_KEY_LEN] =
+            DecapsulationKey::<MlKem768>::from_seed(seed.into())
+                .encapsulation_key()
+                .to_bytes()
+                .into();
+        // Independent re-derivation from the same seed (fresh expansion).
+        let pk_2: [u8; ENCAPSULATION_KEY_LEN] =
+            DecapsulationKey::<MlKem768>::from_seed(seed.into())
+                .encapsulation_key()
+                .to_bytes()
+                .into();
+        assert_eq!(pk_1, pk_2, "from_seed is not a deterministic expansion");
+        assert_eq!(
+            key_id(&pk_1),
+            key_id(&pk_2),
+            "key_id must be stable across from_seed re-derivation"
+        );
+    }
+
+    #[test]
+    fn expanded_form_key_yields_no_seed_typed_refusal_never_fabrication() {
+        use ml_kem::{Decapsulate, DecapsulationKey, ExpandedKeyEncoding, KeyExport, MlKem768};
+        let seed = [0x5Au8; DECAPSULATION_SEED_LEN];
+        let seed_dk = DecapsulationKey::<MlKem768>::from_seed(seed.into());
+        // Serialize to the EXPANDED form (2400 B), then rebuild WITHOUT
+        // from_seed via the external crate's deprecated expanded-form
+        // constructor. This is the adversarial arm: a key whose seed is
+        // genuinely absent.
+        let expanded = seed_dk.to_expanded_bytes();
+        #[allow(deprecated)]
+        let expanded_dk = DecapsulationKey::<MlKem768>::from_expanded_bytes(&expanded)
+            .expect("expanded encoding of a valid key must re-parse");
+        // (c) No fabricated seed: to_seed() is None, the external crate's
+        // typed absence, on a key that is otherwise a fully valid key.
+        assert!(
+            expanded_dk.to_seed().is_none(),
+            "expanded-form key must carry NO seed (to_seed == None)"
+        );
+        // But it is a valid key: same encapsulation key bytes.
+        assert_eq!(
+            expanded_dk.encapsulation_key().to_bytes(),
+            seed_dk.encapsulation_key().to_bytes()
+        );
+        // And it decapsulates to the same shared secret.
+        let pk: [u8; ENCAPSULATION_KEY_LEN] = expanded_dk.encapsulation_key().to_bytes().into();
+        let out = ExternalMlKem768
+            .encapsulate(&pk)
+            .expect("encapsulation to the expanded-form key's pk");
+        let ss_expanded = expanded_dk.decapsulate(&out.ciphertext.into());
+        let ss_seed = seed_dk.decapsulate(&out.ciphertext.into());
+        assert_eq!(ss_expanded, ss_seed);
+        // Structural refusal: the adapter path only ever accepts the
+        // seed form — a 2400-byte expanded blob is not a 64-byte seed
+        // and collapses to None, never to a fabricated seed.
+        assert!(
+            ExternalMlKem768
+                .decapsulate(expanded.as_slice(), &out.ciphertext)
+                .is_none(),
+            "adapter must refuse expanded-form (non-64-byte) key material"
+        );
+        // Control: the same adapter accepts the 64-byte seed form.
+        assert!(ExternalMlKem768
+            .decapsulate(&seed, &out.ciphertext)
+            .is_some());
+    }
 }
