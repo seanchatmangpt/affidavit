@@ -24,7 +24,7 @@ afw:module a wja:WasmModule ;
     # `cargo build --locked --lib --target wasm32-wasip1 --profile wasm`;
     # registrySha256 is the sha256 of the rendered registry/capability-registry.json.
     # Source commit is deliberately absent: a commit cannot contain its own hash.
-    wja:wasmSha256 "19f3b0f4fd302f7f58f87d0d073e011f04749293eb4b39363bb678c4bf80d864" ;
+    wja:wasmSha256 "681f7033a78f31fcbbf7b7936a772ccac9c7da5f5d5d655bcea4a9e07bbaa8e8" ;
     wja:wasmBytes 718736 ;
     wja:registrySha256 "c585d06486252d3176aab6a79b554cc72fc9af548c81524e679b61e8eb1a7cda" ;
     afw:toolchain "nightly-2026-08-12" ;
@@ -32,7 +32,8 @@ afw:module a wja:WasmModule ;
     afw:buildProfile "wasm" ;
     wja:importsPolicy "wasi_snapshot_preview1" ;
     wja:hasOp afw:op-capabilities , afw:op-commit , afw:op-assemble , afw:op-verify , afw:op-mine , afw:op-conform , afw:op-verify-signature-input , afw:op-certify-authzen-evidence , afw:op-certify-spiffe-evidence , afw:op-jcs-canonicalize , afw:op-smt-absence-verify , afw:op-smt-inclusion-verify , afw:op-range-proof-verify , afw:op-derive-subject-digest , afw:op-verify-signature , afw:op-pqc-assemble , afw:op-pqc-verify ;
-    wja:hasWasiImport afw:imp-environ-get , afw:imp-environ-sizes-get , afw:imp-fd-write , afw:imp-proc-exit ;
+    wja:hasWasiImport afw:imp-environ-get , afw:imp-environ-sizes-get , afw:imp-fd-write , afw:imp-proc-exit , afw:imp-random-get ;
+    afw:hasCabiExport afw:exp-abi-version , afw:exp-alloc , afw:exp-call , afw:exp-free , afw:exp-admit-and-seal ;
     wja:hasErrorCode afw:err-bad-json , afw:err-missing-field , afw:err-unknown-op , afw:err-bad-field , afw:err-too-large , afw:err-too-deep , afw:err-missing-buffer , afw:err-internal , afw:err-malformed , afw:err-pqc-refused .
 
 afw:op-capabilities a wja:Op ;
@@ -178,8 +179,18 @@ afw:err-internal a wja:ErrorCode ; wja:codeName "internal" ; wja:codeOrder 8 .
 afw:err-malformed a wja:ErrorCode ; wja:codeName "malformed" ; wja:codeOrder 9 .
 afw:err-pqc-refused a wja:ErrorCode ; wja:codeName "pqc_refused" ; wja:codeOrder 10 .
 
+# Observed C-ABI export section of the pinned module. The four af_* symbols
+# are the prefix-derived core ABI; affi_admit_and_seal is the admit+seal entry
+# point exported by the module but previously missing from the pin record.
+afw:exp-abi-version a afw:CabiExport ; afw:exportName "af_abi_version" .
+afw:exp-alloc a afw:CabiExport ; afw:exportName "af_alloc" .
+afw:exp-call a afw:CabiExport ; afw:exportName "af_call" .
+afw:exp-free a afw:CabiExport ; afw:exportName "af_free" .
+afw:exp-admit-and-seal a afw:CabiExport ; afw:exportName "affi_admit_and_seal" .
+
 # Observed import section of the pinned module (wasi_snapshot_preview1 only).
 afw:imp-environ-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "environ_get" .
 afw:imp-environ-sizes-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "environ_sizes_get" .
 afw:imp-fd-write a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "fd_write" .
 afw:imp-proc-exit a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "proc_exit" .
+afw:imp-random-get a wja:WasiImport ; wja:importModule "wasi_snapshot_preview1" ; wja:importName "random_get" .

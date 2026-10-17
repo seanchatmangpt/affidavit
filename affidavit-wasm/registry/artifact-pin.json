@@ -12,13 +12,15 @@
     "af_abi_version",
     "af_alloc",
     "af_call",
-    "af_free"
+    "af_free",
+    "affi_admit_and_seal"
   ],
   "imports": [
     {"module": "wasi_snapshot_preview1", "name": "environ_get"},
     {"module": "wasi_snapshot_preview1", "name": "environ_sizes_get"},
     {"module": "wasi_snapshot_preview1", "name": "fd_write"},
-    {"module": "wasi_snapshot_preview1", "name": "proc_exit"}
+    {"module": "wasi_snapshot_preview1", "name": "proc_exit"},
+    {"module": "wasi_snapshot_preview1", "name": "random_get"}
   ],
   "name": "affidavit_wasm.wasm",
   "ops": [
@@ -42,5 +44,5 @@
   ],
   "registry_sha256": "c585d06486252d3176aab6a79b554cc72fc9af548c81524e679b61e8eb1a7cda",
   "schema": "affidavit.wasm-pin/1",
-  "sha256": "19f3b0f4fd302f7f58f87d0d073e011f04749293eb4b39363bb678c4bf80d864"
+  "sha256": "681f7033a78f31fcbbf7b7936a772ccac9c7da5f5d5d655bcea4a9e07bbaa8e8"
 }
