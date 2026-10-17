@@ -1,6 +1,6 @@
 [package]
 name = "affidavit-core"
-version = "0.1.0"
+version = "26.10.16"
 edition = "2021"
 rust-version = "1.78"
 description = "Zero-dependency, no_std, forbid(unsafe) reference verifier for affidavit receipt chains: make invalid receipts unrepresentable and verify them anywhere."

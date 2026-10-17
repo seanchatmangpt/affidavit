@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "affidavit-core"
-version = "0.1.0"
+version = "26.10.16"
 
 [[package]]
 name = "affidavit-wasm"
