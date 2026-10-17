@@ -279,11 +279,12 @@ pub fn verify_attestation(
         Err(Es256Error::MalformedPublicKey) | Err(Es256Error::MalformedSignature) => {
             Err(AttestationError::BadSignature)
         }
-        Err(Es256Error::P256(detail)) => Err(AttestationError::Serialization(detail)),
-        // DegenerateSeed fires only on `from_seed` (key derivation), never on
-        // the verification path — structurally unreachable here; mapped so the
-        // match stays total. (Lane R32 minimal unblock fix, disclosed.)
+        // Minimal unblock fix (compile-freeze SLA, disclosed by the adversarial_pqc
+        // lane): DegenerateSeed is keygen-time only — verify_es256 can never
+        // produce it — so it is refused on the same path as the other malformed
+        // inputs.
         Err(Es256Error::DegenerateSeed) => Err(AttestationError::BadSignature),
+        Err(Es256Error::P256(detail)) => Err(AttestationError::Serialization(detail)),
     }
 }
 
