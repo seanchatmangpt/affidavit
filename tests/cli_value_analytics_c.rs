@@ -2,7 +2,7 @@
 //! causality-chain, bus-factor, dora-metrics, team-velocity, portfolio-health,
 //! orphaned-code. Per verb: >=1 positive (real effect on real state),
 //! >=1 negative (typed refusal), >=1 value assertion (output derives from the
-//! actual receipts under test, not from the test's own construction).
+//! > actual receipts under test, not from the test's own construction).
 //!
 //! Chicago-style: spawns the real `affi` binary, builds real multi-receipt
 //! worlds in isolated TempDirs, asserts on real exit codes and the real JSON
@@ -95,9 +95,7 @@ fn seal_and_reset(dir: &TempDir, k: usize) {
 /// trailing `null` residual the framework prints for unit-returning verbs
 /// (cli_dispatch.rs documents this OPEN residual — never asserted as a pass).
 fn first_json(s: &str) -> serde_json::Value {
-    let start = s
-        .find(|c| c == '{' || c == '[')
-        .expect("stdout must contain JSON");
+    let start = s.find(['{', '[']).expect("stdout must contain JSON");
     let mut stream =
         serde_json::Deserializer::from_str(&s[start..]).into_iter::<serde_json::Value>();
     stream

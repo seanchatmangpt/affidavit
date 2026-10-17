@@ -100,7 +100,7 @@ fn marker_pairs() -> BTreeSet<(String, String)> {
         .map(|e| e.path())
         .filter(|p| {
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            p.extension().map_or(false, |x| x == "rs")
+            p.extension().is_some_and(|x| x == "rs")
                 && (name.starts_with("cli_value_") || name == "cli_value_matrix")
         })
         .collect();
@@ -145,6 +145,7 @@ fn value_matrix_covers_registry() {
         .collect();
     let total = registry.len();
     let have = total - missing.len();
+    #[allow(clippy::manual_checked_ops)] // integer percent; 0-total pinned to 100 by law
     let pct = if total == 0 { 100 } else { have * 100 / total };
 
     let registry_set: BTreeSet<(String, String)> = registry.iter().cloned().collect();

@@ -22,11 +22,12 @@
 //! 5. `sbom-ntia`         — CONFORMANT on the complete fixture; stripping
 //!    the author yields NON-CONFORMANT whose missing-field list is exactly
 //!    ["author"]; adding it back restores CONFORMANT (the value flip).
-//! Negatives (typed, never a bare 1):
-//! 6. SPDX document whose packages carry no SPDXIDs (no bom-refs) ->
-//!    blast-radius refuses with the typed unknown-component execution
-//!    error (exit 208, structured "code":1504 diagnostic on stderr).
-//! 7. Missing SBOM file -> typed IO failure diagnostic, exit 208.
+//!
+//! Negatives, typed (never a bare exit 1). SPDX document whose packages
+//! carry no SPDXIDs (no bom-refs): blast-radius refuses with the typed
+//! unknown-component execution error (exit 208, structured "code":1504
+//! diagnostic on stderr). Missing SBOM file: typed IO failure diagnostic,
+//! exit 208.
 
 use std::fs;
 use std::path::{Path, PathBuf};

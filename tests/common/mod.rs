@@ -1,3 +1,6 @@
+//! Shared value-matrix harness. Compiled per-suite via `mod common;` —
+//! some suites use a subset, so dead_code is expected and allowed here.
+#![allow(dead_code)]
 //! tests/common — shared harness for the 17-lane CLI matrix.
 //!
 //! A thin, dependency-free (std-only) seam over the real `affi` binary.
@@ -308,7 +311,7 @@ pub fn assert_typed_refusal(out: &Output) {
     let stdout = String::from_utf8_lossy(&out.stdout);
     let combined = format!("{stdout}{stderr}");
     let c = code.unwrap_or(-1);
-    let in_1500_range = (1500..1600).contains(&c) || (1500 % 256..=1599 % 256).contains(&c);
+    let in_1500_range = (1500..1600).contains(&c) || (220..=231).contains(&c);
     let structured = in_1500_range
         || combined.contains("REFUSED_")
         || combined.contains("error:")

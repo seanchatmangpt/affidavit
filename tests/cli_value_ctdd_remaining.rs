@@ -22,7 +22,7 @@
 
 mod common;
 
-use common::{assert_typed_refusal, scratch_dir};
+use common::scratch_dir;
 use std::process::Command;
 
 /// Real invocation: spawn the built binary with an explicit working dir.

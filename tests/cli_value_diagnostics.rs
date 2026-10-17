@@ -207,7 +207,7 @@ fn fix_missing_file_is_typed_224() {
 #[test]
 fn fix_quarantine_moves_file_and_sidecar_is_deterministic() {
     let w = World::new("fix-quarantine");
-    let (_honest, tampered) = w.receipt_pair();
+    let (_honest, _tampered) = w.receipt_pair();
     let subject = "tampered.json";
     let sidecar = "tampered.quarantine.why.json";
     let quarantined = "tampered.quarantine.json";

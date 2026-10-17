@@ -508,9 +508,8 @@ fn verify_family_tampered_receipt_flips_to_reject_exit2() {
         .filter(|r| r["accepted"] == false)
         .collect();
     assert_eq!(rejected.len(), 1);
-    assert_eq!(
+    assert!(
         rejected[0]["path"].as_str().unwrap().contains("tampered"),
-        true,
         "per-file result names the offending file: {v}"
     );
     assert!(

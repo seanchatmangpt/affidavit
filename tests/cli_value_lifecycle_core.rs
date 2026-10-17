@@ -24,15 +24,6 @@ use std::process::Command as StdCommand;
 use tempfile::TempDir;
 
 /// Stable process-exit codes from `src/diag.rs::exit_codes` (public contract).
-mod xc {
-    pub const OK: i32 = 0;
-    pub const REJECT: i32 = 2;
-    /// CLI framework codes 1500..=1509 ride mod 256 on the 8-bit POSIX status:
-    /// 1502 (CliArgumentError) -> 222, 1504 (CliExecutionError) -> 224.
-    pub const CLI_ARG_ERROR: i32 = 1502 % 256; // 222
-    pub const CLI_EXEC_ERROR: i32 = 1504 % 256; // 224
-}
-
 fn affi(dir: &TempDir) -> Command {
     let mut cmd = Command::cargo_bin("affi").expect("affi binary builds");
     cmd.current_dir(dir.path());
@@ -114,8 +105,15 @@ fn diag_code(stderr: &str) -> u64 {
 // (receipt, emit)
 // ===========================================================================
 
-/// Positive + value: emit has a real effect — working.json grows on disk —
-/// and the growth is exactly one event per emit with the requested type.
+mod xc {
+    #![allow(dead_code)] // the const table is the contract; not every code is used per suite
+    //! Stable process-exit codes from src/diag.rs::exit_codes (public contract).
+    pub const OK: i32 = 0;
+    pub const REJECT: i32 = 2;
+    pub const CLI_ARG_ERROR: i32 = 222;
+    pub const CLI_EXEC_ERROR: i32 = 224;
+}
+
 #[test]
 fn emit_grows_working_receipt_by_one_event_per_call() {
     let dir = TempDir::new().unwrap();
@@ -385,7 +383,7 @@ fn inspect_output_derives_from_actual_chain() {
         .stderr(predicate::str::contains("events:"))
         .stderr(predicate::str::contains("build: 1 events"));
 
-    let (o1, e1) = {
+    let (o1, _e1) = {
         let (c, o, e) = run_std(&dir, &["receipt", "inspect", "i.json"]);
         assert_eq!(c, 0);
         (format!("{o}{e}"), ())
@@ -397,7 +395,6 @@ fn inspect_output_derives_from_actual_chain() {
     assert_eq!(c, 0);
     let o2 = format!("{o}{e}");
     assert_ne!(o1, o2, "inspect must distinguish different chains");
-    let _ = e1;
 }
 
 /// Negative: inspect on a garbage file is a typed refusal (nonzero, structured

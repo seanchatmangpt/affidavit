@@ -121,7 +121,7 @@ fn emit_from_sbom_appends_component_events_to_the_working_chain() {
         "value: stdout counts the ingested components and appended events; out={stdout}"
     );
     // The working chain must actually have grown: assemble and check event count.
-    let (code, stdout, stderr) = run_in(
+    let (code, _stdout, stderr) = run_in(
         dir.path(),
         &["receipt", "assemble", "--out", "receipt.json"],
     );
