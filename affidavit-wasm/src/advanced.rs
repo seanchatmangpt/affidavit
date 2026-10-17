@@ -18,8 +18,8 @@ fn fixed_hex(req: &Value, name: &str) -> Res<[u8; HASH_LEN]> {
     let s = field(req, name)?
         .as_str()
         .ok_or_else(|| err("bad_field", format!("`{name}` must be a hex string")))?;
-    let bytes = hex_decode(s)
-        .ok_or_else(|| err("bad_field", format!("`{name}` is not valid hex")))?;
+    let bytes =
+        hex_decode(s).ok_or_else(|| err("bad_field", format!("`{name}` is not valid hex")))?;
     bytes
         .try_into()
         .map_err(|_| err("bad_field", format!("`{name}` must be {HASH_LEN} bytes")))
@@ -28,18 +28,80 @@ fn fixed_hex(req: &Value, name: &str) -> Res<[u8; HASH_LEN]> {
 /// `jcs_canonicalize`: RFC 8785 canonical bytes + BLAKE3 commitment for an
 /// arbitrary JSON document. The canonical form is the byte-exact preimage
 /// any verifier must reproduce before hashing or signing.
+///
+/// Key ordering is RFC 8785 \u00a73.2.3: object keys sort by their UTF-16
+/// code-unit sequence (ES6 `Array.prototype.sort` semantics), NOT by Unicode
+/// scalar value. `serde_jcs` orders by scalar value, which disagrees for
+/// BMP-high keys (>= U+E000) against supplementary-plane keys, so the
+/// ordering pass here is implemented directly: keys are compared as
+/// `Vec<u16>` from `str::encode_utf16`, lexicographically. Scalar/number
+/// serialization is delegated to the serde_json serializer (the same
+/// serializer `serde_jcs` drives), so escaping and number formatting bytes
+/// are unchanged from the previously-admitted surface.
 pub fn op_jcs_canonicalize(req: &Value) -> Res<Map<String, Value>> {
     let raw = field(req, "json")?
         .as_str()
         .ok_or_else(|| err("bad_field", "`json` must be a string containing JSON"))?;
-    let parsed: Value =
-        serde_json::from_str(raw).map_err(|e| err("bad_json", e.to_string()))?;
-    let canonical =
-        serde_jcs::to_string(&parsed).map_err(|e| err("bad_field", e.to_string()))?;
+    let parsed: Value = serde_json::from_str(raw).map_err(|e| err("bad_json", e.to_string()))?;
+    let canonical = jcs_serialize(&parsed);
     let commitment = blake3::hash(canonical.as_bytes()).to_hex().to_string();
     Ok(obj(
         json!({"canonical_json": canonical, "commitment": commitment}),
     ))
+}
+
+/// RFC 8785 canonical serialization with UTF-16 code-unit key ordering.
+/// Scalars delegate to the existing admitted encoders: strings escape via
+/// serde_json's serializer, numbers format via `serde_jcs` (RFC 8785 ES6
+/// number bytes). Only the key-ordering pass is implemented here.
+fn jcs_serialize(v: &Value) -> String {
+    let mut out = String::new();
+    jcs_write(&mut out, v);
+    out
+}
+
+fn jcs_write(out: &mut String, v: &Value) {
+    match v {
+        Value::Null => out.push_str("null"),
+        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        // serde_jcs implements the RFC 8785 ES6 number format (e.g. 0.0 ->
+        // "0"); serde_json's Number Display does not. Numbers carry no key
+        // ordering, so delegating the scalar to serde_jcs is byte-exact.
+        Value::Number(n) => {
+            let formatted = serde_jcs::to_string(n).expect("number serialization is infallible");
+            out.push_str(&formatted);
+        }
+        // serde_json::to_string of a &str is infallible (no user serializers).
+        Value::String(s) => {
+            let escaped = serde_json::to_string(s).expect("str serialization is infallible");
+            out.push_str(&escaped);
+        }
+        Value::Array(items) => {
+            out.push('[');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                jcs_write(out, item);
+            }
+            out.push(']');
+        }
+        Value::Object(map) => {
+            let mut entries: Vec<(&String, &Value)> = map.iter().collect();
+            entries.sort_by(|a, b| a.0.encode_utf16().cmp(b.0.encode_utf16()));
+            out.push('{');
+            for (i, (key, value)) in entries.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                let escaped = serde_json::to_string(key).expect("str serialization is infallible");
+                out.push_str(&escaped);
+                out.push(':');
+                jcs_write(out, value);
+            }
+            out.push('}');
+        }
+    }
 }
 
 /// `smt_absence_verify`: zero-trust revocation check. Verifies that the
@@ -59,26 +121,30 @@ pub fn op_smt_absence_verify(req: &Value) -> Res<Map<String, Value>> {
         .ok_or_else(|| err("bad_field", "`proof_steps` must be an array"))?;
     let mut proof: Vec<(bool, Vec<u8>)> = Vec::with_capacity(steps_value.len());
     for (i, step) in steps_value.iter().enumerate() {
-        let right = step
-            .get("right")
-            .and_then(Value::as_bool)
-            .ok_or_else(|| err("bad_field", format!("proof_steps[{i}].right must be a boolean")))?;
-        let cut_hex = step
-            .get("cut_hex")
-            .and_then(Value::as_str)
-            .ok_or_else(|| err("bad_field", format!("proof_steps[{i}].cut_hex must be a string")))?;
-        let cut = hex_decode(cut_hex)
-            .ok_or_else(|| err("bad_field", format!("proof_steps[{i}].cut_hex is not valid hex")))?;
+        let right = step.get("right").and_then(Value::as_bool).ok_or_else(|| {
+            err(
+                "bad_field",
+                format!("proof_steps[{i}].right must be a boolean"),
+            )
+        })?;
+        let cut_hex = step.get("cut_hex").and_then(Value::as_str).ok_or_else(|| {
+            err(
+                "bad_field",
+                format!("proof_steps[{i}].cut_hex must be a string"),
+            )
+        })?;
+        let cut = hex_decode(cut_hex).ok_or_else(|| {
+            err(
+                "bad_field",
+                format!("proof_steps[{i}].cut_hex is not valid hex"),
+            )
+        })?;
         proof.push((right, cut));
     }
 
     // Cryptographic half: the neighbor's inclusion proof folds to the root.
-    let inclusion_holds = monotree::verify_proof(
-        &MonotreeBlake3,
-        Some(&root),
-        &neighbor_value,
-        Some(&proof),
-    );
+    let inclusion_holds =
+        monotree::verify_proof(&MonotreeBlake3, Some(&root), &neighbor_value, Some(&proof));
     // Prefix-law half: the queried key agrees with the neighbor on exactly
     // `claimed_prefix_bits` and diverges on the next bit, so it routes into
     // the neighbor's empty sibling subtree.
@@ -97,8 +163,8 @@ pub fn op_range_proof_verify(req: &Value) -> Res<Map<String, Value>> {
     let proof_hex = field(req, "proof_hex")?
         .as_str()
         .ok_or_else(|| err("bad_field", "`proof_hex` must be a hex string"))?;
-    let proof_bytes = hex_decode(proof_hex)
-        .ok_or_else(|| err("bad_field", "`proof_hex` is not valid hex"))?;
+    let proof_bytes =
+        hex_decode(proof_hex).ok_or_else(|| err("bad_field", "`proof_hex` is not valid hex"))?;
     let bits = field(req, "bits")?
         .as_u64()
         .ok_or_else(|| err("bad_field", "`bits` must be an integer"))? as usize;
@@ -181,6 +247,21 @@ mod tests {
         assert_eq!(out["canonical_json"], r#"{"a":2,"b":1}"#);
         let commitment = out["commitment"].as_str().expect("hex");
         assert_eq!(commitment.len(), 64, "BLAKE3 hex digest");
+    }
+
+    #[test]
+    fn jcs_orders_keys_by_utf16_code_units_not_scalar_value() {
+        // RFC 8785 §3.2.3: U+E000 (BMP-high, code unit 0xE000) sorts AFTER
+        // any supplementary-plane key, whose UTF-16 lead surrogate is
+        // 0xD800..=0xDBFF. Scalar-value ordering says the opposite.
+        let input = "{\"\\ud83d\\ude00\":1,\"\\ue000\":2}";
+        let req = json!({"op":"jcs_canonicalize","json": input});
+        let out = op_jcs_canonicalize(&req).expect("canonicalize");
+        let expected = "{\"".to_owned() + "\u{1F600}" + "\":1,\"\u{E000}\":2}";
+        assert_eq!(
+            out["canonical_json"], expected,
+            "astral key must precede BMP-high U+E000 (UTF-16 ordering)"
+        );
     }
 
     #[test]

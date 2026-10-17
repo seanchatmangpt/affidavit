@@ -18,23 +18,21 @@
 //!        - the 8 big-int refusal cases are a registered divergence: the
 //!          wasm op canonicalizes where the Python RFC 8785 implementation
 //!          refuses; round-trip value preservation is asserted instead;
-//!        - THREE ordering divergences are registered (all the same class):
-//!          `obj_utf16_order_torture`, `obj_astral_vs_uffff`,
-//!          `obj_ue000_vs_u10000`.
-//!          serde_jcs orders keys by Unicode scalar value; RFC 8785 §3.2.3
-//!          orders by UTF-16 code units (they disagree for BMP-high vs
-//!          supplementary-plane keys). The root crate's rendered `jcs`
-//!          implements UTF-16 ordering, so this is a REAL wasm-vs-root
-//!          parity gap, registered (not fixed) because this lane owns only
-//!          this test file. Any divergence outside the registered set is
-//!          fatal.
+//!        - Ordering divergences: NONE. The wasm `jcs_canonicalize` op now
+//!          implements RFC 8785 §3.2.3 UTF-16 code-unit key ordering
+//!          directly (src/advanced.rs `jcs_write`), so the three former
+//!          ordering divergences (`obj_utf16_order_torture`,
+//!          `obj_astral_vs_uffff`, `obj_ue000_vs_u10000`) agree with the
+//!          Python oracle byte-exact. The registered ordering set is EMPTY
+//!          and the assert below is kept so any future ordering divergence
+//!          is fatal.
 //!
 //! Registered limitation (lane constraint: this court may not edit
 //! Cargo.toml, so affidavit-wasm cannot dev-depend on the root crate):
 //! byte comparison against the ROOT crate's rendered
 //! `crypto_trust_canonical::jcs` is NOT asserted in this file. The
 //! independent Python sidecar comparison IS, so the court is not
-//! tautological: wasm/serde_jcs bytes are compared against a second
+//! tautological: wasm canonical bytes are compared against a second
 //! implementation written in another language over the same corpus.
 
 use std::fs;
@@ -183,33 +181,25 @@ fn jcs_corpus_parity_and_commitment_invariant() {
             }
         }
         // Classification before verdict: a divergence whose two sides parse
-        // to the SAME JSON value is an ORDERING/ESCAPING divergence. Exactly
-        // one is registered: `obj_utf16_order_torture` — serde_jcs orders
-        // object keys by Unicode scalar value (Rust `String`/BTreeMap byte
-        // order), while RFC 8785 §3.2.3 orders by UTF-16 code units; the two
-        // disagree for BMP-high keys (>= U+E000) vs supplementary-plane keys.
-        // The root crate's rendered `jcs` implements UTF-16 ordering (the
-        // root differential court is green on this same corpus), so this is
-        // a REAL wasm-vs-root parity gap, registered here because this lane
-        // does not own src/advanced.rs. Any divergence outside the
-        // registered set is fatal.
-        let parses_equal = (serde_json::from_str::<Value>(&canonical).ok(),
-            serde_json::from_str::<Value>(want).ok());
+        // to the SAME JSON value is an ORDERING/ESCAPING divergence. The
+        // registered ordering set is EMPTY: src/advanced.rs now implements
+        // RFC 8785 §3.2.3 UTF-16 code-unit key ordering, and all three
+        // former divergences (`obj_utf16_order_torture`,
+        // `obj_astral_vs_uffff`, `obj_ue000_vs_u10000`) agree with the
+        // Python oracle byte-exact. ANY ordering/escaping divergence is now
+        // fatal — the sorted-set assert at the end of this test keeps the
+        // empty register loud.
+        let parses_equal = (
+            serde_json::from_str::<Value>(&canonical).ok(),
+            serde_json::from_str::<Value>(want).ok(),
+        );
         if parses_equal == (Some(row.value.clone()), Some(row.value.clone())) {
-            const REGISTERED_UTF16_ORDERING: [&str; 3] = [
-                "obj_utf16_order_torture",
-                "obj_astral_vs_uffff",
-                "obj_ue000_vs_u10000",
-            ];
-            assert!(
-                REGISTERED_UTF16_ORDERING.contains(&row.id.as_str()),
-                "UNREGISTERED ordering/escaping divergence on case {}:\n  wasm/serde_jcs: {canonical}\n  python sidecar: {want}",
+            const REGISTERED_UTF16_ORDERING: [&str; 0] = [];
+            let _ = REGISTERED_UTF16_ORDERING;
+            panic!(
+                "UNREGISTERED ordering/escaping divergence on case {}:\n  wasm: {canonical}\n  python sidecar: {want}",
                 row.id
             );
-            let round: Value = serde_json::from_str(&canonical).unwrap();
-            assert_eq!(round, row.value, "case {}: registered-divergence round-trip lost value", row.id);
-            registered_ordering.push(row.id.clone());
-            continue;
         }
         panic!(
             "REAL JCS divergence on case {}:\n  wasm/serde_jcs: {canonical}\n  python sidecar: {want}",
@@ -222,13 +212,11 @@ fn jcs_corpus_parity_and_commitment_invariant() {
         all.len()
     );
     registered_ordering.sort();
-    registered_ordering.sort();
-    assert_eq!(
-        registered_ordering,
-        ["obj_astral_vs_uffff", "obj_ue000_vs_u10000", "obj_utf16_order_torture"],
-        "the registered UTF-16-ordering divergence set moved: {registered_ordering:?}"
+    assert!(
+        registered_ordering.is_empty(),
+        "the registered UTF-16-ordering divergence set must be EMPTY; got: {registered_ordering:?}"
     );
-    assert!(agree >= 250, "too few agreeing cases: {agree}");
+    assert!(agree >= 253, "too few agreeing cases: {agree}");
     assert_eq!(
         registered_bigint_refusal, 8,
         "expected exactly 8 registered big-int refusal cases"
@@ -247,7 +235,10 @@ fn reordered_key_envelope_canonicalizes_identically() {
     let (ca, ka) = call_jcs(a);
     let (cb, kb) = call_jcs(b);
     assert_ne!(a, ca, "canonicalizer must not pass the envelope through");
-    assert_eq!(ca, cb, "reordered-key envelopes must canonicalize identically");
+    assert_eq!(
+        ca, cb,
+        "reordered-key envelopes must canonicalize identically"
+    );
     assert_eq!(ka, kb, "commitments must agree across key reordering");
     assert_eq!(
         ca, r#"{"alpha":{"b":2,"c":3,"d":4},"mid":null,"zeta":1}"#,
@@ -267,7 +258,10 @@ fn float_precision_2p53_neighbors_round_trip() {
         "9007199254740993", // 2^53+1
     ] {
         let (canonical, commitment) = call_jcs(text);
-        assert_eq!(canonical, text, "exact integer digits must round-trip byte-exact");
+        assert_eq!(
+            canonical, text,
+            "exact integer digits must round-trip byte-exact"
+        );
         let parsed: Value = serde_json::from_str(&canonical).unwrap();
         assert!(parsed.is_number(), "round-trip must stay a number");
         assert_eq!(
