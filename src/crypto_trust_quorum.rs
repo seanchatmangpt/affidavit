@@ -259,6 +259,35 @@ impl<'a, R: KeyRegistry> QuorumEngine<'a, R> {
                 hybrid_verify(es256, mldsa65, signing_input, &sig)
                     .map_err(|_| QuorumError::InvalidShare(kid))
             }
+            // AG1 parity (AG4): Ed25519 and ES256K shares count toward
+            // quorum like every other admitted family. Decided law mirrors
+            // the envelope engine: a verification failure is the decided
+            // Ok(false); only a structurally undecodable share (wrong-length
+            // signature bytes, or registered key material that does not
+            // decode) refuses as InvalidShare.
+            #[cfg(feature = "ed25519")]
+            (PublicKeyMaterial::Ed25519(pk), AlgorithmId::Ed25519) => {
+                let Ok(pk) = <[u8; 32]>::try_from(pk.as_slice()) else {
+                    return Err(QuorumError::InvalidShare(kid));
+                };
+                let Ok(sig) = <[u8; 64]>::try_from(signature) else {
+                    return Err(QuorumError::InvalidShare(kid));
+                };
+                Ok(crate::ed25519_witness::verify_witness(&pk, signing_input, &sig).is_ok())
+            }
+            #[cfg(feature = "secp256k1")]
+            (PublicKeyMaterial::Es256kSec1(pk), AlgorithmId::Es256k) => {
+                let Ok(pk) = <[u8; 33]>::try_from(pk.as_slice()) else {
+                    return Err(QuorumError::InvalidShare(kid));
+                };
+                match crate::secp256k1_witness::verify_ecdsa(&pk, signing_input, signature) {
+                    Ok(()) => Ok(true),
+                    Err(
+                        crate::secp256k1_witness::Secp256k1WitnessError::EcdsaVerificationFailed,
+                    ) => Ok(false),
+                    Err(_) => Err(QuorumError::InvalidShare(kid)),
+                }
+            }
             (registered, claimed) => Err(QuorumError::Registry(format!(
                 "key {} material serves {} but the share claims {}",
                 record.id,
