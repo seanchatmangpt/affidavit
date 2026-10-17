@@ -229,9 +229,11 @@ fn real_sig_over(msg: &[u8], seed: [u8; 32]) -> (Vec<u8>, Vec<u8>) {
 // ---------------------------------------------------------------------------
 
 // External FIPS 205 implementation — the second signature algorithm in play.
-use slh_dsa::{Sha2_128s, Signature as SlhSignature, SigningKey as SlhSigningKey,
-    VerifyingKey as SlhVerifyingKey};
 use slh_dsa::signature::Verifier as SlhVerifier;
+use slh_dsa::{
+    Sha2_128s, Signature as SlhSignature, SigningKey as SlhSigningKey,
+    VerifyingKey as SlhVerifyingKey,
+};
 
 /// Fixed 32-byte seeds for the FIPS 205 key generation (slh_keygen_internal,
 /// the FIPS-205 KAT constructor). Arbitrary constants; determinism is what
@@ -243,11 +245,7 @@ const SLH_PK_SEED: [u8; 16] = [44u8; 16];
 /// Real external slh-dsa sign over a fixed message with a fixed-seed key;
 /// returns (pk, sig) wire bytes via the external crate's encodings only.
 fn real_slh_sig_over(msg: &[u8]) -> (Vec<u8>, Vec<u8>) {
-    let sk = SlhSigningKey::<Sha2_128s>::slh_keygen_internal(
-        &SLH_SEED,
-        &SLH_PRF,
-        &SLH_PK_SEED,
-    );
+    let sk = SlhSigningKey::<Sha2_128s>::slh_keygen_internal(&SLH_SEED, &SLH_PRF, &SLH_PK_SEED);
     let vk = sk.verifying_key();
     let sig = sk.sign(msg); // deterministic Signer impl
     let pk: [u8; 32] = vk.to_bytes().into();

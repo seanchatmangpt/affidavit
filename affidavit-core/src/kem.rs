@@ -32,7 +32,6 @@
 //!
 //! integration: coordinator adds `pub mod kem;` to src/lib.rs
 
-
 use core::fmt;
 
 /// ML-KEM-768 (FIPS 203) encapsulation-key size in bytes.
@@ -498,8 +497,7 @@ mod tests {
         // seed — the keypair is the external crate's, never this crate's.
         let seed = [0x5Au8; DECAPSULATION_SEED_LEN];
         let dk = DecapsulationKey::<MlKem768>::from_seed(seed.into());
-        let pk: [u8; ENCAPSULATION_KEY_LEN] =
-            dk.encapsulation_key().to_bytes().into();
+        let pk: [u8; ENCAPSULATION_KEY_LEN] = dk.encapsulation_key().to_bytes().into();
         let court = KemCourt::new()
             .with_encapsulator(&ExternalMlKem768)
             .with_decapsulator(&ExternalMlKem768);

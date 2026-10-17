@@ -35,7 +35,6 @@
 //! the coordinator extends the lib.rs re-export with `SlhDsaVerifier`,
 //! `ExternalSlhDsa128s`, and `Suite`.
 
-
 use core::fmt;
 
 /// The FIPS 204 (ML-DSA-65) verification contract, implemented by an external
