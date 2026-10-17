@@ -11,7 +11,7 @@
 //! Custody of the signing key belongs to the witness owner; this module
 //! returns signing material only to the caller that holds it.
 
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand_core::{OsRng, RngCore};
 use thiserror::Error;
 
@@ -86,8 +86,11 @@ pub fn verify_witness(
     let verifying = VerifyingKey::from_bytes(public_key)
         .map_err(|_| Ed25519WitnessError::MalformedPublicKey)?;
     let signature = Signature::from_bytes(signature);
+    // Strict verification (parity with the wasm ABI, affidavit-wasm
+    // src/signature.rs ed25519()): rejects malleated (non-canonical) signatures
+    // — e.g. s >= group order — that lenient `verify` would accept.
     verifying
-        .verify(message, &signature)
+        .verify_strict(message, &signature)
         .map_err(|_| Ed25519WitnessError::VerificationFailed)
 }
 
