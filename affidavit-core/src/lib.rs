@@ -97,7 +97,7 @@ pub mod sealed;
 pub mod verifier;
 
 #[cfg(feature = "alloc")]
-pub mod accumulator;
+
 
 #[cfg(feature = "alloc")]
 pub mod mining;
