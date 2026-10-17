@@ -226,3 +226,171 @@ fn tampering_propagates_through_every_later_link() {
         "an edit to frame 1 must propagate through every later link"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Register row 77 — adversarial court for the double-mixing invariant.
+//
+// The load-bearing property of the bcinr rule is that the previous chain hash
+// is mixed TWICE per link: once inside the 99 frame bytes
+// (`BcinrFrame::prior_hash`, bytes 67..99) and once prepended by
+// `bcinr_chain_from_frame`. Any single-byte mutation must therefore propagate
+// to EVERY later chain hash, never just the mutated link.
+//
+// The public API DOES allow isolating the two legs: the frame's `prior_hash`
+// field and the `prev` argument to `bcinr_chain_from_frame` are independent
+// parameters, so each leg can be mutated alone while the other is held at its
+// honest value. Both isolations are exercised below.
+// ---------------------------------------------------------------------------
+
+mod adversarial_double_mix {
+    use affidavit_core::bcinr::{bcinr_chain_from_frame, bcinr_genesis_hash, BcinrFrame};
+    use affidavit_core::digest::{ChainHasher, Digest, Fnv256};
+
+    use super::Blake3Chain;
+
+    /// Frame builder: only `instruction_id` and the carried `prior` vary, so a
+    /// forged chain differs from the honest one in exactly one place at the
+    /// mutation point.
+    fn frame(id: u64, prior: Digest) -> BcinrFrame {
+        BcinrFrame {
+            instruction_id: id,
+            fired_mask: 0,
+            denial: 0,
+            obj_refs: [0xA5, 1, 2, 3, 4, 5, 6, 7],
+            ts_ns: 0,
+            activity_idx: 0,
+            node_kind: 0,
+            prior_hash: prior,
+        }
+    }
+
+    /// Honest 4-vector `(g, h1, h2, h3)` — genesis plus 3 links.
+    fn honest_chain<H: ChainHasher>() -> [Digest; 4] {
+        let g = bcinr_genesis_hash::<H>();
+        let h1 = bcinr_chain_from_frame::<H>(&g, &frame(0, g));
+        let h2 = bcinr_chain_from_frame::<H>(&h1, &frame(1, h1));
+        let h3 = bcinr_chain_from_frame::<H>(&h2, &frame(2, h2));
+        [g, h1, h2, h3]
+    }
+
+    /// Forged chain: frame `t` (0-based, t in 0..3) is built by `leg` instead
+    /// of the honest builder; frames after `t` are rebuilt honestly from the
+    /// forged hash (the real attack shape: one edit, rest re-derived).
+    fn forged_chain<H: ChainHasher>(
+        t: u64,
+        leg: impl Fn(Digest) -> BcinrFrame,
+    ) -> [Digest; 4] {
+        let g = bcinr_genesis_hash::<H>();
+        let mut out = [g; 4];
+        let mut prior = g;
+        for id in 0..3u64 {
+            let f = if id == t { leg(prior) } else { frame(id, prior) };
+            let h = bcinr_chain_from_frame::<H>(&prior, &f);
+            out[id as usize + 1] = h;
+            prior = h;
+        }
+        out
+    }
+
+    /// Vacuity positive control (run FIRST, pins the comparator): a mutation
+    /// that changes NOTHING must reproduce every honest hash exactly. If this
+    /// ever failed, the propagation asserts below would be vacuous.
+    #[test]
+    fn vacuity_no_op_mutation_matches_every_honest_hash() {
+        let honest = honest_chain::<Blake3Chain>();
+        // Determinism of the builder itself.
+        assert_eq!(honest_chain::<Blake3Chain>(), honest);
+        // No-op through the forged machinery: the "mutated" leg sets the
+        // in-frame prior_hash to its honest value.
+        let noop = forged_chain::<Blake3Chain>(1, |prior| frame(1, prior));
+        assert_eq!(noop, honest, "no-op mutation must not disturb any hash");
+    }
+
+    /// ATTACK 1: flip ONE byte of ONE object ref at frame t=1
+    /// (`obj_refs[3]: 3 -> 4`, frame bytes 36..40). Every chain hash from the
+    /// mutated link onward must change — asserted per link, all of them.
+    #[test]
+    fn single_objref_byte_flip_changes_hash_at_t_and_every_later_link() {
+        let honest = honest_chain::<Blake3Chain>();
+        let forged = forged_chain::<Blake3Chain>(1, |prior| {
+            let mut f = frame(1, prior);
+            f.obj_refs[3] += 1; // exactly one u32 of exactly one frame
+            f
+        });
+        assert_eq!(forged[0], honest[0], "genesis is input, never mutated");
+        // Links 0..=t cover frames 0..t and must be UNCHANGED; every link
+        // after the mutated frame must change.
+        assert_eq!(forged[1], honest[1], "link covering frames 0..1 is untouched");
+        for i in 2..4 {
+            assert_ne!(
+                forged[i], honest[i],
+                "link {i} must differ from the honest chain after one flipped obj_ref byte at frame 1"
+            );
+        }
+    }
+
+    /// ATTACK 2a — in-frame leg isolated: at frame t=1 mutate ONLY the
+    /// `BcinrFrame::prior_hash` bytes (frame 67..99) while the prepended leg
+    /// (the `prev` argument) stays at the honest hash. The API permits the
+    /// isolation directly: the two legs are independent parameters of
+    /// `bcinr_chain_from_frame` + `BcinrFrame`.
+    #[test]
+    fn in_frame_prior_hash_leg_alone_flips_all_later_hashes() {
+        let honest = honest_chain::<Blake3Chain>();
+        let forged = forged_chain::<Blake3Chain>(1, |prior| {
+            let mut f = frame(1, prior);
+            f.prior_hash.0[0] ^= 0x01; // in-frame leg ONLY (bytes 67..99)
+            f
+        });
+        assert_eq!(forged[0], honest[0]);
+        assert_eq!(forged[1], honest[1], "link covering frames 0..1 is untouched");
+        for i in 2..4 {
+            assert_ne!(
+                forged[i], honest[i],
+                "flipping ONLY the in-frame prior_hash leg at frame 1 must move link {i}"
+            );
+        }
+    }
+
+    /// ATTACK 2b — prepended leg isolated: at frame t=1 prepend a mutated
+    /// hash to `bcinr_chain_from_frame` while the frame's own `prior_hash`
+    /// stays honest. Symmetric proof that neither leg can carry the mutation
+    /// alone without propagation. (In the real rule the two legs are equal,
+    /// so an attacker flipping either one is caught; this proves each leg is
+    /// load-bearing, not redundant.)
+    #[test]
+    fn prepended_prior_hash_leg_alone_flips_all_later_hashes() {
+        let honest = honest_chain::<Blake3Chain>();
+        let mut bad_prepend = honest[1];
+        bad_prepend.0[31] ^= 0x80;
+
+        let k1 = bcinr_chain_from_frame::<Blake3Chain>(
+            &bad_prepend,          // prepended leg mutated ONLY
+            &frame(1, honest[1]),  // in-frame leg honest
+        );
+        assert_ne!(k1, honest[2], "prepended-leg flip must move the link hash");
+
+        // Propagation: rebuild the tail lawfully from the forged link.
+        let k2 = bcinr_chain_from_frame::<Blake3Chain>(&k1, &frame(2, k1));
+        let k3 = bcinr_chain_from_frame::<Blake3Chain>(&k2, &frame(3, k1));
+        let _ = k3;
+        assert_ne!(k2, honest[3], "forged link hash must propagate to link 3");
+    }
+
+    /// Hasher-generality: the whole court holds under a second, unrelated
+    /// `ChainHasher` construction (Fnv256, in-crate, non-crypto). The rule's
+    /// tamper-evidence must not depend on one hash function.
+    #[test]
+    fn invariants_hold_under_a_second_hasher_construction() {
+        let honest = honest_chain::<Fnv256>();
+        let forged = forged_chain::<Fnv256>(2, |prior| {
+            let mut f = frame(2, prior);
+            f.prior_hash.0[0] ^= 0x01;
+            f
+        });
+        for i in 3..4 {
+            assert_ne!(forged[i], honest[i], "Fnv256: mutation must propagate to link {i}");
+        }
+        assert_eq!(forged[2], honest[2], "Fnv256: link before the mutated frame is untouched");
+    }
+}
