@@ -112,7 +112,10 @@ pub fn op_range_proof_verify(req: &Value) -> Res<Map<String, Value>> {
     // merlin transcripts require a `\'static` label, so the label space is
     // a REGISTRY, not free text: only domain labels the kernel itself uses
     // for proving are admitted. This is an admission gate, not a filter.
-    let registered: &[&str] = &["affidavit:zk-range:v1:effect-budget"];
+    let registered: &[&str] = &[
+        "affidavit:zk-range:v1:effect-budget",
+        "affidavit:zk-range:v1:receipt-amount",
+    ];
     let label_bytes = match registered.iter().find(|l| **l == label) {
         Some(l) => l.as_bytes(),
         None => {
@@ -211,6 +214,32 @@ mod tests {
         });
         let out = op_range_proof_verify(&req).expect("total");
         assert_eq!(out["admitted"], Value::Bool(false), "garbage proof refused");
+    }
+
+    #[test]
+    fn range_proof_registry_admits_second_label_and_refuses_unknown() {
+        // Positive control at the registry gate: the new receipt-amount label
+        // is a registered domain (typed Ok verdict, garbage proof -> refused)
+        // while an unregistered label is a typed bad_field, not a verdict.
+        let garbage = json!({
+            "op":"range_proof_verify",
+            "commitment_hex": format!("{:0>64}", "0"),
+            "proof_hex": "00",
+            "bits": 32,
+            "label": "affidavit:zk-range:v1:receipt-amount"
+        });
+        let out = op_range_proof_verify(&garbage).expect("registered label admitted");
+        assert_eq!(out["admitted"], Value::Bool(false), "garbage proof refused");
+
+        let unknown = json!({
+            "op":"range_proof_verify",
+            "commitment_hex": format!("{:0>64}", "0"),
+            "proof_hex": "00",
+            "bits": 32,
+            "label": "affidavit:zk-range:v1:not-registered"
+        });
+        let e = op_range_proof_verify(&unknown).expect_err("unknown label refused");
+        assert_eq!(e.code, "bad_field");
     }
 
     #[test]
