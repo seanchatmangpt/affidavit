@@ -249,7 +249,9 @@ mod tests {
         assert!(crate::crypto_trust_es256::seed_is_degenerate(&[0xEEu8; 32]));
         let mut non_degenerate = [0x11u8; 32];
         non_degenerate[0] = 0x12;
-        assert!(!crate::crypto_trust_es256::seed_is_degenerate(&non_degenerate));
+        assert!(!crate::crypto_trust_es256::seed_is_degenerate(
+            &non_degenerate
+        ));
     }
 
     fn envelope_for(kid: KeyId) -> SignatureEnvelope {

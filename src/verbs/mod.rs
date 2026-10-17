@@ -32,10 +32,6 @@ pub mod dossier_inspect;
 pub mod dossier_seal;
 #[cfg(feature = "ctdd")]
 pub mod dossier_verify;
-#[cfg(feature = "ctdd")]
-pub mod receipt_chain_verify;
-#[cfg(feature = "ctdd")]
-pub mod receipt_validate;
 pub mod ecosystem_certify;
 pub mod ecosystem_verify;
 pub mod emit;
@@ -83,7 +79,11 @@ pub mod portfolio_health;
 pub mod predict;
 pub mod profile;
 pub mod query;
+#[cfg(feature = "ctdd")]
+pub mod receipt_chain_verify;
 pub mod receipt_throughput;
+#[cfg(feature = "ctdd")]
+pub mod receipt_validate;
 pub mod replay;
 pub mod root_cause;
 pub mod sbom_attest;
@@ -114,7 +114,6 @@ pub mod visualize;
 pub mod why;
 
 // Adversarial statutory compliance & attestation verbs (v26.10.16)
+pub mod certificate_fre_902;
 pub mod legal_hold_status;
 pub mod restitution_calculate;
-pub mod certificate_fre_902;
-

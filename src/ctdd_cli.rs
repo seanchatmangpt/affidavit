@@ -32,8 +32,9 @@ use chicago_tdd_tools::ledger::receipt::{ChainedCourtReceipt, VerifiedCourtRecei
 use chicago_tdd_tools::ledger::signing::sealer;
 use chicago_tdd_tools::ledger::signing::{KeyStore, Signer};
 use chicago_tdd_tools::ledger::{
-    chain_verify, exit_code, seal_dossier, validate_receipt, verify_sealed_file, CourtLedgerBuilder,
-    DossierBuilder, DossierError, LedgerError, LedgerExitCode, SealError, SealVerdict, DossierRoot,
+    chain_verify, exit_code, seal_dossier, validate_receipt, verify_sealed_file,
+    CourtLedgerBuilder, DossierBuilder, DossierError, DossierRoot, LedgerError, LedgerExitCode,
+    SealError, SealVerdict,
 };
 use chicago_tdd_tools::observability::receipt::Blake3ReceiptEntry;
 
@@ -56,7 +57,14 @@ pub struct CtddOutcome {
 
 impl CtddOutcome {
     fn success(receipts: usize, digest: Option<String>) -> Self {
-        Self { ok: true, refusal: None, detail: None, receipts, digest, code: 0 }
+        Self {
+            ok: true,
+            refusal: None,
+            detail: None,
+            receipts,
+            digest,
+            code: 0,
+        }
     }
 
     fn refusal(kind: &'static str, detail: String, code: u8) -> Self {
@@ -119,7 +127,9 @@ fn seal_exit(_e: &SealError) -> u8 {
 /// Load (or create) the local ML-DSA-65 signing key and wrap it in a domain
 /// [`Signer`]. IO/custody failures are IO-classified (exit 2).
 pub fn load_signer() -> Result<Signer, String> {
-    let key = KeyStore::new().load_or_create().map_err(|e: SealError| one_line(e))?;
+    let key = KeyStore::new()
+        .load_or_create()
+        .map_err(|e: SealError| one_line(e))?;
     Signer::from_signing_key(key).map_err(|e| one_line(e))
 }
 
@@ -194,7 +204,10 @@ fn read_records(dir: &str) -> Result<Vec<ChainRecord>, String> {
 pub fn chain_verify_outcome(dir: &str) -> Result<CtddOutcome, String> {
     let records = read_records(dir)?;
     match chain_verify(&records) {
-        Ok(report) => Ok(CtddOutcome::success(report.count, Some(hex_head(&report.head)))),
+        Ok(report) => Ok(CtddOutcome::success(
+            report.count,
+            Some(hex_head(&report.head)),
+        )),
         Err(e) => {
             let code = exit_code(&e);
             Ok(CtddOutcome::refusal("chain", one_line(&e), code))
@@ -225,7 +238,11 @@ impl ChainRecord {
         content.copy_from_slice(&record[..304]);
         let mut stored = [0u8; 32];
         stored.copy_from_slice(&record[320..352]);
-        ChainRecord { prev, content, stored }
+        ChainRecord {
+            prev,
+            content,
+            stored,
+        }
     }
 }
 

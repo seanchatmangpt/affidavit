@@ -94,7 +94,10 @@ fn test_strict_refusal_of_duplicate_receipts_within_epoch() {
                 .iter()
                 .map(|b| format!("{b:02x}"))
                 .collect::<String>();
-            assert_eq!(hex, expected_hex, "Reported nullifier in error should match");
+            assert_eq!(
+                hex, expected_hex,
+                "Reported nullifier in error should match"
+            );
         }
         Err(e) => panic!("Unexpected error on duplicate receipt: {e}"),
         Ok(_) => panic!("FATAL: Duplicate receipt wire was admitted without detection!"),
@@ -113,7 +116,10 @@ fn test_strict_refusal_of_duplicate_receipts_within_epoch() {
 fn test_multithreaded_concurrent_access_and_epoch_rollover_races() {
     let initial_key: EpochKey = [0x11u8; 32];
     let next_key: EpochKey = [0x22u8; 32];
-    let registry = Arc::new(RwLock::new(ReplayNullifierRegistry::new(initial_key, 20_000)));
+    let registry = Arc::new(RwLock::new(ReplayNullifierRegistry::new(
+        initial_key,
+        20_000,
+    )));
 
     let num_threads = 8;
     let receipts_per_thread = 500;
@@ -132,7 +138,11 @@ fn test_multithreaded_concurrent_access_and_epoch_rollover_races() {
             barrier_clone.wait();
             for i in 0..receipts_per_thread {
                 // Introduce deliberate overlap across thread 0 and thread 1
-                let receipt_id = if thread_idx == 1 { i } else { thread_idx * 10_000 + i };
+                let receipt_id = if thread_idx == 1 {
+                    i
+                } else {
+                    thread_idx * 10_000 + i
+                };
                 let wire = format!("concurrent-receipt-wire-{receipt_id}");
 
                 let mut reg = registry_clone.write().unwrap();
@@ -208,7 +218,9 @@ fn test_persistence_resilience_partial_writes_and_corrupted_bin() {
     }
 
     // Scenario 2: Simulate crash leading to partial write (e.g., 17 bytes trailing corrupt chunk)
-    let partial_garbage = [0xde, 0xad, 0xbe, 0xef, 0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77];
+    let partial_garbage = [
+        0xde, 0xad, 0xbe, 0xef, 0xaa, 0xbb, 0xcc, 0xdd, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+    ];
     file.write_all(&partial_garbage).unwrap();
     file.flush().unwrap();
     drop(file);
@@ -253,7 +265,9 @@ fn test_sliding_window_eviction_vulnerability_boundary_analysis() {
     let mut registry = ReplayNullifierRegistry::new(epoch_key, capacity);
 
     let target_receipt = b"replayed_target_receipt";
-    let n_target = registry.check_and_admit(target_receipt).expect("initial admit");
+    let n_target = registry
+        .check_and_admit(target_receipt)
+        .expect("initial admit");
 
     assert!(registry.is_seen(&n_target));
     assert!(registry.check_and_admit(target_receipt).is_err());
@@ -261,14 +275,18 @@ fn test_sliding_window_eviction_vulnerability_boundary_analysis() {
     // Adversarially flood registry up to capacity threshold
     for i in 1..capacity {
         let dummy = format!("flood_receipt_{i}");
-        registry.check_and_admit(dummy.as_bytes()).expect("flood admit");
+        registry
+            .check_and_admit(dummy.as_bytes())
+            .expect("flood admit");
     }
 
     assert_eq!(registry.len(), capacity);
 
     // Next receipt triggers the sliding window clear:
     let evictor_receipt = b"evictor_receipt";
-    registry.check_and_admit(evictor_receipt).expect("evictor admit");
+    registry
+        .check_and_admit(evictor_receipt)
+        .expect("evictor admit");
 
     // FIXED (SK5 fix-forward, lane R31): target_receipt was retired into the
     // cross-epoch wire history at eviction, so its replay is REFUSED with the

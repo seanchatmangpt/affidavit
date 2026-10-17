@@ -10,8 +10,7 @@
 //! 5. Structural alignment / RM1 offset laws with `dossier_wire::ChainRecord` from `chicago_tdd_tools`.
 
 use affidavit::wire_ctrt::{
-    VerdictStatus, WireCtrt, WireCtrtError, CTRT_MAGIC, CTRT_PAYLOAD_SIZE,
-    CTRT_WIRE_SIZE,
+    VerdictStatus, WireCtrt, WireCtrtError, CTRT_MAGIC, CTRT_PAYLOAD_SIZE, CTRT_WIRE_SIZE,
 };
 
 fn sample_canonical_ctrt() -> WireCtrt {
@@ -48,7 +47,10 @@ fn test_buffer_length_boundary_rejection() {
             Err(WireCtrtError::InvalidLength(found)) => {
                 assert_eq!(found, len);
             }
-            other => panic!("expected InvalidLength({len}) for len {len}, got {:?}", other),
+            other => panic!(
+                "expected InvalidLength({len}) for len {len}, got {:?}",
+                other
+            ),
         }
     }
 
@@ -84,7 +86,10 @@ fn test_verdict_status_fail_closed_without_panic() {
         let mut bytes = base_bytes;
         bytes[150] = valid_code;
         let res = WireCtrt::deserialize(&bytes);
-        assert!(res.is_ok(), "verdict status {valid_code} should be accepted");
+        assert!(
+            res.is_ok(),
+            "verdict status {valid_code} should be accepted"
+        );
         let decoded = res.unwrap();
         assert_eq!(decoded.verdict_status.to_u8(), valid_code);
     }
@@ -132,7 +137,10 @@ fn test_endianness_le_be_boundary_execution_ticks_and_elapsed_cycles() {
     let cycles_u64: u64 = 0xA1B2_C3D4_E5F6_0718;
     let cycles_le = cycles_u64.to_le_bytes();
     let cycles_be = cycles_u64.to_be_bytes();
-    assert_ne!(cycles_le, cycles_be, "Cycles byte representations must differ");
+    assert_ne!(
+        cycles_le, cycles_be,
+        "Cycles byte representations must differ"
+    );
     assert_eq!(&bytes[142..150], &cycles_le);
 
     // If an adversary swaps elapsed_cycles to Big-Endian
@@ -269,12 +277,18 @@ fn test_non_utf8_in_payload_does_not_panic() {
     // Inject illegal UTF-8 byte sequences across payload segment (151..352)
     // E.g., standalone 0x80..0xBF, 0xC0..0xC1, 0xF5..0xFF
     let non_utf8_sequences = [0xFF, 0xFE, 0xC0, 0xC1, 0xF5, 0x80];
-    for (idx, &byte) in non_utf8_sequences.iter().cycle().take(CTRT_PAYLOAD_SIZE).enumerate() {
+    for (idx, &byte) in non_utf8_sequences
+        .iter()
+        .cycle()
+        .take(CTRT_PAYLOAD_SIZE)
+        .enumerate()
+    {
         bytes[151 + idx] = byte;
     }
 
     // The wire codec handles raw binary buffers and must not panic on non-UTF8 payload
-    let decoded = WireCtrt::deserialize(&bytes).expect("binary payload with non-UTF8 must decode safely");
+    let decoded =
+        WireCtrt::deserialize(&bytes).expect("binary payload with non-UTF8 must decode safely");
     assert_eq!(&decoded.payload[..6], &[0xFF, 0xFE, 0xC0, 0xC1, 0xF5, 0x80]);
 }
 
@@ -306,5 +320,8 @@ fn test_interop_with_chicago_dossier_wire_rm1_offset_law() {
     assert_eq!(content_slice.len(), 304);
     assert_eq!(middle_slice.len(), 16);
     assert_eq!(tail_slice.len(), 32);
-    assert_eq!(content_slice.len() + middle_slice.len() + tail_slice.len(), CTRT_WIRE_SIZE);
+    assert_eq!(
+        content_slice.len() + middle_slice.len() + tail_slice.len(),
+        CTRT_WIRE_SIZE
+    );
 }

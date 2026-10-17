@@ -225,7 +225,9 @@ fn stage_evaluate_profile(receipt: &Receipt) -> CheckOutcome {
         }
 
         let is_obligated = event.event_type.starts_with("OBLIGATED:")
-            || event.objects.iter().any(|o| o.id == "deontic:obligated" || o.qualifier.as_deref() == Some("OBLIGATED"));
+            || event.objects.iter().any(|o| {
+                o.id == "deontic:obligated" || o.qualifier.as_deref() == Some("OBLIGATED")
+            });
 
         // 1. Continuity Law (FRCP 37(e)): When commercial obligation is active,
         // strictly contiguous monotonic sequence increments are required.
@@ -252,10 +254,10 @@ fn stage_evaluate_profile(receipt: &Receipt) -> CheckOutcome {
             || event.event_type == "prune"
             || event.event_type == "expunge";
         if is_deletion {
-            let has_licensor_revocation = event
-                .objects
-                .iter()
-                .any(|o| o.obj_type == "licensor_revocation_seal" || o.qualifier.as_deref() == Some("authorized_revocation"));
+            let has_licensor_revocation = event.objects.iter().any(|o| {
+                o.obj_type == "licensor_revocation_seal"
+                    || o.qualifier.as_deref() == Some("authorized_revocation")
+            });
             if !has_licensor_revocation {
                 return CheckOutcome {
                     stage: "evaluate_profile".to_string(),

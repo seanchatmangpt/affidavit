@@ -159,10 +159,10 @@ pub mod output;
 pub mod sj_record;
 pub mod standing;
 
-pub mod replay_nullifier;
-pub mod wire_ctrt;
 #[cfg(feature = "crypto-trust")]
 pub mod deontic;
+pub mod replay_nullifier;
+pub mod wire_ctrt;
 
 /// Native port of the excised `ctdd_ledger` CLI verbs (Phase D M2).
 #[cfg(feature = "ctdd")]

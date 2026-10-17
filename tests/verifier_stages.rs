@@ -172,7 +172,9 @@ fn stage_evaluate_profile_catches_unauthorized_deletion_spoliation() {
     assert!(!verdict.accepted, "unauthorized delete event must REJECT");
     let s6 = stage(&verdict, "evaluate_profile");
     assert!(!s6.passed);
-    assert!(s6.detail.contains("REJECT: UNLAWFUL_RECORD_EXPUNCTION (ABA-3.4A)"));
+    assert!(s6
+        .detail
+        .contains("REJECT: UNLAWFUL_RECORD_EXPUNCTION (ABA-3.4A)"));
 }
 
 #[test]
@@ -190,7 +192,10 @@ fn stage_evaluate_profile_allows_authorized_deletion_with_seal() {
     asm.append(ev).unwrap();
     let receipt = asm.finalize();
     let verdict = verify(&receipt);
-    assert!(verdict.accepted, "authorized deletion with seal must ACCEPT");
+    assert!(
+        verdict.accepted,
+        "authorized deletion with seal must ACCEPT"
+    );
     assert!(stage(&verdict, "evaluate_profile").passed);
 }
 

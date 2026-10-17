@@ -92,8 +92,11 @@ fn write_receipts_dir(dir: &std::path::Path, reversed: bool) {
     };
     for (i, name) in ordered {
         let path = dir.join(format!("{i:02}.ctrt"));
-        std::fs::write(&path, receipt_bytes(name, u8::try_from(i).expect("fits u8")))
-            .expect("write");
+        std::fs::write(
+            &path,
+            receipt_bytes(name, u8::try_from(i).expect("fits u8")),
+        )
+        .expect("write");
     }
 }
 
@@ -147,8 +150,7 @@ fn validate_refuses_a_truncated_record_as_malformed() {
 fn validate_missing_file_is_io_classified() {
     let dir = tempdir("validate-missing");
     let path = dir.join("absent.ctrt");
-    let err = validate_outcome(Some(path.to_str().expect("utf8")))
-        .expect_err("io-classified");
+    let err = validate_outcome(Some(path.to_str().expect("utf8"))).expect_err("io-classified");
     assert!(err.contains("absent.ctrt"));
     assert_eq!(IO_EXIT, 2);
     let _ = std::fs::remove_dir_all(&dir);
@@ -238,8 +240,8 @@ fn seal_then_verify_roundtrip_succeeds() {
     write_receipts_dir(&dir, false);
     let out = dir.join("sealed.bin");
     let s = signer(7);
-    let seal = seal_outcome(dir.to_str().expect("utf8"), out.to_str().expect("utf8"), &s)
-        .expect("not io");
+    let seal =
+        seal_outcome(dir.to_str().expect("utf8"), out.to_str().expect("utf8"), &s).expect("not io");
     assert!(seal.ok, "detail: {:?}", seal.detail);
     assert_eq!(seal.code, 0);
     let wire = std::fs::read(&out).expect("read");
@@ -247,7 +249,10 @@ fn seal_then_verify_roundtrip_succeeds() {
     let verify = verify_outcome(out.to_str().expect("utf8"), &s.public_key()).expect("not io");
     assert!(verify.ok, "detail: {:?}", verify.detail);
     assert_eq!(verify.code, 0);
-    assert_eq!(verify.digest, seal.digest, "same dossier root on both sides");
+    assert_eq!(
+        verify.digest, seal.digest,
+        "same dossier root on both sides"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -258,11 +263,15 @@ fn verify_against_a_foreign_key_refuses_tampered() {
     let dir = tempdir("verify-foreign");
     write_receipts_dir(&dir, false);
     let out = dir.join("sealed.bin");
-    let seal = seal_outcome(dir.to_str().expect("utf8"), out.to_str().expect("utf8"), &signer(7))
-        .expect("not io");
+    let seal = seal_outcome(
+        dir.to_str().expect("utf8"),
+        out.to_str().expect("utf8"),
+        &signer(7),
+    )
+    .expect("not io");
     assert!(seal.ok);
-    let verify = verify_outcome(out.to_str().expect("utf8"), &signer(9).public_key())
-        .expect("not io");
+    let verify =
+        verify_outcome(out.to_str().expect("utf8"), &signer(9).public_key()).expect("not io");
     assert!(!verify.ok);
     assert_eq!(verify.refusal, Some("verify"));
     assert_eq!(verify.code, VERIFY_INVALID_EXIT);
@@ -276,8 +285,12 @@ fn verify_a_corrupted_wire_is_io_classified() {
     let dir = tempdir("verify-corrupt");
     write_receipts_dir(&dir, false);
     let out = dir.join("sealed.bin");
-    let seal = seal_outcome(dir.to_str().expect("utf8"), out.to_str().expect("utf8"), &signer(7))
-        .expect("not io");
+    let seal = seal_outcome(
+        dir.to_str().expect("utf8"),
+        out.to_str().expect("utf8"),
+        &signer(7),
+    )
+    .expect("not io");
     assert!(seal.ok);
     let mut wire = std::fs::read(&out).expect("read");
     // Truncate the wire: the fixed-length decoder refuses before any
@@ -285,8 +298,8 @@ fn verify_a_corrupted_wire_is_io_classified() {
     // signature/root and is instead tamper evidence (13).
     wire.truncate(WIRE_LEN - 1);
     std::fs::write(&out, &wire).expect("write");
-    let outcome = verify_outcome(out.to_str().expect("utf8"), &signer(7).public_key())
-        .expect("not io");
+    let outcome =
+        verify_outcome(out.to_str().expect("utf8"), &signer(7).public_key()).expect("not io");
     assert!(!outcome.ok);
     assert_eq!(outcome.code, IO_EXIT);
     let _ = std::fs::remove_dir_all(&dir);

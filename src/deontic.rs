@@ -261,9 +261,9 @@ pub fn sign_with_context_raw(
     }
     let sk_seed: ml_dsa::Seed = (*seed).into();
     let esk = ml_dsa::ExpandedSigningKey::<ml_dsa::MlDsa65>::from_seed(&sk_seed);
-    let sig = esk
-        .sign_deterministic(msg, ctx)
-        .map_err(|e| DeonticError::SignatureOrContextMismatch(format!("ML-DSA signing failed: {e:?}")))?;
+    let sig = esk.sign_deterministic(msg, ctx).map_err(|e| {
+        DeonticError::SignatureOrContextMismatch(format!("ML-DSA signing failed: {e:?}"))
+    })?;
     Ok(sig.encode().as_slice().to_vec())
 }
 
@@ -328,17 +328,20 @@ pub fn verify_with_deontic_context_raw(
         )));
     }
 
-    let pk = ml_dsa::EncodedVerifyingKey::<ml_dsa::MlDsa65>::try_from(public)
-        .map_err(|_| DeonticError::MalformedPublicKey("invalid ML-DSA public key encoding".to_string()))?;
+    let pk = ml_dsa::EncodedVerifyingKey::<ml_dsa::MlDsa65>::try_from(public).map_err(|_| {
+        DeonticError::MalformedPublicKey("invalid ML-DSA public key encoding".to_string())
+    })?;
     let vk = ml_dsa::VerifyingKey::<ml_dsa::MlDsa65>::decode(&pk);
 
-    let parsed_sig = ml_dsa::Signature::<ml_dsa::MlDsa65>::try_from(sig)
-        .map_err(|_| DeonticError::MalformedSignature("invalid ML-DSA signature encoding".to_string()))?;
+    let parsed_sig = ml_dsa::Signature::<ml_dsa::MlDsa65>::try_from(sig).map_err(|_| {
+        DeonticError::MalformedSignature("invalid ML-DSA signature encoding".to_string())
+    })?;
 
     let verified = vk.verify_with_context(msg, ctx, &parsed_sig);
     if !verified {
         return Err(DeonticError::SignatureOrContextMismatch(
-            "cryptographic verification failed: invalid signature or deontic context mismatch".to_string(),
+            "cryptographic verification failed: invalid signature or deontic context mismatch"
+                .to_string(),
         ));
     }
     Ok(())
@@ -404,7 +407,8 @@ pub fn verify_formal_oracle_signature_agreement(
 ) -> Result<(), DeonticError> {
     if primary_sig != oracle_sig {
         return Err(DeonticError::FormalOracleDivergence(
-            "formal oracle divergence: primary signature bytes differ from oracle output".to_string(),
+            "formal oracle divergence: primary signature bytes differ from oracle output"
+                .to_string(),
         ));
     }
     Ok(())
@@ -490,7 +494,10 @@ mod tests {
         let msg = b"sk3 collision repro";
         let sig = sign_with_context_raw(&kp.seed, msg, &ctx_a).expect("sign under framed A");
         let res = verify_with_deontic_context_raw(&kp.public, msg, &sig, &ctx_b);
-        assert!(res.is_err(), "cross-verification on distinct tuples must be refused");
+        assert!(
+            res.is_err(),
+            "cross-verification on distinct tuples must be refused"
+        );
         assert_eq!(res.unwrap_err().machine_code(), 0xE301);
     }
 
@@ -508,7 +515,10 @@ mod tests {
 
         // Verify with matching context succeeds
         let verdict = verify_with_deontic_context(&kp.public, msg, &sig, &context);
-        assert!(verdict.is_ok(), "Matching deontic context must verify successfully");
+        assert!(
+            verdict.is_ok(),
+            "Matching deontic context must verify successfully"
+        );
     }
 
     #[test]
@@ -518,7 +528,8 @@ mod tests {
         let msg = b"payload to test jurisdiction domain separation";
 
         let sign_context = DeonticContext::new("JURISDICTION-ALPHA", [0xAAu8; 32], 500);
-        let sig = sign_with_deontic_context(&kp.seed, msg, &sign_context).expect("signing succeeds");
+        let sig =
+            sign_with_deontic_context(&kp.seed, msg, &sign_context).expect("signing succeeds");
 
         // Verify with mismatched jurisdiction
         let verify_context = DeonticContext::new("JURISDICTION-BETA", [0xAAu8; 32], 500);
@@ -541,7 +552,8 @@ mod tests {
         hash_b[31] ^= 0x01; // 1-bit mutation in constraint hash
 
         let sign_context = DeonticContext::new("JURISDICTION-SHARED", hash_a, 1200);
-        let sig = sign_with_deontic_context(&kp.seed, msg, &sign_context).expect("signing succeeds");
+        let sig =
+            sign_with_deontic_context(&kp.seed, msg, &sign_context).expect("signing succeeds");
 
         // Verify with mutated constraint hash
         let verify_context = DeonticContext::new("JURISDICTION-SHARED", hash_b, 1200);
@@ -560,7 +572,8 @@ mod tests {
         let msg = b"payload to test lease epoch domain separation";
 
         let sign_context = DeonticContext::new("JURISDICTION-SHARED", [0x99u8; 32], 100);
-        let sig = sign_with_deontic_context(&kp.seed, msg, &sign_context).expect("signing succeeds");
+        let sig =
+            sign_with_deontic_context(&kp.seed, msg, &sign_context).expect("signing succeeds");
 
         // Verify with mismatched epoch (epoch expired / rolled over)
         let verify_context = DeonticContext::new("JURISDICTION-SHARED", [0x99u8; 32], 101);

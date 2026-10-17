@@ -766,7 +766,10 @@ mod tests {
         assert_eq!(WireCtrtError::InvalidLength(100).machine_code(), 0xE001);
         assert_eq!(WireCtrtError::InvalidMagic(*b"ABCD").machine_code(), 0xE002);
         assert_eq!(WireCtrtError::UnsupportedVersion(2).machine_code(), 0xE003);
-        assert_eq!(WireCtrtError::InvalidVerdictStatus(42).machine_code(), 0xE004);
+        assert_eq!(
+            WireCtrtError::InvalidVerdictStatus(42).machine_code(),
+            0xE004
+        );
         assert_eq!(WireCtrtError::DigestMismatch.machine_code(), 0xE005);
     }
 
@@ -916,4 +919,3 @@ mod tests {
         assert_eq!(constant_time_eq(b"hello", b"hell"), 0);
     }
 }
-

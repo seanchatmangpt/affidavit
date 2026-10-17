@@ -363,8 +363,7 @@ impl ReplayNullifierRegistry {
     fn advance_generation(&mut self) {
         self.retire_current_window();
         self.epoch_generation = self.epoch_generation.saturating_add(1);
-        let mut hasher =
-            blake3::Hasher::new_derive_key("affidavit/ctrt-epoch-rotation/v1");
+        let mut hasher = blake3::Hasher::new_derive_key("affidavit/ctrt-epoch-rotation/v1");
         hasher.update(&self.epoch_key);
         hasher.update(&self.epoch_generation.to_le_bytes());
         self.epoch_key = *hasher.finalize().as_bytes();
@@ -386,7 +385,10 @@ impl ReplayNullifierRegistry {
     ///   the current generation.
     /// * [`ReplayNullifierError::ReplayEpochMismatch`] — wire already
     ///   witnessed in a prior generation (pre-rotation replay).
-    pub fn check_and_admit(&mut self, receipt_wire: &[u8]) -> Result<Nullifier, ReplayNullifierError> {
+    pub fn check_and_admit(
+        &mut self,
+        receipt_wire: &[u8],
+    ) -> Result<Nullifier, ReplayNullifierError> {
         let wire_id = compute_wire_identity(&self.identity_key, receipt_wire);
 
         if self.wire_window.contains(&wire_id) {
@@ -505,10 +507,14 @@ impl ReplayNullifierRegistry {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(
             SNAPSHOT_HEADER_LEN
-                + 8 + self.dense_cache.len() * (NULLIFIER_SIZE + 8)
-                + 8 + self.wire_window.len() * NULLIFIER_SIZE
-                + 8 + self.wire_history.len() * (NULLIFIER_SIZE + 8)
-                + 8 + self.nullifier_history.len() * (NULLIFIER_SIZE + 8),
+                + 8
+                + self.dense_cache.len() * (NULLIFIER_SIZE + 8)
+                + 8
+                + self.wire_window.len() * NULLIFIER_SIZE
+                + 8
+                + self.wire_history.len() * (NULLIFIER_SIZE + 8)
+                + 8
+                + self.nullifier_history.len() * (NULLIFIER_SIZE + 8),
         );
         out.extend_from_slice(SNAPSHOT_MAGIC);
         out.extend_from_slice(&SNAPSHOT_VERSION.to_le_bytes());
@@ -619,16 +625,13 @@ impl ReplayNullifierRegistry {
                 "snapshot magic mismatch (expected AFRN)".to_string(),
             ));
         }
-        let version = u16::from_le_bytes(
-            bytes[4..6].try_into().expect("header bounds checked"),
-        );
+        let version = u16::from_le_bytes(bytes[4..6].try_into().expect("header bounds checked"));
         if version == 1 {
             // Fail-closed (SX4): v1 snapshots silently dropped
             // nullifier_history, so a reloaded registry could not enforce
             // cross-generation refusal. Refuse rather than re-admit.
             return Err(ReplayNullifierError::InvalidPersistenceStorage(
-                "v1 snapshot cannot enforce epoch binding; regenerate"
-                    .to_string(),
+                "v1 snapshot cannot enforce epoch binding; regenerate".to_string(),
             ));
         }
         if version != SNAPSHOT_VERSION {
@@ -858,10 +861,7 @@ mod tests {
             .check_and_admit(receipt)
             .expect_err("cross-rotation replay must be refused");
         assert_eq!(err.machine_code(), CODE_REPLAY_EPOCH_MISMATCH);
-        assert!(matches!(
-            err,
-            ReplayNullifierError::ReplayEpochMismatch(_)
-        ));
+        assert!(matches!(err, ReplayNullifierError::ReplayEpochMismatch(_)));
 
         // Fresh wires remain admissible in the new generation.
         assert!(registry.check_and_admit(b"receipt-payload-v2").is_ok());
@@ -962,7 +962,10 @@ mod tests {
         assert_ne!(registry.epoch_key(), &key);
 
         let n_new = compute_nullifier(registry.epoch_key(), initial_receipt);
-        assert_ne!(n_orig, n_new, "Key rotation changes nullifier for previously seen receipt");
+        assert_ne!(
+            n_orig, n_new,
+            "Key rotation changes nullifier for previously seen receipt"
+        );
 
         // And the retired wire is refused, not amnestied.
         let err = registry.check_and_admit(initial_receipt).unwrap_err();
@@ -1098,7 +1101,10 @@ mod tests {
 
         let bytes = registry.to_bytes();
         let mut restored = ReplayNullifierRegistry::load_from(&bytes).expect("round trip");
-        assert_eq!(restored.nullifier_history_len(), registry.nullifier_history_len());
+        assert_eq!(
+            restored.nullifier_history_len(),
+            registry.nullifier_history_len()
+        );
         let err = restored
             .check_and_admit(wire)
             .expect_err("cross-generation replay after reload must be refused");
@@ -1126,8 +1132,8 @@ mod tests {
         assert_eq!(err.machine_code(), CODE_PERSISTENCE);
 
         // A truncated body must also fail the authentication check.
-        let err = ReplayNullifierRegistry::unseal(&sealed[..sealed.len() - 1], &mac_key)
-            .unwrap_err();
+        let err =
+            ReplayNullifierRegistry::unseal(&sealed[..sealed.len() - 1], &mac_key).unwrap_err();
         assert!(matches!(err, ReplayNullifierError::CorruptLedger(_)));
 
         // The honest sealed snapshot still round-trips and refuses replay.
@@ -1148,7 +1154,11 @@ mod tests {
     fn test_generated_epoch_key_is_entropy_not_constant() {
         let r1 = ReplayNullifierRegistry::with_generated_key(64).expect("entropy");
         let r2 = ReplayNullifierRegistry::with_generated_key(64).expect("entropy");
-        assert_ne!(r1.epoch_key(), r2.epoch_key(), "keys must draw from entropy");
+        assert_ne!(
+            r1.epoch_key(),
+            r2.epoch_key(),
+            "keys must draw from entropy"
+        );
         assert_ne!(r1.epoch_key(), &[0u8; 32]);
     }
 

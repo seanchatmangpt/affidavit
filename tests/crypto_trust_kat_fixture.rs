@@ -176,8 +176,7 @@ fn build_vector(index: usize, algorithm: &str) -> Result<KatVector, String> {
         "ML-DSA-65" => {
             let seed = kat_seed32(index, "mldsa65");
             let rnd = kat_mldsa_rnd(index);
-            let keypair = ml_dsa65_from_seed(&seed)
-                .map_err(|e| format!("{vector_id}: {e}"))?;
+            let keypair = ml_dsa65_from_seed(&seed).map_err(|e| format!("{vector_id}: {e}"))?;
             let signature = ml_dsa65_sign(&seed, &message, &rnd)
                 .map_err(|e| format!("{vector_id}: ml-dsa sign refused: {e}"))?;
             KatVector {
@@ -191,8 +190,7 @@ fn build_vector(index: usize, algorithm: &str) -> Result<KatVector, String> {
         }
         "SLH-DSA-SHA2-128s" => {
             let seeds = kat_slh_seeds(index);
-            let keypair = slh_dsa128s_from_seed(&seeds)
-                .map_err(|e| format!("{vector_id}: {e}"))?;
+            let keypair = slh_dsa128s_from_seed(&seeds).map_err(|e| format!("{vector_id}: {e}"))?;
             let signature = slh_dsa128s_sign(&seeds, &message)
                 .map_err(|e| format!("{vector_id}: slh-dsa sign refused: {e}"))?;
             KatVector {
@@ -208,9 +206,8 @@ fn build_vector(index: usize, algorithm: &str) -> Result<KatVector, String> {
             let es_seed = kat_seed32(index, "hybrid-es256");
             let ml_seed = kat_seed32(index, "hybrid-mldsa65");
             let secret = HybridSecret {
-                es256: Es256SigningKey::from_seed(&es_seed).map_err(|e| {
-                    format!("{vector_id}: hybrid es256 seed refused: {e}")
-                })?,
+                es256: Es256SigningKey::from_seed(&es_seed)
+                    .map_err(|e| format!("{vector_id}: hybrid es256 seed refused: {e}"))?,
                 mldsa65_seed: ml_seed,
             };
             let signature = hybrid_sign(&secret, &message)
@@ -218,8 +215,7 @@ fn build_vector(index: usize, algorithm: &str) -> Result<KatVector, String> {
             let mut seed_bytes = es_seed.to_vec();
             seed_bytes.extend_from_slice(&ml_seed);
             let mut public = secret.es256.public_key_sec1();
-            let ml_kp =
-                ml_dsa65_from_seed(&ml_seed).map_err(|e| format!("{vector_id}: {e}"))?;
+            let ml_kp = ml_dsa65_from_seed(&ml_seed).map_err(|e| format!("{vector_id}: {e}"))?;
             public.extend_from_slice(&ml_kp.public);
             let mut signature_bytes = signature.es256_der.clone();
             signature_bytes.extend_from_slice(&signature.mldsa65);

@@ -26,10 +26,9 @@ use affidavit::deontic::{
 fn test_deontic_context_string_construction_canonical() {
     let jurisdiction = "JURISDICTION-SOVEREIGN-COURT-01";
     let constraint_hash: [u8; 32] = [
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-        0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
-        0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-        0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E,
+        0x1F, 0x20,
     ];
     let lease_epoch = 0x0102030405060708u64;
 
@@ -49,7 +48,10 @@ fn test_deontic_context_string_construction_canonical() {
 
     // Followed by LeaseEpoch (8 bytes big-endian)
     let epoch_start = hash_start + 32;
-    assert_eq!(&ctx_bytes[epoch_start..epoch_start + 8], &lease_epoch.to_be_bytes());
+    assert_eq!(
+        &ctx_bytes[epoch_start..epoch_start + 8],
+        &lease_epoch.to_be_bytes()
+    );
     assert_eq!(ctx_bytes.len(), 7 + jur_len + 32 + 8);
 }
 
@@ -68,7 +70,10 @@ fn test_deontic_signature_validation_with_matching_context() {
 
     // Verify under exact matching context
     let result = verify_with_deontic_context(&kp.public, msg, &sig, &context);
-    assert!(result.is_ok(), "Authentic signature under matching deontic context must verify");
+    assert!(
+        result.is_ok(),
+        "Authentic signature under matching deontic context must verify"
+    );
 
     // Also verify via params helper
     let params_res = verify_with_deontic_context_params(
@@ -79,7 +84,10 @@ fn test_deontic_signature_validation_with_matching_context() {
         &[0x42u8; 32],
         9901,
     );
-    assert!(params_res.is_ok(), "verify_with_deontic_context_params must succeed");
+    assert!(
+        params_res.is_ok(),
+        "verify_with_deontic_context_params must succeed"
+    );
 }
 
 #[test]
@@ -95,7 +103,10 @@ fn test_deontic_fail_closed_rejection_on_mismatched_jurisdiction() {
     let adversarial_context = DeonticContext::new("JURISDICTION-CIVIL", [0x77u8; 32], 123);
     let verify_res = verify_with_deontic_context(&kp.public, msg, &sig, &adversarial_context);
 
-    assert!(verify_res.is_err(), "Mismatched jurisdiction MUST reject fail-closed");
+    assert!(
+        verify_res.is_err(),
+        "Mismatched jurisdiction MUST reject fail-closed"
+    );
     let err = verify_res.unwrap_err();
     assert_eq!(err.machine_code(), CODE_DEONTIC_SIG_OR_CONTEXT_MISMATCH);
     assert_eq!(err.machine_code(), 0xE301);
@@ -118,9 +129,13 @@ fn test_deontic_fail_closed_rejection_on_mismatched_constraint_hash() {
             tampered_hash[byte_idx] ^= 1 << bit;
 
             let adversarial_context = DeonticContext::new("JURISDICTION-SEC", tampered_hash, 456);
-            let verify_res = verify_with_deontic_context(&kp.public, msg, &sig, &adversarial_context);
+            let verify_res =
+                verify_with_deontic_context(&kp.public, msg, &sig, &adversarial_context);
 
-            assert!(verify_res.is_err(), "Bit-flipped constraint hash MUST reject");
+            assert!(
+                verify_res.is_err(),
+                "Bit-flipped constraint hash MUST reject"
+            );
             let err = verify_res.unwrap_err();
             assert_eq!(
                 err.machine_code(),
@@ -241,15 +256,30 @@ fn test_deontic_enforce_context_match_all_fields() {
 
     // Jurisdiction mismatch
     let c_diff_j = DeonticContext::new("BETA", [0x01; 32], 10);
-    assert_eq!(enforce_deontic_context_match(&c1, &c_diff_j).unwrap_err().machine_code(), 0xE301);
+    assert_eq!(
+        enforce_deontic_context_match(&c1, &c_diff_j)
+            .unwrap_err()
+            .machine_code(),
+        0xE301
+    );
 
     // Hash mismatch
     let c_diff_h = DeonticContext::new("ALPHA", [0x02; 32], 10);
-    assert_eq!(enforce_deontic_context_match(&c1, &c_diff_h).unwrap_err().machine_code(), 0xE301);
+    assert_eq!(
+        enforce_deontic_context_match(&c1, &c_diff_h)
+            .unwrap_err()
+            .machine_code(),
+        0xE301
+    );
 
     // Epoch mismatch
     let c_diff_e = DeonticContext::new("ALPHA", [0x01; 32], 11);
-    assert_eq!(enforce_deontic_context_match(&c1, &c_diff_e).unwrap_err().machine_code(), 0xE301);
+    assert_eq!(
+        enforce_deontic_context_match(&c1, &c_diff_e)
+            .unwrap_err()
+            .machine_code(),
+        0xE301
+    );
 }
 
 /// SX5-F2 un-degenerated fixture seed: `b` repeated, with the first byte

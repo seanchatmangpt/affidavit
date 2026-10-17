@@ -396,7 +396,9 @@ fn build_fixture() -> Value {
             let record = rebuild_rotation(index);
             let secret_es = Es256SigningKey::from_seed(&new_es_seed).expect("es fixture scalar");
             let es_pk = secret_es.public_key_sec1();
-            let ml_pk = ml_dsa65_from_seed(&new_ml_seed).expect("pqc fixture key pair").public;
+            let ml_pk = ml_dsa65_from_seed(&new_ml_seed)
+                .expect("pqc fixture key pair")
+                .public;
             let record_value = serde_json::to_value(&record).expect("record serializes");
             let canonical = jcs(&record_value).expect("record JCS bytes");
             json!({

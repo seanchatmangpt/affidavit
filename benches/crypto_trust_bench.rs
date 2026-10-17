@@ -209,7 +209,9 @@ fn bench_hybrid_verify(c: &mut Criterion) {
     graph_facts_hold();
     let secret = hybrid_secret();
     let es_pk = secret.es256.public_key_sec1();
-    let ml_pk = ml_dsa65_from_seed(&secret.mldsa65_seed).expect("pqc fixture key pair").public;
+    let ml_pk = ml_dsa65_from_seed(&secret.mldsa65_seed)
+        .expect("pqc fixture key pair")
+        .public;
     let sig = hybrid_sign(&secret, BENCH_MESSAGE).expect("sign");
     c.bench_function("ctp_hybrid_verify", |b| {
         b.iter(|| {
@@ -267,6 +269,8 @@ criterion_main!(benches);
 fn ndseed<const N: usize>(b: u8, _n: usize) -> [u8; N] {
     let mut s = [b; N];
     s[0] ^= 0x80;
-    if b == 0 { s[1] = 1; }
+    if b == 0 {
+        s[1] = 1;
+    }
     s
 }

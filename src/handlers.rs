@@ -175,8 +175,8 @@ fn format_nullifier_refusal(e: crate::replay_nullifier::ReplayNullifierError) ->
 fn load_or_create_nullifier_mac_key(
     state_dir: &std::path::Path,
 ) -> std::result::Result<[u8; 32], NounVerbError> {
-    let deterministic = std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY")
-        .is_some_and(|v| v == "1");
+    let deterministic =
+        std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY").is_some_and(|v| v == "1");
     if deterministic {
         return Ok([0x5Eu8; 32]);
     }
@@ -263,18 +263,15 @@ fn emit_ctrt_nullifier_enforced(
     // Epoch key: OS entropy via with_generated_key; the historical constant is
     // kept only behind AFFI_NULLIFIER_DETERMINISTIC_KEY=1 (documented compat
     // path for tests/determinism — must never ship).
-    let deterministic = std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY")
-        .is_some_and(|v| v == "1");
+    let deterministic =
+        std::env::var_os("AFFI_NULLIFIER_DETERMINISTIC_KEY").is_some_and(|v| v == "1");
     let mut registry = if deterministic {
-        crate::replay_nullifier::ReplayNullifierRegistry::new(
-            [0x26u8; 32],
-            10_000,
-        )
+        crate::replay_nullifier::ReplayNullifierRegistry::new([0x26u8; 32], 10_000)
     } else {
         #[cfg(feature = "crypto-trust")]
         {
             crate::replay_nullifier::ReplayNullifierRegistry::with_generated_key(10_000)
-            .map_err(|e| to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e))))?
+                .map_err(|e| to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e))))?
         }
         #[cfg(not(feature = "crypto-trust"))]
         {
@@ -297,11 +294,8 @@ fn emit_ctrt_nullifier_enforced(
                 "Anti-replay persistence unreadable [0xE102 InvalidPersistenceStorage]: {e}"
             )))
         })?;
-        registry =
-            crate::replay_nullifier::ReplayNullifierRegistry::unseal(&bytes, &mac_key)
-                .map_err(|e| {
-                    to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e)))
-                })?;
+        registry = crate::replay_nullifier::ReplayNullifierRegistry::unseal(&bytes, &mac_key)
+            .map_err(|e| to_noun_verb(AffidavitError::Execution(format_nullifier_refusal(e))))?;
     }
 
     let nullifier = registry
@@ -360,8 +354,7 @@ pub fn emit(r#type: String, object: String, payload: String, format: Option<Stri
         // - epoch key drawn from OS entropy (with_generated_key); the historical
         //   constant key survives only behind the AFFI_NULLIFIER_DETERMINISTIC_KEY=1
         //   compat path (documented, tests/determinism opt-in only — must not ship)
-        let nullifier =
-            emit_ctrt_nullifier_enforced(&wire, std::path::Path::new(".affi"))?;
+        let nullifier = emit_ctrt_nullifier_enforced(&wire, std::path::Path::new(".affi"))?;
 
         let out_path = format!("receipt_{}.ctrt", to_hex(&nullifier[..8]));
         std::fs::write(&out_path, wire).map_err(io_err)?;
@@ -373,7 +366,11 @@ pub fn emit(r#type: String, object: String, payload: String, format: Option<Stri
         // tamper-evidence channel is UNSUPPORTED here and out of lane scope.
         let sidecar_path = format!("{out_path}.digest");
         std::fs::write(&sidecar_path, to_hex(&ctrt.digest())).map_err(io_err)?;
-        outln!("emitted CTRT wire receipt -> {} (nullifier: {})", out_path, to_hex(&nullifier));
+        outln!(
+            "emitted CTRT wire receipt -> {} (nullifier: {})",
+            out_path,
+            to_hex(&nullifier)
+        );
         return Ok(());
     }
 
@@ -756,7 +753,9 @@ pub fn verify(
 ) -> Result<()> {
     // Check if the file is a 352B CTRT wire receipt
     if let Ok(bytes) = std::fs::read(&receipt) {
-        if bytes.len() == crate::wire_ctrt::CTRT_WIRE_SIZE && bytes[0..4] == crate::wire_ctrt::CTRT_MAGIC {
+        if bytes.len() == crate::wire_ctrt::CTRT_WIRE_SIZE
+            && bytes[0..4] == crate::wire_ctrt::CTRT_MAGIC
+        {
             // SK4-F1 digest threading: prefer `deserialize_verified` when a
             // digest sidecar (<receipt>.digest, hex, written at emission) is
             // available. The sidecar is a co-located corruption-detection
@@ -766,9 +765,10 @@ pub fn verify(
             // expected digest, so plain `deserialize` remains, acknowledging
             // the deprecation and the SK4 finding: the payload tail
             // (151..352) is NOT commitment-checked on this path.
-            let expected_digest: Option<[u8; 32]> = std::fs::read_to_string(format!("{receipt}.digest"))
-                .ok()
-                .and_then(|s| decode_hex_32(s.trim()));
+            let expected_digest: Option<[u8; 32]> =
+                std::fs::read_to_string(format!("{receipt}.digest"))
+                    .ok()
+                    .and_then(|s| decode_hex_32(s.trim()));
             let parse_result = match expected_digest {
                 Some(digest) => crate::wire_ctrt::WireCtrt::deserialize_verified(&bytes, &digest)
                     .map_err(|e| e.to_string()),
@@ -787,9 +787,17 @@ pub fn verify(
                             "elapsed_cycles": wire_receipt.elapsed_cycles,
                             "status": wire_receipt.verdict_status as u8,
                         });
-                        outln!("{}", serde_json::to_string_pretty(&out).map_err(|e| to_noun_verb(AffidavitError::Execution(e.to_string())))?);
+                        outln!(
+                            "{}",
+                            serde_json::to_string_pretty(&out).map_err(|e| to_noun_verb(
+                                AffidavitError::Execution(e.to_string())
+                            ))?
+                        );
                     } else {
-                        eprintln!("verdict: ACCEPT [CTRT-352B] — wire receipt valid (digest: {})", to_hex(&d));
+                        eprintln!(
+                            "verdict: ACCEPT [CTRT-352B] — wire receipt valid (digest: {})",
+                            to_hex(&d)
+                        );
                     }
                     return Ok(());
                 }
@@ -800,7 +808,12 @@ pub fn verify(
                             "type": "CTRT-352B",
                             "reason": e.to_string(),
                         });
-                        outln!("{}", serde_json::to_string_pretty(&out).map_err(|e2| to_noun_verb(AffidavitError::Execution(e2.to_string())))?);
+                        outln!(
+                            "{}",
+                            serde_json::to_string_pretty(&out).map_err(|e2| to_noun_verb(
+                                AffidavitError::Execution(e2.to_string())
+                            ))?
+                        );
                     } else {
                         eprintln!("verdict: REJECT [CTRT-352B] — {}", e);
                     }
@@ -8239,10 +8252,14 @@ fn load_ctt_signer() -> Result<chicago_tdd_tools::ledger::signing::signer::Signe
     use chicago_tdd_tools::ledger::signing::keys::KeyStore;
     use chicago_tdd_tools::ledger::signing::signer::Signer;
     let key = KeyStore::new().load_or_create().map_err(|e| {
-        to_noun_verb(AffidavitError::Execution(format!("KeyStore custody failure: {e}")))
+        to_noun_verb(AffidavitError::Execution(format!(
+            "KeyStore custody failure: {e}"
+        )))
     })?;
     Signer::from_signing_key(key).map_err(|e| {
-        to_noun_verb(AffidavitError::Execution(format!("Signer derivation failure: {e}")))
+        to_noun_verb(AffidavitError::Execution(format!(
+            "Signer derivation failure: {e}"
+        )))
     })
 }
 
@@ -8252,7 +8269,9 @@ pub fn dossier_emit(
     out: Option<String>,
     format: Option<String>,
 ) -> Result<()> {
-    use chicago_tdd_tools::ledger::dossier_wire::{dossier_json, write_output, DEFAULT_DOSSIER_OUT};
+    use chicago_tdd_tools::ledger::dossier_wire::{
+        dossier_json, write_output, DEFAULT_DOSSIER_OUT,
+    };
     use chicago_tdd_tools::ledger::signing::{dossier_subject, key_id};
     use chicago_tdd_tools::nato::court::Verdict;
     use chicago_tdd_tools::nato::dossier_court::{dossier_admits, dossier_root_checked};
@@ -8270,10 +8289,16 @@ pub fn dossier_emit(
         let file_path = p.join(format!("N{i:02}.json"));
         let bytes = std::fs::read(&file_path).map_err(io_err)?;
         let text = String::from_utf8(bytes).map_err(|e| {
-            to_noun_verb(AffidavitError::Execution(format!("{}: UTF-8 decode failed: {e}", file_path.display())))
+            to_noun_verb(AffidavitError::Execution(format!(
+                "{}: UTF-8 decode failed: {e}",
+                file_path.display()
+            )))
         })?;
         let receipt = CourtReceipt::from_json(&text).map_err(|e| {
-            to_noun_verb(AffidavitError::Validation(format!("{}: Malformed receipt: {e:?}", file_path.display())))
+            to_noun_verb(AffidavitError::Validation(format!(
+                "{}: Malformed receipt: {e:?}",
+                file_path.display()
+            )))
         })?;
         receipts.push(receipt);
     }
@@ -8301,18 +8326,23 @@ pub fn dossier_emit(
     }
 
     let root = dossier_root_checked(&receipts).map_err(|e| {
-        to_noun_verb(AffidavitError::Validation(format!("Dossier root computation failed: {e:?}")))
+        to_noun_verb(AffidavitError::Validation(format!(
+            "Dossier root computation failed: {e:?}"
+        )))
     })?;
 
     let signer = load_ctt_signer()?;
     let signature = signer.sign(&dossier_subject(&root));
     let kid = key_id(&signer.public_key());
     let value = dossier_json(&receipts, &root, &kid, &signature).map_err(|e| {
-        to_noun_verb(AffidavitError::Execution(format!("Dossier JSON construction failed: {e}")))
+        to_noun_verb(AffidavitError::Execution(format!(
+            "Dossier JSON construction failed: {e}"
+        )))
     })?;
 
     let out_path = out.unwrap_or_else(|| DEFAULT_DOSSIER_OUT.to_string());
-    let bytes = serde_json::to_vec_pretty(&value).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    let bytes =
+        serde_json::to_vec_pretty(&value).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
     if let Some(parent) = std::path::Path::new(&out_path).parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -8327,9 +8357,17 @@ pub fn dossier_emit(
             "merkle_root": to_hex(&root),
             "out": out_path,
         });
-        outln!("{}", serde_json::to_string_pretty(&obj).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?);
+        outln!(
+            "{}",
+            serde_json::to_string_pretty(&obj)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?
+        );
     } else {
-        outln!("emitted NATO STANAG 4107 dossier -> {} (Merkle root: {})", out_path, to_hex(&root));
+        outln!(
+            "emitted NATO STANAG 4107 dossier -> {} (Merkle root: {})",
+            out_path,
+            to_hex(&root)
+        );
     }
     Ok(())
 }
@@ -8359,7 +8397,8 @@ pub fn dossier_inspect(
     use chicago_tdd_tools::nato::dossier_court::dossier_root;
 
     let raw = std::fs::read(&path).map_err(io_err)?;
-    let doc: DossierJson = serde_json::from_slice(&raw).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
+    let doc: DossierJson =
+        serde_json::from_slice(&raw).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?;
 
     if doc.format != DOSSIER_FORMAT {
         return Err(to_noun_verb(AffidavitError::Validation(format!(
@@ -8404,7 +8443,12 @@ pub fn dossier_inspect(
         let kid_stored = parse_key_id(&doc.key_id)
             .map_err(|e| to_noun_verb(AffidavitError::Validation(format!("{e}"))))?;
         let kid_ok = key_id(&pk) == kid_stored;
-        let ok = kid_ok && chicago_tdd_tools::ledger::signing::signer::Signer::verify(&pk, &dossier_subject(&recomputed), &sig);
+        let ok = kid_ok
+            && chicago_tdd_tools::ledger::signing::signer::Signer::verify(
+                &pk,
+                &dossier_subject(&recomputed),
+                &sig,
+            );
         sig_verified = Some(ok);
 
         if !ok {
@@ -8425,7 +8469,11 @@ pub fn dossier_inspect(
             "assert_merkle_root": assert_merkle_root,
             "signature_verified": sig_verified,
         });
-        outln!("{}", serde_json::to_string_pretty(&out).map_err(|e| to_noun_verb(AffidavitError::Json(e)))?);
+        outln!(
+            "{}",
+            serde_json::to_string_pretty(&out)
+                .map_err(|e| to_noun_verb(AffidavitError::Json(e)))?
+        );
     } else {
         outln!(
             "format {} ok; receipts: {}; merkle_root: {} (assert_merkle_root={}); ML-DSA-65 signature verified: {}",
@@ -8678,18 +8726,18 @@ mod nullifier_handler_tests {
     #[test]
     fn test_emit_ctrt_first_run_fresh_registry_persists_snapshot() {
         with_deterministic_compat(|| {
-        let dir = temp_state_dir("fresh");
-        set_deterministic_compat(true);
-        let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
-        assert_ne!(n1, [0u8; 32]);
-        let bytes = std::fs::read(dir.path().join("nullifiers.bin")).expect("snapshot exists");
-        // Sealed envelope: HMAC-BLAKE3 tag(32) ++ body; body carries the AFRN
-        // typed snapshot header — not raw 32B nullifier appends.
-        assert!(
-            bytes.len() > 36 && &bytes[32..36] == b"AFRN",
-            "sealed snapshot = tag(32) ++ AFRN body, got {} bytes",
-            bytes.len()
-        );
+            let dir = temp_state_dir("fresh");
+            set_deterministic_compat(true);
+            let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+            assert_ne!(n1, [0u8; 32]);
+            let bytes = std::fs::read(dir.path().join("nullifiers.bin")).expect("snapshot exists");
+            // Sealed envelope: HMAC-BLAKE3 tag(32) ++ body; body carries the AFRN
+            // typed snapshot header — not raw 32B nullifier appends.
+            assert!(
+                bytes.len() > 36 && &bytes[32..36] == b"AFRN",
+                "sealed snapshot = tag(32) ++ AFRN body, got {} bytes",
+                bytes.len()
+            );
         });
     }
 
@@ -8699,16 +8747,16 @@ mod nullifier_handler_tests {
     #[test]
     fn test_emit_ctrt_replay_refused_across_handler_invocations() {
         with_deterministic_compat(|| {
-        let dir = temp_state_dir("replay");
-        set_deterministic_compat(true);
-        emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
-        let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
-            .expect_err("replay must be refused");
-        let msg = err.to_string();
-        assert!(
-            msg.contains("0xE101") && msg.to_lowercase().contains("replaydetected"),
-            "envelope must carry the 0xE101 machine code, got: {msg}"
-        );
+            let dir = temp_state_dir("replay");
+            set_deterministic_compat(true);
+            emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("first admit ok");
+            let err = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path())
+                .expect_err("replay must be refused");
+            let msg = err.to_string();
+            assert!(
+                msg.contains("0xE101") && msg.to_lowercase().contains("replaydetected"),
+                "envelope must carry the 0xE101 machine code, got: {msg}"
+            );
         });
     }
 
@@ -8717,11 +8765,11 @@ mod nullifier_handler_tests {
     #[test]
     fn test_emit_ctrt_roundtrip_admits_distinct_wires() {
         with_deterministic_compat(|| {
-        let dir = temp_state_dir("distinct");
-        set_deterministic_compat(true);
-        let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("A ok");
-        let n2 = emit_ctrt_nullifier_enforced(&WIRE_B, dir.path()).expect("B ok");
-        assert_ne!(n1, n2);
+            let dir = temp_state_dir("distinct");
+            set_deterministic_compat(true);
+            let n1 = emit_ctrt_nullifier_enforced(&WIRE_A, dir.path()).expect("A ok");
+            let n2 = emit_ctrt_nullifier_enforced(&WIRE_B, dir.path()).expect("B ok");
+            assert_ne!(n1, n2);
         });
     }
 
@@ -8792,7 +8840,10 @@ mod nullifier_handler_tests {
         }
         emit_ctrt_nullifier_enforced(&WIRE_B, dir.path()).expect("second admit ok");
         let key2 = std::fs::read(&key_path).expect("key still present");
-        assert_eq!(key1, key2, "key must be reused across runs, not regenerated");
+        assert_eq!(
+            key1, key2,
+            "key must be reused across runs, not regenerated"
+        );
     }
 
     /// 7. SX4-E at the handler boundary: a forged generation byte inside the
@@ -8853,17 +8904,28 @@ mod ctrt_verify_digest_tests {
         // deserialize_verified when the sidecar is present.
         let dir = tempfile::tempdir().expect("tempdir");
         let ctrt = crate::wire_ctrt::WireCtrt::new(
-            [1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32], 1, 1,
-            crate::wire_ctrt::VerdictStatus::Accepted, [0u8; crate::wire_ctrt::CTRT_PAYLOAD_SIZE],
+            [1u8; 32],
+            [2u8; 32],
+            [3u8; 32],
+            [4u8; 32],
+            1,
+            1,
+            crate::wire_ctrt::VerdictStatus::Accepted,
+            [0u8; crate::wire_ctrt::CTRT_PAYLOAD_SIZE],
         );
         let wire = ctrt.serialize();
         let path = dir.path().join("receipt_x.ctrt");
         std::fs::write(&path, &wire).expect("wire");
-        std::fs::write(dir.path().join("receipt_x.ctrt.digest"), to_hex(&ctrt.digest()))
-            .expect("sidecar");
+        std::fs::write(
+            dir.path().join("receipt_x.ctrt.digest"),
+            to_hex(&ctrt.digest()),
+        )
+        .expect("sidecar");
         let bytes = std::fs::read(&path).expect("read");
         let digest = decode_hex_32(
-            std::fs::read_to_string(dir.path().join("receipt_x.ctrt.digest")).expect("read").trim(),
+            std::fs::read_to_string(dir.path().join("receipt_x.ctrt.digest"))
+                .expect("read")
+                .trim(),
         )
         .expect("digest");
         assert!(crate::wire_ctrt::WireCtrt::deserialize_verified(&bytes, &digest).is_ok());

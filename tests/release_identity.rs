@@ -55,8 +55,7 @@ fn the_genesis_seed_is_frozen_not_version_derived() {
     // ever changes.
     let seed = std::str::from_utf8(affidavit::chain::GENESIS_SEED).expect("seed is UTF-8");
     assert_eq!(
-        seed,
-        "affidavit-v26.9.28-genesis",
+        seed, "affidavit-v26.9.28-genesis",
         "GENESIS_SEED must be the frozen literal, independent of CARGO_PKG_VERSION {PKG_VERSION}"
     );
 }
