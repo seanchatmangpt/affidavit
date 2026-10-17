@@ -34,7 +34,7 @@ _affi() {
     local evidence_verbs="crl-apply crl-publish heads journal"
     local guide_verbs="search"
     local keys_verbs="generate import list revoke rotate"
-    local legal-hold_verbs="status"
+    local legal_hold_verbs="status"
     local receipt_verbs="anomaly-detect assemble assemble-and-notarize assemble-with-signature attest audit bus-factor catalog causality-chain chain-verify conformance coverage-analysis dependency-matrix diagnose diff dora-metrics emit emit-batch emit-from-cicd emit-from-cloud emit-from-github emit-from-gitlab emit-from-monitoring emit-from-sbom emit-from-security explain-incident find-blast-radius fix gdpr-proof graph hipaa inspect install-git-hook license-compliance model monitor notarize orphaned-code pci-dss policy-enforce portfolio-health predict profile query receipt-throughput replay root-cause sbom-attest sbom-blast-radius sbom-compliance sbom-ntia sbom-scan search security-debt show sign soc2-audit stats team-velocity tech-debt test timeline trend-analysis validate variance verify verify-compliance verify-family verify-sla visualize why"
     local restitution_verbs="calculate"
     local standing_verbs="certify verify"
@@ -45,7 +45,7 @@ _affi() {
             return 0
             ;;
         2)
-            local var="${prev}_verbs"
+            local var="${prev//-/_}_verbs"
             local verbs="${!var}"
             if [[ -n "${verbs}" ]]; then
                 COMPREPLY=( $(compgen -W "${verbs}" -- "${cur}") )
