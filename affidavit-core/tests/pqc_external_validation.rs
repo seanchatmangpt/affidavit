@@ -350,8 +350,6 @@ fn pqc_court_dual_suite_accepts_and_refuses_over_real_keys() {
 /// = None) falls back to.
 #[test]
 fn slh_opt_rand_determinism_divergence_and_default_equivalence() {
-    use slh_dsa::signature::SignatureEncoding as SlhSigEncoding;
-
     let msg = b"affidavit opt_rand court message";
     let sk = SlhSigningKey::<Sha2_128s>::slh_keygen_internal(&SLH_SEED, &SLH_PRF, &SLH_PK_SEED);
     let vk = sk.verifying_key();
@@ -415,18 +413,24 @@ fn slh_wire_budget_pins_and_off_by_one_refusals() {
     let vk = sk.verifying_key();
     let sig = sk.sign(msg); // default Signer impl (deterministic)
 
-    use slh_dsa::signature::SignatureEncoding as SlhSigEncoding;
-
     // Pin the exact wire budgets from real keygen.
-    assert_eq!(vk.to_bytes().len(), 32, "SLH-DSA-SHA2-128s vk must be 32 bytes");
-    assert_eq!(sig.to_bytes().len(), 7856, "SLH-DSA-SHA2-128s sig must be 7856 bytes");
+    assert_eq!(
+        vk.to_bytes().len(),
+        32,
+        "SLH-DSA-SHA2-128s vk must be 32 bytes"
+    );
+    assert_eq!(
+        sig.to_bytes().len(),
+        7856,
+        "SLH-DSA-SHA2-128s sig must be 7856 bytes"
+    );
 
     let vk_bytes: [u8; 32] = vk.to_bytes().into();
     let sig_bytes: [u8; 7856] = sig.to_bytes().into();
 
     // Round-trip: try_from(vk bytes) -> to_bytes is byte-exact.
-    let vk_rt = SlhVerifyingKey::<Sha2_128s>::try_from(vk_bytes.as_slice())
-        .expect("32-byte vk decodes");
+    let vk_rt =
+        SlhVerifyingKey::<Sha2_128s>::try_from(vk_bytes.as_slice()).expect("32-byte vk decodes");
     assert_eq!(
         vk_rt.to_bytes().as_slice(),
         vk_bytes.as_slice(),
@@ -439,12 +443,18 @@ fn slh_wire_budget_pins_and_off_by_one_refusals() {
         let mut bad = vk_bytes.to_vec();
         bad.resize(pk_len, 0xEE);
         let ok = std::panic::catch_unwind(|| ExternalSlhDsa128s.verify(msg, &sig_bytes, &bad));
-        assert!(matches!(ok, Ok(false)), "pk len {pk_len} must be refused, not panic");
+        assert!(
+            matches!(ok, Ok(false)),
+            "pk len {pk_len} must be refused, not panic"
+        );
     }
     for sig_len in [7855usize, 7857] {
         let mut bad = sig_bytes.to_vec();
         bad.resize(sig_len, 0xEE);
         let ok = std::panic::catch_unwind(|| ExternalSlhDsa128s.verify(msg, &bad, &vk_bytes));
-        assert!(matches!(ok, Ok(false)), "sig len {sig_len} must be refused, not panic");
+        assert!(
+            matches!(ok, Ok(false)),
+            "sig len {sig_len} must be refused, not panic"
+        );
     }
 }

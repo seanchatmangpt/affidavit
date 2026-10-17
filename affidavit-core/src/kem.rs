@@ -576,6 +576,8 @@ mod tests {
 
     #[test]
     fn expanded_form_key_yields_no_seed_typed_refusal_never_fabrication() {
+        // expanded-form API is deliberately exercised here (typed-None law under test)
+        #[allow(deprecated)]
         use ml_kem::{Decapsulate, DecapsulationKey, ExpandedKeyEncoding, KeyExport, MlKem768};
         let seed = [0x5Au8; DECAPSULATION_SEED_LEN];
         let seed_dk = DecapsulationKey::<MlKem768>::from_seed(seed.into());
@@ -583,6 +585,7 @@ mod tests {
         // from_seed via the external crate's deprecated expanded-form
         // constructor. This is the adversarial arm: a key whose seed is
         // genuinely absent.
+        #[allow(deprecated)] // expanded-form law under test (to_seed()==None)
         let expanded = seed_dk.to_expanded_bytes();
         #[allow(deprecated)]
         let expanded_dk = DecapsulationKey::<MlKem768>::from_expanded_bytes(&expanded)
@@ -619,5 +622,128 @@ mod tests {
         assert!(ExternalMlKem768
             .decapsulate(&seed, &out.ciphertext)
             .is_some());
+}
+
+    // ------------------------------------------------------------------
+    // CAP-65: pinned-randomness encapsulation KAT.
+    //
+    // ml-kem 0.3.2 exposes `EncapsulationKey::encapsulate_deterministic(&m)`
+    // unconditionally (it is `#[doc(hidden)]` without the `hazmat`
+    // feature — hidden from docs, NOT gated out of the build). The core
+    // dependency line pins ml-kem WITHOUT `hazmat`, so the call compiles
+    // and runs; no dependency change is needed.
+    //
+    // Laws under test:
+    //   (a) same (pk, m) -> byte-identical (ct, ss);
+    //   (b) different m -> different (ct, ss) (no m-collision);
+    //   (c) decapsulation via the seed recovers the pinned ss exactly.
+    // ------------------------------------------------------------------
+    #[test]
+    fn cap65_pinned_randomness_encapsulation_kat() {
+        use ml_kem::{B32, DecapsulationKey, KeyExport, MlKem768};
+
+        let seed = [0x4Cu8; DECAPSULATION_SEED_LEN];
+        let dk = DecapsulationKey::<MlKem768>::from_seed(seed.into());
+        let ek = dk.encapsulation_key();
+
+        let m1 = B32::from([0x2Au8; 32]);
+        let m2 = B32::from([0x5Bu8; 32]);
+
+        // (a) Determinism: same (pk, m) twice -> byte-identical ct and ss.
+        let (ct_a1, ss_a1) = ek.encapsulate_deterministic(&m1);
+        let (ct_a2, ss_a2) = ek.encapsulate_deterministic(&m1);
+        assert_eq!(
+            ct_a1.as_slice(),
+            ct_a2.as_slice(),
+            "same (pk, m) must give byte-identical ciphertext"
+        );
+        assert_eq!(
+            ss_a1.as_slice(),
+            ss_a2.as_slice(),
+            "same (pk, m) must give byte-identical shared secret"
+        );
+
+        // (b) Distinguishing: a different m must diverge in BOTH ct and ss.
+        let (ct_b, ss_b) = ek.encapsulate_deterministic(&m2);
+        assert_ne!(
+            ct_a1.as_slice(),
+            ct_b.as_slice(),
+            "different m collided on ciphertext"
+        );
+        assert_ne!(
+            ss_a1.as_slice(),
+            ss_b.as_slice(),
+            "different m collided on shared secret"
+        );
+
+        // (c) Pin recovery: seed-decapsulation of the pinned ct yields the
+        // pinned ss, byte-exact.
+        let ss_rec = match ExternalMlKem768.decapsulate(&seed, ct_a1.as_slice()) {
+            Some(ss) => ss,
+            None => panic!("seed decapsulation of a pinned ct must not refuse"),
+        };
+        assert_eq!(
+            ss_rec.as_slice(),
+            ss_a1.as_slice(),
+            "decapsulation did not recover the pinned shared secret"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // CAP-66: implicit-rejection (Fujisaki-Okamoto) semantics court.
+    //
+    // FIPS 203 law: decapsulation of a WELL-FORMED but tampered ciphertext
+    // never fails and never panics — it returns a pseudorandom shared
+    // secret (implicit rejection), deterministic for the same (dk, ct).
+    // The None arm of the adapter is reserved for STRUCTURAL invalidity
+    // (wrong lengths), which must collapse via the try_into chain.
+    // ------------------------------------------------------------------
+    #[test]
+    fn cap66_implicit_rejection_tampered_ct_is_pseudorandom_and_stable() {
+        use ml_kem::{DecapsulationKey, KeyExport, MlKem768};
+
+        let seed = [0x33u8; DECAPSULATION_SEED_LEN];
+        let dk = DecapsulationKey::<MlKem768>::from_seed(seed.into());
+        let pk: [u8; ENCAPSULATION_KEY_LEN] = dk.encapsulation_key().to_bytes().into();
+
+        let out = ExternalMlKem768
+            .encapsulate(&pk)
+            .expect("encapsulation to a valid pk must succeed");
+        let honest_ss = out.shared_secret;
+
+        // Well-formed but tampered: flip one bit of the ciphertext.
+        let mut tampered = out.ciphertext;
+        tampered[0] ^= 0x01;
+
+        // Implicit rejection: Some(pseudorandom ss'), never None.
+        let ss_reject = match ExternalMlKem768.decapsulate(&seed, &tampered) {
+            Some(ss) => ss,
+            None => panic!("well-formed tampered ct must implicitly reject to a pseudorandom ss, not None"),
+        };
+        assert_ne!(
+            ss_reject, honest_ss,
+            "tampered ct decapsulated to the HONEST shared secret — FO semantics broken"
+        );
+
+        // Determinism: a freshly re-derived dk (from the same seed) yields
+        // the SAME pseudorandom ss' — rejection is stable, not random noise.
+        let dk2 = DecapsulationKey::<MlKem768>::from_seed(seed.into());
+        let pk2: [u8; ENCAPSULATION_KEY_LEN] = dk2.encapsulation_key().to_bytes().into();
+        assert_eq!(pk2, pk, "from_seed re-derivation must be deterministic");
+        let ss_reject_2 = ExternalMlKem768
+            .decapsulate(&seed, &tampered)
+            .expect("second decapsulation of the tampered ct must also implicitly reject");
+        assert_eq!(
+            ss_reject, ss_reject_2,
+            "implicit rejection must be deterministic across from_seed re-derivations"
+        );
+
+        // Structural arm: a wrong-length ct is NOT an implicit rejection —
+        // it must collapse to None via the adapter's try_into chain.
+        let short_ct = [0u8; CIPHERTEXT_LEN - 1];
+        assert!(
+            ExternalMlKem768.decapsulate(&seed, &short_ct).is_none(),
+            "wrong-length ct must refuse structurally (None), never fabricate a secret"
+        );
     }
 }
