@@ -1,0 +1,64 @@
+diff --git a/utils/src/number_parsing.rs b/utils/src/number_parsing.rs
+index e69de29..cf848a2 100644
+--- a/utils/src/number_parsing.rs
++++ b/utils/src/number_parsing.rs
+@@ -6,7 +6,14 @@ pub fn decimal_range<T>(min: T, max: T) -> impl Fn(&str) -> Result<T, String>
+ where
+     T: FromStr + Copy + Ord + std::fmt::Display,
+     <T as FromStr>::Err: std::fmt::Display,
+ {
+-    move |s| clap_num::number_range(s, min, max)
++    move |s| {
++        if min > max {
++            return Err(format!(
++                "Invalid range configuration: minimum {} exceeds maximum {}",
++                min, max
++            ));
++        }
++        clap_num::number_range(s, min, max)
++    }
+ }
+ 
+@@ -31,3 +38,10 @@ pub fn maybe_hex_range<T>(min: T, max: T) -> impl Fn(&str) -> Result<T, String>
+     <T as FromStr>::Err: std::fmt::Display,
+ {
+-    move |s| clap_num::maybe_hex_range(s, min, max)
++    move |s| {
++        if min > max {
++            return Err(format!(
++                "Invalid range configuration: minimum {} exceeds maximum {}",
++                min, max
++            ));
++        }
++        clap_num::maybe_hex_range(s, min, max)
++    }
+ }
+ 
+@@ -68,14 +82,17 @@ pub fn parse_duration(s: &str) -> Result<Duration, String> {
++    if s.trim().is_empty() {
++        return Err("Duration string cannot be empty".to_string());
++    }
+     let mut total_secs = 0u64;
+     let words = s.split_whitespace();
+     for word in words {
+         let pos = word.find(|c: char| c.is_alphabetic()).ok_or_else(|| "Missing unit in duration segment".to_string())?;
+         let (num_part, unit_part) = word.split_at(pos);
+         let val = num_part.parse::<u64>().map_err(|e| format!("Invalid duration value: {}", e))?;
+-        let secs = match unit_part {
+-            "s" | "sec" | "secs" => val,
+-            "m" | "min" | "mins" => val * 60,
+-            "h" | "hour" | "hours" => val * 3600,
+-            "d" | "day" | "days" => val * 86400,
+-            unknown => return Err(format!("Unknown duration unit: {}", unknown)),
+-        };
++        let secs = match unit_part {
++            "s" | "sec" | "secs" => Some(val),
++            "m" | "min" | "mins" => val.checked_mul(60),
++            "h" | "hour" | "hours" => val.checked_mul(3600),
++            "d" | "day" | "days" => val.checked_mul(86400),
++            unknown => return Err(format!("Unknown duration unit: {}", unknown)),
++        }.ok_or_else(|| "Duration segment value overflow".to_string())?;
+         total_secs = total_secs.checked_add(secs).ok_or_else(|| "Duration overflow".to_string())?;
+     }
+     Ok(Duration::from_secs(total_secs))
+ }

@@ -1650,8 +1650,6 @@ dependencies = [
 [[package]]
 name = "clap-noun-verb"
 version = "26.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b1b5d2fe8832d7a8a28bf96166238e471860cc122efc0fc29d520a03789c2ff"
 dependencies = [
  "anyhow",
  "atty",

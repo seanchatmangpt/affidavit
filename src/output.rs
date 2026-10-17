@@ -524,6 +524,53 @@ mod tests {
         assert!(bytes.is_empty(), "diag must not write to stdout");
     }
 
+    // -----------------------------------------------------------------------
+    // B13 court: the shared output fn must never terminate in a stray `null`
+    // line. The binary-level counterpart lives in tests/output_no_trailing_null.rs.
+    // -----------------------------------------------------------------------
+
+    /// A successful-verb payload shape: the primary line plus a JSON object.
+    fn render_success_sequence(format: Format) -> String {
+        let (mut out, so, _se) = build_out(format);
+        out.data(&"emitted event evt-0 (seq 0)").expect("data");
+        out.json(&json!({
+            "event_id": "evt-0",
+            "seq": 0,
+            "commitment": "0b8b60248fad"
+        }))
+        .expect("json");
+        let bytes = {
+            let guard = so.lock().unwrap();
+            guard.clone()
+        };
+        drop(out);
+        String::from_utf8(bytes).unwrap()
+    }
+
+    #[test]
+    fn human_render_never_ends_in_stray_null_line() {
+        let s = render_success_sequence(Format::Human);
+        let last = s.lines().last().expect("non-empty output");
+        assert_ne!(
+            last.trim_end(),
+            "null",
+            "B13 regression: human render ends in a stray `null` line:\n{s}"
+        );
+        assert!(s.contains("emitted event evt-0"), "primary intact: {s}");
+    }
+
+    #[test]
+    fn json_render_never_ends_in_stray_null_line() {
+        let s = render_success_sequence(Format::Json);
+        let last = s.lines().last().expect("non-empty output");
+        assert_ne!(
+            last.trim_end(),
+            "null",
+            "B13 regression: json render ends in a stray `null` line:\n{s}"
+        );
+        assert!(s.contains("\"event_id\""), "payload intact: {s}");
+    }
+
     #[test]
     fn no_color_sets_color_false() {
         // Just checks the builder method doesn't panic.

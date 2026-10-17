@@ -1,0 +1,36 @@
+diff --git a/utils/tests/adversarial.rs b/utils/tests/adversarial.rs
+index e69de29..cf848a2 100644
+--- a/utils/tests/adversarial.rs
++++ b/utils/tests/adversarial.rs
+@@ -50,7 +50,5 @@ fn test_decimal_range_adversarial() {
+     let parse_invalid = decimal_range(100, 0);
+-    // It panics in clap-num. Let's verify that it panics:
+-    let res = std::panic::catch_unwind(move || {
+-        let _ = parse_invalid("50");
+-    });
+-    assert!(res.is_err(), "Expected panic when calling decimal_range with min > max");
++    // Safe check prevents panic and returns Err
++    let res = parse_invalid("50");
++    assert!(res.is_err(), "Expected Err when calling decimal_range with min > max");
+ }
+ 
+@@ -192,5 +190,5 @@ fn test_parse_duration_adversarial() {
+-    // Note: Due to empty iterator handling in split_whitespace, empty inputs incorrectly return Ok(0s) instead of Err.
+-    assert_eq!(parse_duration("").unwrap(), Duration::from_secs(0));
+-    assert_eq!(parse_duration(" ").unwrap(), Duration::from_secs(0));
++    // Empty inputs should return Err
++    assert!(parse_duration("").is_err());
++    assert!(parse_duration(" ").is_err());
+     assert!(parse_duration("30").is_err());
+ 
+@@ -209,6 +207,4 @@ fn test_parse_duration_adversarial() {
+-    // Now let's try u64::MAX in minutes, which is u64::MAX * 60 (unchecked in code!)
+-    // It panics in debug mode due to overflow. Let's verify that it panics:
+-    let res = std::panic::catch_unwind(|| {
+-        let _ = parse_duration("18446744073709551615m");
+-    });
+-    assert!(res.is_err(), "Expected panic on parse_duration overflow for u64::MAX minutes");
++    // Now let's try u64::MAX in minutes, which should result in a clean overflow Err
++    let res = parse_duration("18446744073709551615m");
++    assert!(res.is_err(), "Expected Err on parse_duration overflow for u64::MAX minutes");
+ }

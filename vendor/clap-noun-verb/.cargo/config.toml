@@ -1,0 +1,15 @@
+# Cargo configuration
+# https://doc.rust-lang.org/cargo/reference/config.html
+
+# Use sparse registry for faster dependency resolution
+# Note: Sparse registry is configured via environment or command-line flags
+# Format: cargo --registry sparse+https://index.crates.io/
+
+[net]
+# Use Git's credential helper for authentication
+git-fetch-with-cli = true
+
+# MSRV (Minimum Supported Rust Version)
+[env]
+RUST_BACKTRACE = "1"
+

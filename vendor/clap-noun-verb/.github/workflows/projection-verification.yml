@@ -1,0 +1,154 @@
+name: Projection Verification
+
+on:
+  pull_request:
+    paths:
+      - 'src/**/*.rs'
+      - 'clap-noun-verb-macros/src/**/*.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Verify generated code integrity using checksums
+  generated-code-integrity:
+    name: Verify Generated Code Integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: integrity-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build project
+        run: cargo build --all-features --workspace
+
+      - name: Check for uncommitted generated code changes
+        run: |
+          if ! git diff --quiet; then
+            echo "✗ Build produced uncommitted changes"
+            echo "This suggests code generation is not idempotent"
+            git diff
+            exit 1
+          fi
+          echo "✓ No uncommitted changes after build"
+
+      - name: Verify macro-generated code consistency
+        run: |
+          echo "Checking #[noun] and #[verb] macro consistency..."
+
+          # Count noun macros
+          NOUN_COUNT=$(grep -r '#\[noun\]' src/ --include="*.rs" | wc -l)
+          echo "  Found $NOUN_COUNT #[noun] macros"
+
+          # Count verb macros
+          VERB_COUNT=$(grep -r '#\[verb\]' src/ --include="*.rs" | wc -l)
+          echo "  Found $VERB_COUNT #[verb] macros"
+
+          if [ "$NOUN_COUNT" -gt 0 ] && [ "$VERB_COUNT" -gt 0 ]; then
+            echo "✓ Macro usage appears consistent"
+          else
+            echo "⚠ Warning: Limited macro usage detected"
+          fi
+
+  # Verify deterministic builds
+  determinism-check:
+    name: Verify Deterministic Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: determinism-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binary (first time)
+        run: |
+          cargo build --release --all-features --workspace
+          sha256sum target/release/clap_noun_verb > build1.hash || true
+          echo "First build hash:"
+          cat build1.hash || echo "(Binary not found - might be library only)"
+
+      - name: Clean build artifacts
+        run: cargo clean
+
+      - name: Build release binary (second time)
+        run: |
+          cargo build --release --all-features --workspace
+          sha256sum target/release/clap_noun_verb > build2.hash || true
+          echo "Second build hash:"
+          cat build2.hash || echo "(Binary not found - might be library only)"
+
+      - name: Compare builds for determinism
+        run: |
+          if [ ! -f build1.hash ] || [ ! -f build2.hash ]; then
+            echo "⚠ No binary found (library-only crate)"
+            echo "✓ Skipping binary determinism check"
+            exit 0
+          fi
+
+          if diff -u build1.hash build2.hash; then
+            echo "✓ Build is deterministic (identical hashes)"
+          else
+            echo "✗ Build is non-deterministic"
+            echo "First build:  $(cat build1.hash)"
+            echo "Second build: $(cat build2.hash)"
+            exit 1
+          fi
+
+  # Verify no unsafe code in main library
+  unsafe-code-check:
+    name: Verify Safe Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Check for unsafe code blocks
+        run: |
+          UNSAFE_COUNT=$(grep -r 'unsafe\s*{' src/ --include="*.rs" | grep -v '^\s*//' | wc -l)
+
+          if [ "$UNSAFE_COUNT" -eq 0 ]; then
+            echo "✓ No unsafe code blocks in src/"
+          else
+            echo "⚠ Warning: Found $UNSAFE_COUNT unsafe code blocks"
+            echo "This is informational only - verify if intentional"
+            grep -r 'unsafe\s*{' src/ --include="*.rs" | grep -v '^\s*//' || true
+          fi
+
+  # Summary check
+  projection-verification-summary:
+    name: Projection Verification Summary
+    runs-on: ubuntu-latest
+    needs:
+      - generated-code-integrity
+      - determinism-check
+      - unsafe-code-check
+    if: always()
+    steps:
+      - name: Check all verification passed
+        if: |
+          needs.generated-code-integrity.result != 'success' ||
+          needs.determinism-check.result != 'success' ||
+          needs.unsafe-code-check.result != 'success'
+        run: |
+          echo "✗ Projection verification failed"
+          exit 1
+
+      - name: Projection verification passed ✓
+        run: echo "✓ Code generation integrity verified"
