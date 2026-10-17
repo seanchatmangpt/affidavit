@@ -34,7 +34,10 @@ fn is_well_formed_hash(hex: &str) -> bool {
 /// Certify a receipt with full OTel instrumentation and baggage propagation.
 ///
 /// This is the "maximalist" version of `affidavit::verifier::verify`.
-pub fn verify_maximalist<T: Tracer>(receipt: &Receipt, tracer: &T) -> Verdict {
+pub fn verify_maximalist<T: Tracer>(receipt: &Receipt, tracer: &T) -> Verdict
+where
+    <T as opentelemetry::trace::Tracer>::Span: Send + Sync + 'static,
+{
     // 1. Setup Baggage: Propagate receipt identity and version.
     let cx = Context::current().with_baggage(vec![
         KeyValue::new("receipt.id", receipt.chain_hash.to_string()),
@@ -94,7 +97,7 @@ pub fn verify_maximalist<T: Tracer>(receipt: &Receipt, tracer: &T) -> Verdict {
         }
     });
 
-    let mut parent_span = cx.span();
+    let parent_span = cx.span();
     parent_span.set_attribute(KeyValue::new("accepted", verdict.accepted));
     parent_span.add_event(
         "verdict_emitted",
@@ -283,7 +286,7 @@ mod tests {
     use super::*;
     use affidavit::chain::ChainAssembler;
     use affidavit::types::{Blake3Hash, ObjectRef, OperationEvent};
-    use opentelemetry::sdk::trace::{Config, Sampler, TracerProvider as SdkTracerProvider};
+    use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider};
 
     fn event(id: &str, seq: u64, event_type: &str, payload: &[u8]) -> OperationEvent {
         OperationEvent {
@@ -309,7 +312,7 @@ mod tests {
     fn test_verify_maximalist_tracing() {
         // Setup a mock/test tracer provider.
         let provider = SdkTracerProvider::builder()
-            .with_config(Config::default().with_sampler(Sampler::AlwaysOn))
+            .with_sampler(Sampler::AlwaysOn)
             .build();
         let tracer = provider.tracer("test-maximalist");
 

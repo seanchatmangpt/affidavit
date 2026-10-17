@@ -156,6 +156,7 @@ uuid = { version = "1", features = ["v4", "serde"], optional = true }
 
 # Phase 4: Observability (OTel Stack)
 opentelemetry = { version = "0.32", features = ["trace", "metrics"], optional = true }
+opentelemetry_sdk = { version = "0.32", features = ["trace"], optional = true }
 opentelemetry-jaeger = { version = "0.22", optional = true }
 opentelemetry-prometheus = { version = "0.13", optional = true }
 prometheus = { version = "0.14", optional = true }
@@ -346,7 +347,7 @@ mutation = ["clnrm-core", "tera", "quickcheck", "uuid", "dep:rand"]
 fixture-db = ["chrono"]
 
 # Phase 4: Observability and distributed tracing (OpenTelemetry).
-otel = ["opentelemetry", "opentelemetry-jaeger", "tracing", "tracing-subscriber"]
+otel = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-jaeger", "tracing", "tracing-subscriber"]
 # Metrics collection and Prometheus exporter.
 metrics = ["otel", "prometheus", "opentelemetry-prometheus"]
 
