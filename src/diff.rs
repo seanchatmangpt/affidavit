@@ -4,7 +4,7 @@
 //! compare two `Receipt` objects, identifying structural changes in the
 //! event chain.
 //!
-//! Per DOD_PHASE1_INSPECTION §2.2, events are matched by their sequence number (seq).
+//! Per the Phase-1 inspection spec, events are matched by their sequence number (seq).
 
 use crate::types::{OperationEvent, Receipt};
 use serde::{Deserialize, Serialize};
@@ -61,7 +61,7 @@ impl DiffResult {
 
 /// Compute the difference between two receipts based on event sequence numbers.
 ///
-/// Per DOD_PHASE1_INSPECTION §2.2:
+/// Per the Phase-1 inspection spec:
 /// - Iterates events by seq in O(n) using sorted index.
 /// - A seq present in `a` but not `b` -> `removed`
 /// - A seq present in `b` but not `a` -> `added`

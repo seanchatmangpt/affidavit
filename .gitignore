@@ -96,3 +96,6 @@ affidavit-wasm/target-repro/
 # Claude Code local state (cron/session) — never commit
 /.claude/scheduled_tasks.json
 /.claude/settings.local.json
+
+# Installed JS dependencies — never commit
+node_modules/

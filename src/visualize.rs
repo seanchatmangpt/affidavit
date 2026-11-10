@@ -1,7 +1,7 @@
 //! Logic for building a graph representation of a receipt and exporting it
 //! to Graphviz DOT or JSON formats.
 //!
-//! Per DOD_PHASE1_INSPECTION §3.2, the graph is a Directly-Follows Graph (DFG)
+//! Per the Phase-1 inspection spec, the graph is a Directly-Follows Graph (DFG)
 //! where nodes represent distinct event types and edges represent transitions.
 
 use crate::types::Receipt;
@@ -91,7 +91,7 @@ fn dot_escape(s: &str) -> String {
 
 /// Export the graph as DOT (Graphviz) format.
 ///
-/// The output follows the specific formatting rules defined in DOD_PHASE1_INSPECTION.md.
+/// The output follows the specific formatting rules defined in the Phase-1 inspection spec.
 /// Iterative implementation ensures no stack overflow on massive graphs.
 pub fn to_dot(graph: &ReceiptGraph) -> String {
     let mut dot = String::with_capacity(graph.nodes.len() * 100 + graph.edges.len() * 100);

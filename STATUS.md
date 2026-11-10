@@ -1,6 +1,7 @@
 # Affidavit — Status Report
 
-**Date:** 2026-10-08
+**Date:** 2026-10-08  
+> Stale marker (2026-11-09): figures below were last verified at v26.10.8; current release is 26.10.17 — see CHANGELOG.md.
 **Current tag:** v26.10.8 (fleet release; branch `feat/advanced-witness-capability-set`)
 **Status era:** Cryptographic trust plane (shipped v26.9.28) on a v26.10.x fleet cadence
 

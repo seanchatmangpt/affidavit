@@ -108,7 +108,7 @@ fn e2e_catalog_path_is_inspectable() {
 mod unit_tests {
     use super::*;
 
-    // Mock/Internal structure as defined in DOD_PHASE1_INSPECTION.md
+    // Mock/Internal structure as defined in the Phase-1 inspection spec
     #[derive(Debug, Clone, PartialEq)]
     pub struct FixtureMeta {
         pub name: String,

@@ -1,6 +1,7 @@
 # affidavit — Project Roadmap
 
-**Version:** 26.9.6 → beyond
+**Version:** 26.9.6 → beyond  
+> Stale marker (2026-11-09): body last re-verified at 26.9.6; current release is 26.10.17 — see CHANGELOG.md and README.md.
 **Date:** 2026-09-06
 **Status:** living document — re-verified against the code each release
 
@@ -259,4 +260,4 @@ P2-6 (federation DAG)        → multi-release standing histories
 ---
 
 *See `AGENTS.md` for execution doctrine, `docs/FEDERATION.md` for the federation
-courts, and `docs/roadmap/` for the 10-workstream 2030 program plan.*
+courts.*

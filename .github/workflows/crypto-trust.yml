@@ -8,7 +8,7 @@ on:
       - "src/lib.rs"
       - "src/crypto_trust.rs"
       - "src/1000x_post_quantum_sealing.rs"
-      - "docs/CRYPTO_TRUST.md"
+      - "docs/CRYPTO_TRUST_PLANE.md"
       - ".github/workflows/crypto-trust.yml"
   pull_request:
     paths:
@@ -17,7 +17,7 @@ on:
       - "src/lib.rs"
       - "src/crypto_trust.rs"
       - "src/1000x_post_quantum_sealing.rs"
-      - "docs/CRYPTO_TRUST.md"
+      - "docs/CRYPTO_TRUST_PLANE.md"
       - ".github/workflows/crypto-trust.yml"
 
 permissions:

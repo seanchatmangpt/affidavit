@@ -32,7 +32,7 @@ Last certify (v4 surface, 356 modules, 3643 public-surface items; 2026-10-09):
 
 Verdict ACCEPTED — chained receipt in `docs/doc-hdit.receipts.jsonl`
 (subject `668585cebc70bf62…`, chain head `4268a731860f6349…`); details in
-`docs/sjira/v26.10.8/DOC-HDIT-CERTIFY-RECEIPT.md`.
+the DOC-HDIT certify receipt (removed; see git history).
 
 Extractor: fleet pin `f51d81ac4f7e4119dff950327237effee4968f4aa9aba52c7d62c5362f441fa9`
 (`gen_doc_surface.py` @ ggen-marketplace `b99942bdb`; BLAKE3 receipt identity
@@ -40,5 +40,5 @@ Extractor: fleet pin `f51d81ac4f7e4119dff950327237effee4968f4aa9aba52c7d62c5362f
 original campaign pin `4c862576ab…` was superseded 2026-10-09 by R34/R43
 (`PIN-ROTATION-LEDGER.md`, no live-standing receipts on the old pin).
 Residual Phi mass: 2 `has_param` claims (`initialize`/`shutdown` LSP
-protocol method names in `docs/integrations/LSP_MAX_INTEGRATION_CODE_TEMPLATES.md`
+protocol method names in the removed LSP integration templates
 — protocol strings, not repo symbols; 0.0001 <= 0.001, disclosed).

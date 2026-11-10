@@ -32,7 +32,6 @@ exclude = [
   "docs/",
   "reference/",
   "ontology/",
-  "nexus_reviews/",
   "*.py",
   ".claude/",
   "scripts/",
@@ -50,7 +49,6 @@ exclude = [
   "typos.toml",
   "deny.toml",
   "rust-toolchain.toml",
-  "V2030.1.1-PRD-ARD.md",
   # 3.1 MB static corpus; sole consumer is the fuzz test, excluded as a pair.
   "fixtures/crypto_trust_wire_corpus.json",
   "tests/crypto_trust_wire_fuzz.rs",

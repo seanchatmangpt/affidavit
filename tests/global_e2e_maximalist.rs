@@ -137,7 +137,7 @@ mod suite_4_mutation {
         let _r_path = build_standard_receipt(&dir, "mutation.json");
 
         // Feature 3.1: affi mutate (Expected CLI interface)
-        // Note: as per DOD_MASTER.md, this might be gated or pending.
+        // Note: per the master definition of done, this might be gated or pending.
         // We assert the help existence or the planned command.
         let mut cmd = affi(&dir);
         cmd.args(["receipt", "--help"]);

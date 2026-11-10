@@ -1,4 +1,4 @@
-# Reference: 352-Byte Compact Trust Receipt Token (CTRT)
+# Reference: 352-Byte Court Receipt Token (CTRT)
 
 **Classification:** Byte-Exact Wire Protocol Specification  
 **Version:** `1.0` (`0x0001`)  
@@ -8,7 +8,7 @@
 
 ## 1. Structural Layout
 
-The Compact Trust Receipt Token (CTRT) is a packed, fixed-size 352-byte binary token. It seals state transition admissions, execution ticks, liquid avoided cloud tariffs, statutory anchors, and post-quantum cryptographic signatures into an immutable wire format.
+The Court Receipt Token (CTRT) is a packed, fixed-size 352-byte binary token. It seals state transition admissions, execution ticks, liquid avoided cloud tariffs, statutory anchors, and post-quantum cryptographic signatures into an immutable wire format.
 
 ```
 Offset (Bytes)   Field Name                 Type       Description / Semantics
