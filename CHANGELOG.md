@@ -275,7 +275,7 @@ certification may authorize. See
   `DiskNonceJournal`). Recorded failed edge: the WIP's Tpm/Kms/External
   custody labels are ontology vocabulary individuals, not code capabilities,
   and are not carried verbatim. The full item-by-item table is
-  [`docs/jira/v26.9.28/CONSOLIDATION.md`](docs/jira/v26.9.28/CONSOLIDATION.md).
+  `docs/jira/v26.9.28/CONSOLIDATION.md` (removed; see git history).
 - **Key lifecycle on the CLI**: `affi keys import` (an externally-held hex
   public key, fingerprinted, registered with origin `Imported`), `affi keys
   revoke` (a tamper-evident revocation entry appended to the checksummed
@@ -334,7 +334,7 @@ certification may authorize. See
   incompatible one (it sits on a `signature 2.3.0-pre.4` stack and a different
   API), while rc.5 shares the signature-3 stack the plane standardizes on.
   crates.io evidence tables and the recorded upgrade law:
-  [`docs/jira/v26.9.28/SLH-DSA-PIN.md`](docs/jira/v26.9.28/SLH-DSA-PIN.md).
+  `docs/jira/v26.9.28/SLH-DSA-PIN.md` (removed; see git history).
 
 ### Wave 2 — the plane reaches every runtime
 (in flight on the working tree at documentation time)

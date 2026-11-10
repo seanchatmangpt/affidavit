@@ -14,21 +14,23 @@ When executing software delivery contracts, disputes often arise over whether sp
 
 1. **Tag Commit with Delivery Receipt:**
    ```bash
-   affi emit --event-type "delivery.git.commit" --payload "{\"sha\":\"$(git rev-parse HEAD)\"}"
+   printf '{"sha":"%s"}' "$(git rev-parse HEAD)" > commit.json
+   affi receipt emit --event-type "delivery.git.commit" --object repo:main --payload commit.json
    ```
 
 2. **Bind Settlement Transaction:**
    ```bash
-   affi emit --event-type "finance.settlement.tx" --payload '{"tx_id":"tx_9874521","amount_usd":25000.00}'
+   echo '{"tx_id":"tx_9874521","amount_usd":25000.00}' > tx.json
+   affi receipt emit --event-type "finance.settlement.tx" --object repo:main --payload tx.json
    ```
 
 3. **Assemble and Seal Delivery Receipt:**
    ```bash
-   affi assemble --output delivery_seal.json
+   affi receipt assemble --out delivery_seal.json
    ```
 
-4. **Verify Standing:**
+4. **Verify the sealed receipt:**
    ```bash
-   affi standing verify delivery_seal.json
+   affi receipt verify delivery_seal.json
    ```
    Both parties now possess an unalterable, non-repudiable proof of paid delivery.

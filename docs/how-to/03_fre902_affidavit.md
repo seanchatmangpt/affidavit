@@ -14,12 +14,12 @@ Federal Rule of Evidence 902(14) provides that certified data copied from an ele
 
 1. **Verify Receipt Chain Integrity:**
    ```bash
-   affi verify receipt.json
+   affi receipt verify receipt.json
    ```
 
 2. **Generate Rule 902(14) Certificate:**
    ```bash
-   affi certificate fre-902
+   affi certificate fre-902        # reads receipts from ./receipts/ by default
    ```
 
 3. **Output Artifact:**

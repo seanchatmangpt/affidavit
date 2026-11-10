@@ -311,8 +311,6 @@ standing table for the plane itself.
 ## See also
 
 - [`docs/CRYPTO_TRUST_PLANE.md`](CRYPTO_TRUST_PLANE.md) — the cryptographic trust plane beneath these courts
-- [`docs/ERRC.md`](ERRC.md) — the normative ERRC v1 profile
-- [`docs/ERRC_CLAIM_ASSURANCE.md`](ERRC_CLAIM_ASSURANCE.md) — the claim-assurance refinement
 - [`AGENTS.md`](../AGENTS.md) §4 — ERRC reconstruction law
 - `src/federation.rs` — the adapter and its exit-code contract
 - `tests/federation_cli.rs` — every command on this page, executed

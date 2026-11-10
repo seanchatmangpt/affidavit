@@ -1,7 +1,7 @@
 # SJ-ALIGNED-RECORD-DESIGN — affidavit — v26.10.8
 
 **Status**: design (no code in this doc). Companion to
-[CAMPAIGN-RECEIPT.md](CAMPAIGN-RECEIPT.md).
+CAMPAIGN-RECEIPT.md (removed; see git history).
 **Scope**: how an affidavit campaign record becomes an `R` (Receipt) under
 `schemas/dfcm-receipt.schema.json` (`$id`
 `https://chatmangpt.com/schema/receipt/v2`), under the repo's BLAKE3 chain law
@@ -12,7 +12,7 @@ as documented in [`docs/CRYPTO_TRUST_PLANE.md`](../../CRYPTO_TRUST_PLANE.md).
 ## 0. Problem
 
 Today the campaign record is a markdown table
-([CAMPAIGN-RECEIPT.md](CAMPAIGN-RECEIPT.md)): commits, courts, residues —
+(CAMPAIGN-RECEIPT.md (removed; see git history)): commits, courts, residues —
 human-readable, but it is **O, not R**. It carries no replayable command list,
 no digest-bound subject identity, no attestation envelope, and no chain law: a
 markdown file can be edited in place with no structural refusal. The design
@@ -221,7 +221,7 @@ repaired in this documentation lane.
 
 ## See Also
 
-- [CAMPAIGN-RECEIPT.md](CAMPAIGN-RECEIPT.md)
+- CAMPAIGN-RECEIPT.md (removed; see git history)
 - [CRYPTO_TRUST_PLANE.md](../../CRYPTO_TRUST_PLANE.md)
 - `schemas/dfcm-receipt.schema.json`
 - `src/receipts_certified.rs`, `src/crypto_trust_seal.rs`,

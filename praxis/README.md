@@ -34,9 +34,6 @@ The two entry points are:
 | `crates/chatman-common/` | Shared **house crate** — unified `Error`/`Result`, tracing/otel init, CLI bootstrap, BLAKE3 provenance helpers, testkit. Feature-gated; `cargo check`-clean. |
 | `Cargo.workspace.toml` | Drop-in workspace manifest for multi-crate repos. Includes `[workspace.lints]` inheritance and shared dependency versions. |
 | `apply.sh` | Copies the project-agnostic files from `template/` into an existing repo (dry-run available). Prints what it skipped and what manual `Cargo.toml` steps remain. |
-| `CHECKLIST.md` | Per-repo refactor checklist for all 18 surveyed repos. Distinguishes automatic `[A]` fixes from human-judgment `[H]` decisions. |
-| `survey/` | The raw 10-agent reports and the consolidated synthesis (`00-SYNTHESIS.md`). Evidence behind every ruling. |
-| `BROADEN-ACCESS.md` | How to give a Claude Code session write access to repos beyond `affidavit` so the kit can be applied to the full fleet. |
 
 ---
 
@@ -182,7 +179,7 @@ raw reports are in `survey/`. The synthesis (`survey/00-SYNTHESIS.md`)
 consolidates findings into ranked gaps and the rulings above.
 
 `affidavit` was refactored in-session as the reference implementation. See
-`CHECKLIST.md §affidavit reference refactor` for the exact changes made.
+git history for the exact changes made.
 
 ---
 
@@ -190,8 +187,8 @@ consolidates findings into ranked gaps and the rulings above.
 
 Built in a session scoped to the single writable repo `affidavit`. The kit is
 self-contained and depends on nothing in `affidavit`; it is meant to graduate
-into its own `seanchatmangpt/praxis` repo. See `BROADEN-ACCESS.md` for how to
-roll it out to the rest of the fleet.
+into its own `seanchatmangpt/praxis` repo. The fleet rollout note was removed (see git
+history).
 
 ---
 

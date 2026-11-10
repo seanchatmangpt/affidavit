@@ -18,8 +18,10 @@ export PATH="$PWD/target/release:$PATH"
 ## 2. Step 1: Record an Event (`emit`)
 
 Record an event in the local provenance journal:
+`--payload` takes a path to a JSON file:
 ```bash
-affi emit --event-type "build.completed" --payload '{"status":"ok","tests":42}'
+echo '{"status":"ok","tests":42}' > payload.json
+affi receipt emit --event-type "build.completed" --object repo:main --payload payload.json
 ```
 
 ---
@@ -28,7 +30,7 @@ affi emit --event-type "build.completed" --payload '{"status":"ok","tests":42}'
 
 Finalize the current operation-event buffer into a sealed, content-addressed receipt:
 ```bash
-affi assemble --output receipt.json
+affi receipt assemble --out receipt.json
 ```
 
 ---
@@ -37,7 +39,7 @@ affi assemble --output receipt.json
 
 Execute the 7-stage certify pipeline against the sealed receipt:
 ```bash
-affi verify receipt.json
+affi receipt verify receipt.json
 ```
 Output:
 ```text

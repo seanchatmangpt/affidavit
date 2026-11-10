@@ -16,7 +16,7 @@ stages, same wording. The design mirrors graphlaw's `graphlaw-wasm`: a tiny
 cd affidavit-wasm
 rustup target add wasm32-wasip1        # once, on the toolchain rust-toolchain.toml pins
 cargo build --lib --target wasm32-wasip1 --profile wasm
-# -> target/wasm32-wasip1/wasm/affidavit_wasm.wasm   (~230 KB)
+# -> target/wasm32-wasip1/wasm/affidavit_wasm.wasm   (~700 KB; exact size pinned in registry/ARTIFACTS.sha256)
 just wasm-test                          # build + drive it in a real wasm runtime
 ```
 
