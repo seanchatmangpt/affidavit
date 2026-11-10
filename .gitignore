@@ -92,3 +92,7 @@ mutants.out.old/
 
 # lane build-root leases (two-target-dir repro builds)
 affidavit-wasm/target-repro/
+
+# Claude Code local state (cron/session) — never commit
+/.claude/scheduled_tasks.json
+/.claude/settings.local.json
