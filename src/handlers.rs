@@ -90,10 +90,17 @@ fn load_receipts_from_path(path: &str) -> Result<LoadedReceipts> {
     if p.is_dir() {
         let mut receipts = Vec::new();
         let mut failures = Vec::new();
-        let entries = std::fs::read_dir(p).map_err(io_err)?;
-        for entry in entries {
-            let entry = entry.map_err(io_err)?;
-            let ep = entry.path();
+        // read_dir order is filesystem-defined (sorted on APFS, hash order on
+        // ext4/overlayfs). Corpus verbs (trend-analysis, timeline, ...) read
+        // receipts as an ordered series, so sort by path for a deterministic,
+        // host-independent order.
+        let mut paths = std::fs::read_dir(p)
+            .map_err(io_err)?
+            .map(|e| e.map(|e| e.path()))
+            .collect::<std::io::Result<Vec<_>>>()
+            .map_err(io_err)?;
+        paths.sort();
+        for ep in paths {
             if ep.extension().and_then(|s| s.to_str()) == Some("json") {
                 let ep_str = ep.to_str().unwrap_or("").to_string();
                 match crate::cli::show(&ep_str) {
@@ -395,10 +402,21 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
 
     let total = events.len();
     let mut emitted = 0usize;
+    // omni-evidence/v1 bundles (docs/integrations/OMNIPLATFORM.md) name
+    // payloads relative to the batch file, so a bundle stays valid wherever it
+    // is copied. A relative payload path that does not exist from the cwd but
+    // does exist next to the batch file resolves there; absolute and
+    // cwd-relative paths keep their former meaning.
+    let batch_dir = std::path::Path::new(&batch_file)
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .unwrap_or_default();
 
     for event in &events {
         let event_type = event["event_type"].as_str().unwrap_or("unknown");
-        let payload = event["payload"].as_str().unwrap_or("{}");
+        let payload_raw = event["payload"].as_str().unwrap_or("{}");
+        let payload_owned = resolve_batch_payload(&batch_dir, payload_raw);
+        let payload = payload_owned.as_str();
         let objects: Vec<String> = event["objects"]
             .as_array()
             .map(|arr| {
@@ -422,6 +440,22 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
         outln!("emit-batch: {emitted}/{total} events emitted");
     }
     Ok(())
+}
+
+/// Resolve an emit-batch payload path: `-` (stdin), absolute paths and paths
+/// that exist relative to the cwd are returned unchanged; otherwise a path that
+/// exists relative to the batch file's directory wins.
+fn resolve_batch_payload(batch_dir: &std::path::Path, payload: &str) -> String {
+    let p = std::path::Path::new(payload);
+    if payload == "-" || p.is_absolute() || p.exists() {
+        return payload.to_string();
+    }
+    let candidate = batch_dir.join(p);
+    if candidate.exists() {
+        candidate.to_string_lossy().into_owned()
+    } else {
+        payload.to_string()
+    }
 }
 
 /// `affi receipt emit-from-github` — emit from a GitHub event payload.

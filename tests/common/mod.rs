@@ -85,6 +85,19 @@ pub fn affi(args: &[&str]) -> Output {
         .expect("spawn affi")
 }
 
+/// Run `affi` with `dir` as its cwd, so its `.affi/working.json` is private
+/// to that directory. Fixture worlds must use this: with the inherited cwd
+/// every world in a test binary shared the repo-root working file, so
+/// parallel tests raced on it (half-written file -> "EOF while parsing") and
+/// one world's events leaked into another's chain.
+pub fn affi_in(dir: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_affi"))
+        .current_dir(dir)
+        .args(args)
+        .output()
+        .expect("spawn affi")
+}
+
 /// Convenience: `affi` returning `(exit_code, stdout, stderr)` as strings.
 pub fn affi_capture(args: &[&str]) -> (i32, String, String) {
     let out = affi(args);
@@ -178,16 +191,19 @@ pub fn build_world(tag: &str, spec: &WorldSpec) -> World {
     for (i, ev) in spec.events.iter().enumerate() {
         let payload = dir.join(&format!("payload_{i}.txt"));
         std::fs::write(&payload, &ev.payload_text).expect("write payload file");
-        let out = affi(&[
-            "receipt",
-            "emit",
-            "--type",
-            &ev.event_type,
-            "--object",
-            &ev.object_id,
-            "--payload",
-            payload.to_str().expect("utf-8 payload path"),
-        ]);
+        let out = affi_in(
+            dir.path(),
+            &[
+                "receipt",
+                "emit",
+                "--type",
+                &ev.event_type,
+                "--object",
+                &ev.object_id,
+                "--payload",
+                payload.to_str().expect("utf-8 payload path"),
+            ],
+        );
         assert!(
             out.status.success(),
             "fixture emit {i} failed: {:?}",
@@ -198,16 +214,19 @@ pub fn build_world(tag: &str, spec: &WorldSpec) -> World {
         let payload = dir.join("payload_license.txt");
         std::fs::write(&payload, format!("license grant for {lic}\n"))
             .expect("write license payload");
-        let out = affi(&[
-            "receipt",
-            "emit",
-            "--type",
-            "license",
-            "--object",
-            &format!("{}:license", lic),
-            "--payload",
-            payload.to_str().expect("utf-8 license path"),
-        ]);
+        let out = affi_in(
+            dir.path(),
+            &[
+                "receipt",
+                "emit",
+                "--type",
+                "license",
+                "--object",
+                &format!("{}:license", lic),
+                "--payload",
+                payload.to_str().expect("utf-8 license path"),
+            ],
+        );
         assert!(
             out.status.success(),
             "fixture license emit failed: {:?}",
@@ -216,12 +235,15 @@ pub fn build_world(tag: &str, spec: &WorldSpec) -> World {
     }
     let receipt = dir.join("receipt.json");
     let chain = dir.join("chain.json");
-    let out = affi(&[
-        "receipt",
-        "assemble",
-        "--out",
-        receipt.to_str().expect("utf-8 receipt path"),
-    ]);
+    let out = affi_in(
+        dir.path(),
+        &[
+            "receipt",
+            "assemble",
+            "--out",
+            receipt.to_str().expect("utf-8 receipt path"),
+        ],
+    );
     assert!(
         out.status.success(),
         "fixture assemble failed: {:?}",

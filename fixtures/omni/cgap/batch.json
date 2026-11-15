@@ -1,0 +1,26 @@
+[
+  {
+    "event_type": "cgap.gate.pass",
+    "objects": [
+      "gate-zero-string:cgap-gate:python3 scripts/zero_string_gate.py",
+      "ede726ff31e95a7e27ea931390f3ae847ef4d262:git-commit:seanchatmangpt/cgap"
+    ],
+    "payload": "payloads/0000.json"
+  },
+  {
+    "event_type": "cgap.gate.pass",
+    "objects": [
+      "gate-boundary-deps:cgap-gate:python3 scripts/boundary_gate.py --deps",
+      "ede726ff31e95a7e27ea931390f3ae847ef4d262:git-commit:seanchatmangpt/cgap"
+    ],
+    "payload": "payloads/0001.json"
+  },
+  {
+    "event_type": "cgap.gate.pass",
+    "objects": [
+      "gate-boundary-strings:cgap-gate:python3 scripts/boundary_gate.py --strings",
+      "ede726ff31e95a7e27ea931390f3ae847ef4d262:git-commit:seanchatmangpt/cgap"
+    ],
+    "payload": "payloads/0002.json"
+  }
+]

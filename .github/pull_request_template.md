@@ -30,15 +30,13 @@
 
 ### Rust (only if you touched Rust)
 
-> Note: the `affidavit` crate depends on FIVE sibling PATH crates that live
-> OUTSIDE this repo (`../clap-noun-verb`, `../wasm4pm*`, `../lsp-max`,
-> `../clnrm/...`, `../chicago-tdd-tools`). A clean checkout of this repo alone
-> CANNOT `cargo build`/`test`/`clippy`. The full sibling workspace is required
-> to actually build and run the Rust code or `examples/golden_run.sh`.
+> The root crate resolves from crates.io plus in-repo `stubs/` and `vendor/`,
+> so a clean checkout can `cargo build`/`test`/`clippy`. Only the standalone
+> `courts/sj-parity/` court needs a local clnrm checkout.
 
 - [ ] `cargo fmt --all -- --check` passes (this needs no sibling crates and IS gated in CI)
-- [ ] I built/tested against the full sibling workspace locally, OR I state below that I did not
-- [ ] If applicable, `bash examples/golden_run.sh` was run against the full workspace
+- [ ] `cargo build --all-targets` and `cargo test --all-targets` pass
+- [ ] If applicable, `bash examples/golden_run.sh` was run
 
 ## Notes
 

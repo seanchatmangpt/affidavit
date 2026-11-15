@@ -2,6 +2,37 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [Unreleased]
+
+**Theme: omniplatform — certify cgap and ash_pplan evidence; build anywhere.**
+
+### Added
+- **omni-evidence/v1 bundles** (`docs/integrations/OMNIPLATFORM.md`,
+  `schemas/omni-evidence-batch.v1.schema.json`): the interchange that cgap
+  (`scripts/affidavit_bundle.py`, gate runs) and ash_pplan
+  (`AshPPlan.AffidavitBundle`, execution receipts) emit and `affi receipt
+  emit-batch` seals. Court `tests/omni_bundle_e2e.rs` over real producer
+  bundles in `fixtures/omni/`: seal + ACCEPT, retyped event REJECTs, every
+  commitment equals blake3 of the producer's payload file.
+- `emit-batch` resolves a relative payload path against the batch file's
+  directory when it does not exist from the cwd (absolute and cwd-relative
+  paths unchanged), so a bundle verifies wherever it is copied.
+
+### Fixed
+- **Root crate resolves on any host.** `chicago-tdd-tools` comes from
+  crates.io (26.10.12, carries `ledger`/`nato`) instead of a
+  `/Users/sac/chicago-tdd-tools` path patch; the SJ projection parity court
+  (needs the unpublished real clnrm-core 26.5.x) moved to the standalone
+  `courts/sj-parity/` crate. CI drops the companion-repo clones, whose
+  depth-1 clone + pinned-SHA checkout failed every job ("unable to read tree").
+- Corpus verbs read receipt directories in sorted path order (was
+  filesystem `read_dir` order: `trend-analysis` reversed its series on
+  ext4/overlayfs).
+- Test harness: fixture worlds run `affi` in their own scratch dir (they
+  shared the repo-root `.affi/working.json`, racing in parallel and leaking
+  events between worlds); the git-hook court runs the `#!/bin/bash` hook with
+  bash, not `sh` (dash on Ubuntu rejects `set -o pipefail`).
+
 ## [26.10.17] — 2026-10-17
 
 **Theme: annealing-wave hardening — PQC vacuity closures, capability register, CLI vacuity audit + ERRC, crypto defect closures.**

@@ -173,7 +173,9 @@ fn install_git_hook_writes_executable_hook_that_enforces_exit_1() {
     // `affi receipt monitor` call must resolve (PATH points at the built
     // binary) and the hook must convert a failing monitor into the commit
     // gate — exit 1, with the enforcement line on stderr.
-    let run = Command::new("sh")
+    // The hook declares `#!/bin/bash` (it uses `set -o pipefail` and
+    // `declare -a`); run it with bash, not `sh`, which is dash on Debian/Ubuntu.
+    let run = Command::new("bash")
         .arg(&hook_path)
         .current_dir(dir)
         .env(
