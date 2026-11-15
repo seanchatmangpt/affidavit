@@ -90,10 +90,15 @@ fn load_receipts_from_path(path: &str) -> Result<LoadedReceipts> {
     if p.is_dir() {
         let mut receipts = Vec::new();
         let mut failures = Vec::new();
-        let entries = std::fs::read_dir(p).map_err(io_err)?;
-        for entry in entries {
-            let entry = entry.map_err(io_err)?;
-            let ep = entry.path();
+        // Deterministic order: read_dir order is filesystem-dependent (APFS
+        // sorts, ext4/overlayfs does not), and trend/diff verbs are
+        // order-sensitive. Sort by path so output is a function of the store.
+        let mut paths = Vec::new();
+        for entry in std::fs::read_dir(p).map_err(io_err)? {
+            paths.push(entry.map_err(io_err)?.path());
+        }
+        paths.sort();
+        for ep in paths {
             if ep.extension().and_then(|s| s.to_str()) == Some("json") {
                 let ep_str = ep.to_str().unwrap_or("").to_string();
                 match crate::cli::show(&ep_str) {
