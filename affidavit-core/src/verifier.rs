@@ -129,6 +129,27 @@ pub fn verify<H: ChainHasher>(
     Verdict::Accept
 }
 
+/// One receipt in a fixed-size batch: borrowed events, stored chain hash, profile.
+#[derive(Clone, Copy, Debug)]
+pub struct BatchItem<'a> {
+    /// The receipt's events.
+    pub events: &'a [Event<'a>],
+    /// The chain hash the receipt claims.
+    pub chain_hash: crate::digest::Digest,
+    /// The profile tag the receipt claims.
+    pub profile: &'a str,
+}
+
+/// Verify exactly `N` receipts, returning one [`Verdict`] per cell, in order.
+///
+/// Allocation-free: the result is a stack array whose length is fixed at
+/// compile time. Cells are independent — a tampered item `k` flips cell `k`
+/// and no other (no short-circuit across items, no shared state), so a caller
+/// can attribute every rejection to its exact input.
+pub fn verify_batch<H: ChainHasher, const N: usize>(items: &[BatchItem<'_>; N]) -> [Verdict; N] {
+    core::array::from_fn(|i| verify::<H>(items[i].events, &items[i].chain_hash, items[i].profile))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,5 +316,39 @@ mod tests {
             .map(|(i, id)| ev(i as u64, id, "build", Digest([i as u8 + 1; 32])))
             .collect();
         assert_eq!(accept(&events), Verdict::Accept);
+    }
+    #[test]
+    fn verify_batch_flips_exactly_the_tampered_cell() {
+        use crate::chain::compute_chain_hash;
+        let c = |b: u8| Digest([b; 32]);
+        let a = [ev(0, "a0", "build", c(1)), ev(1, "a1", "test", c(2))];
+        let b = [ev(0, "b0", "build", c(3))];
+        let d = [ev(0, "d0", "audit", c(4)), ev(1, "d1", "test", c(5))];
+        let ha = compute_chain_hash::<Fnv256>(&a);
+        let hb = compute_chain_hash::<Fnv256>(&b);
+        let hd = compute_chain_hash::<Fnv256>(&d);
+        let item = |events, chain_hash| BatchItem {
+            events,
+            chain_hash,
+            profile: PROFILE,
+        };
+        let honest = [item(&a, ha), item(&b, hb), item(&d, hd)];
+        assert_eq!(verify_batch::<Fnv256, 3>(&honest), [Verdict::Accept; 3]);
+        // Tamper only cell 1's stored digest: exactly cell 1 flips.
+        let mut bad = honest;
+        bad[1].chain_hash = c(9);
+        let v = verify_batch::<Fnv256, 3>(&bad);
+        assert_eq!(v[0], Verdict::Accept);
+        assert_eq!(v[1], Verdict::Reject(RejectReason::ChainHashMismatch));
+        assert_eq!(v[2], Verdict::Accept);
+        // Each cell equals the single-item verifier (no batch-only semantics).
+        for i in 0..3 {
+            assert_eq!(
+                v[i],
+                verify::<Fnv256>(bad[i].events, &bad[i].chain_hash, bad[i].profile)
+            );
+        }
+        // N = 0 is lawful and empty.
+        assert_eq!(verify_batch::<Fnv256, 0>(&[]).len(), 0);
     }
 }

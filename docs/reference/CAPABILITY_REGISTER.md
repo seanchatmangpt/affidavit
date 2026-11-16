@@ -3,7 +3,7 @@
 Coordinator-owned register. Next waves: dedupe against this file before dispatch.
 Standing: all UNKNOWN until falsifier runs on the exact subject.
 
-Disposition (2026-10-17 reconciliation vs `git log`): **50 LANDED** (+1 merged: row 43 -> 31), **2 ADJUDICATION** (92, 96), **49 OPEN**. Delete-class: 1 UNSUPPORTED(dep) (clnrm-core ARX sponge), 2 OPEN. Lane hygiene: 4 LANDED + 2 previously DONE.
+Disposition (2026-10-17 reconciliation vs `git log`): **54 LANDED** (+1 merged: row 43 -> 31; rows 17/21/32/59 closed or reconciled v26.11.15), **2 ADJUDICATION** (92, 96), **45 OPEN**. Delete-class: 1 UNSUPPORTED(dep) (clnrm-core ARX sponge), 2 OPEN. Lane hygiene: 4 LANDED + 2 previously DONE.
 
 ## Ranked queue (ERRC order; delete/reduce before generate)
 
@@ -25,7 +25,7 @@ Disposition (2026-10-17 reconciliation vs `git log`): **50 LANDED** (+1 merged: 
 | 14 | **Span-linked receipt lineage** (trace_verify + SpanRecord links) | opentelemetry | `src/tracing.rs` | S | parent chain-hash mutation changes link set | OPEN |
 | 15 | **OCEL v2 federation import** (foreign JSON → court surface) | wasm4cm-compat | `mining/ocel_compat_import.rs` | M | broken link table refused typed | OPEN |
 | 16 | **Batch witness verification** (verify_batch, ≥4x bench + poisoned-member refusal) | ed25519-dalek | `src/ed25519_witness.rs` | M | 1 swapped pair fails batch with index | OPEN |
-| 17 | **const-generic fixed-N batch verifier** (alloc-free) | core | `verifier.rs` | S | tampered N-th digest flips exactly cell N-1 | OPEN |
+| 17 | **const-generic fixed-N batch verifier** (alloc-free) | core | `verifier.rs` | S | tampered N-th digest flips exactly cell N-1 | LANDED-v26.11.15 (`verifier::verify_batch<H,N>`, test `verify_batch_flips_exactly_the_tampered_cell`; core validate loop green) |
 | 18 | **DeterminismEngine vendored** (frozen clock + seeded RNG) | clnrm-core semantics | feature-gated adapter | M | same config → identical sequences; wall-clock build refused | OPEN |
 | 19 | **Alias parity from keywords[0]** (visible_alias per verb) | clap-noun-verb | `src/cli.rs` | S | `affi receipt certify` resolves to verify, exit 0 | OPEN |
 | 20 | **Auto-generated verb docs** from REGISTRY (kills 83/79/101 count drift class) | clap-noun-verb/ggen | docs renderer | M | summary edit without regen fails parity test | LANDED-89fc68a |
@@ -34,7 +34,7 @@ Disposition (2026-10-17 reconciliation vs `git log`): **50 LANDED** (+1 merged: 
 
 | # | Proposal | Dep | Seam | Cost | Falsifier (one-line) | Disposition |
 |---|---|---|---|---|---|---|
-| 21 | Runtime registry court — clap `validate()` + `command_structure()` cross-check in doctor | clap-noun-verb | `src/verbs/doctor.rs` | S | duplicate `#[verb]` stub compiles, count parity passes, court flips InvalidStructure | OPEN |
+| 21 | Runtime registry court — clap `validate()` + `command_structure()` cross-check in doctor | clap-noun-verb | `src/verbs/doctor.rs` | S | duplicate `#[verb]` stub compiles, count parity passes, court flips InvalidStructure | LANDED (reconciled v26.11.15: `registry::validate_registry_runtime`, src/registry.rs:1368) |
 | 22 | Diag exit-code range for framework surface errors (CommandNotFound→1500s + Levenshtein hint) | clap-noun-verb | `src/bin/affi.rs` + `src/diag.rs` | S/M | `affi bogus-noun` exits 1500-range + Diagnostic{hint} | LANDED-8153451 |
 | 23 | `Hasher::reset()` reuse seam (replay_nullifier keyed hashing) | blake3 | `src/replay_nullifier.rs:81,134,143` | S | no-reset mutation flips differential court | LANDED-6153dc4 |
 | 24 | mmap+rayon parallel hash for large files (identical-or-refuse) | blake3 features | `src/sbom.rs`/`chain.rs` | M | 8MB fixture mmap vs stream byte-identical, else refuse | LANDED-88e9ac4 |
@@ -45,7 +45,7 @@ Disposition (2026-10-17 reconciliation vs `git log`): **50 LANDED** (+1 merged: 
 | 29 | KEM seed-identity court via to_seed() (expanded form → typed None/refusal) | ml-kem | core kem.rs | S | fabricated seed accepted or Some-on-expanded = FAIL | LANDED-eba7b49 |
 | 30 | Deterministic KAT dual-implementation court (ml-kem vs libcrux, hazmat) | ml-kem | root crate | M | single-implementation agreement = vacuous FAIL | LANDED-3ea786d (fixup e79ef96) |
 | 31 | WitnessKeyPair seed() / from_seed() + Signer/Verifier composition | ed25519 | `src/ed25519_witness.rs` | S | from_seed(seed()).public()==public(); zero-seed clamps | LANDED-0afe89e |
-| 32 | JWKS OKP import point-validation (VerifyingKey::from_bytes at boundary) | ed25519 | `src/crypto_trust_jwks.rs` | S | 32×0xff x refused typed; real pk passes | OPEN |
+| 32 | JWKS OKP import point-validation (VerifyingKey::from_bytes at boundary) | ed25519 | `src/crypto_trust_jwks.rs` | S | 32×0xff x refused typed; real pk passes | LANDED (reconciled v26.11.15: `VerifyingKey::from_bytes` at the JWKS OKP boundary, src/crypto_trust_jwks.rs:403) |
 | 33 | Receipt-bound range witnesses (transcript append receipt-hash) | bulletproofs/merlin | `src/zk_range.rs` | S | prove H1/verify H2 → Err; drop append flips court | LANDED-3c285d5 |
 | 34 | Batched range verification (verify_multiple, shared gens) | bulletproofs | `src/zk_range.rs` | S/M | one swapped member fails batch w/ index | LANDED-3c285d5 |
 | 35 | Post-revocation absence court (remove→absence→re-insert restore) | monotree | `src/smt.rs` tests | S | stale shadow-index bug flips court | LANDED-5bcdf74 |
@@ -100,7 +100,7 @@ Disposition (2026-10-17 reconciliation vs `git log`): **50 LANDED** (+1 merged: 
 | 56 | Ed25519 PKCS#8 key import/export round-trip | ed25519-dalek | `src/ed25519_witness.rs` | S | mutated DER byte -> typed refusal; round-trip restores pk | OPEN |
 | 57 | Ed25519 prehashed (phflag) strict-parity extension | ed25519-dalek | `ed25519_witness.rs` | S | malleated prehashed sig refused host+wasm; prehashed sig fails plain verify | OPEN |
 | 58 | wasm32 linkme premise probe (delete-class: fallback justification never tested) | linkme | `doctor_check.rs:153-163` | S | probe crate asserts len()==1 on wasm32-wasip1; survive -> delete fallback | LANDED-513ab76 (verdict REFUTED-PREMISE) |
-| 59 | Zero-size DoctorCheck law enforcement (size_of==0 compile court) | linkme | `doctor_check.rs` | S | 1-field check type fails to compile/register | OPEN |
+| 59 | Zero-size DoctorCheck law enforcement (size_of==0 compile court) | linkme | `doctor_check.rs` | S | 1-field check type fails to compile/register | LANDED (reconciled v26.11.15: const zero-size court + runtime floor, src/doctor_check.rs:~597) |
 | 60 | JCS duplicate-key typed refusal (DEFECT: last-win silently canonicalizes) | serde_jcs | `parse layers both surfaces` | S | duplicate-key corpus row flips bad_json refusal vs today's silent accept | LANDED-3ade36e |
 | 61 | jcs_verify twin op (canonicalize/verify asymmetry) | serde_jcs | `crypto_trust_canonical.rs + wasm ABI` | S/M | swapped keys or reformatted number flips verdict with stage named | LANDED-f5cd9f9 |
 | 62 | Aggregated range proof (prove_multi, O(log) joint proof) | bulletproofs | `src/zk_range.rs` | M | one out-of-range member refuses aggregate with index | OPEN |
