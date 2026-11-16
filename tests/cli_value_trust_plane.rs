@@ -31,6 +31,7 @@ use std::process::Command;
 
 /// Stable diagnostic: CLI execution error, exit 224 (below 256, so the raw
 /// code reaches the process status unmodded).
+#[cfg(not(feature = "crypto-trust"))]
 const EXIT_REFUSED_UNSUPPORTED: i32 = 224;
 
 /// The 13 crypto-trust CLI verbs: (noun, verb, minimal real args).
@@ -73,6 +74,10 @@ fn refusal_inventory_is_exactly_13_verbs() {
     assert_eq!(VERBS.len(), 13, "the crypto-trust CLI plane has 13 verbs");
 }
 
+// Asserts the DEFAULT binary's typed refusal; with `crypto-trust` on, the
+// verb is implemented, so this court does not apply (the positive paths are
+// covered by the crypto_trust_* courts).
+#[cfg(not(feature = "crypto-trust"))]
 #[test]
 fn every_crypto_trust_verb_refuses_unsupported_on_default_binary() {
     let mut refused = 0;

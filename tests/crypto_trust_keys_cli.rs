@@ -30,6 +30,11 @@ use affidavit::crypto_trust_rotation::{
 };
 use affidavit::crypto_trust_store::FileKeyStore;
 
+/// A typed refusal from a verb exits with the CLI-wide execution-error code:
+/// clap-noun-verb error 1504 mod 256 = 224 (same contract as the cli_value_*
+/// courts and the vacuity tripwire). These courts once pinned 1.
+const REFUSAL_EXIT: i32 = 224;
+
 fn affi(dir: &TempDir) -> Command {
     let mut cmd = Command::cargo_bin("affi").expect("affi binary builds");
     cmd.current_dir(dir.path());
@@ -299,7 +304,7 @@ fn import_refusal_variants_witnessed() {
         .args(store_arg)
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("Parse error"))
         .stderr(predicate::str::contains("not hex"));
 
@@ -309,7 +314,7 @@ fn import_refusal_variants_witnessed() {
         .args(store_arg)
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("odd length"));
 
     // Length mismatch: Validation naming the algorithm's expected length.
@@ -318,7 +323,7 @@ fn import_refusal_variants_witnessed() {
         .args(store_arg)
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("length mismatch for ES256"))
         .stderr(predicate::str::contains("expected 65 bytes"))
         .stderr(predicate::str::contains("got 32 bytes"));
@@ -332,7 +337,7 @@ fn import_refusal_variants_witnessed() {
         .args(store_arg)
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("REFUSED_UNSUPPORTED"));
 
     // Duplicate import: the store law's exact Registry::Duplicate passthrough.
@@ -353,7 +358,7 @@ fn import_refusal_variants_witnessed() {
     import(&dir).success();
     import(&dir)
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains(
             "key refused: key registry: duplicate key",
         ))
@@ -372,7 +377,7 @@ fn revoke_refusal_variants_witnessed() {
         .args(store_arg)
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains(
             "unknown key afk1_0000000000000000",
         ));
@@ -395,7 +400,7 @@ fn revoke_refusal_variants_witnessed() {
         .args(store_arg)
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("checksum mismatch"));
 }
 
@@ -417,7 +422,7 @@ fn rotate_refusal_variants_witnessed() {
         .args(store_arg)
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains(
             "unknown key afk1_0000000000000000",
         ));
@@ -442,7 +447,7 @@ fn rotate_refusal_variants_witnessed() {
         .args(store_arg)
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("REFUSED_UNSUPPORTED"))
         .stderr(predicate::str::contains("requires an ES256 key"))
         .stderr(predicate::str::contains("ML-DSA-65"));

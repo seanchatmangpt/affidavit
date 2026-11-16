@@ -652,12 +652,6 @@ mod tests {
         assert_eq!(material, PublicKeyMaterial::Es256kSec1(expected));
     }
 
-    // helper used by the secp256k1 court above
-    #[cfg(feature = "secp256k1")]
-    fn record_jwk(rec: &KeyRecord) -> serde_json::Value {
-        export_jwk(rec).expect("exports")
-    }
-
     #[cfg(feature = "ed25519")]
     #[test]
     fn import_round_trip_is_byte_stable_ed25519() {

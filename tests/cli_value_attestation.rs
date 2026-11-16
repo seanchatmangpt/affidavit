@@ -36,6 +36,7 @@ use std::fs;
 use tempfile::TempDir;
 
 /// Stable process-exit codes (public contract, `src/diag.rs::exit_codes`).
+#[cfg(not(feature = "crypto-trust"))]
 mod xc {
     /// CLI framework codes 1500..=1509 ride mod 256 on the 8-bit POSIX status:
     /// 1504 (CliExecutionError) → 224.
@@ -180,6 +181,10 @@ fn attest_carries_requested_attestation_type() {
 /// exit 224 `REFUSED_UNSUPPORTED` naming `--features crypto-trust`. The
 /// refusal IS the specified behavior (negative-cum-positive); the positive
 /// crypto paths are covered by the crypto-trust plane battery lanes.
+// Asserts the DEFAULT binary's typed refusal; with `crypto-trust` on, the
+// verb is implemented, so this court does not apply (the positive paths are
+// covered by the crypto_trust_* courts).
+#[cfg(not(feature = "crypto-trust"))]
 #[test]
 fn crypto_plane_verbs_refuse_typed_on_default_binary() {
     for (verb, args) in [
