@@ -1523,7 +1523,7 @@ dependencies = [
 
 [[package]]
 name = "chicago-tdd-tools-proc-macros"
-version = "26.10.12"
+version = "26.11.17"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -142,6 +142,8 @@ pub mod sbom_compliance;
 pub mod sbom_ocel;
 pub mod sbom_supply_chain;
 pub mod sbom_vulnerability;
+#[cfg(feature = "slsa-offline")]
+pub mod slsa_provenance;
 
 #[cfg(feature = "predictive")]
 pub mod predict_maximalist;

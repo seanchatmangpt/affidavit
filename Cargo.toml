@@ -347,7 +347,10 @@ pkcs8 = { version = "0.11", default-features = false, features = ["alloc"] }
 
 [features]
 # Default feature set
-default = ["core"]
+default = ["core", "slsa-offline"]
+
+# FNOX-SJ-PROV-3: offline ECDSA P-256 verification of sealed in-toto/SLSA envelopes.
+slsa-offline = ["dep:p256"]
 
 # Core Provenance: emit, assemble, verify, show, inspect.
 core = ["wasm4pm-compat"]
@@ -627,6 +630,9 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
 
+[[test]]
+name = "slsa_provenance_offline"
+required-features = ["slsa-offline"]
 [[test]]
 name = "ed25519_strict_parity"
 required-features = ["crypto-trust"]
