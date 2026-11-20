@@ -74,6 +74,8 @@ pub mod policy_enforce;
 pub mod portfolio_health;
 pub mod predict;
 pub mod profile;
+pub mod proof_carrying;
+pub mod proof_carrying_verify;
 pub mod query;
 pub mod receipt_chain_verify;
 pub mod receipt_throughput;

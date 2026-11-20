@@ -367,6 +367,100 @@ affi:ConformanceReceiptArg a cnv:Argument ;
     cnv:required "true" ;
     cnv:positional 1 .
 
+# --- Verb: proof-carrying ---------------------------------------------------
+affi:ProofCarryingVerb a cnv:Verb ;
+    cnv:hasVerbName "proof-carrying" ;
+    cnv:verbAbout "Mint a seal/v2 subject from grounded OCEL DFG fitness/precision" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:ProofCarryingReceiptArg ;
+    cnv:hasArgument affi:ProofCarryingOcelArg ;
+    cnv:hasArgument affi:ProofCarryingObjectTypeArg ;
+    cnv:hasArgument affi:ProofCarryingLogRefArg ;
+    cnv:hasArgument affi:ProofCarryingModelArg ;
+    cnv:hasArgument affi:ProofCarryingFormatArg ;
+    cnv:hasArgument affi:ProofCarryingOutArg ;
+    cnv:hasArgument affi:ProofCarryingSealSeedArg ;
+    cnv:hasArguments ( affi:ProofCarryingReceiptArg affi:ProofCarryingOcelArg affi:ProofCarryingObjectTypeArg affi:ProofCarryingLogRefArg affi:ProofCarryingModelArg affi:ProofCarryingFormatArg affi:ProofCarryingOutArg affi:ProofCarryingSealSeedArg ) .
+
+affi:ProofCarryingReceiptArg a cnv:Argument ;
+    cnv:hasArgumentName "receipt" ;
+    cnv:argumentAbout "Path to an admitted receipt (mutually exclusive with --ocel)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:ProofCarryingOcelArg a cnv:Argument ;
+    cnv:hasArgumentName "ocel" ;
+    cnv:argumentAbout "Path to foreign OCEL JSON (federation import court)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:ProofCarryingObjectTypeArg a cnv:Argument ;
+    cnv:hasArgumentName "object-type" ;
+    cnv:argumentAbout "Object type scope for the object-centric claim" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:ProofCarryingLogRefArg a cnv:Argument ;
+    cnv:hasArgumentName "log-ref" ;
+    cnv:argumentAbout "Opaque log reference for admit_flat grounding (default log:cli)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:ProofCarryingModelArg a cnv:Argument ;
+    cnv:hasArgumentName "model" ;
+    cnv:argumentAbout "JSON array of [source,target] normative DFG arcs (default: observed DFG)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:ProofCarryingFormatArg a cnv:Argument ;
+    cnv:hasArgumentName "format" ;
+    cnv:argumentAbout "Output format: json or human" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:ProofCarryingOutArg a cnv:Argument ;
+    cnv:hasArgumentName "out" ;
+    cnv:argumentAbout "Write the subject JSON to this path" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:ProofCarryingSealSeedArg a cnv:Argument ;
+    cnv:hasArgumentName "seal-seed" ;
+    cnv:argumentAbout "32-byte hex ML-DSA-65 seed to seal the subject under seal/v2 (crypto-trust)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+# --- Verb: proof-carrying-verify --------------------------------------------
+affi:ProofCarryingVerifyVerb a cnv:Verb ;
+    cnv:hasVerbName "proof-carrying-verify" ;
+    cnv:verbAbout "Verify an ML-DSA-65 seal/v2 over a proof-carrying conformance subject" ;
+    cnv:belongsToNoun affi:ReceiptNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:ProofCarryingVerifySubjectArg ;
+    cnv:hasArgument affi:ProofCarryingVerifyPkArg ;
+    cnv:hasArgument affi:ProofCarryingVerifyFormatArg ;
+    cnv:hasArguments ( affi:ProofCarryingVerifySubjectArg affi:ProofCarryingVerifyPkArg affi:ProofCarryingVerifyFormatArg ) .
+
+affi:ProofCarryingVerifySubjectArg a cnv:Argument ;
+    cnv:hasArgumentName "subject" ;
+    cnv:argumentAbout "Path to the subject JSON minted by proof-carrying" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+affi:ProofCarryingVerifyPkArg a cnv:Argument ;
+    cnv:hasArgumentName "pk" ;
+    cnv:argumentAbout "ML-DSA-65 verifying key as 1952-byte hex" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:ProofCarryingVerifyFormatArg a cnv:Argument ;
+    cnv:hasArgumentName "format" ;
+    cnv:argumentAbout "Output format: json or human" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
 # --- Verb: diagnose ---------------------------------------------------------
 affi:DiagnoseVerb a cnv:Verb ;
     cnv:hasVerbName "diagnose" ;

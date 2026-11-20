@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 100);
+//! assert_eq!(verb_count(), 102);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -273,6 +273,35 @@ pub static REGISTRY: &[VerbEntry] = &[
         VerbGroup::Analysis,
         "Check a receipt against custom conformance rules or a named profile",
         &["conformance", "profile", "rules", "standard", "check"],
+    ),
+    VerbEntry::new(
+        "proof-carrying",
+        "receipt",
+        VerbGroup::Analysis,
+        "Mint a seal/v2 subject from grounded OCEL DFG fitness/precision (admit_flat → digest)",
+        &[
+            "proof_carrying",
+            "proof-carrying",
+            "ocel",
+            "dfg",
+            "seal",
+            "subject",
+            "fitness",
+            "precision",
+        ],
+    ),
+    VerbEntry::new(
+        "proof-carrying-verify",
+        "receipt",
+        VerbGroup::Analysis,
+        "Verify an ML-DSA-65 seal/v2 over a proof-carrying conformance subject",
+        &[
+            "proof_carrying_verify",
+            "proof-carrying-verify",
+            "unseal",
+            "seal-v2",
+            "ml-dsa",
+        ],
     ),
     VerbEntry::new(
         "coverage-analysis",
@@ -1059,6 +1088,11 @@ const VERB_SOURCES: &[(&str, &str)] = &[
     ),
     ("predict", include_str!("verbs/predict.rs")),
     ("profile", include_str!("verbs/profile.rs")),
+    ("proof_carrying", include_str!("verbs/proof_carrying.rs")),
+    (
+        "proof_carrying_verify",
+        include_str!("verbs/proof_carrying_verify.rs"),
+    ),
     ("query", include_str!("verbs/query.rs")),
     (
         "receipt_chain_verify",
@@ -1481,9 +1515,9 @@ mod tests {
         // The court: assembles the linkme-populated framework registry and
         // cross-checks validate()-class structure + command_structure() parity.
         let report = validate_registry_runtime().expect("runtime registry court failed");
-        // Pinned surface constants (v26.10.16): 100 verbs across 13 nouns in
-        // the hand REGISTRY; 96 compile in under default features (4 ctdd-gated).
-        let expected = 100 - CTDD_GATED_VERBS.len();
+        // Pinned surface constants (v26.10.17): 102 verbs across 13 nouns in
+        // the hand REGISTRY; 98 compile in under default features (4 ctdd-gated).
+        let expected = 102 - CTDD_GATED_VERBS.len();
         assert_eq!(
             report.verb_registrations, expected,
             "raw #[verb] registrations"
@@ -1491,7 +1525,7 @@ mod tests {
         assert_eq!(report.unique_verbs, expected);
         assert_eq!(report.unique_nouns, 13);
         #[cfg(feature = "ctdd")]
-        assert_eq!(expected, 100);
+        assert_eq!(expected, 102);
         // Positive control: with the ctdd feature on, the four gated verbs must
         // actually be present in the runtime slice (not merely tolerated absent).
         const GATED_PAIRS: &[(&str, &str)] = &[
@@ -1550,7 +1584,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 100; // 101 after v26.10.16 additions, minus the deleted dummy `receipt test` verb
+        let expected = 102; // +proof-carrying + proof-carrying-verify
         assert_eq!(
             verb_count(),
             expected,

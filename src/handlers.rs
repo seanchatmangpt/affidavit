@@ -1721,6 +1721,298 @@ pub fn conformance(receipt: String) -> Result<()> {
     Ok(())
 }
 
+/// FIPS 204 context string for seal/v2 (matches `affidavit_core::sealed::DOMAIN_SEAL`).
+const SEAL_V2_CTX: &[u8] = b"affidavit-core/seal/v2";
+
+fn parse_normative_arcs(model_path: &str) -> Result<Vec<(String, String)>> {
+    let raw = std::fs::read_to_string(model_path).map_err(io_err)?;
+    let v: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+    let arr = v.as_array().ok_or_else(|| {
+        NounVerbError::execution_error(
+            "REFUSED_MODEL_SHAPE: --model must be a JSON array of [source, target] pairs",
+        )
+    })?;
+    let mut arcs = Vec::with_capacity(arr.len());
+    for (i, item) in arr.iter().enumerate() {
+        let pair = item.as_array().ok_or_else(|| {
+            NounVerbError::execution_error(format!(
+                "REFUSED_MODEL_SHAPE: arc {i} is not a [source, target] array"
+            ))
+        })?;
+        if pair.len() != 2 {
+            return Err(NounVerbError::execution_error(format!(
+                "REFUSED_MODEL_SHAPE: arc {i} must have exactly two strings"
+            )));
+        }
+        let s = pair[0].as_str().ok_or_else(|| {
+            NounVerbError::execution_error(format!(
+                "REFUSED_MODEL_SHAPE: arc {i} source not string"
+            ))
+        })?;
+        let t = pair[1].as_str().ok_or_else(|| {
+            NounVerbError::execution_error(format!(
+                "REFUSED_MODEL_SHAPE: arc {i} target not string"
+            ))
+        })?;
+        arcs.push((s.to_owned(), t.to_owned()));
+    }
+    Ok(arcs)
+}
+
+fn arcs_from_observed_dfg(ocel: &wasm4pm_compat::ocel::OCEL) -> Vec<(String, String)> {
+    let dfg = wasm4pm_compat::dfg::discover_ocel_dfg(ocel);
+    let mut arcs: Vec<(String, String)> = dfg
+        .edges
+        .iter()
+        .map(|e| (e.source.clone(), e.target.clone()))
+        .collect();
+    arcs.sort();
+    arcs.dedup();
+    arcs
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[cfg(feature = "crypto-trust")]
+fn parse_hex_bytes(s: &str, expected: usize) -> Result<Vec<u8>> {
+    let s = s.trim();
+    if s.len() != expected * 2 {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_HEX_LENGTH: expected {expected} bytes ({} hex chars), got {}",
+            expected * 2,
+            s.len()
+        )));
+    }
+    let mut out = Vec::with_capacity(expected);
+    for i in (0..s.len()).step_by(2) {
+        let byte = u8::from_str_radix(&s[i..i + 2], 16)
+            .map_err(|e| NounVerbError::execution_error(format!("REFUSED_HEX_DECODE: {e}")))?;
+        out.push(byte);
+    }
+    Ok(out)
+}
+
+/// `affi receipt proof-carrying` — mint a seal/v2 subject from grounded OCEL
+/// DFG fitness/precision (admit_flat → scores → BLAKE3 digest).
+///
+/// Inputs (exactly one):
+/// - `--receipt PATH` — admitted receipt projected via fixture_ocel
+/// - `--ocel PATH` — foreign OCEL JSON through the federation import court
+///
+/// `--model` is a JSON array of `[source, target]` arcs. When omitted, the
+/// observed DFG is used as the normative model (self-conformance; fitness 1
+/// when the log is non-empty).
+///
+/// `--seal-seed` (32-byte hex) signs the subject under seal/v2 when built with
+/// `--features crypto-trust`; otherwise typed `REFUSED_UNSUPPORTED`.
+pub fn proof_carrying(
+    receipt: Option<String>,
+    ocel_path: Option<String>,
+    object_type: String,
+    log_ref: Option<String>,
+    model: Option<String>,
+    format: Option<String>,
+    out: Option<String>,
+    seal_seed: Option<String>,
+) -> Result<()> {
+    let log_ref = log_ref.unwrap_or_else(|| "log:cli".to_owned());
+    if log_ref.trim().is_empty() {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_OCEL_CONFORMANCE_UNGROUNDED: --log-ref must be non-empty",
+        ));
+    }
+    let ocel = match (receipt.as_deref(), ocel_path.as_deref()) {
+        (Some(r), None) => {
+            let parsed = adapt(crate::cli::show(r))?;
+            let admitted = adapt(
+                crate::admission::admit(parsed)
+                    .map_err(|refused| anyhow::anyhow!("admission refused: {refused}")),
+            )?;
+            crate::mining::ocel_flatten_loss_court::fixture_ocel(&admitted.value)
+                .map_err(|e| NounVerbError::execution_error(e.to_string()))?
+        }
+        (None, Some(path)) => {
+            let raw = std::fs::read_to_string(path).map_err(io_err)?;
+            let admitted = crate::mining::ocel_compat_import::admit_foreign_ocel_json(&raw)
+                .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+            admitted.ocel
+        }
+        (Some(_), Some(_)) => {
+            return Err(NounVerbError::execution_error(
+                "REFUSED_INPUT_AMBIGUOUS: pass exactly one of --receipt or --ocel",
+            ));
+        }
+        (None, None) => {
+            return Err(NounVerbError::execution_error(
+                "REFUSED_INPUT_MISSING: pass --receipt PATH or --ocel PATH",
+            ));
+        }
+    };
+
+    let normative = match model.as_deref() {
+        Some(p) => parse_normative_arcs(p)?,
+        None => arcs_from_observed_dfg(&ocel),
+    };
+    if normative.is_empty() {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_EMPTY_MODEL: no DFG arcs available (empty log or empty --model)",
+        ));
+    }
+
+    let pc = crate::mining::ocel_proof_carrying::proof_carrying_dfg_conformance(
+        &ocel,
+        &object_type,
+        &log_ref,
+        &normative,
+    )
+    .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+
+    #[allow(unused_mut)] // mutated only under crypto-trust + --seal-seed
+    let mut body = serde_json::json!({
+        "profile": "affidavit/ocel-conformance-subject/v1",
+        "seal_context": std::str::from_utf8(SEAL_V2_CTX).unwrap_or("affidavit-core/seal/v2"),
+        "object_type": pc.scores.object_type,
+        "log_ref": pc.scores.log_ref,
+        "fitness": pc.scores.fitness,
+        "precision": pc.scores.precision,
+        "normative_arcs": normative.iter().map(|(a,b)| vec![a, b]).collect::<Vec<_>>(),
+        "subject_digest": hex_encode(&pc.subject_digest),
+        "subject_digest_bytes": 32,
+    });
+
+    if let Some(seed_hex) = seal_seed.as_deref() {
+        #[cfg(feature = "crypto-trust")]
+        {
+            let seed_bytes = parse_hex_bytes(seed_hex, 32)?;
+            let mut seed = [0u8; 32];
+            seed.copy_from_slice(&seed_bytes);
+            let kp = crate::crypto_trust_pqc::ml_dsa65_from_seed(&seed);
+            let sig = crate::deontic::sign_with_context_raw(&seed, &pc.subject_digest, SEAL_V2_CTX)
+                .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+            body["seal"] = serde_json::json!({
+                "alg": "ML-DSA-65",
+                "ctx": std::str::from_utf8(SEAL_V2_CTX).unwrap_or(""),
+                "pk": hex_encode(&kp.public),
+                "sig": hex_encode(&sig),
+            });
+        }
+        #[cfg(not(feature = "crypto-trust"))]
+        {
+            let _ = seed_hex;
+            return Err(NounVerbError::execution_error(
+                "REFUSED_UNSUPPORTED: --seal-seed requires rebuild with --features crypto-trust",
+            ));
+        }
+    }
+
+    let rendered = serde_json::to_string_pretty(&body)
+        .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+    if let Some(path) = out.as_deref() {
+        std::fs::write(path, &rendered).map_err(io_err)?;
+    }
+    if format.as_deref() == Some("json") || out.is_some() {
+        outln!("{rendered}");
+    } else {
+        outln!(
+            "proof-carrying [{object_type}] fitness={:.3} precision={:.3}",
+            pc.scores.fitness,
+            pc.scores.precision
+        );
+        outln!("subject_digest={}", hex_encode(&pc.subject_digest));
+        outln!(
+            "seal_context={}",
+            std::str::from_utf8(SEAL_V2_CTX).unwrap_or("")
+        );
+        if body.get("seal").is_some() {
+            outln!("seal=ML-DSA-65 (embedded in JSON)");
+        }
+    }
+    Ok(())
+}
+
+/// `affi receipt proof-carrying-verify` — verify seal/v2 over a subject JSON.
+pub fn proof_carrying_verify(
+    subject_path: String,
+    pk_hex: String,
+    format: Option<String>,
+) -> Result<()> {
+    #[cfg(not(feature = "crypto-trust"))]
+    {
+        let _ = (subject_path, pk_hex, format);
+        return Err(NounVerbError::execution_error(
+            "REFUSED_UNSUPPORTED: proof-carrying-verify requires --features crypto-trust",
+        ));
+    }
+    #[cfg(feature = "crypto-trust")]
+    {
+        use ml_dsa::{EncodedVerifyingKey, MlDsa65, Signature, VerifyingKey};
+
+        let raw = std::fs::read_to_string(&subject_path).map_err(io_err)?;
+        let v: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+        let digest_hex = v["subject_digest"].as_str().ok_or_else(|| {
+            NounVerbError::execution_error(
+                "REFUSED_SUBJECT_SHAPE: missing subject_digest hex field",
+            )
+        })?;
+        let digest_bytes = parse_hex_bytes(digest_hex, 32)?;
+        let mut digest = [0u8; 32];
+        digest.copy_from_slice(&digest_bytes);
+
+        let sig_hex = v
+            .pointer("/seal/sig")
+            .and_then(|x| x.as_str())
+            .ok_or_else(|| {
+                NounVerbError::execution_error(
+                    "REFUSED_SUBJECT_SHAPE: missing seal.sig (mint with --seal-seed)",
+                )
+            })?;
+        let sig = parse_hex_bytes(sig_hex, 3309)?;
+        let pk = parse_hex_bytes(pk_hex.trim(), 1952)?;
+
+        let encoded = EncodedVerifyingKey::<MlDsa65>::try_from(pk.as_slice()).map_err(|_| {
+            NounVerbError::execution_error("REFUSED_PK_MALFORMED: not an ML-DSA-65 verifying key")
+        })?;
+        let vk = VerifyingKey::<MlDsa65>::decode(&encoded);
+        let parsed = Signature::<MlDsa65>::try_from(sig.as_slice()).map_err(|_| {
+            NounVerbError::execution_error("REFUSED_SIG_MALFORMED: not an ML-DSA-65 signature")
+        })?;
+        let ok = vk.verify_with_context(&digest, SEAL_V2_CTX, &parsed);
+        let empty_ok = vk.verify_with_context(&digest, &[], &parsed);
+
+        let out = serde_json::json!({
+            "verdict": if ok { "ACCEPT" } else { "REJECT" },
+            "seal_context": std::str::from_utf8(SEAL_V2_CTX).unwrap_or(""),
+            "empty_ctx_accepts": empty_ok,
+            "subject_digest": digest_hex,
+        });
+        if !ok {
+            return Err(NounVerbError::execution_error(format!(
+                "REFUSED_SEAL_V2: {}",
+                serde_json::to_string(&out).unwrap_or_default()
+            )));
+        }
+        if empty_ok {
+            return Err(NounVerbError::execution_error(
+                "REFUSED_CONTEXT_VACUITY: signature verified under empty ctx — not a seal/v2 binding",
+            ));
+        }
+        if format.as_deref() == Some("json") {
+            outln!(
+                "{}",
+                serde_json::to_string_pretty(&out)
+                    .map_err(|e| NounVerbError::execution_error(e.to_string()))?
+            );
+        } else {
+            outln!("proof-carrying-verify: ACCEPT (seal/v2)");
+        }
+        Ok(())
+    }
+}
+
 /// `affi receipt why` — explain why a receipt was rejected, in plain language.
 ///
 /// Runs the full 7-stage verifier and, for each failing stage, emits a plain-language

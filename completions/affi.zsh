@@ -146,6 +146,8 @@ _affi() {
                         'policy-enforce[Evaluate receipt events against a Rego or CEL policy file]' \
                         'portfolio-health[Aggregate health signals across a portfolio of receipts into a dashboard-ready report]' \
                         'predict[Forecast future chain state or failure probability based on historical receipt patterns]' \
+                        'proof-carrying[Mint a seal/v2 subject from grounded OCEL DFG fitness/precision]' \
+                        'proof-carrying-verify[Verify an ML-DSA-65 seal/v2 over a proof-carrying subject]' \
                         'profile[Profile the performance of verify and assemble operations on a receipt]' \
                         'query[Query receipt events using a filter expression (event_type, object, seq range)]' \
                         'receipt-throughput[Measure how many receipts per second the local store can verify under load]' \

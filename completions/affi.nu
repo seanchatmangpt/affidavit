@@ -120,6 +120,8 @@ def "nu-complete affi verbs" [context: string] {
             {value: "policy-enforce", description: "Evaluate receipt events against a Rego or CEL policy file"}
             {value: "portfolio-health", description: "Aggregate health signals across a portfolio of receipts into a dashboard-ready report"}
             {value: "predict", description: "Forecast future chain state or failure probability based on historical receipt patterns"}
+            {value: "proof-carrying", description: "Mint a seal/v2 subject from grounded OCEL DFG fitness/precision"}
+            {value: "proof-carrying-verify", description: "Verify an ML-DSA-65 seal/v2 over a proof-carrying subject"}
             {value: "profile", description: "Profile the performance of verify and assemble operations on a receipt"}
             {value: "query", description: "Query receipt events using a filter expression (event_type, object, seq range)"}
             {value: "receipt-throughput", description: "Measure how many receipts per second the local store can verify under load"}

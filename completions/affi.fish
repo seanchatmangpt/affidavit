@@ -163,6 +163,8 @@ complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a pci-ds
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a policy-enforce -d 'Evaluate receipt events against a Rego or CEL policy file'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a portfolio-health -d 'Aggregate health signals across a portfolio of receipts into a dashboard-ready report'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a predict -d 'Forecast future chain state or failure probability based on historical receipt patterns'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a proof-carrying -d 'Mint a seal/v2 subject from grounded OCEL DFG fitness/precision'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a proof-carrying-verify -d 'Verify an ML-DSA-65 seal/v2 over a proof-carrying subject'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a profile -d 'Profile the performance of verify and assemble operations on a receipt'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a query -d 'Query receipt events using a filter expression (event_type, object, seq range)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a receipt-throughput -d 'Measure how many receipts per second the local store can verify under load'
