@@ -111,6 +111,19 @@ required-features = ["discovery"]
 name = "seal_sj_record"
 required-features = ["crypto-trust"]
 
+[[example]]
+name = "proof_carrying_ocel_dfg"
+
+[[example]]
+name = "proof_carrying_declare"
+
+[[example]]
+name = "proof_carrying_federation_import"
+
+[[example]]
+name = "proof_carrying_ocel_seal"
+required-features = ["crypto-trust"]
+
 [[test]]
 name = "ct_timing_invariance"
 required-features = ["ct_timing_invariance"]
