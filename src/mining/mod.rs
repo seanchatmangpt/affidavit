@@ -435,6 +435,7 @@ pub mod data_quality_gate;
 pub mod ocel_alignment_court;
 #[cfg(feature = "core")]
 pub mod ocel_compat_court;
+pub mod ocel_compat_import;
 #[cfg(feature = "core")]
 pub mod ocel_declare_court;
 #[cfg(feature = "core")]

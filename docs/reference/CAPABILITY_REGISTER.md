@@ -23,7 +23,7 @@ Disposition (2026-10-17 reconciliation vs `git log`): **50 LANDED** (+1 merged: 
 | 12 | **Wasm SLH/Dual ABI vacuity** | slh-dsa | `tests/pqc_abi.rs` | S | IN FLIGHT (write lane) | LANDED-a4b65c8 (verified) |
 | 13 | **Range-proof label `receipt-amount`** + cross-label court | bulletproofs | `advanced.rs:115` registry | S | prove-under-A, verify-under-B ⇒ refused | LANDED-82dbbe2 |
 | 14 | **Span-linked receipt lineage** (trace_verify + SpanRecord links) | opentelemetry | `src/tracing.rs` | S | parent chain-hash mutation changes link set | OPEN |
-| 15 | **OCEL v2 federation import** (foreign JSON → court surface) | wasm4cm-compat | `mining/ocel_compat_import.rs` | M | broken link table refused typed | OPEN |
+| 15 | **OCEL v2 federation import** (foreign JSON → court surface) | wasm4pm-compat | `mining/ocel_compat_import.rs` | M | broken link table refused typed | LANDED |
 | 16 | **Batch witness verification** (verify_batch, ≥4x bench + poisoned-member refusal) | ed25519-dalek | `src/ed25519_witness.rs` | M | 1 swapped pair fails batch with index | OPEN |
 | 17 | **const-generic fixed-N batch verifier** (alloc-free) | core | `verifier.rs` | S | tampered N-th digest flips exactly cell N-1 | OPEN |
 | 18 | **DeterminismEngine vendored** (frozen clock + seeded RNG) | clnrm-core semantics | feature-gated adapter | M | same config → identical sequences; wall-clock build refused | OPEN |
@@ -142,7 +142,7 @@ Cycle-3 defect-class findings: JCS duplicate-key last-win (row 60); otel feature
 | 91 | Pedersen commitment-opening consistency court | bulletproofs | `src/zk_range.rs` | S | open(v±1,b) accepted, or acceptance without receipt-bound blinding = FAIL | LANDED-23c3774 |
 | 92 | ECDSA RFC-6979 nonce-determinism + low-s normalization differential court [ADJUDICATION: form policy] | p256/k256 | `secp256k1_witness + wasm twin` | S | same-seed re-sign diverges host/wasm, or high-s accept asymmetry = FAIL | ADJUDICATION (form policy) |
 | 93 | ProcessDelta unresolved-evidence court (TelemetryGap never a conformance verdict) | wasm4pm-compat | `src/mining/ocel_process_delta_court.rs` | S/M | unresolved delta accepted as conformance claim -> typed refusal | LANDED |
-| 94 | DECLARE constraint-temper court (22 canonical templates) | wasm4pm-compat | `src/mining/ocel_declare_court.rs` (NotCoExistence behavioural court) | M | NotCoExistence violation ACCEPTs = FAIL; satisfying log must ACCEPT | LANDED (NotCoExistence; remaining templates OPEN) |
+| 94 | DECLARE constraint-temper court (22 canonical templates) | wasm4pm-compat | `src/mining/ocel_declare_court.rs` (11 behavioural templates) | M | violation ACCEPTs = FAIL; Chain* / Alternate* / Existence2-3 / Absence2-3 still OPEN | LANDED (11/22; Chain/Alternate/count variants OPEN) |
 | 95 | DoctorCheck runtime-context seam run(ctx) + check_receipt_store migration | linkme | `src/doctor_check.rs + handlers.rs` | S | post-migration findings byte-identical; registration removal drops count by 1 | OPEN |
 | 96 | CUSTOM_HANDLERS plugin slice: documented but nonexistent (delete-or-land) | linkme | `src/handlers.rs + CLAUDE.md` | S/M | integration test registers handler, emit dispatches through it; or strike doc | ADJUDICATION (delete-or-land; no CUSTOM_HANDLERS in src/) |
 | 97 | JCS wasm commitment domain-separation (DEFECT: unkeyed vs DOMAIN_TAG planes) | blake3 | `advanced.rs:47 + jcs_parity.rs` | S | untagged blake3(canonical) acceptance = FAIL | LANDED-3ade36e |
