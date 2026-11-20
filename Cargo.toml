@@ -338,9 +338,9 @@ arbitrary = { version = "1.4", features = ["derive"] }
 # Renamed (package = "clnrm-core") so it coexists with the patched stub at
 # version 1.3.0; the real crate is 26.5.28 (semver-incompatible, distinct node).
 # SJ parity court needs the unpublished real clnrm-core 26.5.x. That path pin
-# lived at `/Users/sac/clnrm/...` and broke every non-Mac host. The court now
-# lives behind `cfg(sj_parity_local)` in `tests/sj_projection_parity.rs` and is
-# skipped unless a local checkout is wired. Do not reintroduce a Mac absolute path.
+# lived at `/Users/sac/clnrm/...` and broke every non-Mac host. The court in
+# `tests/sj_projection_parity.rs` is `#[ignore]` until a portable edge is
+# admitted. Do not reintroduce a Mac absolute path.
 # Lane disclosure (register #52 minimal unblock): pkcs8 0.11 is already in the
 # dependency tree via slh-dsa 0.2.0-rc.5, but slh-dsa does not re-export it, so
 # the SPKI/PKCS8 round-trip court needs a nameable path to

@@ -90,18 +90,21 @@ fn load_receipts_from_path(path: &str) -> Result<LoadedReceipts> {
     if p.is_dir() {
         let mut receipts = Vec::new();
         let mut failures = Vec::new();
-        let entries = std::fs::read_dir(p).map_err(io_err)?;
-        for entry in entries {
-            let entry = entry.map_err(io_err)?;
-            let ep = entry.path();
-            if ep.extension().and_then(|s| s.to_str()) == Some("json") {
-                let ep_str = ep.to_str().unwrap_or("").to_string();
-                match crate::cli::show(&ep_str) {
-                    Ok(r) => receipts.push(r),
-                    Err(e) => {
-                        eprintln!("warning: could not load {ep_str}: {e}");
-                        failures.push((ep_str, e.to_string()));
-                    }
+        // Deterministic order: readdir order is filesystem-dependent and was
+        // flipping trend-analysis direction under parallel CI.
+        let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir(p)
+            .map_err(io_err)?
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|ep| ep.extension().and_then(|s| s.to_str()) == Some("json"))
+            .collect();
+        paths.sort();
+        for ep in paths {
+            let ep_str = ep.to_str().unwrap_or("").to_string();
+            match crate::cli::show(&ep_str) {
+                Ok(r) => receipts.push(r),
+                Err(e) => {
+                    eprintln!("warning: could not load {ep_str}: {e}");
+                    failures.push((ep_str, e.to_string()));
                 }
             }
         }
@@ -5117,8 +5120,20 @@ fn emit_with_payload(
     objects: &[String],
     payload_bytes: &[u8],
 ) -> Result<crate::types::EmitOutput> {
+    // Unique path per call: a digest-only name races under `cargo test
+    // --all-targets` when parallel courts stage the same payload bytes and
+    // one removes the file before the other reads it.
     let digest = crate::types::Blake3Hash::from_bytes(payload_bytes).0;
-    let path = std::env::temp_dir().join(format!("affi-sbom-{digest}.payload"));
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let path = std::env::temp_dir().join(format!(
+        "affi-sbom-{}-{}-{}.payload",
+        &digest[..16.min(digest.len())],
+        std::process::id(),
+        nonce
+    ));
     std::fs::write(&path, payload_bytes).map_err(io_err)?;
     let result = crate::cli::emit(event_type, objects, path.to_str().unwrap_or("-"));
     let _ = std::fs::remove_file(&path);

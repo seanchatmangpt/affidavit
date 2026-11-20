@@ -34,12 +34,9 @@ jobs:
           git -C clap-noun-verb checkout --detach 747f1dd4506892c218da4d739c256bcfcf941e50 # pinned: clap-noun-verb@747f1dd4506892c218da4d739c256bcfcf941e50
           git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm-compat.git
           git -C wasm4pm-compat checkout --detach 4c523e0d81a5bb52fda21cea992201f608e088b5 # pinned: wasm4pm-compat@4c523e0d81a5bb52fda21cea992201f608e088b5
-          # wasm4pm is fenced by stubs/wasm4pm via [patch.crates-io]; do not
-          # depth-1-clone the companion (pinned SHA a7352d8 is outside shallow history).
-          git clone --depth 1 https://github.com/seanchatmangpt/chicago-tdd-tools.git
-          git -C chicago-tdd-tools checkout --detach 5edb69355d0b5fc933ae602aee0dfb151864070e # pinned: chicago-tdd-tools@5edb69355d0b5fc933ae602aee0dfb151864070e
-          git clone --depth 1 https://github.com/seanchatmangpt/clnrm.git
-          git -C clnrm checkout --detach 15d26873d7a0c9e32bffc456a4a90bd7ce355225 # pinned: clnrm@15d26873d7a0c9e32bffc456a4a90bd7ce355225
+          # wasm4pm, chicago-tdd-tools, and clnrm-core are fenced by stubs/ via
+          # [patch.crates-io]; do not depth-1-clone those companions (pinned
+          # SHAs sit outside shallow history and break CI before cargo runs).
           git clone --depth 1 https://github.com/seanchatmangpt/lsp-max.git
           git -C lsp-max checkout --detach 5dec93bef12592b2d7eee7b9a45139595f2bbedb # pinned: lsp-max@5dec93bef12592b2d7eee7b9a45139595f2bbedb
 
@@ -99,12 +96,9 @@ jobs:
           git -C clap-noun-verb checkout --detach 747f1dd4506892c218da4d739c256bcfcf941e50 # pinned: clap-noun-verb@747f1dd4506892c218da4d739c256bcfcf941e50
           git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm-compat.git
           git -C wasm4pm-compat checkout --detach 4c523e0d81a5bb52fda21cea992201f608e088b5 # pinned: wasm4pm-compat@4c523e0d81a5bb52fda21cea992201f608e088b5
-          # wasm4pm is fenced by stubs/wasm4pm via [patch.crates-io]; do not
-          # depth-1-clone the companion (pinned SHA a7352d8 is outside shallow history).
-          git clone --depth 1 https://github.com/seanchatmangpt/chicago-tdd-tools.git
-          git -C chicago-tdd-tools checkout --detach 5edb69355d0b5fc933ae602aee0dfb151864070e # pinned: chicago-tdd-tools@5edb69355d0b5fc933ae602aee0dfb151864070e
-          git clone --depth 1 https://github.com/seanchatmangpt/clnrm.git
-          git -C clnrm checkout --detach 15d26873d7a0c9e32bffc456a4a90bd7ce355225 # pinned: clnrm@15d26873d7a0c9e32bffc456a4a90bd7ce355225
+          # wasm4pm, chicago-tdd-tools, and clnrm-core are fenced by stubs/ via
+          # [patch.crates-io]; do not depth-1-clone those companions (pinned
+          # SHAs sit outside shallow history and break CI before cargo runs).
           git clone --depth 1 https://github.com/seanchatmangpt/lsp-max.git
           git -C lsp-max checkout --detach 5dec93bef12592b2d7eee7b9a45139595f2bbedb # pinned: lsp-max@5dec93bef12592b2d7eee7b9a45139595f2bbedb
 
@@ -150,12 +144,9 @@ jobs:
           git -C clap-noun-verb checkout --detach 747f1dd4506892c218da4d739c256bcfcf941e50 # pinned: clap-noun-verb@747f1dd4506892c218da4d739c256bcfcf941e50
           git clone --depth 1 https://github.com/seanchatmangpt/wasm4pm-compat.git
           git -C wasm4pm-compat checkout --detach 4c523e0d81a5bb52fda21cea992201f608e088b5 # pinned: wasm4pm-compat@4c523e0d81a5bb52fda21cea992201f608e088b5
-          # wasm4pm is fenced by stubs/wasm4pm via [patch.crates-io]; do not
-          # depth-1-clone the companion (pinned SHA a7352d8 is outside shallow history).
-          git clone --depth 1 https://github.com/seanchatmangpt/chicago-tdd-tools.git
-          git -C chicago-tdd-tools checkout --detach 5edb69355d0b5fc933ae602aee0dfb151864070e # pinned: chicago-tdd-tools@5edb69355d0b5fc933ae602aee0dfb151864070e
-          git clone --depth 1 https://github.com/seanchatmangpt/clnrm.git
-          git -C clnrm checkout --detach 15d26873d7a0c9e32bffc456a4a90bd7ce355225 # pinned: clnrm@15d26873d7a0c9e32bffc456a4a90bd7ce355225
+          # wasm4pm, chicago-tdd-tools, and clnrm-core are fenced by stubs/ via
+          # [patch.crates-io]; do not depth-1-clone those companions (pinned
+          # SHAs sit outside shallow history and break CI before cargo runs).
           git clone --depth 1 https://github.com/seanchatmangpt/lsp-max.git
           git -C lsp-max checkout --detach 5dec93bef12592b2d7eee7b9a45139595f2bbedb # pinned: lsp-max@5dec93bef12592b2d7eee7b9a45139595f2bbedb
 
