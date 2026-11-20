@@ -86,6 +86,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+pub mod aod;
 pub mod bcinr;
 pub mod chain;
 pub mod crypto_verify;
@@ -99,6 +100,17 @@ pub mod verifier;
 #[cfg(feature = "alloc")]
 #[cfg(feature = "alloc")]
 pub mod mining;
+
+#[cfg(feature = "alloc")]
+pub use aod::{
+    fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, AodBufferSpec, InMemoryLeaseRegistry,
+    SealParams,
+};
+pub use aod::{
+    map_live, shared_envelope_check, verify_witness, AodHeader, AodRefusal, AodShadow, AodView,
+    BufferEntry, CompiledOntology, EnvelopeOk, LeaseRegistry, WitnessAttestation, AOD_HEADER_LEN,
+    AOD_MAGIC, AOD_MIN_FILE_LEN, AOD_SHADOW_LEN, DOMAIN_AOD_SEAL,
+};
 
 pub use chain::{compute_chain_hash, Event, PROFILE};
 pub use crypto_verify::{
@@ -120,8 +132,8 @@ pub use pqc::{
     PqcVerdict, SlhDsaVerifier, Suite,
 };
 pub use sealed::{
-    key_id as sealed_key_id, seal_message, PqcSealedReceipt, SealRefusal, DOMAIN_KEY_ID,
-    DOMAIN_SEAL, ML_DSA_65_PK_LEN, ML_DSA_65_SIG_LEN, SEAL_MSG_LEN,
+    key_id as sealed_key_id, seal_context, seal_message, PqcSealedReceipt, SealRefusal,
+    DOMAIN_KEY_ID, DOMAIN_SEAL, ML_DSA_65_PK_LEN, ML_DSA_65_SIG_LEN, SEAL_MSG_LEN,
 };
 pub use verifier::{verify, RejectReason, Verdict};
 

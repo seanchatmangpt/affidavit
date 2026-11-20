@@ -181,10 +181,7 @@ pub unsafe extern "C" fn affi_admit_and_seal(
         }
         0x0000u32
     }));
-    match res {
-        Ok(code) => code,
-        Err(_) => 0xE999, // ERR_UNHANDLED_TRAP
-    }
+    res.unwrap_or(0xE999) // ERR_UNHANDLED_TRAP
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

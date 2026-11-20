@@ -40,11 +40,6 @@ use affidavit::crypto_trust_sa2a::{
 };
 use affidavit::crypto_trust_seal::SealedReceipt;
 
-/// A typed refusal from a verb exits with the CLI-wide execution-error code:
-/// clap-noun-verb error 1504 mod 256 = 224 (same contract as the cli_value_*
-/// courts and the vacuity tripwire). These courts once pinned 1.
-const REFUSAL_EXIT: i32 = 224;
-
 fn affi(dir: &TempDir) -> Command {
     let mut cmd = Command::cargo_bin("affi").expect("affi binary builds");
     cmd.current_dir(dir.path());
@@ -352,11 +347,12 @@ fn envelope_export_refuses_unknown_format_typed() {
     let dir = TempDir::new().expect("tempdir");
     let (_sealed, _sealed_path) = sealed_document(&dir, 3);
 
+    // CliExecutionError (1504) encodes as 1504 % 256 = 224 on the process exit.
     affi(&dir)
         .args(["envelope", "export", "sealed.json", "--format", "pem"])
         .assert()
         .failure()
-        .code(REFUSAL_EXIT)
+        .code(1504 % 256)
         .stderr(predicate::str::contains("REFUSED_UNSUPPORTED"))
         .stderr(predicate::str::contains("pem"))
         .stderr(predicate::str::contains("json"))
@@ -380,7 +376,7 @@ fn envelope_export_refuses_tampered_sealed_document() {
         .args(["envelope", "export", "sealed.json", "--format", "json"])
         .assert()
         .failure()
-        .code(REFUSAL_EXIT)
+        .code(1504 % 256)
         // Anti-vacuity: the refusal must be the chain law inside
         // deserialization (the recomputed chain hash must mismatch the
         // claimed one), not the pre-sync dispatch error — this assertion
@@ -410,6 +406,6 @@ fn envelope_list_refuses_tampered_store() {
         ])
         .assert()
         .failure()
-        .code(REFUSAL_EXIT)
+        .code(1504 % 256)
         .stderr(predicate::str::contains("checksum mismatch"));
 }

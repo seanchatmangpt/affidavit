@@ -78,6 +78,9 @@ impl Drop for ScratchDir {
 }
 
 /// Spawn the real built `affi` binary with `args`, return raw `Output`.
+///
+/// Prefer [`affi_in`] whenever the verb touches `.affi/working.json` — concurrent
+/// cargo tests otherwise race on a shared CWD working receipt (EOF decode flake).
 pub fn affi(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_affi"))
         .args(args)
@@ -85,14 +88,10 @@ pub fn affi(args: &[&str]) -> Output {
         .expect("spawn affi")
 }
 
-/// Run `affi` with `dir` as its cwd, so its `.affi/working.json` is private
-/// to that directory. Fixture worlds must use this: with the inherited cwd
-/// every world in a test binary shared the repo-root working file, so
-/// parallel tests raced on it (half-written file -> "EOF while parsing") and
-/// one world's events leaked into another's chain.
-pub fn affi_in(dir: &Path, args: &[&str]) -> Output {
+/// Spawn `affi` with `cwd` as the process working directory (isolates `.affi/`).
+pub fn affi_in(cwd: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_affi"))
-        .current_dir(dir)
+        .current_dir(cwd)
         .args(args)
         .output()
         .expect("spawn affi")
@@ -188,11 +187,14 @@ pub fn build_world(tag: &str, spec: &WorldSpec) -> World {
         n_planned > 0,
         "fixture_world: a world with zero events cannot assemble — refuse silently-empty fixture"
     );
+    let cwd = dir.path();
     for (i, ev) in spec.events.iter().enumerate() {
         let payload = dir.join(&format!("payload_{i}.txt"));
         std::fs::write(&payload, &ev.payload_text).expect("write payload file");
+        // Payload path must be absolute (or cwd-relative); keep absolute so
+        // current_dir isolation cannot break --payload resolution.
         let out = affi_in(
-            dir.path(),
+            cwd,
             &[
                 "receipt",
                 "emit",
@@ -215,7 +217,7 @@ pub fn build_world(tag: &str, spec: &WorldSpec) -> World {
         std::fs::write(&payload, format!("license grant for {lic}\n"))
             .expect("write license payload");
         let out = affi_in(
-            dir.path(),
+            cwd,
             &[
                 "receipt",
                 "emit",
@@ -235,8 +237,9 @@ pub fn build_world(tag: &str, spec: &WorldSpec) -> World {
     }
     let receipt = dir.join("receipt.json");
     let chain = dir.join("chain.json");
+    // --out is absolute; assemble still needs cwd isolation for working.json.
     let out = affi_in(
-        dir.path(),
+        cwd,
         &[
             "receipt",
             "assemble",

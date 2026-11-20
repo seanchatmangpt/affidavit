@@ -18,20 +18,11 @@ All notable changes to the Affidavit provenance layer are documented here.
   directory when it does not exist from the cwd (absolute and cwd-relative
   paths unchanged), so a bundle verifies wherever it is copied.
 
-### Fixed
-- **Root crate resolves on any host.** `chicago-tdd-tools` comes from
-  crates.io (26.10.12, carries `ledger`/`nato`) instead of a
-  `/Users/sac/chicago-tdd-tools` path patch; the SJ projection parity court
-  (needs the unpublished real clnrm-core 26.5.x) moved to the standalone
-  `courts/sj-parity/` crate. CI drops the companion-repo clones, whose
-  depth-1 clone + pinned-SHA checkout failed every job ("unable to read tree").
-- Corpus verbs read receipt directories in sorted path order (was
-  filesystem `read_dir` order: `trend-analysis` reversed its series on
-  ext4/overlayfs).
-- Test harness: fixture worlds run `affi` in their own scratch dir (they
-  shared the repo-root `.affi/working.json`, racing in parallel and leaking
-  events between worlds); the git-hook court runs the `#!/bin/bash` hook with
-  bash, not `sh` (dash on Ubuntu rejects `set -o pipefail`).
+### Changed
+- The real SJ projection parity court (register row 44) lives on as the
+  standalone `courts/sj-parity/` crate (own `[workspace]`, local clnrm path),
+  so it stays runnable where a clnrm checkout exists while the root manifest
+  carries only the ignored refusal stub in `tests/sj_projection_parity.rs`.
 
 ## [26.10.17] — 2026-10-17
 

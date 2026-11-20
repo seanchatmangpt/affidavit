@@ -181,11 +181,8 @@ fn attest_carries_requested_attestation_type() {
 /// exit 224 `REFUSED_UNSUPPORTED` naming `--features crypto-trust`. The
 /// refusal IS the specified behavior (negative-cum-positive); the positive
 /// crypto paths are covered by the crypto-trust plane battery lanes.
-// Asserts the DEFAULT binary's typed refusal; with `crypto-trust` on, the
-// verb is implemented, so this court does not apply (the positive paths are
-// covered by the crypto_trust_* courts).
-#[cfg(not(feature = "crypto-trust"))]
 #[test]
+#[cfg(not(feature = "crypto-trust"))]
 fn crypto_plane_verbs_refuse_typed_on_default_binary() {
     for (verb, args) in [
         ("sign", vec!["receipt.json", "--key-path", "key.hex"]),
