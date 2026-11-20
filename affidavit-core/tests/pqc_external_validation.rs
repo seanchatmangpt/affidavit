@@ -458,3 +458,90 @@ fn slh_wire_budget_pins_and_off_by_one_refusals() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Register #8 — ML-DSA context-string sealing (replace tag-stuffing).
+// Falsifier: ctx-signed bytes fail empty-ctx verify and vice versa.
+// ---------------------------------------------------------------------------
+
+use affidavit_core::sealed::{
+    seal_context, seal_message, PqcSealedReceipt, DOMAIN_SEAL, ML_DSA_65_PK_LEN, ML_DSA_65_SIG_LEN,
+};
+
+/// Real deterministic sign under an explicit FIPS 204 context string.
+fn real_sig_with_ctx(msg: &[u8], ctx: &[u8], seed: [u8; 32]) -> (Vec<u8>, Vec<u8>) {
+    let sk = SigningKey::<MlDsa65>::new(&ml_dsa::Seed::from(seed));
+    let vk = sk.verifying_key();
+    let sig = sk
+        .expanded_key()
+        .sign_deterministic(msg, ctx)
+        .expect("sign_deterministic under ctx");
+    let pk: [u8; 1952] = vk.encode().into();
+    let sig_bytes: [u8; 3309] = sig.to_bytes().into();
+    (pk.to_vec(), sig_bytes.to_vec())
+}
+
+/// Context-string sealing court (capability register row 8):
+/// 1. Honest v2 seal (M = head, ctx = DOMAIN_SEAL) unseals ACCEPT.
+/// 2. Same bytes under empty ctx refuse (ctx-signed fail empty-ctx verify).
+/// 3. Tag-stuffed v1 (M = DOMAIN_SEAL||head, empty ctx) fails v2 unseal
+///    (vice versa: empty-ctx-signed fail ctx verify).
+#[test]
+fn mldsa_context_string_sealing_court() {
+    let head = [0xABu8; 32];
+    let msg = seal_message(head);
+    assert_eq!(msg, head);
+    let ctx = seal_context();
+    assert_eq!(ctx, DOMAIN_SEAL);
+
+    let (pk, sig) = real_sig_with_ctx(&msg, ctx, [0x42u8; 32]);
+    assert_eq!(pk.len(), ML_DSA_65_PK_LEN);
+    assert_eq!(sig.len(), ML_DSA_65_SIG_LEN);
+
+    // (1) Honest v2 path through the adapter and the sealed envelope.
+    assert!(
+        ExternalMlDsa65.verify_with_context(&msg, ctx, &sig, &pk),
+        "adapter refused a genuine context-bound seal signature"
+    );
+    let court = PqcCourt::new().with_ml_dsa(&ExternalMlDsa65);
+    assert_eq!(
+        court.judge_mldsa_with_context(&msg, ctx, (&sig, &pk)),
+        PqcVerdict::Accept
+    );
+    let sealed = PqcSealedReceipt::new(head, &sig, &pk).expect("envelope lengths valid");
+    assert_eq!(sealed.unseal(&court), Ok(PqcVerdict::Accept));
+
+    // (2) Falsifier half A: ctx-signed bytes fail empty-ctx verify.
+    assert!(
+        !ExternalMlDsa65.verify_with_context(&msg, &[], &sig, &pk),
+        "COURT-VACUITY: context-bound sig verified under empty ctx"
+    );
+    assert_eq!(
+        court.judge_mldsa_with_context(&msg, &[], (&sig, &pk)),
+        PqcVerdict::Refuse(PqcRefusal::MlDsa65Rejected)
+    );
+
+    // (3) Falsifier half B: v1 tag-stuffing (M = DOMAIN_SEAL||head, empty ctx)
+    //     produces a signature that MUST NOT unseal under v2 law.
+    let mut stuffed = Vec::with_capacity(DOMAIN_SEAL.len() + 32);
+    stuffed.extend_from_slice(DOMAIN_SEAL);
+    stuffed.extend_from_slice(&head);
+    let (v1_pk, v1_sig) = real_sig_over(&stuffed, [0x42u8; 32]);
+    // Same seed → same key; the signature differs because (M, ctx) differs.
+    assert_eq!(v1_pk, pk);
+    assert_ne!(v1_sig, sig);
+    assert!(
+        ExternalMlDsa65.verify(&stuffed, &v1_sig, &pk),
+        "control: v1 tag-stuffed sig must verify under empty ctx over stuffed M"
+    );
+    assert!(
+        !ExternalMlDsa65.verify_with_context(&msg, ctx, &v1_sig, &pk),
+        "COURT-VACUITY: v1 tag-stuffed sig verified as a v2 context seal"
+    );
+    let v1_as_v2 = PqcSealedReceipt::new(head, &v1_sig, &pk).expect("lengths valid");
+    assert_eq!(
+        v1_as_v2.unseal(&court),
+        Err(affidavit_core::SealRefusal::MlDsa65Rejected),
+        "v1 tag-stuffed signature must not unseal under v2 context law"
+    );
+}

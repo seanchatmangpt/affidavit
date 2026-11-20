@@ -120,8 +120,8 @@ pub use pqc::{
     PqcVerdict, SlhDsaVerifier, Suite,
 };
 pub use sealed::{
-    key_id as sealed_key_id, seal_message, PqcSealedReceipt, SealRefusal, DOMAIN_KEY_ID,
-    DOMAIN_SEAL, ML_DSA_65_PK_LEN, ML_DSA_65_SIG_LEN, SEAL_MSG_LEN,
+    key_id as sealed_key_id, seal_context, seal_message, PqcSealedReceipt, SealRefusal,
+    DOMAIN_KEY_ID, DOMAIN_SEAL, ML_DSA_65_PK_LEN, ML_DSA_65_SIG_LEN, SEAL_MSG_LEN,
 };
 pub use verifier::{verify, RejectReason, Verdict};
 
