@@ -111,6 +111,19 @@ required-features = ["discovery"]
 name = "seal_sj_record"
 required-features = ["crypto-trust"]
 
+[[example]]
+name = "proof_carrying_ocel_dfg"
+
+[[example]]
+name = "proof_carrying_declare"
+
+[[example]]
+name = "proof_carrying_federation_import"
+
+[[example]]
+name = "proof_carrying_ocel_seal"
+required-features = ["crypto-trust"]
+
 [[test]]
 name = "ct_timing_invariance"
 required-features = ["ct_timing_invariance"]
@@ -144,6 +157,8 @@ anyhow = "1"
 thiserror = "2"
 walkdir = "2"
 regex = "1"
+# Zero-String Sealed AOD kernel (AFFI-SPEC-26.11.19) — path pin; own workspace.
+affidavit-core = { path = "affidavit-core", version = "26.10.17" }
 
 # --- FEATURE-GATED ECOSYSTEM INTEGRATIONS ---
 # Phase 1: Inspection & catalog
@@ -337,7 +352,10 @@ arbitrary = { version = "1.4", features = ["derive"] }
 # constructible and its validate()/standing law exercisable.
 # Renamed (package = "clnrm-core") so it coexists with the patched stub at
 # version 1.3.0; the real crate is 26.5.28 (semver-incompatible, distinct node).
-clnrm-sj-core = { package = "clnrm-core", path = "/Users/sac/clnrm/crates/clnrm-core" }
+# SJ parity court needs the unpublished real clnrm-core 26.5.x. That path pin
+# lived at `/Users/sac/clnrm/...` and broke every non-Mac host. The court in
+# `tests/sj_projection_parity.rs` is `#[ignore]` until a portable edge is
+# admitted. Do not reintroduce a Mac absolute path.
 # Lane disclosure (register #52 minimal unblock): pkcs8 0.11 is already in the
 # dependency tree via slh-dsa 0.2.0-rc.5, but slh-dsa does not re-export it, so
 # the SPKI/PKCS8 round-trip court needs a nameable path to
@@ -569,7 +587,8 @@ clnrm-core = { path = "stubs/clnrm-core" }
 # verb's Value::Null (the stray trailing "null" line on every success
 # path, ROADMAP B13). See vendor/clap-noun-verb/src/cli/registry.rs.
 clap-noun-verb = { path = "vendor/clap-noun-verb" }
-chicago-tdd-tools = { path = "/Users/sac/chicago-tdd-tools" }
+# chicago-tdd-tools comes from crates.io (see [dependencies]/[dev-dependencies]).
+# The former `/Users/sac/chicago-tdd-tools` path pin broke every non-Mac host.
 
 # CI/test latency: optimize crypto dependency compute without changing first-party dev checks.
 [profile.dev.package.ml-dsa]

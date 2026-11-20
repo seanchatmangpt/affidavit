@@ -6,7 +6,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 100, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 107, Registry nouns: 14
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install (per-user):
@@ -30,6 +30,7 @@ _affi() {
         noun)
             _values 'noun' \
                 'affi[1 verbs]' \
+                'aod[5 verbs]' \
                 'certificate[1 verbs]' \
                 'dossier[4 verbs]' \
                 'ecosystem[2 verbs]' \
@@ -39,7 +40,7 @@ _affi() {
                 'guide[1 verbs]' \
                 'keys[5 verbs]' \
                 'legal-hold[1 verbs]' \
-                'receipt[70 verbs]' \
+                'receipt[72 verbs]' \
                 'restitution[1 verbs]' \
                 'standing[2 verbs]'
             ;;
@@ -48,6 +49,14 @@ _affi() {
                 affi)
                     _values 'verb' \
                         'doctor[Run environment and receipt-store health checks; optionally apply safe fixes]'
+                    ;;
+                aod)
+                    _values 'verb' \
+                        'fold[Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)]' \
+                        'rotate[Rematerialize buffers under a fresh monoatomic lease and emit a folded CTRT shadow]' \
+                        'seal[Write 64B-aligned avec buffers and append a 352B CTRT shadow under a monoatomic lease]' \
+                        'verify[Live Gate\: match CompiledOntology, burn monoatomic lease nullifier, exit 0 or 0xE5xx]' \
+                        'witness[Historical Witness on expired/rotated fossils\: envelope-only, zero Region 3 mapping]'
                     ;;
                 certificate)
                     _values 'verb' \
@@ -147,6 +156,8 @@ _affi() {
                         'portfolio-health[Aggregate health signals across a portfolio of receipts into a dashboard-ready report]' \
                         'predict[Forecast future chain state or failure probability based on historical receipt patterns]' \
                         'profile[Profile the performance of verify and assemble operations on a receipt]' \
+                        'proof-carrying[Mint a seal/v2 subject from grounded OCEL DFG fitness/precision (admit_flat → digest)]' \
+                        'proof-carrying-verify[Verify an ML-DSA-65 seal/v2 over a proof-carrying conformance subject]' \
                         'query[Query receipt events using a filter expression (event_type, object, seq range)]' \
                         'receipt-throughput[Measure how many receipts per second the local store can verify under load]' \
                         'replay[Re-execute chain from stored events, optionally applying custom handlers]' \

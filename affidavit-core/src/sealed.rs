@@ -9,14 +9,20 @@
 //! **This crate has no signer role** — signing belongs to consumers (the root
 //! `affi` CLI signs; this crate is the verify surface only).
 //!
-//! ## Envelope format
+//! ## Envelope format (v2 — FIPS 204 context-string sealing)
 //!
-//! The signed message is the fixed domain-separation tag
-//! [`DOMAIN_SEAL`] concatenated with the 32-byte BLAKE3 chain head (the
+//! The signed **message** is exactly the 32-byte BLAKE3 chain head (the
 //! `Receipt::chain_hash()` of the receipt being sealed — wire the accessor to
 //! `crate::chain::Receipt` at integration; this module stays standalone over
-//! the raw `[u8; 32]` head). The [`DOMAIN_SEAL`] tag keeps a seal message from
-//! ever colliding with any other protocol message signed under the same key.
+//! the raw `[u8; 32]` head). The **context string** is [`DOMAIN_SEAL`].
+//!
+//! FIPS 204 Pure ML-DSA separates `(M, ctx)` inside the signed pre-image. This
+//! envelope uses that seam: consumers call
+//! `sign_deterministic(seal_message(head), DOMAIN_SEAL)` (or the randomized
+//! twin). Tag-stuffing `DOMAIN_SEAL || head` into `M` under an empty context
+//! is the v1 anti-pattern this format replaces — a v1 signature MUST fail
+//! v2 verification (and vice versa); that divergence is the context-string
+//! sealing court.
 //!
 //! The sealing key is bound into the envelope by fingerprint:
 //! [`key_id`] is `blake3(DOMAIN_KEY_ID || pk)` — a domain-separated BLAKE3
@@ -29,20 +35,23 @@
 //!   construction.
 //! * wrong ML-DSA-65 public-key length — refused at construction.
 //! * malformed signature encoding — refused at construction.
-//! * verifier rejects `(msg, sig, pk)` — [`SealRefusal::MlDsa65Rejected`] from
+//! * verifier rejects `(msg, ctx, sig, pk)` — [`SealRefusal::MlDsa65Rejected`] from
 //!   [`PqcSealedReceipt::unseal`].
 //! * key fingerprint mismatch under an expected id —
 //!   [`SealRefusal::KeyIdMismatch`].
 //!
 //! integration: coordinator adds `pub mod sealed;` to src/lib.rs
 
-use crate::pqc::{PqcCourt, PqcProfile, PqcVerdict, Suite};
+use crate::pqc::{PqcCourt, PqcVerdict};
 use blake3::Hasher;
 
-/// Domain-separation tag prepended to every sealed message. Fixed forever;
-/// changing it invalidates every existing seal by design (the envelope format
-/// version *is* the tag).
-pub const DOMAIN_SEAL: &[u8] = b"affidavit-core/seal/v1";
+/// FIPS 204 context string for every sealed message. Fixed forever as the
+/// envelope format version; changing it invalidates every existing seal by
+/// design.
+///
+/// v2 law: this byte string is the ML-DSA **context**, never concatenated
+/// into the signed message. (v1 stuffed it into `M` under an empty context.)
+pub const DOMAIN_SEAL: &[u8] = b"affidavit-core/seal/v2";
 
 /// Domain-separation tag for the key fingerprint ([`key_id`]).
 pub const DOMAIN_KEY_ID: &[u8] = b"affidavit-core/seal/key-id/v1";
@@ -53,28 +62,24 @@ pub const ML_DSA_65_PK_LEN: usize = 1952;
 /// The FIPS 204 ML-DSA-65 encoded signature length in bytes.
 pub const ML_DSA_65_SIG_LEN: usize = 3309;
 
-/// Length of [`seal_message`] output: [`DOMAIN_SEAL`] (23 bytes) + 32-byte
-/// chain head.
-pub const SEAL_MSG_LEN: usize = DOMAIN_SEAL.len() + 32;
+/// Length of [`seal_message`] output: the 32-byte chain head alone.
+pub const SEAL_MSG_LEN: usize = 32;
 
-/// The domain-separated message a consumer must sign to seal the chain head
-/// `head`: `DOMAIN_SEAL || head`. Returned by value; no allocation.
+/// The FIPS 204 context string a consumer must pass alongside
+/// [`seal_message`]. Alias of [`DOMAIN_SEAL`] for call-site clarity.
+pub const fn seal_context() -> &'static [u8] {
+    DOMAIN_SEAL
+}
+
+/// The signed message a consumer must seal over: the raw 32-byte chain head.
 ///
-/// Signing is out of scope here by operator law — feed this exact byte string
-/// to your external ML-DSA-65 signer, then hand the resulting signature to
-/// [`PqcSealedReceipt::new`].
+/// Pair with [`seal_context`] / [`DOMAIN_SEAL`] as the FIPS 204 context
+/// string. Signing is out of scope here by operator law — feed these exact
+/// bytes to your external ML-DSA-65 signer
+/// (`sign_deterministic(seal_message(head), seal_context())`), then hand the
+/// resulting signature to [`PqcSealedReceipt::new`].
 pub const fn seal_message(head: [u8; 32]) -> [u8; SEAL_MSG_LEN] {
-    let mut msg = [0u8; SEAL_MSG_LEN];
-    let mut i = 0;
-    while i < DOMAIN_SEAL.len() {
-        msg[i] = DOMAIN_SEAL[i];
-        i += 1;
-    }
-    while i < SEAL_MSG_LEN {
-        msg[i] = head[i - DOMAIN_SEAL.len()];
-        i += 1;
-    }
-    msg
+    head
 }
 
 /// The domain-separated key fingerprint `blake3(DOMAIN_KEY_ID || pk)` of a
@@ -134,7 +139,8 @@ impl core::fmt::Display for SealRefusal {
 impl core::error::Error for SealRefusal {}
 
 /// A PQ-sealed receipt envelope: a 32-byte chain head bound to an ML-DSA-65
-/// signature over [`seal_message`]`(head)` under the encoded public key `pk`.
+/// signature over [`seal_message`]`(head)` under context [`DOMAIN_SEAL`] and
+/// the encoded public key `pk`.
 ///
 /// Borrowing, `no_std`, allocation-free: the signature and key are borrowed
 /// for `'envelope`. Construction validates lengths and refuses an empty chain
@@ -172,10 +178,14 @@ impl<'envelope> PqcSealedReceipt<'envelope> {
         self.head
     }
 
-    /// The domain-separated sealed message — exactly the bytes whose
-    /// ML-DSA-65 signature this envelope carries.
+    /// The FIPS 204 signed message — exactly the chain head bytes.
     pub const fn sealed_message(&self) -> [u8; SEAL_MSG_LEN] {
         seal_message(self.head)
+    }
+
+    /// The FIPS 204 context string this envelope was sealed under.
+    pub const fn sealed_context(&self) -> &'static [u8] {
+        seal_context()
     }
 
     /// The sealing key's domain-separated fingerprint ([`key_id`]).
@@ -194,11 +204,12 @@ impl<'envelope> PqcSealedReceipt<'envelope> {
         }
     }
 
-    /// Certify the seal through the court: run the domain-separated sealed
-    /// message, the signature, and the pk through the court's registered
-    /// [`MlDsa65Verifier`](crate::pqc::MlDsa65Verifier). `Accept` means the external verifier accepted the
-    /// binding; any rejection (including malformed bytes that collapse to
-    /// `false` inside the verifier) is [`SealRefusal::MlDsa65Rejected`].
+    /// Certify the seal through the court: run the sealed message under
+    /// [`DOMAIN_SEAL`] context, the signature, and the pk through the court's
+    /// registered [`MlDsa65Verifier`](crate::pqc::MlDsa65Verifier). `Accept`
+    /// means the external verifier accepted the binding; any rejection
+    /// (including malformed bytes that collapse to `false` inside the
+    /// verifier) is [`SealRefusal::MlDsa65Rejected`].
     ///
     /// The court is consulted, never bypassed: a [`PqcCourt`] with no
     /// ML-DSA-65 verifier registered refuses — the seal is never "accepted
@@ -208,12 +219,7 @@ impl<'envelope> PqcSealedReceipt<'envelope> {
             return Err(SealRefusal::MlDsa65Rejected);
         }
         let msg = self.sealed_message();
-        match court.judge(
-            PqcProfile::Pqc(Suite::MlDsa65),
-            &msg,
-            (self.sig, self.pk),
-            (&[], &[]),
-        ) {
+        match court.judge_mldsa_with_context(&msg, self.sealed_context(), (self.sig, self.pk)) {
             PqcVerdict::Accept => Ok(PqcVerdict::Accept),
             PqcVerdict::Refuse(_) => Err(SealRefusal::MlDsa65Rejected),
         }
@@ -226,21 +232,27 @@ mod tests {
     use crate::pqc::MlDsa65Verifier;
 
     /// In-test fake for the *seam* only — accepts exactly one signature over
-    /// exactly one message. The REAL FIPS 204 validation lives in
+    /// exactly one `(msg, ctx)` pair. The REAL FIPS 204 validation lives in
     /// `tests/pqc_external_validation.rs` against the external `ml-dsa` crate;
     /// the malformed-refusal paths below additionally run through
     /// [`crate::pqc::ExternalMlDsa65`] directly (no real signing in-crate —
     /// signing belongs to consumers).
     struct FixedChecker {
         accept_msg: &'static [u8],
+        accept_ctx: &'static [u8],
         accept_sig: &'static [u8],
         calls: core::sync::atomic::AtomicU32,
     }
 
     impl FixedChecker {
-        const fn new(accept_msg: &'static [u8], accept_sig: &'static [u8]) -> Self {
+        const fn new(
+            accept_msg: &'static [u8],
+            accept_ctx: &'static [u8],
+            accept_sig: &'static [u8],
+        ) -> Self {
             Self {
                 accept_msg,
+                accept_ctx,
                 accept_sig,
                 calls: core::sync::atomic::AtomicU32::new(0),
             }
@@ -248,10 +260,10 @@ mod tests {
     }
 
     impl MlDsa65Verifier for FixedChecker {
-        fn verify(&self, msg: &[u8], sig: &[u8], _pk: &[u8]) -> bool {
+        fn verify_with_context(&self, msg: &[u8], ctx: &[u8], sig: &[u8], _pk: &[u8]) -> bool {
             self.calls
                 .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
-            msg == self.accept_msg && sig == self.accept_sig
+            msg == self.accept_msg && ctx == self.accept_ctx && sig == self.accept_sig
         }
     }
 
@@ -259,7 +271,8 @@ mod tests {
     static PK: [u8; ML_DSA_65_PK_LEN] = [3u8; ML_DSA_65_PK_LEN];
     static SIG: [u8; ML_DSA_65_SIG_LEN] = [5u8; ML_DSA_65_SIG_LEN];
 
-    static CHECKER: FixedChecker = FixedChecker::new(&seal_message(HEAD), &SIG);
+    // seal_message(HEAD) == HEAD under v2 law; bind the static head directly.
+    static CHECKER: FixedChecker = FixedChecker::new(&HEAD, DOMAIN_SEAL, &SIG);
 
     fn seal() -> PqcSealedReceipt<'static> {
         PqcSealedReceipt::new(HEAD, &SIG, &PK).expect("valid envelope")
@@ -270,16 +283,23 @@ mod tests {
     }
 
     #[test]
-    fn seal_message_is_domain_separated_concat() {
+    fn seal_message_is_the_raw_chain_head() {
         let msg = seal_message(HEAD);
         assert_eq!(msg.len(), SEAL_MSG_LEN);
-        assert_eq!(&msg[..DOMAIN_SEAL.len()], DOMAIN_SEAL);
-        assert_eq!(&msg[DOMAIN_SEAL.len()..], &HEAD);
-        // a different head yields a different message; the tag is a prefix of
-        // both, so the separation is what prevents cross-protocol reuse
+        assert_eq!(msg, HEAD);
+        // a different head yields a different message
         let other = seal_message([1u8; 32]);
         assert_ne!(msg, other);
-        assert_eq!(&other[..DOMAIN_SEAL.len()], DOMAIN_SEAL);
+        assert_eq!(other, [1u8; 32]);
+    }
+
+    #[test]
+    fn seal_context_is_the_domain_tag_not_stuffed_into_msg() {
+        assert_eq!(seal_context(), DOMAIN_SEAL);
+        assert_eq!(DOMAIN_SEAL, b"affidavit-core/seal/v2");
+        // anti-vacuity: the context bytes must NOT appear as a message prefix
+        let msg = seal_message(HEAD);
+        assert!(!msg.windows(DOMAIN_SEAL.len()).any(|w| w == DOMAIN_SEAL));
     }
 
     #[test]
@@ -327,6 +347,7 @@ mod tests {
         let s = seal();
         assert_eq!(s.chain_head(), HEAD);
         assert_eq!(s.sealed_message(), seal_message(HEAD));
+        assert_eq!(s.sealed_context(), DOMAIN_SEAL);
         assert_eq!(s.key_fingerprint(), key_id(&PK));
         assert_eq!(s.check_key_id(key_id(&PK)), Ok(()));
         assert_eq!(s.unseal(&court()), Ok(PqcVerdict::Accept));
@@ -368,8 +389,30 @@ mod tests {
         // signature over the real sealed message is rejected by FIPS 204
         // arithmetic — no real signing in-crate, none needed for the refusal.
         let msg = seal_message(HEAD);
-        assert!(!crate::pqc::ExternalMlDsa65.verify(&msg, &SIG, &[0u8; 1951]));
-        assert!(!crate::pqc::ExternalMlDsa65.verify(&msg, &SIG, &PK));
+        assert!(!crate::pqc::ExternalMlDsa65.verify_with_context(
+            &msg,
+            DOMAIN_SEAL,
+            &SIG,
+            &[0u8; 1951]
+        ));
+        assert!(!crate::pqc::ExternalMlDsa65.verify_with_context(&msg, DOMAIN_SEAL, &SIG, &PK));
+    }
+
+    #[test]
+    fn empty_ctx_verify_refuses_context_bound_accept_path() {
+        // Seam-level falsifier: the FixedChecker only accepts DOMAIN_SEAL ctx.
+        // An empty-ctx judge over the same bytes must refuse — proves the
+        // court actually passes context through (not ignoring it).
+        let s = seal();
+        let c = court();
+        assert_eq!(
+            c.judge_mldsa_with_context(&s.sealed_message(), &[], (s.sig, s.pk)),
+            PqcVerdict::Refuse(crate::pqc::PqcRefusal::MlDsa65Rejected)
+        );
+        assert_eq!(
+            c.judge_mldsa_with_context(&s.sealed_message(), DOMAIN_SEAL, (s.sig, s.pk)),
+            PqcVerdict::Accept
+        );
     }
 
     #[test]

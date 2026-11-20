@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 100, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 107, Registry nouns: 14
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 
 # --- helper predicates -------------------------------------------------------
@@ -13,7 +13,7 @@ function __affi_no_noun
     set -l toks (commandline -opc)
     for t in $toks[2..-1]
         switch $t
-            case affi certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
+            case affi aod certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
                 return 1
         end
     end
@@ -35,7 +35,7 @@ function __affi_no_verb
     set -l found_noun 0
     for t in $toks[2..-1]
         switch $t
-            case affi certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
+            case affi aod certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
             set found_noun 1
             case '*'
             if test $found_noun -eq 1
@@ -49,6 +49,7 @@ end
 # --- Nouns -------------------------------------------------------------------
 
 complete -c affi -f -n '__affi_no_noun' -a affi -d '1 verbs'
+complete -c affi -f -n '__affi_no_noun' -a aod -d '5 verbs'
 complete -c affi -f -n '__affi_no_noun' -a certificate -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a dossier -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a ecosystem -d '2 verbs'
@@ -58,13 +59,21 @@ complete -c affi -f -n '__affi_no_noun' -a evidence -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a guide -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a keys -d '5 verbs'
 complete -c affi -f -n '__affi_no_noun' -a legal-hold -d '1 verbs'
-complete -c affi -f -n '__affi_no_noun' -a receipt -d '70 verbs'
+complete -c affi -f -n '__affi_no_noun' -a receipt -d '72 verbs'
 complete -c affi -f -n '__affi_no_noun' -a restitution -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a standing -d '2 verbs'
 
 # --- affi verbs ------------------------------------------------------
 
 complete -c affi -f -n '__affi_using_noun affi; and __affi_no_verb' -a doctor -d 'Run environment and receipt-store health checks; optionally apply safe fixes'
+
+# --- aod verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a fold -d 'Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)'
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a rotate -d 'Rematerialize buffers under a fresh monoatomic lease and emit a folded CTRT shadow'
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a seal -d 'Write 64B-aligned avec buffers and append a 352B CTRT shadow under a monoatomic lease'
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a verify -d 'Live Gate: match CompiledOntology, burn monoatomic lease nullifier, exit 0 or 0xE5xx'
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a witness -d 'Historical Witness on expired/rotated fossils: envelope-only, zero Region 3 mapping'
 
 # --- certificate verbs ------------------------------------------------------
 
@@ -164,6 +173,8 @@ complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a policy
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a portfolio-health -d 'Aggregate health signals across a portfolio of receipts into a dashboard-ready report'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a predict -d 'Forecast future chain state or failure probability based on historical receipt patterns'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a profile -d 'Profile the performance of verify and assemble operations on a receipt'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a proof-carrying -d 'Mint a seal/v2 subject from grounded OCEL DFG fitness/precision (admit_flat → digest)'
+complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a proof-carrying-verify -d 'Verify an ML-DSA-65 seal/v2 over a proof-carrying conformance subject'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a query -d 'Query receipt events using a filter expression (event_type, object, seq range)'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a receipt-throughput -d 'Measure how many receipts per second the local store can verify under load'
 complete -c affi -f -n '__affi_using_noun receipt; and __affi_no_verb' -a replay -d 'Re-execute chain from stored events, optionally applying custom handlers'

@@ -1,0 +1,113 @@
+//! Historical Witness — envelope-only, zero Region 3 access
+//! (AFFI-SPEC-26.11.19 §4.3 Mode B).
+
+use super::envelope::shared_envelope_check;
+use super::layout::AodShadow;
+use super::refuse::AodRefusal;
+
+/// Inert attestation: proves point-in-time envelope validity without mapping data.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WitnessAttestation {
+    /// Ontology hash recorded in the header (identity only — not matched live).
+    pub ontology_hash: [u8; 32],
+    /// Payload BLAKE3 from the shadow (Regions 1–3).
+    pub payload_digest: [u8; 32],
+    /// Lease epoch observed (not burned).
+    pub lease_epoch: u64,
+    /// Lease nullifier observed (not burned).
+    pub lease_nullifier: [u8; 32],
+    /// Folded receipt tip.
+    pub folded_receipt: [u8; 32],
+    /// Row count from the header.
+    pub row_count: u64,
+    /// Buffer count from the header.
+    pub buffer_count: u32,
+}
+
+impl WitnessAttestation {
+    /// Borrow the shadow fields used to mint this attestation.
+    pub fn from_shadow(
+        ontology_hash: [u8; 32],
+        row_count: u64,
+        buffer_count: u32,
+        shadow: &AodShadow,
+    ) -> Self {
+        Self {
+            ontology_hash,
+            payload_digest: shadow.payload_digest,
+            lease_epoch: shadow.lease_epoch,
+            lease_nullifier: shadow.lease_nullifier,
+            folded_receipt: shadow.folded_receipt,
+            row_count,
+            buffer_count,
+        }
+    }
+}
+
+/// Historical witness: shared envelope only. Does **not** require a compiled
+/// ontology, does **not** burn the lease, and returns no Region 3 pointers.
+pub fn verify_witness(raw: &[u8]) -> Result<WitnessAttestation, AodRefusal> {
+    let ok = shared_envelope_check(raw)?;
+    Ok(WitnessAttestation::from_shadow(
+        ok.header.ontology_hash,
+        ok.header.row_count,
+        ok.header.buffer_count,
+        &ok.shadow,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aod::layout::{
+        blake3_of, compute_seal_commitment, AodHeader, AodShadow, AOD_HEADER_LEN, AOD_MIN_FILE_LEN,
+    };
+
+    #[test]
+    fn witness_has_no_data_pointers() {
+        let mut raw = [0u8; AOD_MIN_FILE_LEN];
+        let header = AodHeader {
+            flags: 0,
+            row_count: 0,
+            buffer_count: 0,
+            ontology_hash: [0x44; 32],
+            trailer_offset: AOD_HEADER_LEN as u64,
+        };
+        raw[..AOD_HEADER_LEN].copy_from_slice(&header.encode());
+        let payload_digest = blake3_of(&raw[..AOD_HEADER_LEN]);
+        let mut shadow = AodShadow {
+            payload_digest: payload_digest.0,
+            lease_epoch: 9,
+            lease_nullifier: [0x55; 32],
+            folded_receipt: [0x66; 32],
+            pqc_seal: [0u8; crate::aod::layout::AOD_PQC_SEAL_LEN],
+        };
+        shadow.pqc_seal = compute_seal_commitment(
+            &shadow.payload_digest,
+            shadow.lease_epoch,
+            &shadow.lease_nullifier,
+            &shadow.folded_receipt,
+        );
+        raw[AOD_HEADER_LEN..].copy_from_slice(&shadow.encode());
+
+        let att = verify_witness(&raw).expect("witness");
+        assert_eq!(att.ontology_hash, [0x44; 32]);
+        assert_eq!(att.lease_epoch, 9);
+        // Auditor isolation: attestation carries no Region 3 pointer /
+        // slice into the data pages (only owned digests + counts).
+        let _size = core::mem::size_of_val(&att);
+        assert_eq!(
+            core::mem::size_of::<WitnessAttestation>(),
+            32 * 4 + 8 + 8 + 4 + 4
+        );
+        let _ = att;
+    }
+
+    /// `verify_witness` must not require `CompiledOntology` in its signature
+    /// (auditor-isolation compile court — Mode B stands alone).
+    #[test]
+    fn auditor_isolation_api_has_no_ontology_param() {
+        fn assert_witness_sig(_: fn(&[u8]) -> Result<WitnessAttestation, AodRefusal>) {}
+        assert_witness_sig(verify_witness);
+    }
+}

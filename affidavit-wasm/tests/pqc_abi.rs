@@ -257,7 +257,7 @@ fn pqc_ops_are_advertised_and_differentially_identical_in_wasm() {
 // passes the whole suite — the SLH half was never exercised through `call`.
 // ---------------------------------------------------------------------------
 
-use slh_dsa::signature::{SignatureEncoding, Signer as SlhSigner, Verifier as SlhVerifier};
+use slh_dsa::signature::Verifier as SlhVerifier;
 use slh_dsa::{
     Sha2_128s, Signature as SlhSignature, SigningKey as SlhSigningKey,
     VerifyingKey as SlhVerifyingKey,
@@ -421,4 +421,55 @@ fn slh_positive_control_the_test_keypair_can_disagree() {
     let vk = SlhVerifyingKey::<Sha2_128s>::try_from(pk.as_slice()).unwrap();
     let sigma = SlhSignature::<Sha2_128s>::try_from(sig.as_slice()).unwrap();
     assert!(vk.verify(b"slh envelope", &sigma).is_err());
+}
+
+/// Register #8 wasm projection: ctx-signed ML-DSA-65 fails empty-ctx verify
+/// and succeeds under the matching `ctx` field.
+#[test]
+fn pqc_verify_context_string_divergence_court() {
+    let (pk, sk) = keypair();
+    let msg = &[0xABu8; 32];
+    let ctx = b"affidavit-core/seal/v2";
+    let sig = sk
+        .expanded_key()
+        .sign_deterministic(msg, ctx)
+        .expect("sign under ctx")
+        .encode();
+
+    // Matching ctx → ACCEPT.
+    let (ok, _) = run(json!({
+        "op": "pqc_verify",
+        "msg_hex": hex_encode(msg),
+        "ctx": "affidavit-core/seal/v2",
+        "sig_hex": hex_encode(&sig),
+        "pk_hex": hex_encode(&pk),
+        "profile": "pqc",
+    }));
+    assert_eq!(ok["ok"], true, "{ok}");
+    assert_eq!(ok["accepted"], true, "{ok}");
+
+    // Empty ctx (historical default) → REFUSE. Falsifier: ctx-signed fails empty-ctx.
+    let (empty, _) = run(json!({
+        "op": "pqc_verify",
+        "msg_hex": hex_encode(msg),
+        "sig_hex": hex_encode(&sig),
+        "pk_hex": hex_encode(&pk),
+        "profile": "pqc",
+    }));
+    assert_eq!(empty["ok"], true, "{empty}");
+    assert_eq!(empty["accepted"], false, "{empty}");
+    assert_eq!(empty["refusal"], "ml_dsa65_rejected");
+
+    // Wrong ctx → REFUSE.
+    let (wrong, _) = run(json!({
+        "op": "pqc_verify",
+        "msg_hex": hex_encode(msg),
+        "ctx": "affidavit-core/seal/v1",
+        "sig_hex": hex_encode(&sig),
+        "pk_hex": hex_encode(&pk),
+        "profile": "pqc",
+    }));
+    assert_eq!(wrong["ok"], true, "{wrong}");
+    assert_eq!(wrong["accepted"], false, "{wrong}");
+    assert_eq!(wrong["refusal"], "ml_dsa65_rejected");
 }
