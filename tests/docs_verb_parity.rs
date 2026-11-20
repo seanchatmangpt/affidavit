@@ -197,7 +197,7 @@ fn docs_verb_parity_registry_is_100_verbs() {
     // a legitimate registry change, update this constant AND regenerate:
     assert_eq!(
         affidavit::registry::verb_count(),
-        102, // +proof-carrying + proof-carrying-verify
+        107, // +aod {seal,verify,witness,rotate,fold}
         "verb_count moved — update the pinned count here and run `{}`",
         REGEN_CMD
     );
