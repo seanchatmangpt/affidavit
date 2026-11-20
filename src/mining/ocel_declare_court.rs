@@ -343,15 +343,7 @@ mod tests {
         )
         .unwrap();
         admit_declare(&ocel, "o1", DeclareTemplate::Init, "create", None, "order").unwrap();
-        assert!(admit_declare(
-            &ocel,
-            "o1",
-            DeclareTemplate::Init,
-            "pay",
-            None,
-            "order",
-        )
-        .is_err());
+        assert!(admit_declare(&ocel, "o1", DeclareTemplate::Init, "pay", None, "order",).is_err());
         assert!(admit_declare(
             &ocel,
             "o1",

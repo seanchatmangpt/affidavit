@@ -169,12 +169,10 @@ fn install_git_hook_writes_executable_hook_that_enforces_exit_1() {
         assert_ne!(mode & 0o111, 0, "hook must be executable; mode = {mode:o}");
     }
 
-    // Live enforcement: run the installed hook for real. Its embedded
-    // `affi receipt monitor` call must resolve (PATH points at the built
-    // binary) and the hook must convert a failing monitor into the commit
-    // gate — exit 1, with the enforcement line on stderr.
-    let run = Command::new("sh")
-        .arg(&hook_path)
+    // Live enforcement: run the installed hook the way git does — exec the
+    // file so the `#!/bin/bash` shebang is honored. Invoking via `sh` forces
+    // dash on Ubuntu and rejects `set -o pipefail` / bash arrays.
+    let run = Command::new(&hook_path)
         .current_dir(dir)
         .env(
             "PATH",
