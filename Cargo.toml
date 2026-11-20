@@ -13,6 +13,8 @@ readme = "README.md"
 keywords = ["provenance", "receipt", "blake3", "signature", "post-quantum"]
 categories = ["security", "development-tools", "cryptography"]
 exclude = [
+  # standalone court crates with host-local deps (own [workspace]).
+  "courts/",
   # js/npm carries node_modules (tens of MB) — consumer app, not crate content.
   "js/",
   "dist/",

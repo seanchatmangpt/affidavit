@@ -398,10 +398,21 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
 
     let total = events.len();
     let mut emitted = 0usize;
+    // omni-evidence/v1 bundles (docs/integrations/OMNIPLATFORM.md) name
+    // payloads relative to the batch file, so a bundle stays valid wherever it
+    // is copied. A relative payload path that does not exist from the cwd but
+    // does exist next to the batch file resolves there; absolute and
+    // cwd-relative paths keep their former meaning.
+    let batch_dir = std::path::Path::new(&batch_file)
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .unwrap_or_default();
 
     for event in &events {
         let event_type = event["event_type"].as_str().unwrap_or("unknown");
-        let payload = event["payload"].as_str().unwrap_or("{}");
+        let payload_raw = event["payload"].as_str().unwrap_or("{}");
+        let payload_owned = resolve_batch_payload(&batch_dir, payload_raw);
+        let payload = payload_owned.as_str();
         let objects: Vec<String> = event["objects"]
             .as_array()
             .map(|arr| {
@@ -425,6 +436,22 @@ pub fn emit_batch(batch_file: String, format: Option<String>) -> Result<()> {
         outln!("emit-batch: {emitted}/{total} events emitted");
     }
     Ok(())
+}
+
+/// Resolve an emit-batch payload path: `-` (stdin), absolute paths and paths
+/// that exist relative to the cwd are returned unchanged; otherwise a path that
+/// exists relative to the batch file's directory wins.
+fn resolve_batch_payload(batch_dir: &std::path::Path, payload: &str) -> String {
+    let p = std::path::Path::new(payload);
+    if payload == "-" || p.is_absolute() || p.exists() {
+        return payload.to_string();
+    }
+    let candidate = batch_dir.join(p);
+    if candidate.exists() {
+        candidate.to_string_lossy().into_owned()
+    } else {
+        payload.to_string()
+    }
 }
 
 /// `affi receipt emit-from-github` — emit from a GitHub event payload.
