@@ -7,6 +7,11 @@
 //! Rendered verb modules.
 
 pub mod anomaly_detect;
+pub mod aod_fold;
+pub mod aod_rotate;
+pub mod aod_seal;
+pub mod aod_verify;
+pub mod aod_witness;
 pub mod assemble;
 pub mod assemble_and_notarize;
 pub mod assemble_with_signature;

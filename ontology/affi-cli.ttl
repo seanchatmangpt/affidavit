@@ -2304,3 +2304,168 @@ affi:CertificateFre902Verb a cnv:Verb ;
     cnv:belongsToNoun affi:CertificateNoun ;
     cnv:returnType "()" .
 
+
+# ============================================================================
+# Noun: aod — Zero-String Sealed Arrow-on-Disk (AFFI-SPEC-26.11.19)
+# ============================================================================
+
+affi:AodNoun a cnv:Noun ;
+    cnv:hasNounName "aod" ;
+    cnv:nounAbout "Seal, live-verify, historically witness, rotate, and fold Zero-String Sealed .aod artifacts (64B-aligned avec buffers + 352B CTRT shadow)" ;
+    cnv:hasVerbs affi:AodSealVerb , affi:AodVerifyVerb , affi:AodWitnessVerb , affi:AodRotateVerb , affi:AodFoldVerb ;
+    rdfs:comment "The aod noun: affi aod <seal|verify|witness|rotate|fold>"@en .
+
+affi:AodSealVerb a cnv:Verb ;
+    cnv:fieldName "aod_seal" ;
+    cnv:hasVerbName "seal" ;
+    cnv:verbAbout "Write 64B-aligned avec buffers, compute in-register BLAKE3, append 352B CTRT shadow under a monoatomic lease" ;
+    cnv:belongsToNoun affi:AodNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:AodOntologyArg ;
+    cnv:hasArgument affi:AodLeaseArg ;
+    cnv:hasArgument affi:AodInArg ;
+    cnv:hasArgument affi:AodOutArg ;
+    cnv:hasArgument affi:AodRowsArg ;
+    cnv:hasArgument affi:AodEpochArg ;
+    cnv:hasArgument affi:AodFoldedArg ;
+    cnv:hasArguments ( affi:AodOntologyArg affi:AodLeaseArg affi:AodInArg affi:AodOutArg affi:AodRowsArg affi:AodEpochArg affi:AodFoldedArg ) .
+
+affi:AodOntologyArg a cnv:Argument ;
+    cnv:hasArgumentName "ontology" ;
+    cnv:argumentAbout "Compiled ontology_hash as 64 lowercase hex characters" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:AodLeaseArg a cnv:Argument ;
+    cnv:hasArgumentName "lease" ;
+    cnv:argumentAbout "Monoatomic lease nullifier as 64 lowercase hex characters" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:AodInArg a cnv:Argument ;
+    cnv:hasArgumentName "in" ;
+    cnv:argumentAbout "Raw fixed-stride buffer bytes (length must equal rows × stride)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:AodOutArg a cnv:Argument ;
+    cnv:hasArgumentName "out" ;
+    cnv:argumentAbout "Output .aod path" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:AodRowsArg a cnv:Argument ;
+    cnv:hasArgumentName "rows" ;
+    cnv:argumentAbout "Logical row count shared by every buffer (stride = len(in)/rows)" ;
+    cnv:valueType "u64" ;
+    cnv:required "true" .
+
+affi:AodEpochArg a cnv:Argument ;
+    cnv:hasArgumentName "epoch" ;
+    cnv:argumentAbout "Lease epoch (u64); defaults to 1 when omitted" ;
+    cnv:valueType "u64" ;
+    cnv:required "false" .
+
+affi:AodFoldedArg a cnv:Argument ;
+    cnv:hasArgumentName "folded" ;
+    cnv:argumentAbout "Optional prior folded receipt tip (64 hex); defaults to 32 zero bytes" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:AodVerifyVerb a cnv:Verb ;
+    cnv:fieldName "aod_verify" ;
+    cnv:hasVerbName "verify" ;
+    cnv:verbAbout "Live Gate: match CompiledOntology, burn monoatomic lease nullifier, return exit 0 or 0xE5xx refusal" ;
+    cnv:belongsToNoun affi:AodNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:AodFileArg ;
+    cnv:hasArgument affi:AodLiveArg ;
+    cnv:hasArgument affi:AodOntologyArg ;
+    cnv:hasArgument affi:AodStridesArg ;
+    cnv:hasArgument affi:AodRegistryArg ;
+    cnv:hasArguments ( affi:AodFileArg affi:AodLiveArg affi:AodOntologyArg affi:AodStridesArg affi:AodRegistryArg ) .
+
+affi:AodFileArg a cnv:Argument ;
+    cnv:hasArgumentName "file" ;
+    cnv:argumentAbout "Path to a sealed .aod artifact" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+affi:AodLiveArg a cnv:Argument ;
+    cnv:hasArgumentName "live" ;
+    cnv:argumentAbout "Require Live Gate mode (must be set; Historical Witness is affi aod witness)" ;
+    cnv:valueType "bool" ;
+    cnv:required "false" .
+
+affi:AodStridesArg a cnv:Argument ;
+    cnv:hasArgumentName "strides" ;
+    cnv:argumentAbout "Comma-separated per-row byte strides matching the compiled ontology buffer slots" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:AodRegistryArg a cnv:Argument ;
+    cnv:hasArgumentName "registry" ;
+    cnv:argumentAbout "Path to the monoatomic lease nullifier registry file (created on demand)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:AodWitnessVerb a cnv:Verb ;
+    cnv:fieldName "aod_witness" ;
+    cnv:hasVerbName "witness" ;
+    cnv:verbAbout "Historical Witness on expired/rotated fossils: envelope-only, zero Region 3 mapping" ;
+    cnv:belongsToNoun affi:AodNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:AodFileArg ;
+    cnv:hasArgument affi:AodFormatArg ;
+    cnv:hasArguments ( affi:AodFileArg affi:AodFormatArg ) .
+
+affi:AodFormatArg a cnv:Argument ;
+    cnv:hasArgumentName "format" ;
+    cnv:argumentAbout "Output format: json or human" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
+affi:AodRotateVerb a cnv:Verb ;
+    cnv:fieldName "aod_rotate" ;
+    cnv:hasVerbName "rotate" ;
+    cnv:verbAbout "Consume prior receipt, rematerialize buffers under a fresh monoatomic lease, emit folded shadow" ;
+    cnv:belongsToNoun affi:AodNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:AodOldArg ;
+    cnv:hasArgument affi:AodLeaseArg ;
+    cnv:hasArgument affi:AodOutArg ;
+    cnv:hasArgument affi:AodEpochArg ;
+    cnv:hasArguments ( affi:AodOldArg affi:AodLeaseArg affi:AodOutArg affi:AodEpochArg ) .
+
+affi:AodOldArg a cnv:Argument ;
+    cnv:hasArgumentName "old" ;
+    cnv:argumentAbout "Prior .aod fossil to rotate from" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+affi:AodFoldVerb a cnv:Verb ;
+    cnv:fieldName "aod_fold" ;
+    cnv:hasVerbName "fold" ;
+    cnv:verbAbout "Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)" ;
+    cnv:belongsToNoun affi:AodNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:AodLeftArg ;
+    cnv:hasArgument affi:AodRightArg ;
+    cnv:hasArgument affi:AodFormatArg ;
+    cnv:hasArguments ( affi:AodLeftArg affi:AodRightArg affi:AodFormatArg ) .
+
+affi:AodLeftArg a cnv:Argument ;
+    cnv:hasArgumentName "left" ;
+    cnv:argumentAbout "Left .aod fossil" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 1 .
+
+affi:AodRightArg a cnv:Argument ;
+    cnv:hasArgumentName "right" ;
+    cnv:argumentAbout "Right .aod fossil" ;
+    cnv:valueType "String" ;
+    cnv:required "true" ;
+    cnv:positional 2 .

@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 102, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 107, Registry nouns: 14
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install (pick one):
@@ -23,9 +23,10 @@ _affi() {
     fi
 
     # Nouns (top-level subcommands), then verbs per noun — from src/registry.rs.
-    local nouns="affi certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing"
+    local nouns="affi aod certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing"
 
     local affi_verbs="doctor"
+    local aod_verbs="fold rotate seal verify witness"
     local certificate_verbs="fre-902"
     local dossier_verbs="emit inspect seal verify"
     local ecosystem_verbs="certify verify"

@@ -9798,3 +9798,273 @@ pub fn receipt_chain_verify(dir: String) -> Result<()> {
             std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
         })
 }
+
+// ============================================================================
+// AOD CLUSTER — Zero-String Sealed Arrow-on-Disk (AFFI-SPEC-26.11.19)
+// ============================================================================
+
+fn aod_refuse(e: affidavit_core::AodRefusal) -> ! {
+    eprintln!("REFUSED_AOD [0x{:04X} {:?}]", e.machine_code(), e);
+    // POSIX exit is 8-bit; surface the low byte of the 0xE5xx code.
+    std::process::exit(i32::from(e.machine_code() & 0xFF));
+}
+
+fn aod_require_hex32(label: &str, hex: &str) -> Result<[u8; 32]> {
+    decode_hex_32(hex.trim()).ok_or_else(|| {
+        NounVerbError::execution_error(format!(
+            "REFUSED_HEX_LENGTH: --{label} expects 64 hex chars, got {}",
+            hex.trim().len()
+        ))
+    })
+}
+
+fn format_aod_refusal(e: affidavit_core::AodRefusal) -> String {
+    format!("REFUSED_AOD [0x{:04X} {:?}]", e.machine_code(), e)
+}
+
+/// File-backed monoatomic lease registry: one hex nullifier per line.
+struct FileLeaseRegistry {
+    path: std::path::PathBuf,
+    burned: std::collections::BTreeSet<[u8; 32]>,
+}
+
+impl FileLeaseRegistry {
+    fn open(path: &std::path::Path) -> Result<Self> {
+        let mut burned = std::collections::BTreeSet::new();
+        if path.exists() {
+            let text = std::fs::read_to_string(path).map_err(io_err)?;
+            for (lineno, line) in text.lines().enumerate() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                let n = decode_hex_32(line).ok_or_else(|| {
+                    NounVerbError::execution_error(format!(
+                        "REFUSED_LEASE_REGISTRY: malformed nullifier at {}:{}",
+                        path.display(),
+                        lineno + 1
+                    ))
+                })?;
+                burned.insert(n);
+            }
+        }
+        Ok(Self {
+            path: path.to_path_buf(),
+            burned,
+        })
+    }
+
+    fn persist(&self) -> Result<()> {
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent).map_err(io_err)?;
+        }
+        let mut body = String::new();
+        for n in &self.burned {
+            body.push_str(&hex_encode(n));
+            body.push('\n');
+        }
+        let tmp = self.path.with_extension("tmp");
+        std::fs::write(&tmp, body.as_bytes()).map_err(io_err)?;
+        std::fs::rename(&tmp, &self.path).map_err(io_err)?;
+        Ok(())
+    }
+}
+
+impl affidavit_core::LeaseRegistry for FileLeaseRegistry {
+    fn burn(
+        &mut self,
+        _lease_epoch: u64,
+        nullifier: &[u8; 32],
+    ) -> core::result::Result<(), affidavit_core::AodRefusal> {
+        if !self.burned.insert(*nullifier) {
+            return Err(affidavit_core::AodRefusal::LeaseSpentOrExpired);
+        }
+        Ok(())
+    }
+}
+
+/// `affi aod seal` — seal raw fixed-stride bytes into a `.aod`.
+#[allow(clippy::too_many_arguments)]
+pub fn aod_seal(
+    ontology_hex: String,
+    lease_hex: String,
+    in_path: String,
+    out_path: String,
+    rows: u64,
+    epoch: Option<u64>,
+    folded_hex: Option<String>,
+) -> Result<()> {
+    if rows == 0 {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_AOD_ROWS: --rows must be > 0",
+        ));
+    }
+    let ontology = aod_require_hex32("ontology", &ontology_hex)?;
+    let lease = aod_require_hex32("lease", &lease_hex)?;
+    let folded = match folded_hex.as_deref() {
+        Some(h) => aod_require_hex32("folded", h)?,
+        None => [0u8; 32],
+    };
+    let page = std::fs::read(&in_path).map_err(io_err)?;
+    if page.len() as u64 % rows != 0 {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_AOD_STRIDE: --in length {} is not divisible by --rows {rows}",
+            page.len()
+        )));
+    }
+    let raw = affidavit_core::seal_aod(
+        &[affidavit_core::AodBufferSpec { bytes: &page }],
+        &affidavit_core::SealParams {
+            ontology_hash: &ontology,
+            row_count: rows,
+            lease_epoch: epoch.unwrap_or(1),
+            lease_nullifier: &lease,
+            folded_receipt: &folded,
+        },
+    )
+    .map_err(|e| NounVerbError::execution_error(format_aod_refusal(e)))?;
+    std::fs::write(&out_path, &raw).map_err(io_err)?;
+    outln!(
+        "aod sealed bytes={} ontology={} lease_epoch={}",
+        raw.len(),
+        hex_encode(&ontology),
+        epoch.unwrap_or(1)
+    );
+    Ok(())
+}
+
+/// `affi aod verify --live` — Live Gate + lease burn.
+pub fn aod_verify(
+    file: String,
+    live: bool,
+    ontology_hex: String,
+    strides_csv: String,
+    registry: Option<String>,
+) -> Result<()> {
+    if !live {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_AOD_MODE: live gate requires --live (use `affi aod witness` for fossils)",
+        ));
+    }
+    let ontology = aod_require_hex32("ontology", &ontology_hex)?;
+    let mut strides: Vec<u64> = Vec::new();
+    for part in strides_csv.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let s: u64 = part.parse().map_err(|_| {
+            NounVerbError::execution_error(format!(
+                "REFUSED_AOD_STRIDES: invalid stride token `{part}`"
+            ))
+        })?;
+        strides.push(s);
+    }
+    if strides.is_empty() {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_AOD_STRIDES: --strides must list at least one per-row byte stride",
+        ));
+    }
+    let raw = std::fs::read(&file).map_err(io_err)?;
+    let compiled = affidavit_core::CompiledOntology {
+        ontology_hash: &ontology,
+        strides: &strides,
+    };
+    let reg_path = registry
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from(".affi/aod-leases"));
+    let mut leases = FileLeaseRegistry::open(&reg_path)?;
+    match affidavit_core::map_live(&raw, &compiled, &mut leases) {
+        Ok(view) => {
+            leases.persist()?;
+            outln!(
+                "aod live ACCEPT rows={} buffers={} lease_epoch={}",
+                view.row_count,
+                view.buffer_count(),
+                view.lease_epoch
+            );
+            Ok(())
+        }
+        Err(e) => aod_refuse(e),
+    }
+}
+
+/// `affi aod witness` — Historical Witness (no lease burn, no Region 3).
+pub fn aod_witness(file: String, format: Option<String>) -> Result<()> {
+    let raw = std::fs::read(&file).map_err(io_err)?;
+    let att = match affidavit_core::verify_witness(&raw) {
+        Ok(a) => a,
+        Err(e) => aod_refuse(e),
+    };
+    let body = serde_json::json!({
+        "mode": "historical_witness",
+        "ontology_hash": hex_encode(&att.ontology_hash),
+        "payload_digest": hex_encode(&att.payload_digest),
+        "lease_epoch": att.lease_epoch,
+        "lease_nullifier": hex_encode(&att.lease_nullifier),
+        "folded_receipt": hex_encode(&att.folded_receipt),
+        "row_count": att.row_count,
+        "buffer_count": att.buffer_count,
+        "region3_mapped": false,
+    });
+    if format.as_deref() == Some("json") {
+        outln!(
+            "{}",
+            serde_json::to_string_pretty(&body)
+                .map_err(|e| NounVerbError::execution_error(e.to_string()))?
+        );
+    } else {
+        outln!(
+            "aod witness ACCEPT ontology={} rows={} buffers={} region3_mapped=false",
+            hex_encode(&att.ontology_hash),
+            att.row_count,
+            att.buffer_count
+        );
+    }
+    Ok(())
+}
+
+/// `affi aod rotate` — rematerialize under a fresh lease + folded tip.
+pub fn aod_rotate(
+    old_path: String,
+    lease_hex: String,
+    out_path: String,
+    epoch: Option<u64>,
+) -> Result<()> {
+    let new_lease = aod_require_hex32("lease", &lease_hex)?;
+    let old = std::fs::read(&old_path).map_err(io_err)?;
+    let (_att, pages) = affidavit_core::rematerialize_pages(&old)
+        .map_err(|e| NounVerbError::execution_error(format_aod_refusal(e)))?;
+    let specs: Vec<affidavit_core::AodBufferSpec<'_>> = pages
+        .iter()
+        .map(|p| affidavit_core::AodBufferSpec {
+            bytes: p.as_slice(),
+        })
+        .collect();
+    let raw = affidavit_core::rotate_aod(&old, &specs, epoch.unwrap_or(1), &new_lease)
+        .map_err(|e| NounVerbError::execution_error(format_aod_refusal(e)))?;
+    std::fs::write(&out_path, &raw).map_err(io_err)?;
+    outln!(
+        "aod rotated bytes={} lease_epoch={} out={}",
+        raw.len(),
+        epoch.unwrap_or(1),
+        out_path
+    );
+    Ok(())
+}
+
+/// `affi aod fold` — trajectory fold monoid on two CTRT tips.
+pub fn aod_fold(left: String, right: String, format: Option<String>) -> Result<()> {
+    let a = std::fs::read(&left).map_err(io_err)?;
+    let b = std::fs::read(&right).map_err(io_err)?;
+    let tip = match affidavit_core::fold_aod_tips(&a, &b) {
+        Ok(t) => t,
+        Err(e) => aod_refuse(e),
+    };
+    if format.as_deref() == Some("json") {
+        outln!("{}", serde_json::json!({ "folded_tip": hex_encode(&tip) }));
+    } else {
+        outln!("aod fold tip={}", hex_encode(&tip));
+    }
+    Ok(())
+}

@@ -86,6 +86,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+pub mod aod;
 pub mod bcinr;
 pub mod chain;
 pub mod crypto_verify;
@@ -99,6 +100,17 @@ pub mod verifier;
 #[cfg(feature = "alloc")]
 #[cfg(feature = "alloc")]
 pub mod mining;
+
+#[cfg(feature = "alloc")]
+pub use aod::{
+    fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, AodBufferSpec, InMemoryLeaseRegistry,
+    SealParams,
+};
+pub use aod::{
+    map_live, shared_envelope_check, verify_witness, AodHeader, AodRefusal, AodShadow, AodView,
+    BufferEntry, CompiledOntology, EnvelopeOk, LeaseRegistry, WitnessAttestation, AOD_HEADER_LEN,
+    AOD_MAGIC, AOD_MIN_FILE_LEN, AOD_SHADOW_LEN, DOMAIN_AOD_SEAL,
+};
 
 pub use chain::{compute_chain_hash, Event, PROFILE};
 pub use crypto_verify::{

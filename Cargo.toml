@@ -157,6 +157,8 @@ anyhow = "1"
 thiserror = "2"
 walkdir = "2"
 regex = "1"
+# Zero-String Sealed AOD kernel (AFFI-SPEC-26.11.19) — path pin; own workspace.
+affidavit-core = { path = "affidavit-core", version = "26.10.17" }
 
 # --- FEATURE-GATED ECOSYSTEM INTEGRATIONS ---
 # Phase 1: Inspection & catalog

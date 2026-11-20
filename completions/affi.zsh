@@ -6,7 +6,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 102, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 107, Registry nouns: 14
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install (per-user):
@@ -30,6 +30,7 @@ _affi() {
         noun)
             _values 'noun' \
                 'affi[1 verbs]' \
+                'aod[5 verbs]' \
                 'certificate[1 verbs]' \
                 'dossier[4 verbs]' \
                 'ecosystem[2 verbs]' \
@@ -48,6 +49,14 @@ _affi() {
                 affi)
                     _values 'verb' \
                         'doctor[Run environment and receipt-store health checks; optionally apply safe fixes]'
+                    ;;
+                aod)
+                    _values 'verb' \
+                        'fold[Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)]' \
+                        'rotate[Rematerialize buffers under a fresh monoatomic lease and emit a folded CTRT shadow]' \
+                        'seal[Write 64B-aligned avec buffers and append a 352B CTRT shadow under a monoatomic lease]' \
+                        'verify[Live Gate\: match CompiledOntology, burn monoatomic lease nullifier, exit 0 or 0xE5xx]' \
+                        'witness[Historical Witness on expired/rotated fossils\: envelope-only, zero Region 3 mapping]'
                     ;;
                 certificate)
                     _values 'verb' \
