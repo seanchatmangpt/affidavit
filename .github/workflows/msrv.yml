@@ -64,16 +64,18 @@ jobs:
 
       # rust-toolchain.toml at the repo root pins nightly for the root crate;
       # RUSTUP_TOOLCHAIN overrides it so this job really runs the MSRV compiler.
+      # --locked: Cargo.lock is replay identity; unlocked resolve can pull
+      # packages whose rust-version exceeds the declared MSRV.
       - name: cargo build (MSRV)
         working-directory: affidavit-core
         env:
           RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
         run: |
           rustc --version
-          cargo build
+          cargo build --locked
 
       - name: cargo test (MSRV)
         working-directory: affidavit-core
         env:
           RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
-        run: cargo test
+        run: cargo test --locked

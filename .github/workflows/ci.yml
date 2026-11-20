@@ -24,10 +24,33 @@ jobs:
         with:
           path: affidavit
 
-      # No companion clones: the manifest resolves entirely from crates.io plus
-      # in-repo stubs/ and vendor/. The former depth-1 clones checked out pinned
-      # SHAs outside their fetched history ("fatal: unable to read tree") and
-      # failed every job before cargo ran.
+      - name: Clone companion repos
+        # Provenance-only siblings. Build uses crates.io + stubs/; a shallow
+        # clone that cannot detach the pinned SHA must not fail the job.
+        run: |
+          set +e
+          cd ..
+          clone_pin() {
+            local repo="$1" sha="$2"
+            git clone --depth 1 "https://github.com/seanchatmangpt/${repo}.git" || {
+              echo "WARN: clone ${repo} failed; continuing (crates.io/stubs cover build)"
+              return 0
+            }
+            if ! git -C "$repo" fetch --depth 1 origin "$sha" 2>/dev/null; then
+              echo "WARN: fetch ${repo}@${sha} outside shallow tip; continuing"
+              return 0
+            fi
+            if ! git -C "$repo" checkout --detach "$sha"; then
+              echo "WARN: checkout ${repo}@${sha} failed; continuing"
+              return 0
+            fi
+            echo "pinned: ${repo}@${sha}"
+          }
+          clone_pin clap-noun-verb 747f1dd4506892c218da4d739c256bcfcf941e50
+          clone_pin wasm4pm-compat 4c523e0d81a5bb52fda21cea992201f608e088b5
+          # wasm4pm / chicago-tdd-tools / clnrm-core: stubs via [patch.crates-io]
+          clone_pin lsp-max 5dec93bef12592b2d7eee7b9a45139595f2bbedb
+          exit 0
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
@@ -75,10 +98,33 @@ jobs:
         with:
           path: affidavit
 
-      # No companion clones: the manifest resolves entirely from crates.io plus
-      # in-repo stubs/ and vendor/. The former depth-1 clones checked out pinned
-      # SHAs outside their fetched history ("fatal: unable to read tree") and
-      # failed every job before cargo ran.
+      - name: Clone companion repos
+        # Provenance-only siblings. Build uses crates.io + stubs/; a shallow
+        # clone that cannot detach the pinned SHA must not fail the job.
+        run: |
+          set +e
+          cd ..
+          clone_pin() {
+            local repo="$1" sha="$2"
+            git clone --depth 1 "https://github.com/seanchatmangpt/${repo}.git" || {
+              echo "WARN: clone ${repo} failed; continuing (crates.io/stubs cover build)"
+              return 0
+            }
+            if ! git -C "$repo" fetch --depth 1 origin "$sha" 2>/dev/null; then
+              echo "WARN: fetch ${repo}@${sha} outside shallow tip; continuing"
+              return 0
+            fi
+            if ! git -C "$repo" checkout --detach "$sha"; then
+              echo "WARN: checkout ${repo}@${sha} failed; continuing"
+              return 0
+            fi
+            echo "pinned: ${repo}@${sha}"
+          }
+          clone_pin clap-noun-verb 747f1dd4506892c218da4d739c256bcfcf941e50
+          clone_pin wasm4pm-compat 4c523e0d81a5bb52fda21cea992201f608e088b5
+          # wasm4pm / chicago-tdd-tools / clnrm-core: stubs via [patch.crates-io]
+          clone_pin lsp-max 5dec93bef12592b2d7eee7b9a45139595f2bbedb
+          exit 0
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
@@ -112,10 +158,33 @@ jobs:
         with:
           path: affidavit
 
-      # No companion clones: the manifest resolves entirely from crates.io plus
-      # in-repo stubs/ and vendor/. The former depth-1 clones checked out pinned
-      # SHAs outside their fetched history ("fatal: unable to read tree") and
-      # failed every job before cargo ran.
+      - name: Clone companion repos
+        # Provenance-only siblings. Build uses crates.io + stubs/; a shallow
+        # clone that cannot detach the pinned SHA must not fail the job.
+        run: |
+          set +e
+          cd ..
+          clone_pin() {
+            local repo="$1" sha="$2"
+            git clone --depth 1 "https://github.com/seanchatmangpt/${repo}.git" || {
+              echo "WARN: clone ${repo} failed; continuing (crates.io/stubs cover build)"
+              return 0
+            }
+            if ! git -C "$repo" fetch --depth 1 origin "$sha" 2>/dev/null; then
+              echo "WARN: fetch ${repo}@${sha} outside shallow tip; continuing"
+              return 0
+            fi
+            if ! git -C "$repo" checkout --detach "$sha"; then
+              echo "WARN: checkout ${repo}@${sha} failed; continuing"
+              return 0
+            fi
+            echo "pinned: ${repo}@${sha}"
+          }
+          clone_pin clap-noun-verb 747f1dd4506892c218da4d739c256bcfcf941e50
+          clone_pin wasm4pm-compat 4c523e0d81a5bb52fda21cea992201f608e088b5
+          # wasm4pm / chicago-tdd-tools / clnrm-core: stubs via [patch.crates-io]
+          clone_pin lsp-max 5dec93bef12592b2d7eee7b9a45139595f2bbedb
+          exit 0
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable

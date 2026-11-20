@@ -90,25 +90,21 @@ fn load_receipts_from_path(path: &str) -> Result<LoadedReceipts> {
     if p.is_dir() {
         let mut receipts = Vec::new();
         let mut failures = Vec::new();
-        // read_dir order is filesystem-defined (sorted on APFS, hash order on
-        // ext4/overlayfs). Corpus verbs (trend-analysis, timeline, ...) read
-        // receipts as an ordered series, so sort by path for a deterministic,
-        // host-independent order.
-        let mut paths = std::fs::read_dir(p)
+        // Deterministic order: readdir order is filesystem-dependent and was
+        // flipping trend-analysis direction under parallel CI.
+        let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir(p)
             .map_err(io_err)?
-            .map(|e| e.map(|e| e.path()))
-            .collect::<std::io::Result<Vec<_>>>()
-            .map_err(io_err)?;
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|ep| ep.extension().and_then(|s| s.to_str()) == Some("json"))
+            .collect();
         paths.sort();
         for ep in paths {
-            if ep.extension().and_then(|s| s.to_str()) == Some("json") {
-                let ep_str = ep.to_str().unwrap_or("").to_string();
-                match crate::cli::show(&ep_str) {
-                    Ok(r) => receipts.push(r),
-                    Err(e) => {
-                        eprintln!("warning: could not load {ep_str}: {e}");
-                        failures.push((ep_str, e.to_string()));
-                    }
+            let ep_str = ep.to_str().unwrap_or("").to_string();
+            match crate::cli::show(&ep_str) {
+                Ok(r) => receipts.push(r),
+                Err(e) => {
+                    eprintln!("warning: could not load {ep_str}: {e}");
+                    failures.push((ep_str, e.to_string()));
                 }
             }
         }
@@ -1750,6 +1746,299 @@ pub fn conformance(receipt: String) -> Result<()> {
     eprintln!("  activity_coverage:       {activity_coverage:.4}  (NOT van der Aalst precision)");
     eprintln!("  simplicity (Occam):      {simplicity:.4}");
     Ok(())
+}
+
+/// FIPS 204 context string for seal/v2 (matches `affidavit_core::sealed::DOMAIN_SEAL`).
+const SEAL_V2_CTX: &[u8] = b"affidavit-core/seal/v2";
+
+fn parse_normative_arcs(model_path: &str) -> Result<Vec<(String, String)>> {
+    let raw = std::fs::read_to_string(model_path).map_err(io_err)?;
+    let v: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+    let arr = v.as_array().ok_or_else(|| {
+        NounVerbError::execution_error(
+            "REFUSED_MODEL_SHAPE: --model must be a JSON array of [source, target] pairs",
+        )
+    })?;
+    let mut arcs = Vec::with_capacity(arr.len());
+    for (i, item) in arr.iter().enumerate() {
+        let pair = item.as_array().ok_or_else(|| {
+            NounVerbError::execution_error(format!(
+                "REFUSED_MODEL_SHAPE: arc {i} is not a [source, target] array"
+            ))
+        })?;
+        if pair.len() != 2 {
+            return Err(NounVerbError::execution_error(format!(
+                "REFUSED_MODEL_SHAPE: arc {i} must have exactly two strings"
+            )));
+        }
+        let s = pair[0].as_str().ok_or_else(|| {
+            NounVerbError::execution_error(format!(
+                "REFUSED_MODEL_SHAPE: arc {i} source not string"
+            ))
+        })?;
+        let t = pair[1].as_str().ok_or_else(|| {
+            NounVerbError::execution_error(format!(
+                "REFUSED_MODEL_SHAPE: arc {i} target not string"
+            ))
+        })?;
+        arcs.push((s.to_owned(), t.to_owned()));
+    }
+    Ok(arcs)
+}
+
+fn arcs_from_observed_dfg(ocel: &wasm4pm_compat::ocel::OCEL) -> Vec<(String, String)> {
+    let dfg = wasm4pm_compat::dfg::discover_ocel_dfg(ocel);
+    let mut arcs: Vec<(String, String)> = dfg
+        .edges
+        .iter()
+        .map(|e| (e.source.clone(), e.target.clone()))
+        .collect();
+    arcs.sort();
+    arcs.dedup();
+    arcs
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[cfg(feature = "crypto-trust")]
+fn parse_hex_bytes(s: &str, expected: usize) -> Result<Vec<u8>> {
+    let s = s.trim();
+    if s.len() != expected * 2 {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_HEX_LENGTH: expected {expected} bytes ({} hex chars), got {}",
+            expected * 2,
+            s.len()
+        )));
+    }
+    let mut out = Vec::with_capacity(expected);
+    for i in (0..s.len()).step_by(2) {
+        let byte = u8::from_str_radix(&s[i..i + 2], 16)
+            .map_err(|e| NounVerbError::execution_error(format!("REFUSED_HEX_DECODE: {e}")))?;
+        out.push(byte);
+    }
+    Ok(out)
+}
+
+/// `affi receipt proof-carrying` — mint a seal/v2 subject from grounded OCEL
+/// DFG fitness/precision (admit_flat → scores → BLAKE3 digest).
+///
+/// Inputs (exactly one):
+/// - `--receipt PATH` — admitted receipt projected via fixture_ocel
+/// - `--ocel PATH` — foreign OCEL JSON through the federation import court
+///
+/// `--model` is a JSON array of `[source, target]` arcs. When omitted, the
+/// observed DFG is used as the normative model (self-conformance; fitness 1
+/// when the log is non-empty).
+///
+/// `--seal-seed` (32-byte hex) signs the subject under seal/v2 when built with
+/// `--features crypto-trust`; otherwise typed `REFUSED_UNSUPPORTED`.
+#[allow(clippy::too_many_arguments)] // CLI surface mirrors clap verb args 1:1
+pub fn proof_carrying(
+    receipt: Option<String>,
+    ocel_path: Option<String>,
+    object_type: String,
+    log_ref: Option<String>,
+    model: Option<String>,
+    format: Option<String>,
+    out: Option<String>,
+    seal_seed: Option<String>,
+) -> Result<()> {
+    let log_ref = log_ref.unwrap_or_else(|| "log:cli".to_owned());
+    if log_ref.trim().is_empty() {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_OCEL_CONFORMANCE_UNGROUNDED: --log-ref must be non-empty",
+        ));
+    }
+    let ocel = match (receipt.as_deref(), ocel_path.as_deref()) {
+        (Some(r), None) => {
+            let parsed = adapt(crate::cli::show(r))?;
+            let admitted = adapt(
+                crate::admission::admit(parsed)
+                    .map_err(|refused| anyhow::anyhow!("admission refused: {refused}")),
+            )?;
+            crate::mining::ocel_flatten_loss_court::fixture_ocel(&admitted.value)
+                .map_err(|e| NounVerbError::execution_error(e.to_string()))?
+        }
+        (None, Some(path)) => {
+            let raw = std::fs::read_to_string(path).map_err(io_err)?;
+            let admitted = crate::mining::ocel_compat_import::admit_foreign_ocel_json(&raw)
+                .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+            admitted.ocel
+        }
+        (Some(_), Some(_)) => {
+            return Err(NounVerbError::execution_error(
+                "REFUSED_INPUT_AMBIGUOUS: pass exactly one of --receipt or --ocel",
+            ));
+        }
+        (None, None) => {
+            return Err(NounVerbError::execution_error(
+                "REFUSED_INPUT_MISSING: pass --receipt PATH or --ocel PATH",
+            ));
+        }
+    };
+
+    let normative = match model.as_deref() {
+        Some(p) => parse_normative_arcs(p)?,
+        None => arcs_from_observed_dfg(&ocel),
+    };
+    if normative.is_empty() {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_EMPTY_MODEL: no DFG arcs available (empty log or empty --model)",
+        ));
+    }
+
+    let pc = crate::mining::ocel_proof_carrying::proof_carrying_dfg_conformance(
+        &ocel,
+        &object_type,
+        &log_ref,
+        &normative,
+    )
+    .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+
+    #[allow(unused_mut)] // mutated only under crypto-trust + --seal-seed
+    let mut body = serde_json::json!({
+        "profile": "affidavit/ocel-conformance-subject/v1",
+        "seal_context": std::str::from_utf8(SEAL_V2_CTX).unwrap_or("affidavit-core/seal/v2"),
+        "object_type": pc.scores.object_type,
+        "log_ref": pc.scores.log_ref,
+        "fitness": pc.scores.fitness,
+        "precision": pc.scores.precision,
+        "normative_arcs": normative.iter().map(|(a,b)| vec![a, b]).collect::<Vec<_>>(),
+        "subject_digest": hex_encode(&pc.subject_digest),
+        "subject_digest_bytes": 32,
+    });
+
+    if let Some(seed_hex) = seal_seed.as_deref() {
+        #[cfg(feature = "crypto-trust")]
+        {
+            let seed_bytes = parse_hex_bytes(seed_hex, 32)?;
+            let mut seed = [0u8; 32];
+            seed.copy_from_slice(&seed_bytes);
+            let kp = crate::crypto_trust_pqc::ml_dsa65_from_seed(&seed);
+            let sig = crate::deontic::sign_with_context_raw(&seed, &pc.subject_digest, SEAL_V2_CTX)
+                .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+            body["seal"] = serde_json::json!({
+                "alg": "ML-DSA-65",
+                "ctx": std::str::from_utf8(SEAL_V2_CTX).unwrap_or(""),
+                "pk": hex_encode(&kp.public),
+                "sig": hex_encode(&sig),
+            });
+        }
+        #[cfg(not(feature = "crypto-trust"))]
+        {
+            let _ = seed_hex;
+            return Err(NounVerbError::execution_error(
+                "REFUSED_UNSUPPORTED: --seal-seed requires rebuild with --features crypto-trust",
+            ));
+        }
+    }
+
+    let rendered = serde_json::to_string_pretty(&body)
+        .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+    if let Some(path) = out.as_deref() {
+        std::fs::write(path, &rendered).map_err(io_err)?;
+    }
+    if format.as_deref() == Some("json") || out.is_some() {
+        outln!("{rendered}");
+    } else {
+        outln!(
+            "proof-carrying [{object_type}] fitness={:.3} precision={:.3}",
+            pc.scores.fitness,
+            pc.scores.precision
+        );
+        outln!("subject_digest={}", hex_encode(&pc.subject_digest));
+        outln!(
+            "seal_context={}",
+            std::str::from_utf8(SEAL_V2_CTX).unwrap_or("")
+        );
+        if body.get("seal").is_some() {
+            outln!("seal=ML-DSA-65 (embedded in JSON)");
+        }
+    }
+    Ok(())
+}
+
+/// `affi receipt proof-carrying-verify` — verify seal/v2 over a subject JSON.
+pub fn proof_carrying_verify(
+    subject_path: String,
+    pk_hex: String,
+    format: Option<String>,
+) -> Result<()> {
+    #[cfg(not(feature = "crypto-trust"))]
+    {
+        let _ = (subject_path, pk_hex, format);
+        Err(NounVerbError::execution_error(
+            "REFUSED_UNSUPPORTED: proof-carrying-verify requires --features crypto-trust",
+        ))
+    }
+    #[cfg(feature = "crypto-trust")]
+    {
+        use ml_dsa::{EncodedVerifyingKey, MlDsa65, Signature, VerifyingKey};
+
+        let raw = std::fs::read_to_string(&subject_path).map_err(io_err)?;
+        let v: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
+        let digest_hex = v["subject_digest"].as_str().ok_or_else(|| {
+            NounVerbError::execution_error(
+                "REFUSED_SUBJECT_SHAPE: missing subject_digest hex field",
+            )
+        })?;
+        let digest_bytes = parse_hex_bytes(digest_hex, 32)?;
+        let mut digest = [0u8; 32];
+        digest.copy_from_slice(&digest_bytes);
+
+        let sig_hex = v
+            .pointer("/seal/sig")
+            .and_then(|x| x.as_str())
+            .ok_or_else(|| {
+                NounVerbError::execution_error(
+                    "REFUSED_SUBJECT_SHAPE: missing seal.sig (mint with --seal-seed)",
+                )
+            })?;
+        let sig = parse_hex_bytes(sig_hex, 3309)?;
+        let pk = parse_hex_bytes(pk_hex.trim(), 1952)?;
+
+        let encoded = EncodedVerifyingKey::<MlDsa65>::try_from(pk.as_slice()).map_err(|_| {
+            NounVerbError::execution_error("REFUSED_PK_MALFORMED: not an ML-DSA-65 verifying key")
+        })?;
+        let vk = VerifyingKey::<MlDsa65>::decode(&encoded);
+        let parsed = Signature::<MlDsa65>::try_from(sig.as_slice()).map_err(|_| {
+            NounVerbError::execution_error("REFUSED_SIG_MALFORMED: not an ML-DSA-65 signature")
+        })?;
+        let ok = vk.verify_with_context(&digest, SEAL_V2_CTX, &parsed);
+        let empty_ok = vk.verify_with_context(&digest, &[], &parsed);
+
+        let out = serde_json::json!({
+            "verdict": if ok { "ACCEPT" } else { "REJECT" },
+            "seal_context": std::str::from_utf8(SEAL_V2_CTX).unwrap_or(""),
+            "empty_ctx_accepts": empty_ok,
+            "subject_digest": digest_hex,
+        });
+        if !ok {
+            return Err(NounVerbError::execution_error(format!(
+                "REFUSED_SEAL_V2: {}",
+                serde_json::to_string(&out).unwrap_or_default()
+            )));
+        }
+        if empty_ok {
+            return Err(NounVerbError::execution_error(
+                "REFUSED_CONTEXT_VACUITY: signature verified under empty ctx — not a seal/v2 binding",
+            ));
+        }
+        if format.as_deref() == Some("json") {
+            outln!(
+                "{}",
+                serde_json::to_string_pretty(&out)
+                    .map_err(|e| NounVerbError::execution_error(e.to_string()))?
+            );
+        } else {
+            outln!("proof-carrying-verify: ACCEPT (seal/v2)");
+        }
+        Ok(())
+    }
 }
 
 /// `affi receipt why` — explain why a receipt was rejected, in plain language.
@@ -5151,8 +5440,20 @@ fn emit_with_payload(
     objects: &[String],
     payload_bytes: &[u8],
 ) -> Result<crate::types::EmitOutput> {
+    // Unique path per call: a digest-only name races under `cargo test
+    // --all-targets` when parallel courts stage the same payload bytes and
+    // one removes the file before the other reads it.
     let digest = crate::types::Blake3Hash::from_bytes(payload_bytes).0;
-    let path = std::env::temp_dir().join(format!("affi-sbom-{digest}.payload"));
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let path = std::env::temp_dir().join(format!(
+        "affi-sbom-{}-{}-{}.payload",
+        &digest[..16.min(digest.len())],
+        std::process::id(),
+        nonce
+    ));
     std::fs::write(&path, payload_bytes).map_err(io_err)?;
     let result = crate::cli::emit(event_type, objects, path.to_str().unwrap_or("-"));
     let _ = std::fs::remove_file(&path);
@@ -9523,4 +9824,274 @@ pub fn receipt_chain_verify(dir: String) -> Result<()> {
             eprintln!("refusal: io {e}");
             std::process::exit(i32::from(crate::ctdd_cli::IO_EXIT));
         })
+}
+
+// ============================================================================
+// AOD CLUSTER — Zero-String Sealed Arrow-on-Disk (AFFI-SPEC-26.11.19)
+// ============================================================================
+
+fn aod_refuse(e: affidavit_core::AodRefusal) -> ! {
+    eprintln!("REFUSED_AOD [0x{:04X} {:?}]", e.machine_code(), e);
+    // POSIX exit is 8-bit; surface the low byte of the 0xE5xx code.
+    std::process::exit(i32::from(e.machine_code() & 0xFF));
+}
+
+fn aod_require_hex32(label: &str, hex: &str) -> Result<[u8; 32]> {
+    decode_hex_32(hex.trim()).ok_or_else(|| {
+        NounVerbError::execution_error(format!(
+            "REFUSED_HEX_LENGTH: --{label} expects 64 hex chars, got {}",
+            hex.trim().len()
+        ))
+    })
+}
+
+fn format_aod_refusal(e: affidavit_core::AodRefusal) -> String {
+    format!("REFUSED_AOD [0x{:04X} {:?}]", e.machine_code(), e)
+}
+
+/// File-backed monoatomic lease registry: one hex nullifier per line.
+struct FileLeaseRegistry {
+    path: std::path::PathBuf,
+    burned: std::collections::BTreeSet<[u8; 32]>,
+}
+
+impl FileLeaseRegistry {
+    fn open(path: &std::path::Path) -> Result<Self> {
+        let mut burned = std::collections::BTreeSet::new();
+        if path.exists() {
+            let text = std::fs::read_to_string(path).map_err(io_err)?;
+            for (lineno, line) in text.lines().enumerate() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                let n = decode_hex_32(line).ok_or_else(|| {
+                    NounVerbError::execution_error(format!(
+                        "REFUSED_LEASE_REGISTRY: malformed nullifier at {}:{}",
+                        path.display(),
+                        lineno + 1
+                    ))
+                })?;
+                burned.insert(n);
+            }
+        }
+        Ok(Self {
+            path: path.to_path_buf(),
+            burned,
+        })
+    }
+
+    fn persist(&self) -> Result<()> {
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent).map_err(io_err)?;
+        }
+        let mut body = String::new();
+        for n in &self.burned {
+            body.push_str(&hex_encode(n));
+            body.push('\n');
+        }
+        let tmp = self.path.with_extension("tmp");
+        std::fs::write(&tmp, body.as_bytes()).map_err(io_err)?;
+        std::fs::rename(&tmp, &self.path).map_err(io_err)?;
+        Ok(())
+    }
+}
+
+impl affidavit_core::LeaseRegistry for FileLeaseRegistry {
+    fn burn(
+        &mut self,
+        _lease_epoch: u64,
+        nullifier: &[u8; 32],
+    ) -> core::result::Result<(), affidavit_core::AodRefusal> {
+        if !self.burned.insert(*nullifier) {
+            return Err(affidavit_core::AodRefusal::LeaseSpentOrExpired);
+        }
+        Ok(())
+    }
+}
+
+/// `affi aod seal` — seal raw fixed-stride bytes into a `.aod`.
+#[allow(clippy::too_many_arguments)]
+pub fn aod_seal(
+    ontology_hex: String,
+    lease_hex: String,
+    in_path: String,
+    out_path: String,
+    rows: u64,
+    epoch: Option<u64>,
+    folded_hex: Option<String>,
+) -> Result<()> {
+    if rows == 0 {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_AOD_ROWS: --rows must be > 0",
+        ));
+    }
+    let ontology = aod_require_hex32("ontology", &ontology_hex)?;
+    let lease = aod_require_hex32("lease", &lease_hex)?;
+    let folded = match folded_hex.as_deref() {
+        Some(h) => aod_require_hex32("folded", h)?,
+        None => [0u8; 32],
+    };
+    let page = std::fs::read(&in_path).map_err(io_err)?;
+    if page.len() as u64 % rows != 0 {
+        return Err(NounVerbError::execution_error(format!(
+            "REFUSED_AOD_STRIDE: --in length {} is not divisible by --rows {rows}",
+            page.len()
+        )));
+    }
+    let raw = affidavit_core::seal_aod(
+        &[affidavit_core::AodBufferSpec { bytes: &page }],
+        &affidavit_core::SealParams {
+            ontology_hash: &ontology,
+            row_count: rows,
+            lease_epoch: epoch.unwrap_or(1),
+            lease_nullifier: &lease,
+            folded_receipt: &folded,
+        },
+    )
+    .map_err(|e| NounVerbError::execution_error(format_aod_refusal(e)))?;
+    std::fs::write(&out_path, &raw).map_err(io_err)?;
+    outln!(
+        "aod sealed bytes={} ontology={} lease_epoch={}",
+        raw.len(),
+        hex_encode(&ontology),
+        epoch.unwrap_or(1)
+    );
+    Ok(())
+}
+
+/// `affi aod verify --live` — Live Gate + lease burn.
+pub fn aod_verify(
+    file: String,
+    live: bool,
+    ontology_hex: String,
+    strides_csv: String,
+    registry: Option<String>,
+) -> Result<()> {
+    if !live {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_AOD_MODE: live gate requires --live (use `affi aod witness` for fossils)",
+        ));
+    }
+    let ontology = aod_require_hex32("ontology", &ontology_hex)?;
+    let mut strides: Vec<u64> = Vec::new();
+    for part in strides_csv.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let s: u64 = part.parse().map_err(|_| {
+            NounVerbError::execution_error(format!(
+                "REFUSED_AOD_STRIDES: invalid stride token `{part}`"
+            ))
+        })?;
+        strides.push(s);
+    }
+    if strides.is_empty() {
+        return Err(NounVerbError::execution_error(
+            "REFUSED_AOD_STRIDES: --strides must list at least one per-row byte stride",
+        ));
+    }
+    let raw = std::fs::read(&file).map_err(io_err)?;
+    let compiled = affidavit_core::CompiledOntology {
+        ontology_hash: &ontology,
+        strides: &strides,
+    };
+    let reg_path = registry
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from(".affi/aod-leases"));
+    let mut leases = FileLeaseRegistry::open(&reg_path)?;
+    match affidavit_core::map_live(&raw, &compiled, &mut leases) {
+        Ok(view) => {
+            leases.persist()?;
+            outln!(
+                "aod live ACCEPT rows={} buffers={} lease_epoch={}",
+                view.row_count,
+                view.buffer_count(),
+                view.lease_epoch
+            );
+            Ok(())
+        }
+        Err(e) => aod_refuse(e),
+    }
+}
+
+/// `affi aod witness` — Historical Witness (no lease burn, no Region 3).
+pub fn aod_witness(file: String, format: Option<String>) -> Result<()> {
+    let raw = std::fs::read(&file).map_err(io_err)?;
+    let att = match affidavit_core::verify_witness(&raw) {
+        Ok(a) => a,
+        Err(e) => aod_refuse(e),
+    };
+    let body = serde_json::json!({
+        "mode": "historical_witness",
+        "ontology_hash": hex_encode(&att.ontology_hash),
+        "payload_digest": hex_encode(&att.payload_digest),
+        "lease_epoch": att.lease_epoch,
+        "lease_nullifier": hex_encode(&att.lease_nullifier),
+        "folded_receipt": hex_encode(&att.folded_receipt),
+        "row_count": att.row_count,
+        "buffer_count": att.buffer_count,
+        "region3_mapped": false,
+    });
+    if format.as_deref() == Some("json") {
+        outln!(
+            "{}",
+            serde_json::to_string_pretty(&body)
+                .map_err(|e| NounVerbError::execution_error(e.to_string()))?
+        );
+    } else {
+        outln!(
+            "aod witness ACCEPT ontology={} rows={} buffers={} region3_mapped=false",
+            hex_encode(&att.ontology_hash),
+            att.row_count,
+            att.buffer_count
+        );
+    }
+    Ok(())
+}
+
+/// `affi aod rotate` — rematerialize under a fresh lease + folded tip.
+pub fn aod_rotate(
+    old_path: String,
+    lease_hex: String,
+    out_path: String,
+    epoch: Option<u64>,
+) -> Result<()> {
+    let new_lease = aod_require_hex32("lease", &lease_hex)?;
+    let old = std::fs::read(&old_path).map_err(io_err)?;
+    let (_att, pages) = affidavit_core::rematerialize_pages(&old)
+        .map_err(|e| NounVerbError::execution_error(format_aod_refusal(e)))?;
+    let specs: Vec<affidavit_core::AodBufferSpec<'_>> = pages
+        .iter()
+        .map(|p| affidavit_core::AodBufferSpec {
+            bytes: p.as_slice(),
+        })
+        .collect();
+    let raw = affidavit_core::rotate_aod(&old, &specs, epoch.unwrap_or(1), &new_lease)
+        .map_err(|e| NounVerbError::execution_error(format_aod_refusal(e)))?;
+    std::fs::write(&out_path, &raw).map_err(io_err)?;
+    outln!(
+        "aod rotated bytes={} lease_epoch={} out={}",
+        raw.len(),
+        epoch.unwrap_or(1),
+        out_path
+    );
+    Ok(())
+}
+
+/// `affi aod fold` — trajectory fold monoid on two CTRT tips.
+pub fn aod_fold(left: String, right: String, format: Option<String>) -> Result<()> {
+    let a = std::fs::read(&left).map_err(io_err)?;
+    let b = std::fs::read(&right).map_err(io_err)?;
+    let tip = match affidavit_core::fold_aod_tips(&a, &b) {
+        Ok(t) => t,
+        Err(e) => aod_refuse(e),
+    };
+    if format.as_deref() == Some("json") {
+        outln!("{}", serde_json::json!({ "folded_tip": hex_encode(&tip) }));
+    } else {
+        outln!("aod fold tip={}", hex_encode(&tip));
+    }
+    Ok(())
 }

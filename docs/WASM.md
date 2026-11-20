@@ -134,7 +134,7 @@ The mapping is identity only; a matching pin grants no authority.
 | `derive_subject_digest` | `{domain_tag, subject\|subject_hex}` | `digest_hex`, `pre_image_hex` (domain-separated BLAKE3; the exact hashed bytes, for audit) |
 | `verify_signature` | `{alg, public_key_hex, signature_hex, signing_input\|signing_input_hex}` | `valid`, `refusal` (ES256/ES256K/Ed25519) |
 | `pqc_assemble` | `{events, ml_dsa_sig_hex, ml_dsa_pk_hex, pqc_profile}` | `receipt`, `content_address`, `chain_hash`, `pqc` (profile-gated seal; signed message is the compact JSON of `events`) |
-| `pqc_verify` | `{msg\|msg_hex, sig_hex, pk_hex, slh_dsa_sig_hex?, slh_dsa_pk_hex?, profile}` | `profile`, `algorithm`, `accepted`, `refusal` (verdict JSON, never an error; `pqc(dual)` judges ML-DSA-65 first, then SLH-DSA) |
+| `pqc_verify` | `{msg\|msg_hex, sig_hex, pk_hex, slh_dsa_sig_hex?, slh_dsa_pk_hex?, profile?, ctx\|ctx_hex?}` | `profile`, `algorithm`, `accepted`, `refusal` (verdict JSON, never an error; `pqc(dual)` judges ML-DSA-65 first, then SLH-DSA; optional `ctx`/`ctx_hex` is the FIPS 204 context for the ML-DSA-65 half — empty default) |
 
 Notes:
 
