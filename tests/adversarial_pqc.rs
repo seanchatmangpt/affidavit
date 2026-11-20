@@ -88,7 +88,7 @@ fn test_ml_kem_implicit_rejection_on_corrupted_ciphertext() {
     let (ct, valid_ss) = ek.encapsulate_deterministic(&m);
 
     // Mutate ciphertext: flip 1 bit in first byte
-    let mut bad_ct = ct.clone();
+    let mut bad_ct = ct;
     bad_ct[0] ^= 0x01;
 
     // FIPS 203: Decapsulation of invalid ciphertext MUST NOT panic,
@@ -168,7 +168,7 @@ fn test_x_wing_malformed_ciphertext_and_rejection_modes() {
     let (ct, genuine_ss) = pk.encapsulate_deterministic(&zero_rand);
 
     // 1. Bit flip in ML-KEM ciphertext half (bytes 0..1088)
-    let mut ct_tampered_m = ct.clone();
+    let mut ct_tampered_m = ct;
     ct_tampered_m[0] ^= 0x01;
     let ss_tampered_m = sk.decapsulate(&ct_tampered_m);
     assert_ne!(
@@ -177,7 +177,7 @@ fn test_x_wing_malformed_ciphertext_and_rejection_modes() {
     );
 
     // 2. Bit flip in X25519 ciphertext half (bytes 1088..1120)
-    let mut ct_tampered_x = ct.clone();
+    let mut ct_tampered_x = ct;
     ct_tampered_x[1088] ^= 0x01;
     let ss_tampered_x = sk.decapsulate(&ct_tampered_x);
     assert_ne!(
@@ -187,7 +187,7 @@ fn test_x_wing_malformed_ciphertext_and_rejection_modes() {
 
     // 3. Low-order / non-contributory point injection in X25519 half
     // Point of order 8 (all zeroes is a low order point for X25519 producing all-zero DH output)
-    let mut ct_noncontrib = ct.clone();
+    let mut ct_noncontrib = ct;
     for b in &mut ct_noncontrib[1088..1120] {
         *b = 0x00;
     }
@@ -553,20 +553,20 @@ fn test_x_wing_dual_mode_divergence_set_isolation() {
     let (honest_ct, genuine_ss) = pk.encapsulate_deterministic(&rand);
 
     // Contributory members: honest ct, ML-KEM-half tamper, X25519-half tamper.
-    let mut ct_m = honest_ct.clone();
+    let mut ct_m = honest_ct;
     ct_m[0] ^= 0x01; // ML-KEM half: bytes 0..1088
-    let mut ct_x = honest_ct.clone();
+    let mut ct_x = honest_ct;
     ct_x[1088] ^= 0x80; // X25519 half: bytes 1088..1120
 
     // Non-contributory member: all-zero X25519 component => ss_x all-zero.
-    let mut ct_nc = honest_ct.clone();
+    let mut ct_nc = honest_ct;
     for b in ct_nc[1088..1120].iter_mut() {
         *b = 0x00;
     }
 
     // (label, ct, expected contributory)
     let corpus: [(&str, x_wing::Ciphertext, bool); 4] = [
-        ("honest", honest_ct.clone(), true),
+        ("honest", honest_ct, true),
         ("tampered_m", ct_m, true),
         ("tampered_x", ct_x, true),
         ("all_zero_ss_x", ct_nc, false),
@@ -574,10 +574,10 @@ fn test_x_wing_dual_mode_divergence_set_isolation() {
 
     for (label, ct, contributory) in corpus.iter() {
         // Accept mode: always yields a SharedKey.
-        let ss_accept = sk_accept.decapsulate(&ct);
+        let ss_accept = sk_accept.decapsulate(ct);
 
         // Reject mode: SharedKey iff contributory, typed Err otherwise.
-        let res_reject = sk_reject.try_decapsulate(&ct);
+        let res_reject = sk_reject.try_decapsulate(ct);
 
         match (*contributory, res_reject) {
             (true, Ok(ss_reject)) => {

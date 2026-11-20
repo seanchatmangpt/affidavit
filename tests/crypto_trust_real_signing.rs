@@ -40,6 +40,11 @@ use affidavit::crypto_trust_keys::{
 use affidavit::crypto_trust_seal::SealedReceipt;
 use affidavit::crypto_trust_store::{checksum_for, KeyStoreFile, STORE_FORMAT};
 
+/// A typed refusal from a verb exits with the CLI-wide execution-error code:
+/// clap-noun-verb error 1504 mod 256 = 224 (same contract as the cli_value_*
+/// courts and the vacuity tripwire). These courts once pinned 1.
+const REFUSAL_EXIT: i32 = 224;
+
 fn affi(dir: &TempDir) -> Command {
     let mut cmd = Command::cargo_bin("affi").expect("affi binary builds");
     cmd.current_dir(dir.path());
@@ -486,7 +491,7 @@ fn assemble_with_signature_refuses_sigstore_default_and_unknown_methods() {
         .env("AFFI_NOTARY_KEY", "") // no key could fake success; the METHOD refuses first
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("REFUSED_UNSUPPORTED"))
         .stderr(predicate::str::contains(
             "sigstore signing is not implemented",
@@ -503,7 +508,7 @@ fn assemble_with_signature_refuses_sigstore_default_and_unknown_methods() {
         ])
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("REFUSED_UNSUPPORTED"));
 }
 
@@ -525,7 +530,7 @@ fn assemble_with_signature_without_a_key_is_r_missing_authority() {
         .env("AFFI_SIGNING_KEY_PATH", "")
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("R_missing_authority"))
         .stderr(predicate::str::contains("No key, no authority to sign"));
 }
@@ -592,7 +597,7 @@ fn assemble_and_notarize_composes_request_and_attested_paths() {
         ])
         .assert()
         .failure()
-        .code(1)
+        .code(REFUSAL_EXIT)
         .stderr(predicate::str::contains("REFUSED_UNSUPPORTED"));
 }
 

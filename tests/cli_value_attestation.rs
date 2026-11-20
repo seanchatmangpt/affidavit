@@ -36,6 +36,7 @@ use std::fs;
 use tempfile::TempDir;
 
 /// Stable process-exit codes (public contract, `src/diag.rs::exit_codes`).
+#[cfg(not(feature = "crypto-trust"))]
 mod xc {
     /// CLI framework codes 1500..=1509 ride mod 256 on the 8-bit POSIX status:
     /// 1504 (CliExecutionError) → 224.

@@ -244,10 +244,7 @@ fn empty_required_key_refuses_typed() {
 /// Local check walk (spec section 2.2): resolve ancestors to their CURRENT
 /// canonical versions, fold the path log, compare against the admission-time
 /// root table. Sub-ms, offline.
-fn cdt_path_log<'a>(
-    current: &[&'a SjRecord],
-    leaf: &SjRecord,
-) -> Vec<affidavit::types::OperationEvent> {
+fn cdt_path_log(current: &[&SjRecord], leaf: &SjRecord) -> Vec<affidavit::types::OperationEvent> {
     let by_id: std::collections::BTreeMap<&str, &SjRecord> = current
         .iter()
         .map(|r| (r.document.work_order_id.as_str(), *r))
