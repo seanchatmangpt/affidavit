@@ -545,3 +545,56 @@ fn mldsa_context_string_sealing_court() {
         "v1 tag-stuffed signature must not unseal under v2 context law"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Register #83 — SLH context-string domain-separation court (256B ctx cap).
+// Falsifier: ctx-bound sig passing empty-ctx verify (either direction) = FAIL.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn slh_context_string_domain_separation_court() {
+    let msg = b"affidavit slh context-string court";
+    let ctx = b"affidavit-core/slh-ctx/v1";
+    let sk = SlhSigningKey::<Sha2_128s>::slh_keygen_internal(&SLH_SEED, &SLH_PRF, &SLH_PK_SEED);
+    let vk = sk.verifying_key();
+    let pk: [u8; 32] = vk.to_bytes().into();
+
+    let sig = sk
+        .try_sign_with_context(msg, ctx, Some(&SLH_PK_SEED))
+        .expect("sign under ctx");
+    let sig_bytes = sig.to_bytes().to_vec();
+
+    // Honest: matching ctx verifies via the external crate API.
+    assert!(
+        vk.try_verify_with_context(msg, ctx, &sig).is_ok(),
+        "ctx-bound sig must verify under matching ctx"
+    );
+
+    // Falsifier A: ctx-bound sig must NOT verify under empty ctx.
+    assert!(
+        vk.try_verify_with_context(msg, &[], &sig).is_err(),
+        "COURT-VACUITY: ctx-bound SLH sig verified under empty ctx"
+    );
+    // Seam adapter currently uses empty ctx — it must refuse this ctx-bound sig.
+    assert!(
+        !ExternalSlhDsa128s.verify(msg, &sig_bytes, &pk),
+        "adapter empty-ctx path must refuse a ctx-bound signature"
+    );
+
+    // Falsifier B: empty-ctx sig must NOT verify under non-empty ctx.
+    let empty_sig = sk
+        .try_sign_with_context(msg, &[], Some(&SLH_PK_SEED))
+        .expect("sign under empty ctx");
+    assert!(
+        vk.try_verify_with_context(msg, ctx, &empty_sig).is_err(),
+        "COURT-VACUITY: empty-ctx SLH sig verified under non-empty ctx"
+    );
+
+    // Oversized context (>255) must refuse at sign time (FIPS 205 / crate cap).
+    let oversized = vec![0xABu8; 256];
+    assert!(
+        sk.try_sign_with_context(msg, &oversized, Some(&SLH_PK_SEED))
+            .is_err(),
+        "ctx longer than 255 bytes must be refused"
+    );
+}

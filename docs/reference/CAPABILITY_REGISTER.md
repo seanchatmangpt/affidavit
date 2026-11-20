@@ -18,7 +18,7 @@ Disposition (2026-10-17 reconciliation vs `git log`): **50 LANDED** (+1 merged: 
 | 7 | **blake3 domain-separated KDF seam** (`new_derive_key`) — kem.rs:148 hashes unkeyed | blake3 | `affidavit-core/src/digest.rs` trait ext | S | context collision test: same bytes, two ctxs → different digests; dropping ctx flips digest | LANDED-a05c9c1 |
 | 8 | **ml-dsa context-string sealing** (`sign_deterministic(M, ctx)`) — replace tag-stuffing in sealed.rs | ml-dsa | core `sealed.rs` + wasm `pqc.rs` | M | ctx-signed bytes fail empty-ctx verify and vice versa | LANDED (seal/v2; court `mldsa_context_string_sealing_court`) |
 | 9 | **KEM escrow envelope** (`judge_escrow`, bind key_id(pk)+blake3(ct)) | ml-kem | core `kem.rs` | M | bit-flipped ct still passes 7-stage verify but escrow verdict flips | OPEN |
-| 10 | **OCEL conformance court** over compat DFG fitness/precision (`admit_flat` grounded claims) | wasm4pm-compat | new `mining/ocel_compat_court.rs` | M | one activity mutation flips fitness + refusal path | OPEN |
+| 10 | **OCEL conformance court** over compat DFG fitness/precision (`admit_flat` grounded claims) | wasm4pm-compat | `src/mining/ocel_compat_court.rs` (+ proof-carrying subject in `ocel_proof_carrying.rs`) | M | one activity mutation flips fitness + refusal path | LANDED |
 | 11 | **x-wing HNDL-resistant hybrid seal** | x-wing | new `src/hybrid_seal.rs` | M/L | stripping either leg refuses typed; single-leg accept = FAIL | OPEN |
 | 12 | **Wasm SLH/Dual ABI vacuity** | slh-dsa | `tests/pqc_abi.rs` | S | IN FLIGHT (write lane) | LANDED-a4b65c8 (verified) |
 | 13 | **Range-proof label `receipt-amount`** + cross-label court | bulletproofs | `advanced.rs:115` registry | S | prove-under-A, verify-under-B ⇒ refused | LANDED-82dbbe2 |
@@ -106,8 +106,8 @@ Disposition (2026-10-17 reconciliation vs `git log`): **50 LANDED** (+1 merged: 
 | 62 | Aggregated range proof (prove_multi, O(log) joint proof) | bulletproofs | `src/zk_range.rs` | M | one out-of-range member refuses aggregate with index | OPEN |
 | 63 | Seeded deterministic blinding (byte-exact host/wasm differential courts) | bulletproofs | `src/zk_range.rs:87-89` | S | same seed+label+value -> cmp-identical proof bytes | LANDED-23c3774 |
 | 64 | otel plane BUILD_BROKEN adjudication (opentelemetry 0.32 sdk path removed) | opentelemetry | `tests/maximalist_tracing.rs` | S/M | cargo test --features otel --no-run exit 0 (repair) or grep-zero (delete) | LANDED-805d030 |
-| 65 | KEM pinned-randomness encapsulation KAT (encapsulate_deterministic) | ml-kem | `affidavit-core/src/kem.rs tests` | S | same-m re-encapsulation diverges or different-m collides -> FAIL | OPEN |
-| 66 | KEM implicit-rejection (FO) semantics court | ml-kem | `kem.rs tests` | S | tampered-ct ss' unstable or == honest ss -> loud FAIL | OPEN |
+| 65 | KEM pinned-randomness encapsulation KAT (encapsulate_deterministic) | ml-kem | `affidavit-core/src/kem.rs tests` | S | same-m re-encapsulation diverges or different-m collides -> FAIL | LANDED (cap65_pinned_randomness_encapsulation_kat) |
+| 66 | KEM implicit-rejection (FO) semantics court | ml-kem | `kem.rs tests` | S | tampered-ct ss' unstable or == honest ss -> loud FAIL | LANDED (cap66_implicit_rejection_tampered_ct_is_pseudorandom_and_stable) |
 | 67 | ml-dsa ExpandedSigningKeyBytes wire round-trip court | ml-dsa | `src/crypto_trust_pqc.rs tests` | S | from_expanded(to_expanded(esk)) byte-identical sig; ±1-byte typed Err | LANDED-5cd7eb9 |
 | 68 | ml-dsa SigningKey seed-identity court (as_seed/to_seed) | ml-dsa | `crypto_trust_pqc.rs tests` | S | to_seed(from_seed(s))==s; rebuilt key signs identically | LANDED-5cd7eb9 |
 | 69 | EC JWK import seam (kty=EC P-256/secp256k1) + round-trip court | p256/k256 | `src/crypto_trust_jwks.rs` | S | non-CEM x refuses typed; dropping point-validation flips court | OPEN |
@@ -116,8 +116,8 @@ Disposition (2026-10-17 reconciliation vs `git log`): **50 LANDED** (+1 merged: 
 | 72 | Hasher-generic StateTree<H> + cross-hasher divergence court | monotree | `src/smt.rs` | S | verify_proof with swapped hasher still true = vacuous FAIL | OPEN |
 | 73 | DurableRefusal replay fixtures (refusal embeds machine-replayable fixture + blake3 integrity) | clnrm-core semantics | `src/diag.rs + new refusal_fixture.rs` | M | fixture byte mutation flips integrity hash; unreplayable refusal = FAIL | OPEN |
 | 74 | Latency-band cross-validation court (span vs receipt timing layers) | clnrm-core semantics | `otel feature + tracing.rs` | M | over-band span with no TimingViolation cell = FAIL | LANDED-898b09f |
-| 75 | Streaming online/offline context-confusion court | wasm4pm-compat | `mining/ocel_streaming_context_court.rs` | S | online-vs-offline mislabeled evidence flips admission | OPEN |
-| 76 | Data-quality grounding gate before fitness/alignment claims | wasm4pm-compat | `src/mining.rs preflight` | S/M | ungrounded DQ -> typed refusal precedes any fitness number | OPEN |
+| 75 | Streaming online/offline context-confusion court | wasm4pm-compat | `src/mining/ocel_streaming_context_court.rs` | S | online-vs-offline mislabeled evidence flips admission | LANDED |
+| 76 | Data-quality grounding gate before fitness/alignment claims | wasm4pm-compat | `src/mining/data_quality_gate.rs` | S/M | ungrounded DQ -> typed refusal precedes any fitness number | LANDED (data_quality_gate) |
 | 77 | bcinr double-mix tamper-propagation court (anti-vacuity) | none | `affidavit-core/src/bcinr.rs` | S | one-byte frame-t mutation flips chain_hash_t..n; non-propagating = FAIL | LANDED-6534c13 |
 | 78 | External-evidence boundary admission corpus (SPIFFE strictness, clock edges) | none | `affidavit-core/src/external_evidence.rs` | S | flipping one boundary (valid_until==now) flips a corpus cell | LANDED-f3871f5 |
 
@@ -131,7 +131,7 @@ Cycle-3 defect-class findings: JCS duplicate-key last-win (row 60); otel feature
 | 80 | zeroize feature on keyed-MAC plane (wipe replay_nullifier key material) | blake3 zeroize | `src/replay_nullifier.rs` | S | feature off -> keyed state survives drop = FAIL | OPEN |
 | 81 | ml-dsa mu-path differential court (mu vs msg domain distinctness) | ml-dsa | `src/crypto_trust_pqc.rs tests` | S | mu-path sig verifying over wrong mu/msg = loud FAIL | OPEN |
 | 82 | ml-dsa pinned-rnd sign_internal divergence court | ml-dsa | `crypto_trust_pqc.rs tests` | S | same-rnd-different-M collision or cross-rnd identical sig = FAIL | OPEN |
-| 83 | SLH context-string domain-separation court (256B ctx cap) | slh-dsa | `crypto_trust_pqc.rs tests` | S | ctx-bound sig passing empty-ctx verify (either direction) = FAIL | OPEN |
+| 83 | SLH context-string domain-separation court (256B ctx cap) | slh-dsa | `affidavit-core/tests/pqc_external_validation.rs` | S | ctx-bound sig passing empty-ctx verify (either direction) = FAIL | LANDED (slh_context_string_domain_separation_court) |
 | 84 | SLH seed-role partition court (sk_seed/pk_seed/sk_prf roles) | slh-dsa | `crypto_trust_pqc.rs tests` | S | sk_prf swap leaves pk identical but verify flips = anti-vacuity control | OPEN |
 | 85 | SLH/blake3/ed25519 zeroize-feature gaps (dep lines enable no zeroize) | slh-dsa/ed25519-dalek | `Cargo.toml dep features` | S | key material survives Drop on every sign call = register decision | OPEN |
 | 86 | dk->ek recovery + KeyInit expansion parity court | x-wing | `tests/adversarial_pqc.rs` | S | dk.encapsulation_key() != original pk bytes = FAIL | LANDED-a16f4ba |
@@ -141,8 +141,8 @@ Cycle-3 defect-class findings: JCS duplicate-key last-win (row 60); otel feature
 | 90 | Multi-party (MPC) aggregation of receipt-bound range proof | bulletproofs | `src/zk_range.rs RangeMpcSession` | M | out-of-range party aborts typed; single-party shortcut = vacuous FAIL | OPEN |
 | 91 | Pedersen commitment-opening consistency court | bulletproofs | `src/zk_range.rs` | S | open(v±1,b) accepted, or acceptance without receipt-bound blinding = FAIL | LANDED-23c3774 |
 | 92 | ECDSA RFC-6979 nonce-determinism + low-s normalization differential court [ADJUDICATION: form policy] | p256/k256 | `secp256k1_witness + wasm twin` | S | same-seed re-sign diverges host/wasm, or high-s accept asymmetry = FAIL | ADJUDICATION (form policy) |
-| 93 | ProcessDelta unresolved-evidence court (TelemetryGap never a conformance verdict) | wasm4pm-compat | `mining/ocel_process_delta_court.rs` | S/M | unresolved delta accepted as conformance claim -> typed refusal | OPEN |
-| 94 | DECLARE constraint-temper court (22 canonical templates) | wasm4pm-compat | `mining/ocel_declare_court.rs` | M | NotCoExistence violation ACCEPTs = FAIL; satisfying log must ACCEPT | OPEN |
+| 93 | ProcessDelta unresolved-evidence court (TelemetryGap never a conformance verdict) | wasm4pm-compat | `src/mining/ocel_process_delta_court.rs` | S/M | unresolved delta accepted as conformance claim -> typed refusal | LANDED |
+| 94 | DECLARE constraint-temper court (22 canonical templates) | wasm4pm-compat | `src/mining/ocel_declare_court.rs` (NotCoExistence behavioural court) | M | NotCoExistence violation ACCEPTs = FAIL; satisfying log must ACCEPT | LANDED (NotCoExistence; remaining templates OPEN) |
 | 95 | DoctorCheck runtime-context seam run(ctx) + check_receipt_store migration | linkme | `src/doctor_check.rs + handlers.rs` | S | post-migration findings byte-identical; registration removal drops count by 1 | OPEN |
 | 96 | CUSTOM_HANDLERS plugin slice: documented but nonexistent (delete-or-land) | linkme | `src/handlers.rs + CLAUDE.md` | S/M | integration test registers handler, emit dispatches through it; or strike doc | ADJUDICATION (delete-or-land; no CUSTOM_HANDLERS in src/) |
 | 97 | JCS wasm commitment domain-separation (DEFECT: unkeyed vs DOMAIN_TAG planes) | blake3 | `advanced.rs:47 + jcs_parity.rs` | S | untagged blake3(canonical) acceptance = FAIL | LANDED-3ade36e |

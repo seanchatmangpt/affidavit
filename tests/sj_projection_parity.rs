@@ -1,8 +1,13 @@
 //! SJ projection parity court (register row 44).
 //!
-//! Lane scope: tests/sj_projection_parity.rs + one disclosed, documented
-//! [dev-dependencies] entry in Cargo.toml (`clnrm-sj-core`, a renamed path dep
-//! on the REAL /Users/sac/clnrm/crates/clnrm-core — never the stubs/ fence).
+//! Gated behind `--cfg sj_parity_local`: the real clnrm-core 26.5.x path pin
+//! is Mac-local and is no longer declared in Cargo.toml (it broke every other
+//! host). Re-enable by wiring a local path dep and building with
+//! `RUSTFLAGS='--cfg sj_parity_local'`.
+#![cfg(sj_parity_local)]
+
+//! Lane scope: tests/sj_projection_parity.rs + a local real-clnrm-core path
+//! dep (never the stubs/ fence).
 //!
 //! SCOPE LAW (lane law): this court consumes ONLY the clnrm-core
 //! projection/shape surface:

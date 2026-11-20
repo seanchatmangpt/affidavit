@@ -427,11 +427,21 @@ mod tests {
     }
 }
 
-// ── Capability-register courts (rows #39, #40) ──────────────────────────────
+// ── Capability-register courts (rows #10, #39, #40, #75, #76, #93, #94) ─────
 
 #[cfg(feature = "core")]
 pub mod data_quality_gate;
 #[cfg(feature = "core")]
 pub mod ocel_alignment_court;
 #[cfg(feature = "core")]
+pub mod ocel_compat_court;
+#[cfg(feature = "core")]
+pub mod ocel_declare_court;
+#[cfg(feature = "core")]
 pub mod ocel_flatten_loss_court;
+#[cfg(feature = "core")]
+pub mod ocel_process_delta_court;
+#[cfg(feature = "core")]
+pub mod ocel_proof_carrying;
+#[cfg(feature = "core")]
+pub mod ocel_streaming_context_court;

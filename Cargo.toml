@@ -337,7 +337,10 @@ arbitrary = { version = "1.4", features = ["derive"] }
 # constructible and its validate()/standing law exercisable.
 # Renamed (package = "clnrm-core") so it coexists with the patched stub at
 # version 1.3.0; the real crate is 26.5.28 (semver-incompatible, distinct node).
-clnrm-sj-core = { package = "clnrm-core", path = "/Users/sac/clnrm/crates/clnrm-core" }
+# SJ parity court needs the unpublished real clnrm-core 26.5.x. That path pin
+# lived at `/Users/sac/clnrm/...` and broke every non-Mac host. The court now
+# lives behind `cfg(sj_parity_local)` in `tests/sj_projection_parity.rs` and is
+# skipped unless a local checkout is wired. Do not reintroduce a Mac absolute path.
 # Lane disclosure (register #52 minimal unblock): pkcs8 0.11 is already in the
 # dependency tree via slh-dsa 0.2.0-rc.5, but slh-dsa does not re-export it, so
 # the SPKI/PKCS8 round-trip court needs a nameable path to
@@ -569,7 +572,8 @@ clnrm-core = { path = "stubs/clnrm-core" }
 # verb's Value::Null (the stray trailing "null" line on every success
 # path, ROADMAP B13). See vendor/clap-noun-verb/src/cli/registry.rs.
 clap-noun-verb = { path = "vendor/clap-noun-verb" }
-chicago-tdd-tools = { path = "/Users/sac/chicago-tdd-tools" }
+# chicago-tdd-tools comes from crates.io (see [dependencies]/[dev-dependencies]).
+# The former `/Users/sac/chicago-tdd-tools` path pin broke every non-Mac host.
 
 # CI/test latency: optimize crypto dependency compute without changing first-party dev checks.
 [profile.dev.package.ml-dsa]
