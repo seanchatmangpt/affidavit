@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 100, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 102, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install (pick one):

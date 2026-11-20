@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 100, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 102, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `. /path/to/completions/affi.ps1` to your $PROFILE.
@@ -101,9 +101,9 @@ $script:AffiCompletions = [ordered]@{
         'policy-enforce' = 'Evaluate receipt events against a Rego or CEL policy file'
         'portfolio-health' = 'Aggregate health signals across a portfolio of receipts into a dashboard-ready report'
         'predict' = 'Forecast future chain state or failure probability based on historical receipt patterns'
-        'proof-carrying' = 'Mint a seal/v2 subject from grounded OCEL DFG fitness/precision'
-        'proof-carrying-verify' = 'Verify an ML-DSA-65 seal/v2 over a proof-carrying subject'
         'profile' = 'Profile the performance of verify and assemble operations on a receipt'
+        'proof-carrying' = 'Mint a seal/v2 subject from grounded OCEL DFG fitness/precision (admit_flat → digest)'
+        'proof-carrying-verify' = 'Verify an ML-DSA-65 seal/v2 over a proof-carrying conformance subject'
         'query' = 'Query receipt events using a filter expression (event_type, object, seq range)'
         'receipt-throughput' = 'Measure how many receipts per second the local store can verify under load'
         'replay' = 'Re-execute chain from stored events, optionally applying custom handlers'

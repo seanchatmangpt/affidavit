@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 100, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 102, Registry nouns: 13
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `source /path/to/completions/affi.nu` to your config.nu.
@@ -21,7 +21,7 @@ def "nu-complete affi nouns" [] {
         {value: "guide", description: "1 verbs"}
         {value: "keys", description: "5 verbs"}
         {value: "legal-hold", description: "1 verbs"}
-        {value: "receipt", description: "70 verbs"}
+        {value: "receipt", description: "72 verbs"}
         {value: "restitution", description: "1 verbs"}
         {value: "standing", description: "2 verbs"}
     ]
@@ -120,9 +120,9 @@ def "nu-complete affi verbs" [context: string] {
             {value: "policy-enforce", description: "Evaluate receipt events against a Rego or CEL policy file"}
             {value: "portfolio-health", description: "Aggregate health signals across a portfolio of receipts into a dashboard-ready report"}
             {value: "predict", description: "Forecast future chain state or failure probability based on historical receipt patterns"}
-            {value: "proof-carrying", description: "Mint a seal/v2 subject from grounded OCEL DFG fitness/precision"}
-            {value: "proof-carrying-verify", description: "Verify an ML-DSA-65 seal/v2 over a proof-carrying subject"}
             {value: "profile", description: "Profile the performance of verify and assemble operations on a receipt"}
+            {value: "proof-carrying", description: "Mint a seal/v2 subject from grounded OCEL DFG fitness/precision (admit_flat → digest)"}
+            {value: "proof-carrying-verify", description: "Verify an ML-DSA-65 seal/v2 over a proof-carrying conformance subject"}
             {value: "query", description: "Query receipt events using a filter expression (event_type, object, seq range)"}
             {value: "receipt-throughput", description: "Measure how many receipts per second the local store can verify under load"}
             {value: "replay", description: "Re-execute chain from stored events, optionally applying custom handlers"}

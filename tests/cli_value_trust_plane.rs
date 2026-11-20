@@ -2,13 +2,12 @@
 //!
 //! Split of labor:
 //!
-//! * NEGATIVE layer (this file, always compiled): the default binary — built
-//!   WITHOUT `--features crypto-trust` — must refuse every crypto-trust CLI
-//!   verb with the typed refusal (CLI execution error, exit 224,
-//!   `REFUSED_UNSUPPORTED`, naming the `crypto-trust` feature). Integration
-//!   tests reach the binary via `CARGO_BIN_EXE_affi`, which is always built
-//!   with default features only, so the positive (real key/envelope/evidence)
-//!   paths cannot be exercised from this file.
+//! * NEGATIVE layer (this file, compiled only when `crypto-trust` is off): the
+//!   default binary must refuse every crypto-trust CLI verb with the typed
+//!   refusal (CLI execution error, exit 224, `REFUSED_UNSUPPORTED`, naming
+//!   the `crypto-trust` feature). Under `cargo test --features crypto-trust`
+//!   the same `CARGO_BIN_EXE_affi` is rebuilt with the plane enabled, so this
+//!   suite is cfg-gated out — positive paths live in the crypto-trust suites.
 //!
 //! * POSITIVE layer (documented, not duplicated here): the crypto-trust plane
 //!   battery covers the real paths — keys/envelope/evidence flows are
@@ -25,7 +24,9 @@
 //! lawfully. 13 verbs, one assertion per verb, no skips: a court that cannot
 //! fail is not a court.
 //!
-//! Gate: `cargo test --test cli_value_trust_plane` exit 0.
+//! Gate: `cargo test --test cli_value_trust_plane` exit 0 (default features).
+
+#![cfg(not(feature = "crypto-trust"))]
 
 use std::process::Command;
 

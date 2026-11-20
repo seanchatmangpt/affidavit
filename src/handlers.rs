@@ -1808,6 +1808,7 @@ fn parse_hex_bytes(s: &str, expected: usize) -> Result<Vec<u8>> {
 ///
 /// `--seal-seed` (32-byte hex) signs the subject under seal/v2 when built with
 /// `--features crypto-trust`; otherwise typed `REFUSED_UNSUPPORTED`.
+#[allow(clippy::too_many_arguments)] // CLI surface mirrors clap verb args 1:1
 pub fn proof_carrying(
     receipt: Option<String>,
     ocel_path: Option<String>,
@@ -1942,9 +1943,9 @@ pub fn proof_carrying_verify(
     #[cfg(not(feature = "crypto-trust"))]
     {
         let _ = (subject_path, pk_hex, format);
-        return Err(NounVerbError::execution_error(
+        Err(NounVerbError::execution_error(
             "REFUSED_UNSUPPORTED: proof-carrying-verify requires --features crypto-trust",
-        ));
+        ))
     }
     #[cfg(feature = "crypto-trust")]
     {

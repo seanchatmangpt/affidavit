@@ -8,6 +8,7 @@ use clap_noun_verb::Result;
 use clap_noun_verb_macros::verb;
 
 /// Mint a proof-carrying OCEL DFG conformance subject (seal/v2 M).
+#[allow(clippy::too_many_arguments)] // clap verb args mirror the handler 1:1
 #[rustfmt::skip]
 #[verb("proof-carrying", "receipt")]
 pub fn proof_carrying(
