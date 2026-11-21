@@ -1,7 +1,7 @@
 //! Zero-String Sealed Arrow-on-Disk (AOD) substrate — AFFI-SPEC-26.11.19.
 //!
 //! Persisted `.aod` artifacts carry **no** UTF-8/ASCII domain tokens: raw
-//! 64-byte-aligned buffers bound to a compiled [`ontology_hash`] and sealed by
+//! 64-byte-aligned buffers bound to a compiled ontology hash and sealed by
 //! a 352-byte CTRT hyperdimensional shadow. Dual-mode verification severs
 //! operational authority from auditability:
 //!
@@ -9,10 +9,14 @@
 //!   monoatomic lease nullifier, returns [`AodView`] over Region 3.
 //! * **Historical Witness** ([`verify_witness`]): shared envelope only; returns
 //!   inert [`WitnessAttestation`] with **zero** pointers into Region 3.
+//! * **Kernels** ([`AvecView`] / [`FforView`] / [`OrdinalPerm`]): fixed-stride
+//!   avec views, FFOR bit-unpack, and optional AHDCLT ordinal permutation
+//!   over already-admitted sealed pages (PR-4 / PR-7).
 //!
 //! Numeric refusals occupy `0xE501..=0xE50D` (see [`AodRefusal`]).
 
 mod envelope;
+mod kernels;
 mod layout;
 mod live;
 mod refuse;
@@ -21,6 +25,10 @@ mod witness;
 mod writer;
 
 pub use envelope::{shared_envelope_check, EnvelopeOk};
+pub use kernels::{
+    ffor_pack, ffor_packed_bytes, invert_ordinal_perm, AvecView, FforView, OrdinalPerm,
+    FFOR_MAX_BIT_WIDTH,
+};
 pub use layout::{
     align64, pad64, AodHeader, AodShadow, BufferEntry, AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN,
     AOD_MAGIC, AOD_MIN_FILE_LEN, AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN, DOMAIN_AOD_SEAL,
