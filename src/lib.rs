@@ -100,6 +100,7 @@
 mod macros;
 
 pub mod admission;
+pub mod aod_ontology;
 pub mod architecture;
 pub mod bench;
 pub mod brce;

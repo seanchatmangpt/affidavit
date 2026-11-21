@@ -6,5 +6,5 @@
 - **Verb:** `verify`
 - **Noun:** `aod`
 - **Group:** Attestation
-- **Summary:** Live Gate: match CompiledOntology, burn monoatomic lease nullifier, exit 0 or 0xE5xx
+- **Summary:** Live Gate: bind static CompiledOntology (fixture strides [8]), burn lease; --ontology/--strides court-only
 - **Keywords:** `aod`, `verify`, `live`, `lease`, `map_live`

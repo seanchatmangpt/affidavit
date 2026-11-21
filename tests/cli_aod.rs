@@ -6,6 +6,7 @@
 //! 3. verify --live burns nullifier into durable AFAL store; second live
 //!    verify (cross-process) refuses 0xE50D.
 //! 4. rotate rematerializes under a fresh lease; fold yields stable tip.
+//! 5. Production live verify binds compiled fixture without `--ontology`/`--strides`.
 
 use assert_cmd::Command;
 use std::fs;
@@ -25,6 +26,10 @@ fn hex32(byte: u8) -> String {
 
 fn ontology() -> String {
     "aa".repeat(32)
+}
+
+fn fixture_ontology() -> String {
+    affidavit_core::FIXTURE_ONTOLOGY_HASH_HEX.to_string()
 }
 
 fn lease(tag: u8) -> String {
@@ -229,15 +234,7 @@ fn aod_verify_without_live_refuses_mode() {
         .success();
 
     let bad = affi(cwd)
-        .args([
-            "aod",
-            "verify",
-            out.to_str().unwrap(),
-            "--ontology",
-            &ontology(),
-            "--strides",
-            "8",
-        ])
+        .args(["aod", "verify", out.to_str().unwrap()])
         .output()
         .unwrap();
     assert!(!bad.status.success());
@@ -250,4 +247,64 @@ fn aod_verify_without_live_refuses_mode() {
         combined.contains("REFUSED_AOD_MODE") || combined.contains("--live"),
         "combined={combined}"
     );
+}
+
+#[test]
+fn aod_verify_live_defaults_to_compiled_fixture() {
+    let dir = TempDir::new().unwrap();
+    let cwd = dir.path();
+    let rows = 2u64;
+    let (page, _) = write_page(cwd, rows, 8);
+    let out = cwd.join("fixture.aod");
+    let registry = cwd.join("leases.txt");
+
+    affi(cwd)
+        .args([
+            "aod",
+            "seal",
+            "--ontology",
+            &fixture_ontology(),
+            "--lease",
+            &lease(0x11),
+            "--rows",
+            &rows.to_string(),
+            "--in",
+            page.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    // Production path: no --ontology / --strides.
+    affi(cwd)
+        .args([
+            "aod",
+            "verify",
+            "--live",
+            out.to_str().unwrap(),
+            "--registry",
+            registry.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("aod live ACCEPT"));
+
+    // Court override still works (wrong hash → UnknownOntology / 0xE506).
+    let wrong = affi(cwd)
+        .args([
+            "aod",
+            "verify",
+            "--live",
+            out.to_str().unwrap(),
+            "--ontology",
+            &ontology(),
+            "--strides",
+            "8",
+            "--registry",
+            cwd.join("leases2.txt").to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(wrong.status.code(), Some(0x06));
 }

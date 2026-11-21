@@ -18,6 +18,7 @@
 //! Numeric refusals occupy `0xE501..=0xE50D` (see [`AodRefusal`]).
 
 mod envelope;
+mod fixture_ontology;
 mod kernels;
 mod layout;
 mod live;
@@ -29,6 +30,10 @@ mod witness;
 mod writer;
 
 pub use envelope::{shared_envelope_check, EnvelopeOk};
+pub use fixture_ontology::{
+    compiled_fixture, derive_ontology_hash, DOMAIN_AOD_ONTOLOGY, FIXTURE_ONTOLOGY_HASH,
+    FIXTURE_ONTOLOGY_HASH_HEX, FIXTURE_SCHEMA_ID, FIXTURE_STRIDES,
+};
 pub use kernels::{
     ffor_pack, ffor_packed_bytes, invert_ordinal_perm, AvecView, FforView, OrdinalPerm,
     FFOR_MAX_BIT_WIDTH,

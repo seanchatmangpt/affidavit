@@ -950,10 +950,10 @@ pub static REGISTRY: &[VerbEntry] = &[
         "verify",
         "aod",
         VerbGroup::Attestation,
-        "Live Gate: match CompiledOntology, burn monoatomic lease nullifier, exit 0 or 0xE5xx",
+        "Live Gate: bind static CompiledOntology (fixture strides [8]), burn lease; --ontology/--strides court-only",
         &["aod", "verify", "live", "lease", "map_live"],
     )
-    .with_example("affi aod verify --live FILE.aod --ontology <64hex> --strides 8"),
+    .with_example("affi aod verify --live FILE.aod"),
     VerbEntry::new(
         "witness",
         "aod",
