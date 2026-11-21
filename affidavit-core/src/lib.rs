@@ -107,8 +107,8 @@ pub use aod::{
     AodHeader, AodRefusal, AodShadow, AodView, AvecView, BufferEntry, CompiledOntology, EnvelopeOk,
     FforView, LeaseRegistry, OrdinalPerm, WitnessAttestation, AOD_HEADER_LEN, AOD_MAGIC,
     AOD_MIN_FILE_LEN, AOD_MMAP_ALIGN, AOD_SHADOW_LEN, DOMAIN_AOD_ONTOLOGY, DOMAIN_AOD_SEAL,
-    FIXTURE_ONTOLOGY_HASH, FIXTURE_ONTOLOGY_HASH_HEX, FIXTURE_SCHEMA_ID, FIXTURE_STRIDES,
-    FFOR_MAX_BIT_WIDTH,
+    FFOR_MAX_BIT_WIDTH, FIXTURE_ONTOLOGY_HASH, FIXTURE_ONTOLOGY_HASH_HEX, FIXTURE_SCHEMA_ID,
+    FIXTURE_STRIDES,
 };
 #[cfg(feature = "alloc")]
 pub use aod::{

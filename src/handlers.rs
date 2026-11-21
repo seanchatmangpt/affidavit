@@ -5974,6 +5974,22 @@ pub fn standing_verify(receipt: String, format: Option<String>) -> Result<()> {
     emit_court(crate::federation::standing_verify(&receipt), format, None)
 }
 
+/// `affi standing certify-aod` — PARTIAL_ALIVE from Live-Gate-admissible `.aod`.
+pub fn standing_certify_aod(
+    receipt: String,
+    aod: String,
+    subject: String,
+    scope: String,
+    out: Option<String>,
+    format: Option<String>,
+) -> Result<()> {
+    emit_court(
+        crate::federation::aod_standing_certify(&receipt, &aod, &subject, &scope),
+        format,
+        out,
+    )
+}
+
 /// `affi ecosystem certify` — federate sealed member standing receipts.
 pub fn ecosystem_certify(
     receipt: String,

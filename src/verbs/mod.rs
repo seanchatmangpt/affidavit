@@ -100,6 +100,7 @@ pub mod show;
 pub mod sign;
 pub mod soc2_audit;
 pub mod standing_certify;
+pub mod standing_certify_aod;
 pub mod standing_verify;
 pub mod stats;
 pub mod team_velocity;

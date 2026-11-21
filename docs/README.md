@@ -39,6 +39,7 @@ append-only, content-addressed BLAKE3 chains of operation-events. The doctrine i
 - [reference/CAPABILITY_REGISTER.md](reference/CAPABILITY_REGISTER.md)
 - [reference/generated/README.md](reference/generated/README.md)
 - [CRYPTO_TRUST_PLANE.md](CRYPTO_TRUST_PLANE.md), [FEDERATION.md](FEDERATION.md),
+  [AOD_FEDERATION.md](AOD_FEDERATION.md),
   [WASM.md](WASM.md), [ALOOP_EXECUTION_RECEIPT.md](ALOOP_EXECUTION_RECEIPT.md)
 - [`../STATUS.md`](../STATUS.md), [`../ROADMAP.md`](../ROADMAP.md), [`../CHANGELOG.md`](../CHANGELOG.md)
 
