@@ -60,36 +60,45 @@ pub fn verify_witness(raw: &[u8]) -> Result<WitnessAttestation, AodRefusal> {
 mod tests {
     use super::*;
     use crate::aod::layout::{
-        blake3_of, compute_seal_commitment, AodHeader, AodShadow, AOD_HEADER_LEN, AOD_MIN_FILE_LEN,
+        blake3_of, AodHeader, AodShadow, AOD_HEADER_LEN, AOD_MIN_FILE_LEN, AOD_SHADOW_LEN,
     };
+    use crate::aod::pqc_seal::{compute_pqc_seal, derive_mldsa_seed, AOD_PQC_MATERIAL_LEN};
 
-    #[test]
-    fn witness_has_no_data_pointers() {
-        let mut raw = [0u8; AOD_MIN_FILE_LEN];
+    fn minimal_signed(ontology: [u8; 32]) -> Vec<u8> {
+        let mut raw = vec![0u8; AOD_HEADER_LEN];
         let header = AodHeader {
             flags: 0,
             row_count: 0,
             buffer_count: 0,
-            ontology_hash: [0x44; 32],
+            ontology_hash: ontology,
             trailer_offset: AOD_HEADER_LEN as u64,
         };
         raw[..AOD_HEADER_LEN].copy_from_slice(&header.encode());
         let payload_digest = blake3_of(&raw[..AOD_HEADER_LEN]);
-        let mut shadow = AodShadow {
+        let seed = derive_mldsa_seed(&ontology);
+        let (pqc_seal, pk, sig) =
+            compute_pqc_seal(&payload_digest.0, 9, &[0x55; 32], &[0x66; 32], &seed).unwrap();
+        let shadow = AodShadow {
             payload_digest: payload_digest.0,
             lease_epoch: 9,
             lease_nullifier: [0x55; 32],
             folded_receipt: [0x66; 32],
-            pqc_seal: [0u8; crate::aod::layout::AOD_PQC_SEAL_LEN],
+            pqc_seal,
         };
-        shadow.pqc_seal = compute_seal_commitment(
-            &shadow.payload_digest,
-            shadow.lease_epoch,
-            &shadow.lease_nullifier,
-            &shadow.folded_receipt,
+        raw.extend_from_slice(&shadow.encode());
+        raw.extend_from_slice(&pk);
+        raw.extend_from_slice(&sig);
+        assert_eq!(raw.len(), AOD_MIN_FILE_LEN);
+        assert_eq!(
+            raw.len(),
+            AOD_HEADER_LEN + AOD_SHADOW_LEN + AOD_PQC_MATERIAL_LEN
         );
-        raw[AOD_HEADER_LEN..].copy_from_slice(&shadow.encode());
+        raw
+    }
 
+    #[test]
+    fn witness_has_no_data_pointers() {
+        let raw = minimal_signed([0x44; 32]);
         let att = verify_witness(&raw).expect("witness");
         assert_eq!(att.ontology_hash, [0x44; 32]);
         assert_eq!(att.lease_epoch, 9);

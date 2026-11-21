@@ -26,7 +26,7 @@ pub enum AodRefusal {
     NonZeroPadding,
     /// `0xE50B` — BLAKE3 payload digest mismatch.
     DigestMismatch,
-    /// `0xE50C` — PQC seal commitment verification failed.
+    /// `0xE50C` — ML-DSA-65 PQC seal verification failed.
     PqcSealFailure,
     /// `0xE50D` — monoatomic lease spent, expired, or refused by the registry.
     LeaseSpentOrExpired,

@@ -101,15 +101,17 @@ pub mod verifier;
 #[cfg(feature = "alloc")]
 pub mod mining;
 
+pub use aod::{
+    aod_key_id, map_live, seal_message_digest, shared_envelope_check, verify_pqc_seal,
+    verify_witness, AodHeader, AodRefusal, AodShadow, AodView, BufferEntry, CompiledOntology,
+    EnvelopeOk, LeaseRegistry, WitnessAttestation, AOD_HEADER_LEN, AOD_MAGIC, AOD_MIN_FILE_LEN,
+    AOD_PQC_MATERIAL_LEN, AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN, DOMAIN_AOD_KEY_ID, DOMAIN_AOD_SEAL,
+    DOMAIN_AOD_SEAL_CTX,
+};
 #[cfg(feature = "alloc")]
 pub use aod::{
-    fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, AodBufferSpec, InMemoryLeaseRegistry,
-    SealParams,
-};
-pub use aod::{
-    map_live, shared_envelope_check, verify_witness, AodHeader, AodRefusal, AodShadow, AodView,
-    BufferEntry, CompiledOntology, EnvelopeOk, LeaseRegistry, WitnessAttestation, AOD_HEADER_LEN,
-    AOD_MAGIC, AOD_MIN_FILE_LEN, AOD_SHADOW_LEN, DOMAIN_AOD_SEAL,
+    derive_mldsa_seed, fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod,
+    seal_aod_with_seed, sign_aod_seal, AodBufferSpec, InMemoryLeaseRegistry, SealParams,
 };
 
 pub use chain::{compute_chain_hash, Event, PROFILE};

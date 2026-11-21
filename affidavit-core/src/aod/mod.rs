@@ -1,7 +1,7 @@
 //! Zero-String Sealed Arrow-on-Disk (AOD) substrate — AFFI-SPEC-26.11.19.
 //!
 //! Persisted `.aod` artifacts carry **no** UTF-8/ASCII domain tokens: raw
-//! 64-byte-aligned buffers bound to a compiled [`ontology_hash`] and sealed by
+//! 64-byte-aligned buffers bound to a compiled ontology hash and sealed by
 //! a 352-byte CTRT hyperdimensional shadow. Dual-mode verification severs
 //! operational authority from auditability:
 //!
@@ -15,6 +15,7 @@
 mod envelope;
 mod layout;
 mod live;
+pub mod pqc_seal;
 mod refuse;
 mod witness;
 #[cfg(feature = "alloc")]
@@ -28,9 +29,16 @@ pub use layout::{
 #[cfg(feature = "alloc")]
 pub use live::InMemoryLeaseRegistry;
 pub use live::{map_live, AodView, CompiledOntology, LeaseRegistry};
+pub use pqc_seal::{
+    aod_key_id, seal_message_digest, verify_pqc_seal, AOD_PQC_MATERIAL_LEN, DOMAIN_AOD_KEY_ID,
+    DOMAIN_AOD_SEAL_CTX,
+};
+#[cfg(feature = "alloc")]
+pub use pqc_seal::{derive_mldsa_seed, sign_aod_seal};
 pub use refuse::AodRefusal;
 pub use witness::{verify_witness, WitnessAttestation};
 #[cfg(feature = "alloc")]
 pub use writer::{
-    fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, AodBufferSpec, SealParams,
+    fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, seal_aod_with_seed, AodBufferSpec,
+    SealParams,
 };
