@@ -2380,10 +2380,10 @@ affi:AodVerifyVerb a cnv:Verb ;
     cnv:returnType "()" ;
     cnv:hasArgument affi:AodFileArg ;
     cnv:hasArgument affi:AodLiveArg ;
-    cnv:hasArgument affi:AodOntologyArg ;
+    cnv:hasArgument affi:AodVerifyOntologyArg ;
     cnv:hasArgument affi:AodStridesArg ;
     cnv:hasArgument affi:AodRegistryArg ;
-    cnv:hasArguments ( affi:AodFileArg affi:AodLiveArg affi:AodOntologyArg affi:AodStridesArg affi:AodRegistryArg ) .
+    cnv:hasArguments ( affi:AodFileArg affi:AodLiveArg affi:AodVerifyOntologyArg affi:AodStridesArg affi:AodRegistryArg ) .
 
 affi:AodFileArg a cnv:Argument ;
     cnv:hasArgumentName "file" ;
@@ -2398,11 +2398,17 @@ affi:AodLiveArg a cnv:Argument ;
     cnv:valueType "bool" ;
     cnv:required "false" .
 
+affi:AodVerifyOntologyArg a cnv:Argument ;
+    cnv:hasArgumentName "ontology" ;
+    cnv:argumentAbout "Court override only: ontology_hash as 64 lowercase hex. Production default is the static compiled fixture (ontology/aod-fixture.ttl)" ;
+    cnv:valueType "String" ;
+    cnv:required "false" .
+
 affi:AodStridesArg a cnv:Argument ;
     cnv:hasArgumentName "strides" ;
-    cnv:argumentAbout "Comma-separated per-row byte strides matching the compiled ontology buffer slots" ;
+    cnv:argumentAbout "Court override only: comma-separated per-row byte strides. Production default is the static compiled fixture strides ([8])" ;
     cnv:valueType "String" ;
-    cnv:required "true" .
+    cnv:required "false" .
 
 affi:AodRegistryArg a cnv:Argument ;
     cnv:hasArgumentName "registry" ;

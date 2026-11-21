@@ -1,0 +1,33 @@
+# AOD fixture CompiledOntology (AFFI-SPEC-26.11.19 PR topology §4.1)
+#
+# Source for the checked-in static binding in
+# `affidavit-core/src/aod/fixture_ontology.rs`. When ggen can run, regenerate
+# the Rust const via `scripts/regen_aod_fixture_ontology.sh`; otherwise the
+# pin + unit court (`fixture_hash_pin_matches_derivation`) keep the projection
+# honest.
+#
+# ontology_hash = BLAKE3(
+#   DOMAIN_AOD_ONTOLOGY || schema_id || 0x00 || le_u32(n) || Σ le_u64(stride_i)
+# )
+# DOMAIN_AOD_ONTOLOGY = "affidavit-core/aod/v1\0ontology"
+# schema_id           = "aod.fixture.v1.u64_col"
+# strides             = [8]
+# pin hex             = 9a96ff6a3aa16735678d70df6e8302105dd48e5ac71bb1dabbf6adb3b811773b
+
+@prefix aod:  <https://affidavit.dev/ontology/aod#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+aod:FixtureV1 a aod:CompiledOntology ;
+    rdfs:label "AOD fixture v1 — single u64 column" ;
+    aod:schemaId "aod.fixture.v1.u64_col" ;
+    aod:domainTag "affidavit-core/aod/v1\\0ontology" ;
+    aod:bufferSlot aod:FixtureSlot0 ;
+    aod:ontologyHashHex "9a96ff6a3aa16735678d70df6e8302105dd48e5ac71bb1dabbf6adb3b811773b"^^xsd:string ;
+    rdfs:comment "Production Live Gate default; --ontology/--strides remain court overrides only."@en .
+
+aod:FixtureSlot0 a aod:BufferSlot ;
+    aod:slotIndex 0 ;
+    aod:perRowStrideBytes 8 ;
+    aod:cellType "u64" ;
+    rdfs:comment "One positional buffer; byte_length = 8 × row_count."@en .

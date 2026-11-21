@@ -9934,11 +9934,14 @@ pub fn aod_seal(
 }
 
 /// `affi aod verify --live` — Live Gate + lease burn.
+///
+/// Production default binds [`affidavit_core::compiled_fixture`]. Optional
+/// `--ontology` / `--strides` override that binding for courts only.
 pub fn aod_verify(
     file: String,
     live: bool,
-    ontology_hex: String,
-    strides_csv: String,
+    ontology_hex: Option<String>,
+    strides_csv: Option<String>,
     registry: Option<String>,
 ) -> Result<()> {
     if !live {
@@ -9946,29 +9949,49 @@ pub fn aod_verify(
             "REFUSED_AOD_MODE: live gate requires --live (use `affi aod witness` for fossils)",
         ));
     }
-    let ontology = aod_require_hex32("ontology", &ontology_hex)?;
-    let mut strides: Vec<u64> = Vec::new();
-    for part in strides_csv.split(',') {
-        let part = part.trim();
-        if part.is_empty() {
-            continue;
+    let fixture = affidavit_core::compiled_fixture();
+    let ontology_override = ontology_hex
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|h| aod_require_hex32("ontology", h))
+        .transpose()?;
+    let ontology = ontology_override.as_ref().unwrap_or(fixture.ontology_hash);
+
+    let strides_owned: Option<Vec<u64>> = match strides_csv
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        None => None,
+        Some(csv) => {
+            let mut strides: Vec<u64> = Vec::new();
+            for part in csv.split(',') {
+                let part = part.trim();
+                if part.is_empty() {
+                    continue;
+                }
+                let s: u64 = part.parse().map_err(|_| {
+                    NounVerbError::execution_error(format!(
+                        "REFUSED_AOD_STRIDES: invalid stride token `{part}`"
+                    ))
+                })?;
+                strides.push(s);
+            }
+            if strides.is_empty() {
+                return Err(NounVerbError::execution_error(
+                    "REFUSED_AOD_STRIDES: --strides must list at least one per-row byte stride",
+                ));
+            }
+            Some(strides)
         }
-        let s: u64 = part.parse().map_err(|_| {
-            NounVerbError::execution_error(format!(
-                "REFUSED_AOD_STRIDES: invalid stride token `{part}`"
-            ))
-        })?;
-        strides.push(s);
-    }
-    if strides.is_empty() {
-        return Err(NounVerbError::execution_error(
-            "REFUSED_AOD_STRIDES: --strides must list at least one per-row byte stride",
-        ));
-    }
+    };
+    let strides: &[u64] = strides_owned.as_deref().unwrap_or(fixture.strides);
+
     let raw = std::fs::read(&file).map_err(io_err)?;
     let compiled = affidavit_core::CompiledOntology {
-        ontology_hash: &ontology,
-        strides: &strides,
+        ontology_hash: ontology,
+        strides,
     };
     let reg_path = registry
         .map(std::path::PathBuf::from)
