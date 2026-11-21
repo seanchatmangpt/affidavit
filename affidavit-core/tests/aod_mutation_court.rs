@@ -29,12 +29,12 @@
 //! envelope reaches the intended refusal stage (fail-closed, exact code).
 
 use affidavit_core::aod::align64;
+use affidavit_core::aod::pqc_seal::compute_pqc_seal;
 use affidavit_core::{
     derive_mldsa_seed, map_live, seal_aod, verify_witness, AodBufferSpec, AodRefusal, AodShadow,
     Blake3Hasher, ChainHasher, CompiledOntology, InMemoryLeaseRegistry, SealParams,
     AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_PQC_MATERIAL_LEN, AOD_SHADOW_LEN,
 };
-use affidavit_core::aod::pqc_seal::compute_pqc_seal;
 
 fn blake3_of(bytes: &[u8]) -> [u8; 32] {
     let mut st = Blake3Hasher::init();
@@ -323,7 +323,10 @@ fn mutation_exhaustive_single_bit_flips_fail_closed() {
             }
         }
     }
-    assert_eq!(refusals, shadow_end, "every header‥shadow bit flip must refuse");
+    assert_eq!(
+        refusals, shadow_end,
+        "every header‥shadow bit flip must refuse"
+    );
     // Spot-check ML-DSA trailer tip + first sig byte (same 0xE50C band).
     for &idx in &[shadow_end, shadow_end + 1, raw.len() - 1] {
         let mut mut_raw = raw.clone();
