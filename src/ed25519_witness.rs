@@ -242,7 +242,6 @@ mod tests {
                 "seed byte {i} leaked (decimal) into Debug: {rendered}"
             );
         }
-        let hex: String = seed.iter().map(|b| format!("{b:02x}")).collect();
         assert!(
             !rendered.to_lowercase().contains("abab"),
             "seed hex prefix leaked into Debug: {rendered}"

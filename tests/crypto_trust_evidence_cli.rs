@@ -24,14 +24,15 @@ use assert_cmd::Command;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-/// CliExecutionError (diag 1504) → process exit `1504 % 256 = 224`.
-/// Typed evidence refusals travel this path (not bare exit 1).
-const EXIT_CLI_EXECUTION: i32 = 1504 % 256;
-
 use affidavit::crypto_trust_es256::Es256SigningKey;
 use affidavit::crypto_trust_journal::StandingJournal;
 use affidavit::crypto_trust_keys::{fingerprint_public_key, AlgorithmId, PublicKeyMaterial};
 use affidavit::crypto_trust_revocation::{verify_publication, SignedRevocationList};
+
+/// A typed refusal from a verb exits with the CLI-wide execution-error code:
+/// clap-noun-verb error 1504 mod 256 = 224 (same contract as the cli_value_*
+/// courts and the vacuity tripwire). These courts once pinned 1.
+const REFUSAL_EXIT: i32 = 224;
 
 fn affi(dir: &TempDir) -> Command {
     let mut cmd = Command::cargo_bin("affi").expect("affi binary builds");
@@ -187,7 +188,7 @@ fn journal_refuses_missing_custody_and_tampered_journal() {
         .args(["evidence", "journal", "subject"])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("REFUSED_R_missing_authority"));
 
     // An empty custody value counts as absent (it carries no secret).
@@ -196,7 +197,7 @@ fn journal_refuses_missing_custody_and_tampered_journal() {
         .args(["evidence", "journal", "subject"])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("REFUSED_R_missing_authority"));
 
     // Empty subject: Validation refusal.
@@ -205,7 +206,7 @@ fn journal_refuses_missing_custody_and_tampered_journal() {
         .args(["evidence", "journal", ""])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("non-empty"));
 
     // Record honestly, then tamper with the durable chain: the next run
@@ -221,7 +222,7 @@ fn journal_refuses_missing_custody_and_tampered_journal() {
         .args(["evidence", "journal", "after-tamper"])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("does not reproduce"));
 
     // Heads refuses the tampered journal too.
@@ -229,7 +230,7 @@ fn journal_refuses_missing_custody_and_tampered_journal() {
         .args(["evidence", "heads"])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("does not reproduce"));
 }
 
@@ -360,7 +361,7 @@ fn crl_publish_refusals_are_typed() {
         ])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("REFUSED_R_missing_authority"));
     assert!(
         !dir.path().join(".affi/crl.json").exists(),
@@ -380,7 +381,7 @@ fn crl_publish_refusals_are_typed() {
         ])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains(
             "unknown key afk1_0000000000000000",
         ));
@@ -400,7 +401,7 @@ fn crl_publish_refusals_are_typed() {
         ])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("not the requested issuer"));
 
     // Missing store.
@@ -417,7 +418,7 @@ fn crl_publish_refusals_are_typed() {
         ])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("key store"));
 }
 
@@ -463,7 +464,7 @@ fn crl_apply_refuses_unknown_issuer_and_tampered_file() {
         ])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("does not verify"));
 
     // Fail-closed: a MISSING file is refused, never an empty CRL.
@@ -478,7 +479,7 @@ fn crl_apply_refuses_unknown_issuer_and_tampered_file() {
         ])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("crl file"));
 
     // A store that does not hold the issuer: admission refused.
@@ -494,7 +495,7 @@ fn crl_apply_refuses_unknown_issuer_and_tampered_file() {
         ])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("unknown issuer"));
 
     // A foreign format stamp is refused before any admission.
@@ -512,7 +513,7 @@ fn crl_apply_refuses_unknown_issuer_and_tampered_file() {
         ])
         .assert()
         .failure()
-        .code(EXIT_CLI_EXECUTION)
+        .code(REFUSAL_EXIT)
         .stderr(predicates::str::contains("wrong format"));
 }
 

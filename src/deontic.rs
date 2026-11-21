@@ -495,7 +495,7 @@ mod tests {
         // "STRATA:AB" || epoch8 — the collision is pinned, non-vacuously.
         let unframed_a = construct_deontic_context_raw(b"AB", &[], &epoch8)
             .expect("unframed context A constructs");
-        let unframed_b = construct_deontic_context_raw(b"A", &[b'B'], &epoch8)
+        let unframed_b = construct_deontic_context_raw(b"A", b"B", &epoch8)
             .expect("unframed context B constructs");
         assert_eq!(unframed_a, unframed_b);
 
@@ -503,7 +503,7 @@ mod tests {
         let ctx_a =
             construct_deontic_context_framed(b"AB", &[], &epoch8).expect("context A constructs");
         let ctx_b =
-            construct_deontic_context_framed(b"A", &[b'B'], &epoch8).expect("context B constructs");
+            construct_deontic_context_framed(b"A", b"B", &epoch8).expect("context B constructs");
         assert_ne!(
             ctx_a, ctx_b,
             "framed contexts for distinct field tuples must differ"
@@ -632,7 +632,7 @@ mod tests {
     }
 
     #[test]
-    fn test_context_mismatch_variant_maps_to_0xE304() {
+    fn test_context_mismatch_variant_maps_to_0xe304() {
         let err = DeonticError::ContextMismatch("structural divergence".to_string());
         assert_eq!(err.machine_code(), CODE_CONTEXT_MISMATCH);
         assert_eq!(err.machine_code(), 0xE304);
