@@ -46,7 +46,7 @@ pub use layout::{
 #[cfg(feature = "alloc")]
 pub use live::InMemoryLeaseRegistry;
 pub use live::{map_live, AodView, CompiledOntology, LeaseRegistry};
-pub use mmap::{is_aod_aligned, slice_is_aod_aligned, AOD_MMAP_ALIGN};
+pub use mmap::{demand_aod_aligned, is_aod_aligned, slice_is_aod_aligned, AOD_MMAP_ALIGN};
 pub use pqc_seal::{
     aod_key_id, seal_message_digest, verify_pqc_seal, AOD_PQC_MATERIAL_LEN, DOMAIN_AOD_KEY_ID,
     DOMAIN_AOD_SEAL_CTX,

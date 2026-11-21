@@ -6,13 +6,13 @@
 pub enum AodRefusal {
     /// `0xE501` — input pointer/slice not 64-byte aligned (when alignment is demanded).
     UnalignedInput,
-    /// `0xE502` — file shorter than the 416-byte minimum envelope.
+    /// `0xE502` — file shorter than [`super::AOD_MIN_FILE_LEN`] (header+shadow+PQC trailer).
     TruncatedFile,
     /// `0xE503` — header sentinel is not [`super::AOD_MAGIC`].
     InvalidSentinel,
     /// `0xE504` — header reserved word is non-zero.
     NonZeroReserved,
-    /// `0xE505` — `trailer_offset` is not `file_len - 352`.
+    /// `0xE505` — `trailer_offset` is not `file_len - shadow - PQC material`.
     InvalidTrailerOffset,
     /// `0xE506` — live gate: ontology hash mismatch.
     UnknownOntology,
@@ -51,5 +51,47 @@ impl AodRefusal {
             Self::PqcSealFailure => 0xE50C,
             Self::LeaseSpentOrExpired => 0xE50D,
         }
+    }
+
+    /// Closed court band: every variant's machine code is in `0xE501..=0xE50D`.
+    pub const BAND: core::ops::RangeInclusive<u16> = 0xE501..=0xE50D;
+
+    /// All admitted refusal variants (positive-control table source).
+    ///
+    /// Courts must fire each entry through a real emission path — matching
+    /// `machine_code()` alone is vacuous.
+    pub const ALL: &'static [AodRefusal] = &[
+        Self::UnalignedInput,
+        Self::TruncatedFile,
+        Self::InvalidSentinel,
+        Self::NonZeroReserved,
+        Self::InvalidTrailerOffset,
+        Self::UnknownOntology,
+        Self::BufferCountMismatch,
+        Self::BoundsOrSlack,
+        Self::FixedStrideViolation,
+        Self::NonZeroPadding,
+        Self::DigestMismatch,
+        Self::PqcSealFailure,
+        Self::LeaseSpentOrExpired,
+    ];
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn machine_codes_are_unique_and_span_band() {
+        let mut seen = [false; 13];
+        for &r in AodRefusal::ALL {
+            let code = r.machine_code();
+            assert!(AodRefusal::BAND.contains(&code), "out of band: {code:#x}");
+            let idx = (code - 0xE501) as usize;
+            assert!(!seen[idx], "duplicate machine code {code:#x}");
+            seen[idx] = true;
+        }
+        assert!(seen.iter().all(|&b| b), "band hole — a code never mapped");
+        assert_eq!(AodRefusal::ALL.len(), 13);
     }
 }

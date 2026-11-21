@@ -102,9 +102,9 @@ pub mod verifier;
 pub mod mining;
 
 pub use aod::{
-    aod_key_id, compiled_fixture, derive_ontology_hash, ffor_pack, ffor_packed_bytes,
-    invert_ordinal_perm, is_aod_aligned, map_live, seal_message_digest, shared_envelope_check,
-    slice_is_aod_aligned, verify_pqc_seal, verify_witness, AodHeader,
+    aod_key_id, compiled_fixture, demand_aod_aligned, derive_ontology_hash, ffor_pack,
+    ffor_packed_bytes, invert_ordinal_perm, is_aod_aligned, map_live, seal_message_digest,
+    shared_envelope_check, slice_is_aod_aligned, verify_pqc_seal, verify_witness, AodHeader,
     AodRefusal, AodShadow, AodView, AvecView, BufferEntry, CompiledOntology, EnvelopeOk, FforView,
     LeaseRegistry, OrdinalPerm, WitnessAttestation, AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_MAGIC,
     AOD_MIN_FILE_LEN, AOD_MMAP_ALIGN, AOD_PQC_MATERIAL_LEN, AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN,

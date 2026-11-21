@@ -17,6 +17,12 @@
 //! offset 0 ([`crate::aod::align64`]). An OS `mmap` base is typically
 //! host-page aligned (4 KiB+). Therefore buffer pointers formed as
 //! `mmap_base + offset` inherit ≥64 B alignment whenever `offset % 64 == 0`.
+//!
+//! When a host **demands** alignment before admit, call
+//! [`demand_aod_aligned`] — that is the sole emitter of
+//! [`AodRefusal::UnalignedInput`] (`0xE501`).
+
+use super::refuse::AodRefusal;
 
 /// Byte alignment of AOD Region 3 pages and directory padding.
 pub const AOD_MMAP_ALIGN: usize = 64;
@@ -38,6 +44,20 @@ pub fn slice_is_aod_aligned(bytes: &[u8]) -> bool {
     is_aod_aligned(bytes.as_ptr() as usize)
 }
 
+/// Refuse [`AodRefusal::UnalignedInput`] (`0xE501`) when `bytes` is non-empty
+/// and its base pointer is not [`AOD_MMAP_ALIGN`]-aligned.
+///
+/// Soft diagnostics use [`slice_is_aod_aligned`]; this helper is the hard gate
+/// for hosts that demand alignment before Live Gate / Avec admit.
+#[inline]
+pub fn demand_aod_aligned(bytes: &[u8]) -> Result<(), AodRefusal> {
+    if slice_is_aod_aligned(bytes) {
+        Ok(())
+    } else {
+        Err(AodRefusal::UnalignedInput)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -56,5 +76,23 @@ mod tests {
         // Just exercise the helper; alignment of a local `[u8; N]` is
         // unspecified beyond 1. Empty slice is always OK.
         assert!(slice_is_aod_aligned(&[]));
+        assert!(demand_aod_aligned(&[]).is_ok());
+    }
+
+    #[test]
+    fn demand_refuses_deliberately_misaligned_slice() {
+        let storage = [0u8; 128];
+        let base = storage.as_ptr() as usize;
+        // Pick a start offset so the subslice base is not 64-byte aligned.
+        let start = if base.is_multiple_of(AOD_MMAP_ALIGN) {
+            1
+        } else {
+            0
+        };
+        let mis = &storage[start..start + 16];
+        assert!(!slice_is_aod_aligned(mis));
+        let err = demand_aod_aligned(mis).unwrap_err();
+        assert_eq!(err, AodRefusal::UnalignedInput);
+        assert_eq!(err.machine_code(), 0xE501);
     }
 }
