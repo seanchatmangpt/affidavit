@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 107);
+//! assert_eq!(verb_count(), 108);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -750,6 +750,16 @@ pub static REGISTRY: &[VerbEntry] = &[
     )
     .with_example("affi standing verify --receipt standing.json"),
     VerbEntry::new(
+        "certify-aod",
+        "standing",
+        VerbGroup::Federation,
+        "Seal PARTIAL_ALIVE standing from a Live-Gate-admissible .aod + ontology-hash witness (format only; never ALIVE)",
+        &["certify-aod", "standing", "aod", "live-gate", "partial_alive", "federation"],
+    )
+    .with_example(
+        "affi standing certify-aod --receipt r.json --aod artifact.aod --subject subject.json --scope repo:acme/app --out standing.json",
+    ),
+    VerbEntry::new(
         "certify",
         "ecosystem",
         VerbGroup::Federation,
@@ -1176,6 +1186,10 @@ const VERB_SOURCES: &[(&str, &str)] = &[
         "standing_certify",
         include_str!("verbs/standing_certify.rs"),
     ),
+    (
+        "standing_certify_aod",
+        include_str!("verbs/standing_certify_aod.rs"),
+    ),
     ("standing_verify", include_str!("verbs/standing_verify.rs")),
     ("stats", include_str!("verbs/stats.rs")),
     ("team_velocity", include_str!("verbs/team_velocity.rs")),
@@ -1561,9 +1575,9 @@ mod tests {
         // The court: assembles the linkme-populated framework registry and
         // cross-checks validate()-class structure + command_structure() parity.
         let report = validate_registry_runtime().expect("runtime registry court failed");
-        // Pinned surface constants (v26.11.19): 107 verbs across 14 nouns in
+        // Pinned surface constants (v26.11.19): 108 verbs across 14 nouns in
         // the hand REGISTRY (+aod seal/verify/witness/rotate/fold).
-        let expected = 107 - CTDD_GATED_VERBS.len();
+        let expected = 108 - CTDD_GATED_VERBS.len();
         assert_eq!(
             report.verb_registrations, expected,
             "raw #[verb] registrations"
@@ -1571,7 +1585,7 @@ mod tests {
         assert_eq!(report.unique_verbs, expected);
         assert_eq!(report.unique_nouns, 14);
         #[cfg(feature = "ctdd")]
-        assert_eq!(expected, 107);
+        assert_eq!(expected, 108);
         // Positive control: with the ctdd feature on, the four gated verbs must
         // actually be present in the runtime slice (not merely tolerated absent).
         const GATED_PAIRS: &[(&str, &str)] = &[
@@ -1630,7 +1644,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 107; // +aod {seal,verify,witness,rotate,fold}
+        let expected = 108; // +standing certify-aod (AOD federation adapter)
         assert_eq!(
             verb_count(),
             expected,

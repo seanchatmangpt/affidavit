@@ -39,8 +39,8 @@ append-only, content-addressed BLAKE3 chains of operation-events. The doctrine i
 - [reference/CAPABILITY_REGISTER.md](reference/CAPABILITY_REGISTER.md)
 - [reference/generated/README.md](reference/generated/README.md)
 - [CRYPTO_TRUST_PLANE.md](CRYPTO_TRUST_PLANE.md), [FEDERATION.md](FEDERATION.md),
-  [WASM.md](WASM.md), [AOD_ECOSYSTEM.md](AOD_ECOSYSTEM.md),
-  [ALOOP_EXECUTION_RECEIPT.md](ALOOP_EXECUTION_RECEIPT.md)
+  [AOD_FEDERATION.md](AOD_FEDERATION.md), [AOD_ECOSYSTEM.md](AOD_ECOSYSTEM.md),
+  [WASM.md](WASM.md), [ALOOP_EXECUTION_RECEIPT.md](ALOOP_EXECUTION_RECEIPT.md)
 - [`../micro_verifier/`](../micro_verifier/) — embeddable AOD Historical Witness C ABI / NIF stub
 - [`../STATUS.md`](../STATUS.md), [`../ROADMAP.md`](../ROADMAP.md), [`../CHANGELOG.md`](../CHANGELOG.md)
 

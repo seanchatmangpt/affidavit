@@ -1,8 +1,11 @@
 # Federation courts — `affi standing` · `affi ecosystem` · `affi errc`
 
-**Version:** 26.9.6
+**Version:** 26.9.6 (+ AOD adapter 26.11.19)
 **Status:** normative for the `affidavit/standing/v2`, `affidavit/ecosystem/v1`,
 `affidavit/errc/v1`, and `affidavit/errc-claim-assurance/v1` profiles.
+
+AOD Live Gate → standing seam: `affi standing certify-aod` (hard ceiling
+`PARTIAL_ALIVE`). See [`AOD_FEDERATION.md`](AOD_FEDERATION.md).
 
 ---
 
@@ -310,7 +313,10 @@ standing table for the plane itself.
 
 ## See also
 
+- [`docs/AOD_FEDERATION.md`](AOD_FEDERATION.md) — AOD Live Gate → PARTIAL_ALIVE standing adapter
 - [`docs/CRYPTO_TRUST_PLANE.md`](CRYPTO_TRUST_PLANE.md) — the cryptographic trust plane beneath these courts
 - [`AGENTS.md`](../AGENTS.md) §4 — ERRC reconstruction law
 - `src/federation.rs` — the adapter and its exit-code contract
+- `src/federation_aod.rs` — AOD format-presence certifier (ceiling PARTIAL_ALIVE)
 - `tests/federation_cli.rs` — every command on this page, executed
+- `tests/federation_aod.rs` — standing certify-aod court

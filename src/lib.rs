@@ -121,6 +121,7 @@ pub mod error;
 pub mod event_builder;
 pub mod execution_manifest;
 pub mod federation;
+pub mod federation_aod;
 pub mod fixture_db;
 /// GALL-007 evidence-only twelve-gate Chicago crown certification.
 pub mod gall;
@@ -337,6 +338,11 @@ pub use errc_claim_assurance::{
 };
 pub use error::AffidavitError;
 pub use federation::{CourtOutcome, STANDING_CAPABILITY, STANDING_CAPABILITY_DIGEST};
+pub use federation_aod::{
+    certify_aod_live_format, fixture_compiled, fixture_ontology_hex, partial_alive_observation,
+    refuse_alive_ceiling, AodFederationRefusal, AodFormatWitness, AOD_FEDERATION_ADAPTER,
+    AOD_FEDERATION_STANDING_CEILING,
+};
 pub use standing::{
     certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,
     StandingObservation, StandingReceipt, StandingRefusal, SubjectIdentity, VerificationEvidence,

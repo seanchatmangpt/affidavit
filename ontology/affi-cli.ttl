@@ -1618,8 +1618,8 @@ affi:GuideKeywordArg a cnv:Argument ;
 affi:StandingNoun a cnv:Noun ;
     cnv:hasNounName "standing" ;
     cnv:nounAbout "Certify and verify receipt-bound ecosystem standing (affidavit/standing/v2)" ;
-    cnv:hasVerbs affi:StandingCertifyVerb , affi:StandingVerifyVerb ;
-    rdfs:comment "The standing noun: affi standing <certify|verify>"@en .
+    cnv:hasVerbs affi:StandingCertifyVerb , affi:StandingVerifyVerb , affi:StandingCertifyAodVerb ;
+    rdfs:comment "The standing noun: affi standing <certify|verify|certify-aod>"@en .
 
 affi:EcosystemNoun a cnv:Noun ;
     cnv:hasNounName "ecosystem" ;
@@ -1689,6 +1689,33 @@ cnv:fieldName "standing_verify" ;
     cnv:hasArgument affi:SealedReceiptArg ;
     cnv:hasArgument affi:FormatArg ;
     cnv:hasArguments ( affi:SealedReceiptArg affi:FormatArg ) .
+
+# --- Verb: standing certify-aod (AOD Live Gate → PARTIAL_ALIVE) --------------
+affi:StandingCertifyAodVerb a cnv:Verb ;
+    cnv:fieldName "standing_certify_aod" ;
+    cnv:hasVerbName "certify-aod" ;
+    cnv:verbAbout "Seal PARTIAL_ALIVE standing from a Live-Gate-admissible .aod + ontology-hash witness (format presence only; never ALIVE)" ;
+    cnv:belongsToNoun affi:StandingNoun ;
+    cnv:returnType "()" ;
+    cnv:hasArgument affi:FederationSourceReceiptArg ;
+    cnv:hasArgument affi:StandingAodPathArg ;
+    cnv:hasArgument affi:StandingAodSubjectArg ;
+    cnv:hasArgument affi:StandingScopeArg ;
+    cnv:hasArgument affi:FederationOutArg ;
+    cnv:hasArgument affi:FormatArg ;
+    cnv:hasArguments ( affi:FederationSourceReceiptArg affi:StandingAodPathArg affi:StandingAodSubjectArg affi:StandingScopeArg affi:FederationOutArg affi:FormatArg ) .
+
+affi:StandingAodPathArg a cnv:Argument ;
+    cnv:hasArgumentName "aod" ;
+    cnv:argumentAbout "Path to a sealed .aod artifact; Live Gate format-admit runs in-memory (no durable AFAL burn)" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
+
+affi:StandingAodSubjectArg a cnv:Argument ;
+    cnv:hasArgumentName "subject" ;
+    cnv:argumentAbout "Path to JSON SubjectIdentity (subject/base/tree/candidate) for the standing receipt" ;
+    cnv:valueType "String" ;
+    cnv:required "true" .
 
 # --- Verb: ecosystem certify ------------------------------------------------
 affi:EcosystemCertifyVerb a cnv:Verb ;
