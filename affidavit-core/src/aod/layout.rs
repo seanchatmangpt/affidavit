@@ -20,11 +20,15 @@ pub const AOD_SHADOW_LEN: usize = 352;
 /// Opaque PQC seal slot inside the shadow (bytes).
 pub const AOD_PQC_SEAL_LEN: usize = 248;
 
-/// Spec minimum file size: 64B header + 352B trailer (zero buffers).
-pub const AOD_MIN_FILE_LEN: usize = AOD_HEADER_LEN + AOD_SHADOW_LEN; // 416
+/// Spec minimum file size: 64B header + 352B shadow + ML-DSA-65 pk‖sig trailer.
+///
+/// See [`super::pqc_seal::AOD_PQC_MATERIAL_LEN`].
+pub const AOD_MIN_FILE_LEN: usize =
+    AOD_HEADER_LEN + AOD_SHADOW_LEN + super::pqc_seal::AOD_PQC_MATERIAL_LEN; // 5677
 
-/// Domain tag for the 248-byte PQC seal commitment (not a UTF-8 on-disk label;
-/// compile-time only).
+/// Domain tag for the seal message preimage (not a UTF-8 on-disk label;
+/// compile-time only). The FIPS 204 context string is
+/// [`super::pqc_seal::DOMAIN_AOD_SEAL_CTX`].
 pub const DOMAIN_AOD_SEAL: &[u8] = b"affidavit-core/aod/v1\0seal";
 
 /// Round `n` up to the next multiple of 64.
@@ -50,7 +54,8 @@ pub struct AodHeader {
     pub buffer_count: u32,
     /// Compiled ontology identity the writer sealed against.
     pub ontology_hash: [u8; 32],
-    /// Byte offset of the 352B shadow (`file_len - 352`).
+    /// Byte offset of the 352B shadow
+    /// (`file_len - 352 - AOD_PQC_MATERIAL_LEN`).
     pub trailer_offset: u64,
 }
 
@@ -147,8 +152,8 @@ pub struct AodShadow {
     pub lease_nullifier: [u8; 32],
     /// Folded receipt tip (`R_hist ⊕ R_rot` or genesis identity).
     pub folded_receipt: [u8; 32],
-    /// Domain-separated seal commitment (248B); control plane may embed
-    /// ML-DSA-65 material. Core verifies the BLAKE3 commitment shape.
+    /// ML-DSA-65 seal slot (248B): message ‖ key_id ‖ sig tip. Full pk‖sig
+    /// live in the post-shadow trailer; see [`super::pqc_seal`].
     pub pqc_seal: [u8; AOD_PQC_SEAL_LEN],
 }
 
@@ -203,41 +208,12 @@ pub(crate) fn page_digest_lo(page: &[u8]) -> [u8; 16] {
     lo
 }
 
-/// Domain-separated 248-byte seal commitment over shadow identity fields.
+/// Verify the shadow's PQC seal against the post-shadow `pk ‖ sig` trailer.
 ///
-/// Fills `[0..32)` with BLAKE3(domain ‖ payload ‖ epoch ‖ nullifier ‖ folded)
-/// and leaves the remainder zero. Control-plane ML-DSA material may overwrite
-/// `[32..)` later; core envelope verification always checks `[0..32)`.
-pub fn compute_seal_commitment(
-    payload_digest: &[u8; 32],
-    lease_epoch: u64,
-    lease_nullifier: &[u8; 32],
-    folded_receipt: &[u8; 32],
-) -> [u8; AOD_PQC_SEAL_LEN] {
-    let mut st = Blake3Hasher::init();
-    Blake3Hasher::absorb(&mut st, DOMAIN_AOD_SEAL);
-    Blake3Hasher::absorb(&mut st, payload_digest);
-    Blake3Hasher::absorb(&mut st, &lease_epoch.to_le_bytes());
-    Blake3Hasher::absorb(&mut st, lease_nullifier);
-    Blake3Hasher::absorb(&mut st, folded_receipt);
-    let head = Blake3Hasher::finish(st);
-    let mut seal = [0u8; AOD_PQC_SEAL_LEN];
-    seal[..32].copy_from_slice(&head.0);
-    seal
-}
-
-/// Verify the full 248-byte seal commitment matches recomputation.
-pub fn verify_seal_commitment(shadow: &AodShadow) -> Result<(), AodRefusal> {
-    let expected = compute_seal_commitment(
-        &shadow.payload_digest,
-        shadow.lease_epoch,
-        &shadow.lease_nullifier,
-        &shadow.folded_receipt,
-    );
-    if shadow.pqc_seal != expected {
-        return Err(AodRefusal::PqcSealFailure);
-    }
-    Ok(())
+/// Thin layout-boundary adapter over [`super::pqc_seal::verify_pqc_seal`].
+pub fn verify_pqc_seal_material(shadow: &AodShadow, pqc_material: &[u8]) -> Result<(), AodRefusal> {
+    let (pk, sig) = super::pqc_seal::split_pqc_material(pqc_material)?;
+    super::pqc_seal::verify_pqc_seal(shadow, pk, sig)
 }
 
 #[cfg(test)]

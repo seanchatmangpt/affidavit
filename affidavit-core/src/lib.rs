@@ -102,18 +102,20 @@ pub mod verifier;
 pub mod mining;
 
 pub use aod::{
-    compiled_fixture, compute_seal_commitment, derive_ontology_hash, ffor_pack, ffor_packed_bytes,
-    invert_ordinal_perm, is_aod_aligned, map_live, shared_envelope_check, slice_is_aod_aligned,
-    verify_witness, AodHeader, AodRefusal, AodShadow, AodView, AvecView, BufferEntry,
-    CompiledOntology, EnvelopeOk, FforView, LeaseRegistry, OrdinalPerm, WitnessAttestation,
-    AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_MAGIC, AOD_MIN_FILE_LEN, AOD_MMAP_ALIGN,
-    AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN, DOMAIN_AOD_ONTOLOGY, DOMAIN_AOD_SEAL, FIXTURE_ONTOLOGY_HASH,
-    FIXTURE_ONTOLOGY_HASH_HEX, FIXTURE_SCHEMA_ID, FIXTURE_STRIDES, FFOR_MAX_BIT_WIDTH,
+    aod_key_id, compiled_fixture, compute_seal_commitment, derive_ontology_hash, ffor_pack,
+    ffor_packed_bytes, invert_ordinal_perm, is_aod_aligned, map_live, seal_message_digest,
+    shared_envelope_check, slice_is_aod_aligned, verify_pqc_seal, verify_witness, AodHeader,
+    AodRefusal, AodShadow, AodView, AvecView, BufferEntry, CompiledOntology, EnvelopeOk, FforView,
+    LeaseRegistry, OrdinalPerm, WitnessAttestation, AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_MAGIC,
+    AOD_MIN_FILE_LEN, AOD_MMAP_ALIGN, AOD_PQC_MATERIAL_LEN, AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN,
+    DOMAIN_AOD_KEY_ID, DOMAIN_AOD_ONTOLOGY, DOMAIN_AOD_SEAL, DOMAIN_AOD_SEAL_CTX,
+    FIXTURE_ONTOLOGY_HASH, FIXTURE_ONTOLOGY_HASH_HEX, FIXTURE_SCHEMA_ID, FIXTURE_STRIDES,
+    FFOR_MAX_BIT_WIDTH,
 };
 #[cfg(feature = "alloc")]
 pub use aod::{
-    fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, AodBufferSpec, InMemoryLeaseRegistry,
-    SealParams,
+    derive_mldsa_seed, fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, seal_aod_with_seed,
+    sign_aod_seal, AodBufferSpec, InMemoryLeaseRegistry, SealParams,
 };
 
 pub use chain::{compute_chain_hash, Event, PROFILE};
