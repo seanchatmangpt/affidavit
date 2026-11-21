@@ -46,57 +46,21 @@ pub unsafe extern "C" fn af_aod_witness_verify(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use affidavit_core::aod::{
-        AodHeader, AodShadow, AOD_HEADER_LEN, AOD_MIN_FILE_LEN, AOD_PQC_SEAL_LEN, DOMAIN_AOD_SEAL,
-    };
-    use affidavit_core::{Blake3Hasher, ChainHasher};
+    use affidavit_core::{seal_aod, SealParams};
 
-    fn seal_commitment(
-        payload_digest: &[u8; 32],
-        lease_epoch: u64,
-        lease_nullifier: &[u8; 32],
-        folded_receipt: &[u8; 32],
-    ) -> [u8; AOD_PQC_SEAL_LEN] {
-        let mut st = Blake3Hasher::init();
-        Blake3Hasher::absorb(&mut st, DOMAIN_AOD_SEAL);
-        Blake3Hasher::absorb(&mut st, payload_digest);
-        Blake3Hasher::absorb(&mut st, &lease_epoch.to_le_bytes());
-        Blake3Hasher::absorb(&mut st, lease_nullifier);
-        Blake3Hasher::absorb(&mut st, folded_receipt);
-        let head = Blake3Hasher::finish(st);
-        let mut seal = [0u8; AOD_PQC_SEAL_LEN];
-        seal[..32].copy_from_slice(&head.0);
-        seal
-    }
-
-    fn fossil() -> [u8; AOD_MIN_FILE_LEN] {
-        let mut raw = [0u8; AOD_MIN_FILE_LEN];
-        let header = AodHeader {
-            flags: 0,
-            row_count: 1,
-            buffer_count: 0,
-            ontology_hash: [0xAB; 32],
-            trailer_offset: AOD_HEADER_LEN as u64,
-        };
-        raw[..AOD_HEADER_LEN].copy_from_slice(&header.encode());
-        let mut st = Blake3Hasher::init();
-        Blake3Hasher::absorb(&mut st, &raw[..AOD_HEADER_LEN]);
-        let payload = Blake3Hasher::finish(st);
-        let mut shadow = AodShadow {
-            payload_digest: payload.0,
-            lease_epoch: 1,
-            lease_nullifier: [0xCD; 32],
-            folded_receipt: [0xEF; 32],
-            pqc_seal: [0u8; AOD_PQC_SEAL_LEN],
-        };
-        shadow.pqc_seal = seal_commitment(
-            &shadow.payload_digest,
-            shadow.lease_epoch,
-            &shadow.lease_nullifier,
-            &shadow.folded_receipt,
-        );
-        raw[AOD_HEADER_LEN..].copy_from_slice(&shadow.encode());
-        raw
+    fn fossil() -> Vec<u8> {
+        let ontology = [0xABu8; 32];
+        seal_aod(
+            &[],
+            &SealParams {
+                ontology_hash: &ontology,
+                row_count: 1,
+                lease_epoch: 1,
+                lease_nullifier: &[0xCD; 32],
+                folded_receipt: &[0xEF; 32],
+            },
+        )
+        .expect("seal fossil")
     }
 
     #[test]

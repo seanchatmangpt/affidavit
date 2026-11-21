@@ -21,7 +21,9 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 [dependencies]
 # Path pin only. Crypto algorithms live in affidavit-core's external deps —
 # this crate must not add blake3 / ml-dsa / git2 / openssl of its own.
-affidavit-core = { path = "../affidavit-core", default-features = false }
+# `alloc` required to seal test fossils with ML-DSA-65 (sign path). The
+# published C ABI still only calls `verify_witness` (no_std-compatible).
+affidavit-core = { path = "../affidavit-core", default-features = false, features = ["alloc"] }
 
 # Isolated workspace: builds even when the root affidavit crate's feature
 # matrix is red. Documented Rustler NIF stub lives under nif/ (not a Cargo
