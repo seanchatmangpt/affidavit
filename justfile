@@ -23,6 +23,17 @@ validate: errc-court fmt-check build test doctest clippy completions core-valida
 errc-court:
     python3 -m unittest discover -s scripts/tests -p 'test_ci_errc.py'
 
+# AOD Zero-Text Audit Gate (AFFI-SPEC-26.11.19 PR-2): script self-test + unit court.
+# Scans sealed `.aod` for domain tokens / ontology IRIs / ASCII headers via
+# `strings -n 4` + UTF-8 heuristic. Full sealed-fixture court: `just aod-zero-text`.
+aod-zero-text-self:
+    python3 scripts/aod_zero_text_gate.py --self-test
+    python3 -m unittest discover -s scripts/tests -p 'test_aod_zero_text_gate.py'
+
+# Seal a fixture via `affi aod seal`, then run the Zero-Text Audit Gate.
+aod-zero-text: aod-zero-text-self
+    cargo test --test aod_zero_text_gate -- --nocapture
+
 # Check Rust formatting without modifying files.
 fmt-check:
     cargo fmt --all -- --check
