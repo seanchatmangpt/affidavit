@@ -107,13 +107,13 @@ pub use aod::{
     AodView, AvecView, BufferEntry, CompiledOntology, EnvelopeOk, FforView, LeaseRegistry,
     OrdinalPerm, WitnessAttestation, AOD_HEADER_LEN, AOD_MAGIC, AOD_MIN_FILE_LEN, AOD_MMAP_ALIGN,
     AOD_PQC_MATERIAL_LEN, AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN, DOMAIN_AOD_KEY_ID, DOMAIN_AOD_ONTOLOGY,
-    DOMAIN_AOD_SEAL, DOMAIN_AOD_SEAL_CTX, FIXTURE_ONTOLOGY_HASH, FIXTURE_ONTOLOGY_HASH_HEX,
-    FIXTURE_SCHEMA_ID, FIXTURE_STRIDES, FFOR_MAX_BIT_WIDTH,
+    DOMAIN_AOD_SEAL, DOMAIN_AOD_SEAL_CTX, FFOR_MAX_BIT_WIDTH, FIXTURE_ONTOLOGY_HASH,
+    FIXTURE_ONTOLOGY_HASH_HEX, FIXTURE_SCHEMA_ID, FIXTURE_STRIDES,
 };
 #[cfg(feature = "alloc")]
 pub use aod::{
-    derive_mldsa_seed, fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, seal_aod_with_seed,
-    sign_aod_seal, AodBufferSpec, InMemoryLeaseRegistry, SealParams,
+    derive_mldsa_seed, fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod,
+    seal_aod_with_seed, sign_aod_seal, AodBufferSpec, InMemoryLeaseRegistry, SealParams,
 };
 
 pub use chain::{compute_chain_hash, Event, PROFILE};
