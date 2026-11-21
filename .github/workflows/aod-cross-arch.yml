@@ -16,8 +16,9 @@
 name: aod-cross-arch
 
 on:
+  # Push (any branch) so Lane PR-3 can host the dual-arch court before merge;
+  # pull_request covers stacked PRs onto aod-jtbd-close / main.
   push:
-    branches: [main]
     paths:
       - "affidavit-core/**"
       - "rust-toolchain.toml"
@@ -27,6 +28,7 @@ on:
       - "affidavit-core/**"
       - "rust-toolchain.toml"
       - ".github/workflows/aod-cross-arch.yml"
+  workflow_dispatch:
 
 concurrency:
   group: aod-cross-arch-${{ github.event.pull_request.number || github.ref }}
