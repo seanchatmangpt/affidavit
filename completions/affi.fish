@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 102, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 108, Registry nouns: 14
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 
 # --- helper predicates -------------------------------------------------------
@@ -13,7 +13,7 @@ function __affi_no_noun
     set -l toks (commandline -opc)
     for t in $toks[2..-1]
         switch $t
-            case affi certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
+            case affi aod certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
                 return 1
         end
     end
@@ -35,7 +35,7 @@ function __affi_no_verb
     set -l found_noun 0
     for t in $toks[2..-1]
         switch $t
-            case affi certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
+            case affi aod certificate dossier ecosystem envelope errc evidence guide keys legal-hold receipt restitution standing
             set found_noun 1
             case '*'
             if test $found_noun -eq 1
@@ -49,6 +49,7 @@ end
 # --- Nouns -------------------------------------------------------------------
 
 complete -c affi -f -n '__affi_no_noun' -a affi -d '1 verbs'
+complete -c affi -f -n '__affi_no_noun' -a aod -d '5 verbs'
 complete -c affi -f -n '__affi_no_noun' -a certificate -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a dossier -d '4 verbs'
 complete -c affi -f -n '__affi_no_noun' -a ecosystem -d '2 verbs'
@@ -60,11 +61,19 @@ complete -c affi -f -n '__affi_no_noun' -a keys -d '5 verbs'
 complete -c affi -f -n '__affi_no_noun' -a legal-hold -d '1 verbs'
 complete -c affi -f -n '__affi_no_noun' -a receipt -d '72 verbs'
 complete -c affi -f -n '__affi_no_noun' -a restitution -d '1 verbs'
-complete -c affi -f -n '__affi_no_noun' -a standing -d '2 verbs'
+complete -c affi -f -n '__affi_no_noun' -a standing -d '3 verbs'
 
 # --- affi verbs ------------------------------------------------------
 
 complete -c affi -f -n '__affi_using_noun affi; and __affi_no_verb' -a doctor -d 'Run environment and receipt-store health checks; optionally apply safe fixes'
+
+# --- aod verbs ------------------------------------------------------
+
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a fold -d 'Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)'
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a rotate -d 'Rematerialize buffers under a fresh monoatomic lease and emit a folded CTRT shadow'
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a seal -d 'Write 64B-aligned avec buffers and append a 352B CTRT shadow under a monoatomic lease'
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a verify -d 'Live Gate: bind static CompiledOntology (fixture strides [8]), burn lease; --ontology/--strides court-only'
+complete -c affi -f -n '__affi_using_noun aod; and __affi_no_verb' -a witness -d 'Historical Witness on expired/rotated fossils: envelope-only, zero Region 3 mapping'
 
 # --- certificate verbs ------------------------------------------------------
 
@@ -201,6 +210,7 @@ complete -c affi -f -n '__affi_using_noun restitution; and __affi_no_verb' -a ca
 # --- standing verbs ------------------------------------------------------
 
 complete -c affi -f -n '__affi_using_noun standing; and __affi_no_verb' -a certify -d 'Seal a standing claim over an admitted receipt (affidavit/standing/v2)'
+complete -c affi -f -n '__affi_using_noun standing; and __affi_no_verb' -a certify-aod -d 'Seal PARTIAL_ALIVE standing from a Live-Gate-admissible .aod + ontology-hash witness (format only; never ALIVE)'
 complete -c affi -f -n '__affi_using_noun standing; and __affi_no_verb' -a verify -d 'Re-run the standing law over a sealed standing receipt'
 
 # --- top-level flags ---------------------------------------------------------

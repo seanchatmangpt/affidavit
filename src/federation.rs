@@ -55,7 +55,11 @@ use crate::errc::{certify_errc, ErrcObservation, ErrcReceipt};
 use crate::errc_claim_assurance::{
     certify_errc_claim_assurance, ErrcClaimAssuranceReceipt, ErrcClaimWitness,
 };
-use crate::standing::{certify_standing, StandingObservation, StandingReceipt};
+use crate::federation_aod::{
+    certify_aod_live_format, fixture_compiled, partial_alive_observation, AodFederationRefusal,
+    AOD_FEDERATION_ADAPTER, AOD_FEDERATION_STANDING_CEILING,
+};
+use crate::standing::{certify_standing, StandingObservation, StandingReceipt, SubjectIdentity};
 use crate::types::{AdmittedReceipt, Receipt};
 
 use wasm4pm_compat::authority::{AuthorityConstraint, AuthorityEnvelope, Capability};
@@ -251,6 +255,97 @@ pub fn standing_verify(receipt: &str) -> CourtOutcome {
             Err((code, reason)) => refused(court, profile, code, reason),
         },
         Err((code, reason)) => refused(court, profile, code, reason),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// standing certify-aod — AOD Live Gate format → PARTIAL_ALIVE standing
+// ---------------------------------------------------------------------------
+
+/// `affi standing certify-aod` — seal PARTIAL_ALIVE standing from a Live-Gate-
+/// admissible `.aod` + ontology-hash witness.
+///
+/// Ceiling is hard: this court never grants ALIVE. Durable lease burn is not
+/// performed (in-memory Live Gate only); see [`crate::federation_aod`].
+pub fn aod_standing_certify(
+    receipt: &str,
+    aod_path: &str,
+    subject_path: &str,
+    scope: &str,
+) -> CourtOutcome {
+    let court = "standing/certify-aod";
+    let profile = crate::standing::STANDING_PROFILE;
+
+    let admitted = match admit_source(receipt) {
+        Ok(admitted) => admitted,
+        Err((code, reason)) => return refused(court, profile, code, reason),
+    };
+
+    let subject: SubjectIdentity = match load_observation(subject_path, "AOD subject identity") {
+        Ok(subject) => subject,
+        Err((code, reason)) => return refused(court, profile, code, reason),
+    };
+
+    let raw = match fs::read(Path::new(aod_path)) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            return refused(
+                court,
+                profile,
+                exit_codes::IO_ERROR,
+                AodFederationRefusal::Io(format!("cannot read {aod_path}: {err}")).to_string(),
+            );
+        }
+    };
+
+    let compiled = fixture_compiled();
+    let witness = match certify_aod_live_format(&raw, &compiled) {
+        Ok(witness) => witness,
+        Err(refusal) => {
+            return refused(court, profile, exit_codes::REJECT, refusal.to_string());
+        }
+    };
+
+    debug_assert_eq!(witness.standing_ceiling, AOD_FEDERATION_STANDING_CEILING);
+
+    let observation = match partial_alive_observation(subject, &witness) {
+        Ok(observation) => observation,
+        Err(refusal) => {
+            return refused(court, profile, exit_codes::REJECT, refusal.to_string());
+        }
+    };
+
+    let authority = cli_standing_authority(scope);
+    match certify_standing(&admitted, &authority, observation) {
+        Ok(sealed) => match seal_to_json(&sealed) {
+            Ok(value) => CourtOutcome {
+                code: exit_codes::OK,
+                report: json!({
+                    "court": court,
+                    "profile": profile,
+                    "accepted": true,
+                    "reason": "certified",
+                    "adapter": AOD_FEDERATION_ADAPTER,
+                    "standing_ceiling": "PARTIAL_ALIVE",
+                    "aod_federation": {
+                        "artifact_digest": witness.artifact_digest.as_hex(),
+                        "ontology_hash": witness.ontology_hash_hex,
+                        "row_count": witness.row_count,
+                        "buffer_count": witness.buffer_count,
+                        "lease_epoch": witness.lease_epoch,
+                        "durable_lease_burn": false,
+                    },
+                    "receipt": value,
+                }),
+            },
+            Err((code, reason)) => refused(court, profile, code, reason),
+        },
+        Err(refusal) => refused(
+            court,
+            profile,
+            exit_codes::REJECT,
+            format!("standing refused: {refusal}"),
+        ),
     }
 }
 

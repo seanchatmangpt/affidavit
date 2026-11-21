@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 102, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 108, Registry nouns: 14
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `source /path/to/completions/affi.nu` to your config.nu.
@@ -12,6 +12,7 @@
 def "nu-complete affi nouns" [] {
     [
         {value: "affi", description: "1 verbs"}
+        {value: "aod", description: "5 verbs"}
         {value: "certificate", description: "1 verbs"}
         {value: "dossier", description: "4 verbs"}
         {value: "ecosystem", description: "2 verbs"}
@@ -23,7 +24,7 @@ def "nu-complete affi nouns" [] {
         {value: "legal-hold", description: "1 verbs"}
         {value: "receipt", description: "72 verbs"}
         {value: "restitution", description: "1 verbs"}
-        {value: "standing", description: "2 verbs"}
+        {value: "standing", description: "3 verbs"}
     ]
 }
 
@@ -32,6 +33,13 @@ def "nu-complete affi verbs" [context: string] {
     match $noun {
         "affi" => [
             {value: "doctor", description: "Run environment and receipt-store health checks; optionally apply safe fixes"}
+        ]
+        "aod" => [
+            {value: "fold", description: "Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)"}
+            {value: "rotate", description: "Rematerialize buffers under a fresh monoatomic lease and emit a folded CTRT shadow"}
+            {value: "seal", description: "Write 64B-aligned avec buffers and append a 352B CTRT shadow under a monoatomic lease"}
+            {value: "verify", description: "Live Gate: bind static CompiledOntology (fixture strides [8]), burn lease; --ontology/--strides court-only"}
+            {value: "witness", description: "Historical Witness on expired/rotated fossils: envelope-only, zero Region 3 mapping"}
         ]
         "certificate" => [
             {value: "fre-902", description: "Generates self-authenticating electronic records affidavit under FRE 902(14)"}
@@ -156,6 +164,7 @@ def "nu-complete affi verbs" [context: string] {
         ]
         "standing" => [
             {value: "certify", description: "Seal a standing claim over an admitted receipt (affidavit/standing/v2)"}
+            {value: "certify-aod", description: "Seal PARTIAL_ALIVE standing from a Live-Gate-admissible .aod + ontology-hash witness (format only; never ALIVE)"}
             {value: "verify", description: "Re-run the standing law over a sealed standing receipt"}
         ]
         _ => []

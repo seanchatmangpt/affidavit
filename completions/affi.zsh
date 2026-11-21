@@ -6,7 +6,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 102, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 108, Registry nouns: 14
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install (per-user):
@@ -30,6 +30,7 @@ _affi() {
         noun)
             _values 'noun' \
                 'affi[1 verbs]' \
+                'aod[5 verbs]' \
                 'certificate[1 verbs]' \
                 'dossier[4 verbs]' \
                 'ecosystem[2 verbs]' \
@@ -41,13 +42,21 @@ _affi() {
                 'legal-hold[1 verbs]' \
                 'receipt[72 verbs]' \
                 'restitution[1 verbs]' \
-                'standing[2 verbs]'
+                'standing[3 verbs]'
             ;;
         verb)
             case "${words[2]}" in
                 affi)
                     _values 'verb' \
                         'doctor[Run environment and receipt-store health checks; optionally apply safe fixes]'
+                    ;;
+                aod)
+                    _values 'verb' \
+                        'fold[Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)]' \
+                        'rotate[Rematerialize buffers under a fresh monoatomic lease and emit a folded CTRT shadow]' \
+                        'seal[Write 64B-aligned avec buffers and append a 352B CTRT shadow under a monoatomic lease]' \
+                        'verify[Live Gate\: bind static CompiledOntology (fixture strides \[8\]), burn lease; --ontology/--strides court-only]' \
+                        'witness[Historical Witness on expired/rotated fossils\: envelope-only, zero Region 3 mapping]'
                     ;;
                 certificate)
                     _values 'verb' \
@@ -184,6 +193,7 @@ _affi() {
                 standing)
                     _values 'verb' \
                         'certify[Seal a standing claim over an admitted receipt (affidavit/standing/v2)]' \
+                        'certify-aod[Seal PARTIAL_ALIVE standing from a Live-Gate-admissible .aod + ontology-hash witness (format only; never ALIVE)]' \
                         'verify[Re-run the standing law over a sealed standing receipt]'
                     ;;
             esac

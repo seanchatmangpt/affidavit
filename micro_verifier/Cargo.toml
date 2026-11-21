@@ -1,0 +1,37 @@
+[package]
+name = "affidavit-micro-verifier"
+version = "26.11.19"
+edition = "2021"
+rust-version = "1.88"
+description = """
+Embeddable micro-verifier for AOD Historical Witness (AFFI-SPEC-26.11.19).
+Thin C ABI over affidavit-core::aod::verify_witness for BEAM NIF / WASM hosts.
+Does not own crypto algorithms — affidavit-core remains the authority.
+"""
+license = "MIT OR Apache-2.0"
+authors = ["Sean Chatman <xpointsh@gmail.com>"]
+repository = "https://github.com/seanchatmangpt/affidavit"
+publish = false
+readme = "README.md"
+
+[lib]
+name = "affidavit_micro_verifier"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+# Path pin only. Crypto algorithms live in affidavit-core's external deps —
+# this crate must not add blake3 / ml-dsa / git2 / openssl of its own.
+# `alloc` required to seal test fossils with ML-DSA-65 (sign path). The
+# published C ABI still only calls `verify_witness` (no_std-compatible).
+affidavit-core = { path = "../affidavit-core", default-features = false, features = ["alloc"] }
+
+# Isolated workspace: builds even when the root affidavit crate's feature
+# matrix is red. Documented Rustler NIF stub lives under nif/ (not a Cargo
+# member) so the validate ladder needs no Erlang headers.
+[workspace]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "z"
+panic = "abort"

@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 102, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 108, Registry nouns: 14
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `. /path/to/completions/affi.ps1` to your $PROFILE.
@@ -13,6 +13,13 @@
 $script:AffiCompletions = [ordered]@{
     'affi' = [ordered]@{
         'doctor' = 'Run environment and receipt-store health checks; optionally apply safe fixes'
+    }
+    'aod' = [ordered]@{
+        'fold' = 'Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)'
+        'rotate' = 'Rematerialize buffers under a fresh monoatomic lease and emit a folded CTRT shadow'
+        'seal' = 'Write 64B-aligned avec buffers and append a 352B CTRT shadow under a monoatomic lease'
+        'verify' = 'Live Gate: bind static CompiledOntology (fixture strides [8]), burn lease; --ontology/--strides court-only'
+        'witness' = 'Historical Witness on expired/rotated fossils: envelope-only, zero Region 3 mapping'
     }
     'certificate' = [ordered]@{
         'fre-902' = 'Generates self-authenticating electronic records affidavit under FRE 902(14)'
@@ -137,6 +144,7 @@ $script:AffiCompletions = [ordered]@{
     }
     'standing' = [ordered]@{
         'certify' = 'Seal a standing claim over an admitted receipt (affidavit/standing/v2)'
+        'certify-aod' = 'Seal PARTIAL_ALIVE standing from a Live-Gate-admissible .aod + ontology-hash witness (format only; never ALIVE)'
         'verify' = 'Re-run the standing law over a sealed standing receipt'
     }
 }

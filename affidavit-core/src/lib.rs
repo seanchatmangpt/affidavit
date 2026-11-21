@@ -86,6 +86,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+pub mod aod;
 pub mod bcinr;
 pub mod chain;
 pub mod crypto_verify;
@@ -99,6 +100,23 @@ pub mod verifier;
 #[cfg(feature = "alloc")]
 #[cfg(feature = "alloc")]
 pub mod mining;
+
+pub use aod::{
+    aod_key_id, compiled_fixture, demand_aod_aligned, derive_ontology_hash, ffor_pack,
+    ffor_packed_bytes, invert_ordinal_perm, is_aod_aligned, map_live, seal_message_digest,
+    shared_envelope_check, slice_is_aod_aligned, verify_pqc_seal, verify_witness, AodHeader,
+    AodRefusal, AodShadow, AodView, AvecView, BufferEntry, CompiledOntology, EnvelopeOk, FforView,
+    LeaseRegistry, OrdinalPerm, WitnessAttestation, AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_MAGIC,
+    AOD_MIN_FILE_LEN, AOD_MMAP_ALIGN, AOD_PQC_MATERIAL_LEN, AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN,
+    DOMAIN_AOD_KEY_ID, DOMAIN_AOD_ONTOLOGY, DOMAIN_AOD_SEAL, DOMAIN_AOD_SEAL_CTX,
+    FFOR_MAX_BIT_WIDTH, FIXTURE_ONTOLOGY_HASH, FIXTURE_ONTOLOGY_HASH_HEX, FIXTURE_SCHEMA_ID,
+    FIXTURE_STRIDES,
+};
+#[cfg(feature = "alloc")]
+pub use aod::{
+    derive_mldsa_seed, fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod,
+    seal_aod_with_seed, sign_aod_seal, AodBufferSpec, InMemoryLeaseRegistry, SealParams,
+};
 
 pub use chain::{compute_chain_hash, Event, PROFILE};
 pub use crypto_verify::{

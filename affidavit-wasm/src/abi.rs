@@ -6,6 +6,7 @@
 
 use crate::abi_meta::{ERROR_CODES, MAX_JSON_DEPTH, OPS};
 use crate::advanced;
+use crate::aod;
 use crate::crypto;
 use crate::external_evidence;
 use crate::pqc;
@@ -158,6 +159,7 @@ fn dispatch(request: &[u8]) -> Res<Map<String, Value>> {
         "smt_absence_verify" => advanced::op_smt_absence_verify(&req)?,
         "smt_inclusion_verify" => advanced::op_smt_inclusion_verify(&req)?,
         "range_proof_verify" => advanced::op_range_proof_verify(&req)?,
+        "verify_witness" => aod::op_verify_witness(&req)?,
         other => {
             return Err(err(
                 "unknown_op",

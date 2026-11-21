@@ -1,0 +1,80 @@
+# aod-zero-text.yml — Zero-Text Audit Gate (AFFI-SPEC-26.11.19 PR-2 / DoD).
+#
+# Certifies that sealed `.aod` artifacts carry zero domain tokens / ontology
+# IRIs / ASCII headers under `strings -n 4` + UTF-8 heuristic
+# (`scripts/aod_zero_text_gate.py`). The integration court seals a fixture via
+# `affi aod seal` then runs the gate (`tests/aod_zero_text_gate.rs`).
+name: aod-zero-text
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/aod_zero_text_gate.py"
+      - "scripts/tests/test_aod_zero_text_gate.py"
+      - "tests/aod_zero_text_gate.rs"
+      - "tests/cli_aod.rs"
+      - "affidavit-core/src/aod/**"
+      - "src/handlers.rs"
+      - "src/verbs/aod_*.rs"
+      - ".github/workflows/aod-zero-text.yml"
+  pull_request:
+    paths:
+      - "scripts/aod_zero_text_gate.py"
+      - "scripts/tests/test_aod_zero_text_gate.py"
+      - "tests/aod_zero_text_gate.rs"
+      - "tests/cli_aod.rs"
+      - "affidavit-core/src/aod/**"
+      - "src/handlers.rs"
+      - "src/verbs/aod_*.rs"
+      - ".github/workflows/aod-zero-text.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: aod-zero-text-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  RUST_TOOLCHAIN: nightly-2026-08-12
+  CARGO_TERM_COLOR: always
+
+jobs:
+  aod-zero-text:
+    name: aod-zero-text (script self-test + sealed fixture gate)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Assert exact candidate
+        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Gate script self-test + unit court
+        run: |
+          python3 scripts/aod_zero_text_gate.py --self-test
+          python3 -m unittest discover -s scripts/tests -p 'test_aod_zero_text_gate.py'
+
+      - name: Install pinned nightly toolchain
+        uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Restore cargo registry and build cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Seal fixture + run zero-text gate (integration)
+        run: cargo test --test aod_zero_text_gate -- --nocapture

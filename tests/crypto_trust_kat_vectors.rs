@@ -92,7 +92,7 @@ const AUDIENCE: &str = "affidavit.kat";
 const SEAL_AUDIENCE: &str = "affidavit.seal";
 const CUSTODIAN_SUBJECT: &str = "affidavit-kat-subject";
 
-const GENERATING_COMMIT: &str = "48563e42e5c6f6aa0d600fc8baf0d7455c37f7ac";
+const GENERATING_COMMIT: &str = "b8f377960d3088f08456454c5d03e3c8e1b83ef5";
 const CROSS_CHECK_SENTINEL: &str = "PASS: 16/16 seed pre-images";
 
 // ── derivation law (identical to the generator bin named in provenance) ─────
@@ -455,7 +455,7 @@ fn build_fixture() -> Value {
                 "envelope nonces: BLAKE3(domain_separated(DOMAIN_TAG, [\"ctp.katvectors.nonce\", index_be8]))[..16]; standalone envelope subjects: BLAKE3(domain_separated(DOMAIN_TAG, [\"ctp.katvectors.subject\", index_be8]))",
                 "seal event payloads: BLAKE3(domain_separated(DOMAIN_TAG, [\"ctp.katvectors.seal-payload\", index_be8, event_be8])); events appended to a fresh ChainAssembler+SeqCounter in the order given in each vector's events array",
                 "no wall clock: not_before=1700000000, expires_at=4102444800, verifier_now=1700000500, rotated_at=1700000100, key created_epoch=1699990000 are fixed constants",
-                "ES256 signing is RFC 6979 deterministic ECDSA; rotation's ML-DSA-65 half uses the domain-bound explicit randomizer (hybrid_sign); receipt chain genesis binds the package version",
+                "ES256 signing is RFC 6979 deterministic ECDSA; rotation's ML-DSA-65 half uses the domain-bound explicit randomizer (hybrid_sign); receipt chain genesis is frozen at affidavit-v26.9.28-genesis (not crate version); package_version is recorded as provenance only",
                 "envelope subjects on the seal surface are the real subject_digest_of(receipt); the standalone envelope surface uses the ctp.katvectors.subject law above",
             ],
             "generating_commit": GENERATING_COMMIT,
@@ -556,7 +556,7 @@ fn committed_fixture_header_is_exact() {
     assert_eq!(
         provenance["package_version"].as_str(),
         Some(env!("CARGO_PKG_VERSION")),
-        "provenance package version must equal the building crate version (chain genesis binds it)"
+        "provenance package version must equal the building crate version (provenance pin; genesis is frozen independently)"
     );
     let scope = provenance["python_tool_scope"]
         .as_str()

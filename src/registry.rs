@@ -9,7 +9,7 @@
 //! use affidavit::registry::{REGISTRY, VerbGroup, lookup, by_group, did_you_mean, verb_count};
 //!
 //! // Count all registered verbs
-//! assert_eq!(verb_count(), 102);
+//! assert_eq!(verb_count(), 108);
 //!
 //! // Look up by (verb, noun)
 //! let entry = lookup("emit", "receipt").unwrap();
@@ -750,6 +750,16 @@ pub static REGISTRY: &[VerbEntry] = &[
     )
     .with_example("affi standing verify --receipt standing.json"),
     VerbEntry::new(
+        "certify-aod",
+        "standing",
+        VerbGroup::Federation,
+        "Seal PARTIAL_ALIVE standing from a Live-Gate-admissible .aod + ontology-hash witness (format only; never ALIVE)",
+        &["certify-aod", "standing", "aod", "live-gate", "partial_alive", "federation"],
+    )
+    .with_example(
+        "affi standing certify-aod --receipt r.json --aod artifact.aod --subject subject.json --scope repo:acme/app --out standing.json",
+    ),
+    VerbEntry::new(
         "certify",
         "ecosystem",
         VerbGroup::Federation,
@@ -937,6 +947,47 @@ pub static REGISTRY: &[VerbEntry] = &[
         &["certificate", "fre-902", "affidavit", "evidence", "attestation"],
     )
     .with_example("affi certificate fre-902"),
+    // ── AOD — Zero-String Sealed Arrow-on-Disk (AFFI-SPEC-26.11.19) ─────────
+    VerbEntry::new(
+        "seal",
+        "aod",
+        VerbGroup::Attestation,
+        "Write 64B-aligned avec buffers and append a 352B CTRT shadow under a monoatomic lease",
+        &["aod", "seal", "zero-string", "ctrt", "lease"],
+    )
+    .with_example("affi aod seal --ontology <64hex> --lease <64hex> --rows 2 --in page.bin --out out.aod"),
+    VerbEntry::new(
+        "verify",
+        "aod",
+        VerbGroup::Attestation,
+        "Live Gate: bind static CompiledOntology (fixture strides [8]), burn lease; --ontology/--strides court-only",
+        &["aod", "verify", "live", "lease", "map_live"],
+    )
+    .with_example("affi aod verify --live FILE.aod"),
+    VerbEntry::new(
+        "witness",
+        "aod",
+        VerbGroup::Attestation,
+        "Historical Witness on expired/rotated fossils: envelope-only, zero Region 3 mapping",
+        &["aod", "witness", "historical", "fossil", "verify_witness"],
+    )
+    .with_example("affi aod witness FILE.aod --format json"),
+    VerbEntry::new(
+        "rotate",
+        "aod",
+        VerbGroup::Attestation,
+        "Rematerialize buffers under a fresh monoatomic lease and emit a folded CTRT shadow",
+        &["aod", "rotate", "lease", "fold", "rematerialize"],
+    )
+    .with_example("affi aod rotate OLD.aod --lease <64hex> --out NEW.aod"),
+    VerbEntry::new(
+        "fold",
+        "aod",
+        VerbGroup::Attestation,
+        "Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)",
+        &["aod", "fold", "trajectory", "monoid", "ctrt"],
+    )
+    .with_example("affi aod fold A.aod B.aod"),
 ];
 
 // --- Compile-time projection cross-check ------------------------------------
@@ -957,6 +1008,11 @@ const VERBS_MOD_RS: &str = include_str!("verbs/mod.rs");
 
 /// Every declared verb module's source, keyed by module name.
 const VERB_SOURCES: &[(&str, &str)] = &[
+    ("aod_fold", include_str!("verbs/aod_fold.rs")),
+    ("aod_rotate", include_str!("verbs/aod_rotate.rs")),
+    ("aod_seal", include_str!("verbs/aod_seal.rs")),
+    ("aod_verify", include_str!("verbs/aod_verify.rs")),
+    ("aod_witness", include_str!("verbs/aod_witness.rs")),
     ("anomaly_detect", include_str!("verbs/anomaly_detect.rs")),
     ("assemble", include_str!("verbs/assemble.rs")),
     (
@@ -1129,6 +1185,10 @@ const VERB_SOURCES: &[(&str, &str)] = &[
     (
         "standing_certify",
         include_str!("verbs/standing_certify.rs"),
+    ),
+    (
+        "standing_certify_aod",
+        include_str!("verbs/standing_certify_aod.rs"),
     ),
     ("standing_verify", include_str!("verbs/standing_verify.rs")),
     ("stats", include_str!("verbs/stats.rs")),
@@ -1515,17 +1575,17 @@ mod tests {
         // The court: assembles the linkme-populated framework registry and
         // cross-checks validate()-class structure + command_structure() parity.
         let report = validate_registry_runtime().expect("runtime registry court failed");
-        // Pinned surface constants (v26.10.17): 102 verbs across 13 nouns in
-        // the hand REGISTRY; 98 compile in under default features (4 ctdd-gated).
-        let expected = 102 - CTDD_GATED_VERBS.len();
+        // Pinned surface constants (v26.11.19): 108 verbs across 14 nouns in
+        // the hand REGISTRY (+aod seal/verify/witness/rotate/fold).
+        let expected = 108 - CTDD_GATED_VERBS.len();
         assert_eq!(
             report.verb_registrations, expected,
             "raw #[verb] registrations"
         );
         assert_eq!(report.unique_verbs, expected);
-        assert_eq!(report.unique_nouns, 13);
+        assert_eq!(report.unique_nouns, 14);
         #[cfg(feature = "ctdd")]
-        assert_eq!(expected, 102);
+        assert_eq!(expected, 108);
         // Positive control: with the ctdd feature on, the four gated verbs must
         // actually be present in the runtime slice (not merely tolerated absent).
         const GATED_PAIRS: &[(&str, &str)] = &[
@@ -1584,7 +1644,7 @@ mod tests {
     #[test]
     fn registry_entry_count_matches_constant() {
         // Update this number whenever you add or remove verbs from REGISTRY.
-        let expected = 102; // +proof-carrying + proof-carrying-verify
+        let expected = 108; // +standing certify-aod (AOD federation adapter)
         assert_eq!(
             verb_count(),
             expected,

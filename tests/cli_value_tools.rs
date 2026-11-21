@@ -111,6 +111,9 @@ fn make_receipt(dir: &Path, name: &str) -> PathBuf {
 // (crypto-trust plane not compiled: typed REFUSED_UNSUPPORTED, never a fiction)
 // ---------------------------------------------------------------------------
 
+// Asserts the DEFAULT binary's typed refusal; with `crypto-trust` on, the
+// verb is implemented, so this court does not apply (the positive paths are
+// covered by the crypto_trust_* courts).
 #[cfg(not(feature = "crypto-trust"))]
 #[test]
 fn dossier_emit_default_binary_is_typed_refusal() {
@@ -150,6 +153,9 @@ fn dossier_emit_default_binary_is_typed_refusal() {
     cleanup(&dir);
 }
 
+// Asserts the DEFAULT binary's typed refusal; with `crypto-trust` on, the
+// verb is implemented, so this court does not apply (the positive paths are
+// covered by the crypto_trust_* courts).
 #[cfg(not(feature = "crypto-trust"))]
 #[test]
 fn dossier_inspect_default_binary_is_typed_refusal() {

@@ -40,6 +40,9 @@ pub const OPS: &[&str] = &[
     "verify_signature",
     "pqc_assemble",
     "pqc_verify",
+    // TODO(ggen): regenerate this file via `ggen sync run` from
+    // ontology/affi-wasm.ttl once rust-wasi-wasmex-pack siblings are present.
+    "verify_witness",
 ];
 
 /// Typed error codes, ordered by `wja:codeOrder`.

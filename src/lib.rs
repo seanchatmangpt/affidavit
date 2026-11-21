@@ -100,6 +100,7 @@
 mod macros;
 
 pub mod admission;
+pub mod aod_ontology;
 pub mod architecture;
 pub mod bench;
 pub mod brce;
@@ -110,6 +111,8 @@ pub mod cli;
 #[cfg(feature = "discovery")]
 pub mod discovery;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod aod_mmap;
 pub mod dfcm;
 pub mod ecosystem;
 pub mod errc;
@@ -118,6 +121,7 @@ pub mod error;
 pub mod event_builder;
 pub mod execution_manifest;
 pub mod federation;
+pub mod federation_aod;
 pub mod fixture_db;
 /// GALL-007 evidence-only twelve-gate Chicago crown certification.
 pub mod gall;
@@ -159,6 +163,7 @@ pub mod output;
 pub mod sj_record;
 pub mod standing;
 
+pub mod aod_lease_registry;
 #[cfg(feature = "crypto-trust")]
 pub mod deontic;
 pub mod replay_nullifier;
@@ -333,6 +338,11 @@ pub use errc_claim_assurance::{
 };
 pub use error::AffidavitError;
 pub use federation::{CourtOutcome, STANDING_CAPABILITY, STANDING_CAPABILITY_DIGEST};
+pub use federation_aod::{
+    certify_aod_live_format, fixture_compiled, fixture_ontology_hex, partial_alive_observation,
+    refuse_alive_ceiling, AodFederationRefusal, AodFormatWitness, AOD_FEDERATION_ADAPTER,
+    AOD_FEDERATION_STANDING_CEILING,
+};
 pub use standing::{
     certify_standing, AuthorityBinding, ExecutionEvidence, ReplayEvidence, Standing,
     StandingObservation, StandingReceipt, StandingRefusal, SubjectIdentity, VerificationEvidence,
