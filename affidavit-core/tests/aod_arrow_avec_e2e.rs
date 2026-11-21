@@ -8,8 +8,8 @@
 //! Historical witness remains envelope-only (no Region 3).
 
 use affidavit_core::{
-    map_live, seal_aod, verify_witness, AodBufferSpec, AvecView, CompiledOntology,
-    InMemoryLeaseRegistry, SealParams,
+    ffor_pack, ffor_packed_bytes, map_live, seal_aod, verify_witness, AodBufferSpec, AvecView,
+    CompiledOntology, FforView, InMemoryLeaseRegistry, SealParams,
 };
 
 #[test]
@@ -83,4 +83,42 @@ fn avec_refuses_stride_mismatch() {
     // Wrong stride for the admitted page length.
     let err = AvecView::from_aod_buffer(&view, 0, 7).unwrap_err();
     assert_eq!(err.machine_code(), 0xE509);
+}
+
+#[test]
+fn sealed_ffor_page_admits_and_unpacks_after_live_gate() {
+    // Byte-aligned FFOR (bit_width=8) so Live Gate fixed-stride admits the page
+    // as stride=1 × row_count, then FforView consumes Region-3 as packed deltas.
+    let ontology = [0xCCu8; 32];
+    let values = [10u64, 11, 14, 18];
+    let base = 10u64;
+    let bit_width = 8u8;
+    let n = values.len();
+    let nbytes = ffor_packed_bytes(n, bit_width).expect("pack size");
+    let mut page = vec![0u8; nbytes];
+    ffor_pack(&values, base, bit_width, &mut page).expect("ffor_pack");
+
+    let raw = seal_aod(
+        &[AodBufferSpec { bytes: &page }],
+        &SealParams {
+            ontology_hash: &ontology,
+            row_count: n as u64,
+            lease_epoch: 1,
+            lease_nullifier: &[0xDD; 32],
+            folded_receipt: &[0u8; 32],
+        },
+    )
+    .expect("seal");
+
+    let compiled = CompiledOntology {
+        ontology_hash: &ontology,
+        strides: &[1], // 1 byte/row at bit_width 8
+    };
+    let mut leases = InMemoryLeaseRegistry::new();
+    let view = map_live(&raw, &compiled, &mut leases).expect("live");
+    let packed = view.buffer(0).expect("buf");
+    let ffor = FforView::try_new(packed, base, bit_width, n).expect("ffor");
+    let mut out = [0u64; 4];
+    ffor.unpack_into(&mut out).expect("unpack");
+    assert_eq!(out, values);
 }
