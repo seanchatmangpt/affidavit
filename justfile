@@ -104,6 +104,11 @@ core-test:
 # Full core-crate gate: tests, feature planes, lint, fmt, doc build.
 core-validate: core-test core-ocel-test core-no-default core-clippy core-fmt-check core-doc
 
+# AOD Historical Witness micro-verifier + ecosystem crypto/git fence (PR-8).
+micro-verifier-validate:
+    bash scripts/check_aod_ecosystem_fence.sh
+
+
 # ocel-compat plane: mining module against wasm4pm-compat OCEL v2 types.
 core-ocel-test:
     cd affidavit-core && cargo test --features ocel-compat --lib mining
