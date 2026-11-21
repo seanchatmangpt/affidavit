@@ -110,6 +110,11 @@
       "name": "pqc_verify",
       "request_fields": ["op", "msg", "msg_hex", "sig_hex", "pk_hex", "profile"],
       "response_fields": ["ok", "op", "profile", "algorithm", "accepted", "refusal"]
+    },
+    {
+      "name": "verify_witness",
+      "request_fields": ["op", "aod_hex"],
+      "response_fields": ["ok", "op", "mode", "accepted", "ontology_hash", "payload_digest", "lease_epoch", "lease_nullifier", "folded_receipt", "row_count", "buffer_count", "region3_mapped", "refusal", "refusal_code"]
     }
   ],
   "schema": "wasi-json-abi.capability-registry/1"

@@ -34,6 +34,7 @@ pub mod abi;
 #[rustfmt::skip] // generated; byte-identical to the ggen render
 pub mod abi_meta;
 mod advanced;
+mod aod;
 pub mod crypto;
 mod external_evidence;
 pub mod pqc;

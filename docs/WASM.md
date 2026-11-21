@@ -89,6 +89,14 @@ profile sets `trim-paths` so embedded paths are checkout-independent), then put
 `sha256`/size of the module on the `wasm` line of registry/ARTIFACTS.sha256.
 `AFFIDAVIT_WASM=<module> cargo test --test registry_artifacts` enforces the pin.
 
+**`REFUSED_PIN_DRIFT`:** a sha256/size mismatch against `ARTIFACTS.sha256` is a
+typed stop, never a silent skip. Refresh procedure: (1) two independent
+`--target-dir` builds of the same locked inputs, (2) `cmp` must succeed,
+(3) update `registry/ARTIFACTS.sha256`, ontology `wja:wasmSha256` /
+`wja:wasmBytes` / `wja:registrySha256`, and `registry/artifact-pin.json`,
+(4) re-run `AFFIDAVIT_WASM=… cargo test --test registry_artifacts`. Do not
+overwrite the pin without the two-dir `cmp` receipt.
+
 ### Producer pin record
 
 `registry/artifact-pin.json` is rendered from the `wja:wasmSha256`, `wja:wasmBytes`,
@@ -135,6 +143,7 @@ The mapping is identity only; a matching pin grants no authority.
 | `verify_signature` | `{alg, public_key_hex, signature_hex, signing_input\|signing_input_hex}` | `valid`, `refusal` (ES256/ES256K/Ed25519) |
 | `pqc_assemble` | `{events, ml_dsa_sig_hex, ml_dsa_pk_hex, pqc_profile}` | `receipt`, `content_address`, `chain_hash`, `pqc` (profile-gated seal; signed message is the compact JSON of `events`) |
 | `pqc_verify` | `{msg\|msg_hex, sig_hex, pk_hex, slh_dsa_sig_hex?, slh_dsa_pk_hex?, profile?, ctx\|ctx_hex?}` | `profile`, `algorithm`, `accepted`, `refusal` (verdict JSON, never an error; `pqc(dual)` judges ML-DSA-65 first, then SLH-DSA; optional `ctx`/`ctx_hex` is the FIPS 204 context for the ML-DSA-65 half — empty default) |
+| `verify_witness` | `{aod_hex}` | Historical Witness only (AFFI-SPEC-26.11.19 Mode B): `mode`=`historical_witness`, `accepted`, inert digests (`ontology_hash`,`payload_digest`,`lease_nullifier`,`folded_receipt`), `lease_epoch`, `row_count`, `buffer_count`, always `region3_mapped:false`; refusals are total verdicts with `refusal`/`refusal_code` (`0xE5xx`). Live Gate fields (`ontology_hex`,`compiled_ontology`,`map_live`) are typed `bad_field`. **No** Region 3 buffers and **no** `CompiledOntology` linkage. |
 
 Notes:
 
