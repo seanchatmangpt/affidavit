@@ -1,0 +1,141 @@
+# aod-cross-arch.yml — AFFI-SPEC-26.11.19 PR-3 canonical cross-arch court.
+#
+# Proves identical `.aod` BLAKE3 digests for identical logical inputs across
+# architectures when dual-arch runners admit; otherwise the golden-vector
+# drift court in affidavit-core/tests/aod_cross_arch.rs remains the honest
+# standing ceiling (fails closed on pin drift).
+#
+# Matrix:
+#   - ubuntu-latest      → x86_64
+#   - ubuntu-24.04-arm   → aarch64 (GitHub-hosted ARM)
+#
+# Each arch job reseals the pinned logical inputs, asserts equality with
+# tests/fixtures/aod_cross_arch/vector_v1.{aod,blake3}, and uploads the
+# host digest. The compare job asserts digests are byte-identical across
+# arches when both matrix legs succeed.
+name: aod-cross-arch
+
+on:
+  # Push (any branch) so Lane PR-3 can host the dual-arch court before merge;
+  # pull_request covers stacked PRs onto aod-jtbd-close / main.
+  push:
+    paths:
+      - "affidavit-core/**"
+      - "rust-toolchain.toml"
+      - ".github/workflows/aod-cross-arch.yml"
+  pull_request:
+    paths:
+      - "affidavit-core/**"
+      - "rust-toolchain.toml"
+      - ".github/workflows/aod-cross-arch.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: aod-cross-arch-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  seal:
+    name: aod seal court (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: affidavit-core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pinned nightly (matches rust-toolchain.toml / affidavit-core.yml)
+        uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb
+        with:
+          toolchain: nightly-2026-08-12
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: affidavit-core
+          key: aod-cross-arch-${{ matrix.arch }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Report host identity
+        run: |
+          set -euo pipefail
+          echo "matrix.arch=${{ matrix.arch }}"
+          uname -m
+          rustc -vV | sed -n 's/^host: /rustc.host=/p'
+
+      - name: Golden-vector + cross-arch court
+        run: cargo test --test aod_cross_arch -- --nocapture
+
+      - name: Emit host digest artifact
+        run: |
+          set -euo pipefail
+          # Capture the host-produced digest from the court standing line
+          # (resealed on this runner, not an echoed pin).
+          log="$(mktemp)"
+          cargo test --test aod_cross_arch aod_cross_arch_host_is_little_endian \
+            -- --nocapture >"$log" 2>&1
+          cat "$log"
+          digest="$(sed -n 's/^AOD_CROSS_ARCH_STANDING .* digest=//p' "$log" | tail -n1)"
+          pinned="$(tr -d '[:space:]' < tests/fixtures/aod_cross_arch/vector_v1.blake3)"
+          test -n "$digest"
+          test "$digest" = "$pinned"
+          {
+            echo "arch=${{ matrix.arch }}"
+            echo "uname=$(uname -m)"
+            echo "digest=${digest}"
+            echo "pinned=${pinned}"
+            echo "standing=GOLDEN_MATCH"
+          } | tee "aod-digest-${{ matrix.arch }}.txt"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: aod-digest-${{ matrix.arch }}
+          path: affidavit-core/aod-digest-${{ matrix.arch }}.txt
+          if-no-files-found: error
+
+  compare:
+    name: aod cross-arch digest equality
+    needs: seal
+    # Only compare when every matrix leg succeeded (real dual-arch evidence).
+    # If ARM is unavailable, `seal` fails on that leg — standing falls back to
+    # the golden court on the surviving arch; do not invent equality.
+    if: ${{ success() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: aod-digest-*
+          merge-multiple: true
+
+      - name: Assert x86_64 digest == aarch64 digest == pin
+        run: |
+          set -euo pipefail
+          echo "=== downloaded digest artifacts ==="
+          ls -la
+          x86="$(grep '^digest=' aod-digest-x86_64.txt | cut -d= -f2)"
+          arm="$(grep '^digest=' aod-digest-aarch64.txt | cut -d= -f2)"
+          test -n "$x86"
+          test -n "$arm"
+          test "${#x86}" -eq 64
+          test "${#arm}" -eq 64
+          if [ "$x86" != "$arm" ]; then
+            echo "REFUSED_AOD_CROSS_ARCH_MISMATCH x86_64=$x86 aarch64=$arm"
+            exit 1
+          fi
+          echo "AOD_CROSS_ARCH_ALIVE digest=$x86 (x86_64 == aarch64 == golden pin)"
