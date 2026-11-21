@@ -32,6 +32,9 @@ use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
+/// CliExecutionError (diag 1504) → process exit `1504 % 256 = 224`.
+const EXIT_CLI_EXECUTION: i32 = 1504 % 256;
+
 use affidavit::crypto_trust_es256::Es256SigningKey;
 use affidavit::crypto_trust_keys::{
     fingerprint_public_key, AlgorithmId, CustodianIdentity, KeyId, KeyOrigin, KeyRecord,
@@ -486,7 +489,7 @@ fn assemble_with_signature_refuses_sigstore_default_and_unknown_methods() {
         .env("AFFI_NOTARY_KEY", "") // no key could fake success; the METHOD refuses first
         .assert()
         .failure()
-        .code(1)
+        .code(EXIT_CLI_EXECUTION)
         .stderr(predicate::str::contains("REFUSED_UNSUPPORTED"))
         .stderr(predicate::str::contains(
             "sigstore signing is not implemented",
@@ -503,7 +506,7 @@ fn assemble_with_signature_refuses_sigstore_default_and_unknown_methods() {
         ])
         .assert()
         .failure()
-        .code(1)
+        .code(EXIT_CLI_EXECUTION)
         .stderr(predicate::str::contains("REFUSED_UNSUPPORTED"));
 }
 
@@ -525,7 +528,7 @@ fn assemble_with_signature_without_a_key_is_r_missing_authority() {
         .env("AFFI_SIGNING_KEY_PATH", "")
         .assert()
         .failure()
-        .code(1)
+        .code(EXIT_CLI_EXECUTION)
         .stderr(predicate::str::contains("R_missing_authority"))
         .stderr(predicate::str::contains("No key, no authority to sign"));
 }
@@ -592,7 +595,7 @@ fn assemble_and_notarize_composes_request_and_attested_paths() {
         ])
         .assert()
         .failure()
-        .code(1)
+        .code(EXIT_CLI_EXECUTION)
         .stderr(predicate::str::contains("REFUSED_UNSUPPORTED"));
 }
 
