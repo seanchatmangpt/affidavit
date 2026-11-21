@@ -4,8 +4,8 @@
 //!
 //! Install a counting [`GlobalAlloc`] that delegates to the system allocator
 //! while tallying every `alloc` / `alloc_zeroed` / `realloc` **on the measuring
-//! thread only**. Fixture bytes are built on the stack (no `seal_aod`), the
-//! counter is reset, then:
+//! thread only**. The honest fixture is sealed **before** the counter is armed
+//! (ML-DSA-65 signing may allocate). Then:
 //!
 //! * [`verify_witness`]
 //! * [`shared_envelope_check`]
@@ -26,9 +26,8 @@ use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use affidavit_core::{
-    compute_seal_commitment, map_live, shared_envelope_check, verify_witness, AodHeader,
-    AodRefusal, AodShadow, Blake3Hasher, ChainHasher, CompiledOntology, LeaseRegistry,
-    AOD_HEADER_LEN, AOD_MIN_FILE_LEN, AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN,
+    map_live, seal_aod, shared_envelope_check, verify_witness, AodRefusal, CompiledOntology,
+    LeaseRegistry, SealParams,
 };
 
 static ALLOC_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -92,12 +91,6 @@ fn measure_allocs<R>(f: impl FnOnce() -> R) -> (R, usize) {
     (out, allocs())
 }
 
-fn blake3_of(bytes: &[u8]) -> [u8; 32] {
-    let mut st = Blake3Hasher::init();
-    Blake3Hasher::absorb(&mut st, bytes);
-    Blake3Hasher::finish(st).0
-}
-
 /// Stack-only lease registry — no heap, one burned nullifier slot.
 struct StackLease {
     burned: Option<[u8; 32]>,
@@ -113,37 +106,20 @@ impl LeaseRegistry for StackLease {
     }
 }
 
-fn finish_shadow(raw: &mut [u8], lease_epoch: u64, nullifier: [u8; 32], folded: [u8; 32]) {
-    let trailer = raw.len() - AOD_SHADOW_LEN;
-    let payload_digest = blake3_of(&raw[..trailer]);
-    let mut shadow = AodShadow {
-        payload_digest,
-        lease_epoch,
-        lease_nullifier: nullifier,
-        folded_receipt: folded,
-        pqc_seal: [0u8; AOD_PQC_SEAL_LEN],
-    };
-    shadow.pqc_seal = compute_seal_commitment(
-        &shadow.payload_digest,
-        shadow.lease_epoch,
-        &shadow.lease_nullifier,
-        &shadow.folded_receipt,
-    );
-    raw[trailer..].copy_from_slice(&shadow.encode());
-}
-
-fn minimal_empty_aod() -> [u8; AOD_MIN_FILE_LEN] {
-    let mut raw = [0u8; AOD_MIN_FILE_LEN];
-    let header = AodHeader {
-        flags: 0,
-        row_count: 0,
-        buffer_count: 0,
-        ontology_hash: [0x44; 32],
-        trailer_offset: AOD_HEADER_LEN as u64,
-    };
-    raw[..AOD_HEADER_LEN].copy_from_slice(&header.encode());
-    finish_shadow(&mut raw, 9, [0x55; 32], [0x66; 32]);
-    raw
+/// Honest empty AOD — sealed outside the measuring window (ML-DSA may allocate).
+fn minimal_empty_aod() -> Vec<u8> {
+    let ontology = [0x44u8; 32];
+    seal_aod(
+        &[],
+        &SealParams {
+            ontology_hash: &ontology,
+            row_count: 0,
+            lease_epoch: 9,
+            lease_nullifier: &[0x55; 32],
+            folded_receipt: &[0x66; 32],
+        },
+    )
+    .expect("seal empty")
 }
 
 /// Single-threaded court body: vacuity + verify_witness + envelope + map_live.

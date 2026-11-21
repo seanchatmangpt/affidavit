@@ -30,10 +30,11 @@
 
 use affidavit_core::aod::align64;
 use affidavit_core::{
-    compute_seal_commitment, map_live, seal_aod, verify_witness, AodBufferSpec, AodRefusal,
-    AodShadow, Blake3Hasher, ChainHasher, CompiledOntology, InMemoryLeaseRegistry, SealParams,
-    AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN,
+    derive_mldsa_seed, map_live, seal_aod, verify_witness, AodBufferSpec, AodRefusal, AodShadow,
+    Blake3Hasher, ChainHasher, CompiledOntology, InMemoryLeaseRegistry, SealParams,
+    AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_PQC_MATERIAL_LEN, AOD_SHADOW_LEN,
 };
+use affidavit_core::aod::pqc_seal::compute_pqc_seal;
 
 fn blake3_of(bytes: &[u8]) -> [u8; 32] {
     let mut st = Blake3Hasher::init();
@@ -61,18 +62,34 @@ fn honest_fixture() -> (Vec<u8>, [u8; 32], [u8; 32]) {
     (raw, ontology, nullifier)
 }
 
+fn shadow_start(raw: &[u8]) -> usize {
+    raw.len()
+        .checked_sub(AOD_SHADOW_LEN + AOD_PQC_MATERIAL_LEN)
+        .expect("file holds shadow + PQC trailer")
+}
+
 fn recompute_digest_and_seal(raw: &mut [u8]) {
-    let trailer = raw.len() - AOD_SHADOW_LEN;
+    let trailer = shadow_start(raw);
     let payload_digest = blake3_of(&raw[..trailer]);
-    let mut shadow = AodShadow::decode(&raw[trailer..]).expect("shadow");
+    let mut shadow = AodShadow::decode(&raw[trailer..trailer + AOD_SHADOW_LEN]).expect("shadow");
     shadow.payload_digest = payload_digest;
-    shadow.pqc_seal = compute_seal_commitment(
+    // Deterministic reseal from ontology hash embedded in the header.
+    let mut ontology = [0u8; 32];
+    ontology.copy_from_slice(&raw[24..56]);
+    let seed = derive_mldsa_seed(&ontology);
+    let (slot, pk, sig) = compute_pqc_seal(
         &shadow.payload_digest,
         shadow.lease_epoch,
         &shadow.lease_nullifier,
         &shadow.folded_receipt,
-    );
-    raw[trailer..].copy_from_slice(&shadow.encode());
+        &seed,
+    )
+    .expect("reseal");
+    shadow.pqc_seal = slot;
+    raw[trailer..trailer + AOD_SHADOW_LEN].copy_from_slice(&shadow.encode());
+    let mat = trailer + AOD_SHADOW_LEN;
+    raw[mat..mat + pk.len()].copy_from_slice(&pk);
+    raw[mat + pk.len()..mat + pk.len() + sig.len()].copy_from_slice(&sig);
 }
 
 fn assert_code(err: AodRefusal, want: u16, label: &str) {
@@ -178,12 +195,12 @@ fn mutation_contiguous_slack_live_e508() {
     let (mut raw, ontology, _) = honest_fixture();
     // Insert 64 zero slack bytes before the shadow and bump trailer_offset so
     // envelope framing + digest pass; live contiguous cursor ≠ trailer → E508.
-    let trailer = raw.len() - AOD_SHADOW_LEN;
-    let shadow = raw[trailer..].to_vec();
+    let trailer = shadow_start(&raw);
+    let tail = raw[trailer..].to_vec(); // shadow ‖ pk ‖ sig
     raw.truncate(trailer);
     raw.extend(std::iter::repeat_n(0u8, 64));
-    raw.extend_from_slice(&shadow);
-    let new_trailer = (raw.len() - AOD_SHADOW_LEN) as u64;
+    raw.extend_from_slice(&tail);
+    let new_trailer = shadow_start(&raw) as u64;
     raw[56..64].copy_from_slice(&new_trailer.to_le_bytes());
     recompute_digest_and_seal(&mut raw);
     // Witness accepts (envelope only); live refuses contiguous slack.
@@ -261,7 +278,8 @@ fn mutation_page_pad_without_reseal_e50b() {
 #[test]
 fn mutation_corrupt_pqc_seal_e50c() {
     let (mut raw, _, _) = honest_fixture();
-    let seal_off = raw.len() - AOD_PQC_SEAL_LEN;
+    // pqc_seal occupies shadow[104..352); flip the message tip byte.
+    let seal_off = shadow_start(&raw) + 104;
     raw[seal_off] ^= 0xFF;
     let err = verify_witness(&raw).unwrap_err();
     assert_code(err, 0xE50C, "corrupt pqc seal");
@@ -284,8 +302,10 @@ fn mutation_spent_nullifier_e50d() {
 fn mutation_exhaustive_single_bit_flips_fail_closed() {
     let (raw, _, _) = honest_fixture();
     let mut refusals = 0usize;
-    // Sample every byte (flip LSB) — sealed fixtures are a few hundred bytes.
-    for idx in 0..raw.len() {
+    // Header + directory + page + shadow (skip large ML-DSA trailer body —
+    // tip/key_id already covered by E50C; flipping deep sig bytes is same band).
+    let shadow_end = shadow_start(&raw) + AOD_SHADOW_LEN;
+    for idx in 0..shadow_end {
         let mut mut_raw = raw.clone();
         mut_raw[idx] ^= 0x01;
         match verify_witness(&mut_raw) {
@@ -303,5 +323,15 @@ fn mutation_exhaustive_single_bit_flips_fail_closed() {
             }
         }
     }
-    assert_eq!(refusals, raw.len(), "every single-bit flip must refuse");
+    assert_eq!(refusals, shadow_end, "every header‥shadow bit flip must refuse");
+    // Spot-check ML-DSA trailer tip + first sig byte (same 0xE50C band).
+    for &idx in &[shadow_end, shadow_end + 1, raw.len() - 1] {
+        let mut mut_raw = raw.clone();
+        mut_raw[idx] ^= 0x01;
+        let err = verify_witness(&mut_raw).expect_err("PQC trailer flip");
+        assert!(
+            (0xE501..=0xE50D).contains(&err.machine_code()),
+            "trailer flip at {idx}"
+        );
+    }
 }

@@ -17,9 +17,9 @@ schema=affidavit-core/aod/cross-arch/v1
 
 | Artifact | Value |
 |---|---|
-| `vector_v1.aod` length | `544` |
-| `vector_v1.blake3` | `2f8f3c7651121787bcb1f8365310fbcf9769aec69780dd0bd88e9bc0188fbdfb` |
-| Initial seal host | `x86_64` (little-endian) |
+| `vector_v1.aod` length | `5805` (includes ML-DSA-65 pk‖sig trailer) |
+| `vector_v1.blake3` | `0e8b4b808051ce25a902d9124545f2055e46525e107ba197c3fd0bc9f6ec5ca6` |
+| Initial seal host | `x86_64` (little-endian); refreshed after Lane 1 ML-DSA seal land |
 
 ## Standing
 

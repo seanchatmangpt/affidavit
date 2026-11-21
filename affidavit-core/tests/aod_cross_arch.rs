@@ -53,6 +53,18 @@ fn blake3_hex(bytes: &[u8]) -> String {
     hex::encode(blake3::hash(bytes).as_bytes())
 }
 
+/// One-shot: `AOD_REGEN_GOLDEN=1 cargo test -p affidavit-core --test aod_cross_arch regen_golden -- --ignored`
+#[test]
+#[ignore]
+fn regen_golden_vector_v1() {
+    let sealed = seal_canonical();
+    let dir = fixture_dir();
+    fs::write(dir.join("vector_v1.aod"), &sealed).expect("write aod");
+    let digest = blake3_hex(&sealed);
+    fs::write(dir.join("vector_v1.blake3"), format!("{digest}\n")).expect("write blake3");
+    eprintln!("regenerated len={} digest={}", sealed.len(), digest);
+}
+
 /// Reseal equals the committed golden `.aod` bytes and the pinned BLAKE3.
 #[test]
 fn aod_cross_arch_golden_vector_refuses_digest_drift() {
@@ -77,7 +89,7 @@ fn aod_cross_arch_golden_vector_refuses_digest_drift() {
 
     // Anti-vacuity: golden is a live envelope, not an empty pin.
     assert_eq!(&sealed[0..4], &AOD_MAGIC);
-    assert_eq!(sealed.len(), 544);
+    assert_eq!(sealed.len(), 5805); // header+dir+page+pad+shadow+ML-DSA pk‖sig
     verify_witness(&sealed).expect("golden must witness-ACCEPT");
 }
 
