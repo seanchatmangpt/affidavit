@@ -3,7 +3,8 @@
 //! Law:
 //! 1. seal → byte-identical on replay; zero ASCII domain tokens in `.aod`.
 //! 2. witness ACCEPT without ontology / lease burn.
-//! 3. verify --live burns nullifier; second live verify refuses 0xE50D.
+//! 3. verify --live burns nullifier into durable AFAL store; second live
+//!    verify (cross-process) refuses 0xE50D.
 //! 4. rotate rematerializes under a fresh lease; fold yields stable tip.
 
 use assert_cmd::Command;
@@ -116,10 +117,10 @@ fn aod_seal_witness_live_rotate_fold_court() {
         .success()
         .stdout(predicates::str::contains("\"region3_mapped\": false"));
 
-    let registry = cwd.join("leases.txt");
+    let registry = cwd.join("leases.afal");
     let strides = stride.to_string();
 
-    // Live gate burns lease.
+    // Live gate burns lease into durable AFAL (HMAC-sealed) snapshot.
     affi(cwd)
         .args([
             "aod",
@@ -136,7 +137,14 @@ fn aod_seal_witness_live_rotate_fold_court() {
         .assert()
         .success();
 
-    // Replay spent nullifier → 0xE50D (exit low byte 0x0D = 13).
+    let sealed = fs::read(&registry).expect("AFAL snapshot");
+    assert!(
+        sealed.len() > 36 && &sealed[32..36] == b"AFAL",
+        "sealed = tag(32) ++ AFAL body, got {} bytes",
+        sealed.len()
+    );
+
+    // Cross-process replay of spent nullifier → 0xE50D (exit low byte 0x0D).
     let replay = affi(cwd)
         .args([
             "aod",
