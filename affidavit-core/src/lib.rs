@@ -101,15 +101,16 @@ pub mod verifier;
 #[cfg(feature = "alloc")]
 pub mod mining;
 
+pub use aod::{
+    compute_seal_commitment, map_live, shared_envelope_check, verify_witness, AodHeader,
+    AodRefusal, AodShadow, AodView, BufferEntry, CompiledOntology, EnvelopeOk, LeaseRegistry,
+    WitnessAttestation, AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_MAGIC, AOD_MIN_FILE_LEN,
+    AOD_PQC_SEAL_LEN, AOD_SHADOW_LEN, DOMAIN_AOD_SEAL,
+};
 #[cfg(feature = "alloc")]
 pub use aod::{
     fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, AodBufferSpec, InMemoryLeaseRegistry,
     SealParams,
-};
-pub use aod::{
-    map_live, shared_envelope_check, verify_witness, AodHeader, AodRefusal, AodShadow, AodView,
-    BufferEntry, CompiledOntology, EnvelopeOk, LeaseRegistry, WitnessAttestation, AOD_HEADER_LEN,
-    AOD_MAGIC, AOD_MIN_FILE_LEN, AOD_SHADOW_LEN, DOMAIN_AOD_SEAL,
 };
 
 pub use chain::{compute_chain_hash, Event, PROFILE};

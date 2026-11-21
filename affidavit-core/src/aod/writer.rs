@@ -263,16 +263,19 @@ mod tests {
         )
         .unwrap();
 
-        // Flip one bit in header, directory, page, and shadow — all must refuse.
+        // Flip one bit in header, directory, page, and shadow — all must refuse
+        // with an exact 0xE5xx machine code (expanded court: tests/aod_mutation_court.rs).
         for &idx in &[0usize, 70, AOD_HEADER_LEN + 80, raw.len() - 10] {
             if idx >= raw.len() {
                 continue;
             }
             let mut mut_raw = raw.clone();
             mut_raw[idx] ^= 0x01;
+            let err = verify_witness(&mut_raw).expect_err("bit flip must refuse");
+            let code = err.machine_code();
             assert!(
-                verify_witness(&mut_raw).is_err(),
-                "bit flip at {idx} must refuse"
+                (0xE501..=0xE50D).contains(&code),
+                "bit flip at {idx}: got 0x{code:04X}, want 0xE5xx"
             );
         }
     }
