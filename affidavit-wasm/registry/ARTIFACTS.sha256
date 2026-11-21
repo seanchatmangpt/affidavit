@@ -8,5 +8,10 @@
 # placeholders with the digest and size of the module built by
 #   cargo build --locked --target wasm32-wasip1 --profile wasm
 # and regenerate the pin after any src/ change.
-wasm d7ef2615ccacb78c8ded197425d5784adf153241bcf47c2c4be407835b5b8798 721883 affidavit_wasm.wasm
-registry sha256:c585d06486252d3176aab6a79b554cc72fc9af548c81524e679b61e8eb1a7cda - capability-registry.json
+#
+# REFUSED_PIN_DRIFT procedure (docs/WASM.md): on any src/ or Cargo.lock change,
+# build twice into separate --target-dir trees, cmp the .wasm files (must be
+# byte-identical), then update this pin + ontology wja:wasmSha256/wasmBytes and
+# registrySha256. Never silently skip a drift; typed stop is REFUSED_PIN_DRIFT.
+wasm a1f6caf031dc9da2d9ed8a89e3149e8373863c9f64e7f40f914f8c0772d3b47b 730785 affidavit_wasm.wasm
+registry sha256:ce80de5c384831279a503c755b4e97ac26228735095845c375e189c07e1d23b4 - capability-registry.json
