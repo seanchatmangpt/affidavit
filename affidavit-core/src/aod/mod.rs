@@ -45,7 +45,7 @@ pub use layout::{
 #[cfg(feature = "alloc")]
 pub use live::InMemoryLeaseRegistry;
 pub use live::{map_live, AodView, CompiledOntology, LeaseRegistry};
-pub use mmap::{is_aod_aligned, slice_is_aod_aligned, AOD_MMAP_ALIGN};
+pub use mmap::{demand_aod_aligned, is_aod_aligned, slice_is_aod_aligned, AOD_MMAP_ALIGN};
 pub use refuse::AodRefusal;
 pub use witness::{verify_witness, WitnessAttestation};
 #[cfg(feature = "alloc")]
