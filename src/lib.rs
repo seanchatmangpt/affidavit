@@ -110,6 +110,8 @@ pub mod cli;
 #[cfg(feature = "discovery")]
 pub mod discovery;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod aod_mmap;
 pub mod dfcm;
 pub mod ecosystem;
 pub mod errc;

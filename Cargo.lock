@@ -50,6 +50,7 @@ dependencies = [
  "libcrux-ml-kem",
  "linkme",
  "lsp-max",
+ "memmap2",
  "merlin",
  "ml-dsa",
  "ml-kem",
