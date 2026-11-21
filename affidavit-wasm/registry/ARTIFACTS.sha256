@@ -13,5 +13,5 @@
 # build twice into separate --target-dir trees, cmp the .wasm files (must be
 # byte-identical), then update this pin + ontology wja:wasmSha256/wasmBytes and
 # registrySha256. Never silently skip a drift; typed stop is REFUSED_PIN_DRIFT.
-wasm 99446b9a63c3791c01b868623991528663637408f16cf6d98701da0f61cca348 731193 affidavit_wasm.wasm
+wasm 727cd2fcf0ce8d84e177ab89629d0d89d3d1fd28814ee42d03d1b35d1f267ee7 731193 affidavit_wasm.wasm
 registry sha256:ce80de5c384831279a503c755b4e97ac26228735095845c375e189c07e1d23b4 - capability-registry.json

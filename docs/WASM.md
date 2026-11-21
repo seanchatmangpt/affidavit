@@ -89,6 +89,12 @@ profile sets `trim-paths` so embedded paths are checkout-independent), then put
 `sha256`/size of the module on the `wasm` line of registry/ARTIFACTS.sha256.
 `AFFIDAVIT_WASM=<module> cargo test --test registry_artifacts` enforces the pin.
 
+**Cross-host note:** `trim-paths` remaps registry paths under a host-local
+`CARGO_HOME` fingerprint, so a dual-build pin cut on one machine may still
+`REFUSED_PIN_DRIFT` on GitHub Actions. The admitted pin is the dual-`cmp`
+artifact from the `affidavit-wasm` CI job (same size, CI sha256). Prefer
+cutting/refreshing the pin against that CI receipt when local≠CI.
+
 **`REFUSED_PIN_DRIFT`:** a sha256/size mismatch against `ARTIFACTS.sha256` is a
 typed stop, never a silent skip. Refresh procedure: (1) two independent
 `--target-dir` builds of the same locked inputs, (2) `cmp` must succeed,
