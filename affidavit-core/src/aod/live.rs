@@ -1,5 +1,9 @@
 //! Live Gate — ontology match, fixed-stride layout, lease burn
 //! (AFFI-SPEC-26.11.19 §4.3 Mode A).
+//!
+//! [`map_live`] borrows `&[u8]` and never allocates a file-sized heap copy.
+//! Host crates supply that slice via OS `mmap` (see crate `affidavit`
+//! `src/aod_mmap.rs` and [`super::mmap`] for the alignment contract).
 
 use super::envelope::shared_envelope_check;
 use super::layout::{align64, page_digest_lo, BufferEntry, AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN};

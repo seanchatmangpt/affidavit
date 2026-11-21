@@ -9965,7 +9965,8 @@ pub fn aod_verify(
             "REFUSED_AOD_STRIDES: --strides must list at least one per-row byte stride",
         ));
     }
-    let raw = std::fs::read(&file).map_err(io_err)?;
+    // Live Gate: OS mmap → &[u8] → map_live (no full-file Vec copy; PR-4).
+    let mapped = crate::aod_mmap::MappedAod::open(&file).map_err(io_err)?;
     let compiled = affidavit_core::CompiledOntology {
         ontology_hash: &ontology,
         strides: &strides,
@@ -9974,7 +9975,7 @@ pub fn aod_verify(
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::path::PathBuf::from(".affi/aod-leases"));
     let mut leases = FileLeaseRegistry::open(&reg_path)?;
-    match affidavit_core::map_live(&raw, &compiled, &mut leases) {
+    match affidavit_core::map_live(mapped.as_bytes(), &compiled, &mut leases) {
         Ok(view) => {
             leases.persist()?;
             outln!(
