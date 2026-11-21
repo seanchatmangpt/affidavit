@@ -1,10 +1,11 @@
-//! Shared envelope check — O(1) framing + BLAKE3 + seal commitment
+//! Shared envelope check — O(1) framing + BLAKE3 + ML-DSA-65 PQC seal
 //! (AFFI-SPEC-26.11.19 §4.3). Zero heap allocation.
 
 use super::layout::{
-    blake3_of, verify_seal_commitment, AodHeader, AodShadow, BufferEntry, AOD_DIR_ENTRY_LEN,
+    blake3_of, verify_pqc_seal_material, AodHeader, AodShadow, BufferEntry, AOD_DIR_ENTRY_LEN,
     AOD_HEADER_LEN, AOD_MIN_FILE_LEN, AOD_SHADOW_LEN,
 };
+use super::pqc_seal::AOD_PQC_MATERIAL_LEN;
 use super::refuse::AodRefusal;
 
 /// Borrowed view of a file that passed the shared envelope check.
@@ -14,7 +15,7 @@ pub struct EnvelopeOk<'a> {
     pub header: AodHeader,
     /// Decoded shadow.
     pub shadow: AodShadow,
-    /// Full file bytes (Regions 1–4).
+    /// Full file bytes (Regions 1–4 + PQC trailer).
     pub raw: &'a [u8],
     /// Directory entries (may be empty).
     pub entries: &'a [u8],
@@ -22,16 +23,19 @@ pub struct EnvelopeOk<'a> {
 
 /// Shared envelope check (live and witness).
 ///
-/// Checks alignment demand (length ≥ 416), magic, reserved, trailer offset,
-/// zero-padding of the directory pad region, BLAKE3(payload) == shadow digest,
-/// and the domain-separated seal commitment.
+/// Checks alignment demand (length ≥ min), magic, reserved, trailer offset
+/// (`file_len - 352 - PQC_MATERIAL`), zero-padding of the directory pad
+/// region, BLAKE3(payload) == shadow digest, and the ML-DSA-65 PQC seal.
 pub fn shared_envelope_check(raw: &[u8]) -> Result<EnvelopeOk<'_>, AodRefusal> {
     if raw.len() < AOD_MIN_FILE_LEN {
         return Err(AodRefusal::TruncatedFile);
     }
     let header = AodHeader::decode(raw)?;
-    let file_len = raw.len() as u64;
-    if header.trailer_offset != file_len - AOD_SHADOW_LEN as u64 {
+    let file_len = raw.len();
+    let expected_trailer = file_len
+        .checked_sub(AOD_SHADOW_LEN + AOD_PQC_MATERIAL_LEN)
+        .ok_or(AodRefusal::InvalidTrailerOffset)?;
+    if header.trailer_offset != expected_trailer as u64 {
         return Err(AodRefusal::InvalidTrailerOffset);
     }
     if header.trailer_offset < AOD_HEADER_LEN as u64 {
@@ -64,14 +68,16 @@ pub fn shared_envelope_check(raw: &[u8]) -> Result<EnvelopeOk<'_>, AodRefusal> {
     }
 
     let shadow_off = header.trailer_offset as usize;
-    let shadow = AodShadow::decode(&raw[shadow_off..])?;
+    let shadow = AodShadow::decode(&raw[shadow_off..shadow_off + AOD_SHADOW_LEN])?;
 
     let payload = &raw[..shadow_off];
     let digest = blake3_of(payload);
     if digest.0 != shadow.payload_digest {
         return Err(AodRefusal::DigestMismatch);
     }
-    verify_seal_commitment(&shadow)?;
+
+    let material_off = shadow_off + AOD_SHADOW_LEN;
+    verify_pqc_seal_material(&shadow, &raw[material_off..])?;
 
     let entries = if header.buffer_count == 0 {
         &raw[AOD_HEADER_LEN..AOD_HEADER_LEN]
@@ -95,40 +101,42 @@ pub fn shared_envelope_check(raw: &[u8]) -> Result<EnvelopeOk<'_>, AodRefusal> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aod::layout::{compute_seal_commitment, AOD_MAGIC};
+    use crate::aod::layout::AOD_MAGIC;
+    use crate::aod::pqc_seal::{compute_pqc_seal, derive_mldsa_seed};
 
-    fn minimal_unsigned_empty() -> [u8; AOD_MIN_FILE_LEN] {
-        let mut raw = [0u8; AOD_MIN_FILE_LEN];
+    fn minimal_signed_empty() -> Vec<u8> {
+        let ontology = [0x11u8; 32];
+        let mut raw = vec![0u8; AOD_HEADER_LEN];
         let header = AodHeader {
             flags: 0,
             row_count: 0,
             buffer_count: 0,
-            ontology_hash: [0x11; 32],
+            ontology_hash: ontology,
             trailer_offset: AOD_HEADER_LEN as u64,
         };
         raw[..AOD_HEADER_LEN].copy_from_slice(&header.encode());
         let payload_digest = blake3_of(&raw[..AOD_HEADER_LEN]);
-        let mut shadow = AodShadow {
+        let seed = derive_mldsa_seed(&ontology);
+        let (pqc_seal, pk, sig) =
+            compute_pqc_seal(&payload_digest.0, 1, &[0x22; 32], &[0x33; 32], &seed).expect("sign");
+        let shadow = AodShadow {
             payload_digest: payload_digest.0,
             lease_epoch: 1,
             lease_nullifier: [0x22; 32],
             folded_receipt: [0x33; 32],
-            pqc_seal: [0u8; super::super::layout::AOD_PQC_SEAL_LEN],
+            pqc_seal,
         };
-        shadow.pqc_seal = compute_seal_commitment(
-            &shadow.payload_digest,
-            shadow.lease_epoch,
-            &shadow.lease_nullifier,
-            &shadow.folded_receipt,
-        );
-        raw[AOD_HEADER_LEN..].copy_from_slice(&shadow.encode());
+        raw.extend_from_slice(&shadow.encode());
+        raw.extend_from_slice(&pk);
+        raw.extend_from_slice(&sig);
         assert_eq!(&raw[0..4], &AOD_MAGIC);
+        assert_eq!(raw.len(), AOD_MIN_FILE_LEN);
         raw
     }
 
     #[test]
     fn empty_file_envelope_accepts() {
-        let raw = minimal_unsigned_empty();
+        let raw = minimal_signed_empty();
         let ok = shared_envelope_check(&raw).expect("envelope");
         assert_eq!(ok.header.buffer_count, 0);
         assert_eq!(ok.shadow.lease_epoch, 1);
@@ -143,7 +151,7 @@ mod tests {
 
     #[test]
     fn bad_magic_refuses_e503() {
-        let mut raw = minimal_unsigned_empty();
+        let mut raw = minimal_signed_empty();
         raw[0] = 0x00;
         let err = shared_envelope_check(&raw).unwrap_err();
         assert_eq!(err.machine_code(), 0xE503);
@@ -151,9 +159,19 @@ mod tests {
 
     #[test]
     fn digest_tamper_refuses_e50b() {
-        let mut raw = minimal_unsigned_empty();
+        let mut raw = minimal_signed_empty();
         raw[24] ^= 0xFF; // flip ontology_hash byte inside payload
         let err = shared_envelope_check(&raw).unwrap_err();
         assert_eq!(err.machine_code(), 0xE50B);
+    }
+
+    #[test]
+    fn pqc_sig_bitflip_refuses_e50c() {
+        let mut raw = minimal_signed_empty();
+        // Flip a byte in the ML-DSA signature trailer (after shadow).
+        let sig_off = raw.len() - 10;
+        raw[sig_off] ^= 0x01;
+        let err = shared_envelope_check(&raw).unwrap_err();
+        assert_eq!(err.machine_code(), 0xE50C);
     }
 }

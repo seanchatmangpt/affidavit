@@ -6,13 +6,13 @@
 pub enum AodRefusal {
     /// `0xE501` — input pointer/slice not 64-byte aligned (when alignment is demanded).
     UnalignedInput,
-    /// `0xE502` — file shorter than the 416-byte minimum envelope.
+    /// `0xE502` — file shorter than the minimum envelope (shadow + PQC trailer).
     TruncatedFile,
     /// `0xE503` — header sentinel is not [`super::AOD_MAGIC`].
     InvalidSentinel,
     /// `0xE504` — header reserved word is non-zero.
     NonZeroReserved,
-    /// `0xE505` — `trailer_offset` is not `file_len - 352`.
+    /// `0xE505` — `trailer_offset` is not `file_len - 352 - PQC_MATERIAL`.
     InvalidTrailerOffset,
     /// `0xE506` — live gate: ontology hash mismatch.
     UnknownOntology,
@@ -26,7 +26,7 @@ pub enum AodRefusal {
     NonZeroPadding,
     /// `0xE50B` — BLAKE3 payload digest mismatch.
     DigestMismatch,
-    /// `0xE50C` — PQC seal commitment verification failed.
+    /// `0xE50C` — ML-DSA-65 PQC seal verification failed.
     PqcSealFailure,
     /// `0xE50D` — monoatomic lease spent, expired, or refused by the registry.
     LeaseSpentOrExpired,

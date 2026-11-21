@@ -24,6 +24,8 @@ mod layout;
 mod live;
 /// Pointer-alignment contract for host mmap adapters (no_std; no OS mmap here).
 pub mod mmap;
+/// ML-DSA-65 PQC seal over the 248-byte shadow slot + pk‖sig trailer.
+pub mod pqc_seal;
 mod refuse;
 mod witness;
 #[cfg(feature = "alloc")]
@@ -46,9 +48,16 @@ pub use layout::{
 pub use live::InMemoryLeaseRegistry;
 pub use live::{map_live, AodView, CompiledOntology, LeaseRegistry};
 pub use mmap::{is_aod_aligned, slice_is_aod_aligned, AOD_MMAP_ALIGN};
+pub use pqc_seal::{
+    aod_key_id, seal_message_digest, verify_pqc_seal, AOD_PQC_MATERIAL_LEN, DOMAIN_AOD_KEY_ID,
+    DOMAIN_AOD_SEAL_CTX,
+};
+#[cfg(feature = "alloc")]
+pub use pqc_seal::{derive_mldsa_seed, sign_aod_seal};
 pub use refuse::AodRefusal;
 pub use witness::{verify_witness, WitnessAttestation};
 #[cfg(feature = "alloc")]
 pub use writer::{
-    fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, AodBufferSpec, SealParams,
+    fold_aod_tips, rematerialize_pages, rotate_aod, seal_aod, seal_aod_with_seed, AodBufferSpec,
+    SealParams,
 };

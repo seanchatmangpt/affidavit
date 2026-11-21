@@ -6,9 +6,10 @@ use alloc::vec::Vec;
 use crate::digest::ChainHasher;
 
 use super::layout::{
-    align64, blake3_of, compute_seal_commitment, pad64, page_digest_lo, AodHeader, AodShadow,
-    BufferEntry, AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_SHADOW_LEN,
+    align64, blake3_of, pad64, page_digest_lo, AodHeader, AodShadow, BufferEntry,
+    AOD_DIR_ENTRY_LEN, AOD_HEADER_LEN, AOD_SHADOW_LEN,
 };
+use super::pqc_seal::{compute_pqc_seal, derive_mldsa_seed};
 use super::refuse::AodRefusal;
 
 /// One buffer to seal: raw page bytes (exact fixed-stride × rows; no pad).
@@ -35,18 +36,34 @@ pub struct SealParams<'a> {
 
 /// Seal raw buffers into a canonical `.aod` byte vector.
 ///
+/// Uses a domain-derived ML-DSA-65 seed from
+/// [`derive_mldsa_seed`](super::pqc_seal::derive_mldsa_seed)`(ontology_hash)`.
+/// For an explicit seed (courts / control plane), use [`seal_aod_with_seed`].
+///
 /// Identical logical inputs → identical bytes (PR-3). Non-zero pad is never
 /// written. UTF-8/ASCII labels never appear.
 pub fn seal_aod(
     buffers: &[AodBufferSpec<'_>],
     params: &SealParams<'_>,
 ) -> Result<Vec<u8>, AodRefusal> {
+    let seed = derive_mldsa_seed(params.ontology_hash);
+    seal_aod_with_seed(buffers, params, &seed)
+}
+
+/// Seal raw buffers under an explicit ML-DSA-65 keygen seed.
+///
+/// Deterministic: same buffers + params + seed ⇒ identical `.aod` bytes.
+pub fn seal_aod_with_seed(
+    buffers: &[AodBufferSpec<'_>],
+    params: &SealParams<'_>,
+    mldsa_seed: &[u8; 32],
+) -> Result<Vec<u8>, AodRefusal> {
     if buffers.len() > u32::MAX as usize {
         return Err(AodRefusal::BufferCountMismatch);
     }
     let buffer_count = buffers.len() as u32;
 
-    // Layout: header | directory | dir-pad | pages (each padded) | shadow
+    // Layout: header | directory | dir-pad | pages (each padded) | shadow | pk‖sig
     let dir_bytes = buffers.len() * AOD_DIR_ENTRY_LEN;
     let dir_region = if buffer_count == 0 {
         0
@@ -79,7 +96,8 @@ pub fn seal_aod(
         trailer_offset: trailer_offset as u64,
     };
 
-    let mut out = Vec::with_capacity(trailer_offset + AOD_SHADOW_LEN);
+    let mut out =
+        Vec::with_capacity(trailer_offset + AOD_SHADOW_LEN + super::pqc_seal::AOD_PQC_MATERIAL_LEN);
     out.extend_from_slice(&header.encode());
 
     if buffer_count > 0 {
@@ -99,20 +117,23 @@ pub fn seal_aod(
     debug_assert_eq!(out.len(), trailer_offset);
 
     let payload_digest = blake3_of(&out);
-    let mut shadow = AodShadow {
+    let (pqc_seal, pk, sig) = compute_pqc_seal(
+        &payload_digest.0,
+        params.lease_epoch,
+        params.lease_nullifier,
+        params.folded_receipt,
+        mldsa_seed,
+    )?;
+    let shadow = AodShadow {
         payload_digest: payload_digest.0,
         lease_epoch: params.lease_epoch,
         lease_nullifier: *params.lease_nullifier,
         folded_receipt: *params.folded_receipt,
-        pqc_seal: [0u8; super::layout::AOD_PQC_SEAL_LEN],
+        pqc_seal,
     };
-    shadow.pqc_seal = compute_seal_commitment(
-        &shadow.payload_digest,
-        shadow.lease_epoch,
-        &shadow.lease_nullifier,
-        &shadow.folded_receipt,
-    );
     out.extend_from_slice(&shadow.encode());
+    out.extend_from_slice(&pk);
+    out.extend_from_slice(&sig);
     Ok(out)
 }
 
@@ -188,6 +209,35 @@ mod tests {
     use crate::aod::verify_witness;
 
     #[test]
+    fn pqc_seeded_seal_positive_and_bitflip_court() {
+        let ontology = [0xAAu8; 32];
+        let nullifier = [0xBBu8; 32];
+        let folded = [0u8; 32];
+        let page = [1u8; 16];
+        let seed = [0x42u8; 32];
+        let params = SealParams {
+            ontology_hash: &ontology,
+            row_count: 2,
+            lease_epoch: 1,
+            lease_nullifier: &nullifier,
+            folded_receipt: &folded,
+        };
+        let raw = seal_aod_with_seed(&[AodBufferSpec { bytes: &page }], &params, &seed)
+            .expect("seeded seal");
+        // Honest path ACCEPT.
+        verify_witness(&raw).expect("witness accepts ML-DSA seal");
+        // Same seed ⇒ identical bytes.
+        let raw2 = seal_aod_with_seed(&[AodBufferSpec { bytes: &page }], &params, &seed).unwrap();
+        assert_eq!(raw, raw2);
+        // Bit-flip in the signature trailer → 0xE50C.
+        let mut flipped = raw.clone();
+        let n = flipped.len();
+        flipped[n - 1] ^= 0x01;
+        let err = verify_witness(&flipped).unwrap_err();
+        assert_eq!(err.machine_code(), 0xE50C);
+    }
+
+    #[test]
     fn seal_live_witness_round_trip() {
         let ontology = [0xAAu8; 32];
         let nullifier = [0xBBu8; 32];
@@ -206,9 +256,10 @@ mod tests {
         )
         .expect("seal");
 
-        // Zero-text: no ASCII in magic / no 'CTRT' / no '{'.
+        // Zero-text: non-ASCII magic; no 'CTRT' fourcc. (PQC trailer is opaque
+        // binary and may contain incidental ASCII bytes such as '{'.)
         assert!(!raw.windows(4).any(|w| w == b"CTRT"));
-        assert!(!raw.contains(&b'{'));
+        assert!(raw[0] >= 0x80);
 
         let att = verify_witness(&raw).expect("witness");
         assert_eq!(att.ontology_hash, ontology);
