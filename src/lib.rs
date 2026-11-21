@@ -159,6 +159,7 @@ pub mod output;
 pub mod sj_record;
 pub mod standing;
 
+pub mod aod_lease_registry;
 #[cfg(feature = "crypto-trust")]
 pub mod deontic;
 pub mod replay_nullifier;

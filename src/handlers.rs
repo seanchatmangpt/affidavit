@@ -9822,67 +9822,6 @@ fn format_aod_refusal(e: affidavit_core::AodRefusal) -> String {
     format!("REFUSED_AOD [0x{:04X} {:?}]", e.machine_code(), e)
 }
 
-/// File-backed monoatomic lease registry: one hex nullifier per line.
-struct FileLeaseRegistry {
-    path: std::path::PathBuf,
-    burned: std::collections::BTreeSet<[u8; 32]>,
-}
-
-impl FileLeaseRegistry {
-    fn open(path: &std::path::Path) -> Result<Self> {
-        let mut burned = std::collections::BTreeSet::new();
-        if path.exists() {
-            let text = std::fs::read_to_string(path).map_err(io_err)?;
-            for (lineno, line) in text.lines().enumerate() {
-                let line = line.trim();
-                if line.is_empty() || line.starts_with('#') {
-                    continue;
-                }
-                let n = decode_hex_32(line).ok_or_else(|| {
-                    NounVerbError::execution_error(format!(
-                        "REFUSED_LEASE_REGISTRY: malformed nullifier at {}:{}",
-                        path.display(),
-                        lineno + 1
-                    ))
-                })?;
-                burned.insert(n);
-            }
-        }
-        Ok(Self {
-            path: path.to_path_buf(),
-            burned,
-        })
-    }
-
-    fn persist(&self) -> Result<()> {
-        if let Some(parent) = self.path.parent() {
-            std::fs::create_dir_all(parent).map_err(io_err)?;
-        }
-        let mut body = String::new();
-        for n in &self.burned {
-            body.push_str(&hex_encode(n));
-            body.push('\n');
-        }
-        let tmp = self.path.with_extension("tmp");
-        std::fs::write(&tmp, body.as_bytes()).map_err(io_err)?;
-        std::fs::rename(&tmp, &self.path).map_err(io_err)?;
-        Ok(())
-    }
-}
-
-impl affidavit_core::LeaseRegistry for FileLeaseRegistry {
-    fn burn(
-        &mut self,
-        _lease_epoch: u64,
-        nullifier: &[u8; 32],
-    ) -> core::result::Result<(), affidavit_core::AodRefusal> {
-        if !self.burned.insert(*nullifier) {
-            return Err(affidavit_core::AodRefusal::LeaseSpentOrExpired);
-        }
-        Ok(())
-    }
-}
-
 /// `affi aod seal` — seal raw fixed-stride bytes into a `.aod`.
 #[allow(clippy::too_many_arguments)]
 pub fn aod_seal(
@@ -9970,13 +9909,19 @@ pub fn aod_verify(
         ontology_hash: &ontology,
         strides: &strides,
     };
-    let reg_path = registry
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from(".affi/aod-leases"));
-    let mut leases = FileLeaseRegistry::open(&reg_path)?;
+    let reg_path = registry.map(std::path::PathBuf::from).unwrap_or_else(|| {
+        std::path::PathBuf::from(crate::aod_lease_registry::DEFAULT_LEASE_REGISTRY_PATH)
+    });
+    // Durable AFAL sealed nullifier store (HMAC-BLAKE3 + atomic rename),
+    // fail-closed on corrupt/forged snapshots — see `aod_lease_registry`.
+    let mut leases = crate::aod_lease_registry::AodLeaseRegistry::open(&reg_path)
+        .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
     match affidavit_core::map_live(&raw, &compiled, &mut leases) {
         Ok(view) => {
-            leases.persist()?;
+            // Burn already persisted durably; a final flush is idempotent.
+            leases
+                .persist()
+                .map_err(|e| NounVerbError::execution_error(e.to_string()))?;
             outln!(
                 "aod live ACCEPT rows={} buffers={} lease_epoch={}",
                 view.row_count,
