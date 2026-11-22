@@ -41,13 +41,21 @@ use core::fmt;
 /// validation dependency — never by this crate.
 ///
 /// Implementations must hold: a `true` return means the external library
-/// accepted `(msg, sig)` under `pk` per FIPS 204; any parse, length, or
-/// arithmetic failure collapses to `false`. The court treats `false` as a
-/// typed refusal, never retries, never infers.
+/// accepted `(msg, sig)` under `pk` (and optional context string) per FIPS 204;
+/// any parse, length, or arithmetic failure collapses to `false`. The court
+/// treats `false` as a typed refusal, never retries, never infers.
 pub trait MlDsa65Verifier {
-    /// Verify a FIPS 204 ML-DSA-65 signature over `msg` against `pk`.
-    /// Returns `false` for any malformed input or failed verification.
-    fn verify(&self, msg: &[u8], sig: &[u8], pk: &[u8]) -> bool;
+    /// Verify a FIPS 204 ML-DSA-65 signature over `msg` under context `ctx`
+    /// against `pk`. Returns `false` for any malformed input, oversized
+    /// context (>255 bytes), or failed verification.
+    fn verify_with_context(&self, msg: &[u8], ctx: &[u8], sig: &[u8], pk: &[u8]) -> bool;
+
+    /// Verify with an empty context string (the FIPS 204 default for
+    /// unframed messages). Equivalent to
+    /// `verify_with_context(msg, &[], sig, pk)`.
+    fn verify(&self, msg: &[u8], sig: &[u8], pk: &[u8]) -> bool {
+        self.verify_with_context(msg, &[], sig, pk)
+    }
 }
 
 /// The FIPS 205 (SLH-DSA-SHA2-128s) verification contract, implemented by an
@@ -70,7 +78,7 @@ pub trait SlhDsaVerifier {
 pub struct ExternalMlDsa65;
 
 impl MlDsa65Verifier for ExternalMlDsa65 {
-    fn verify(&self, msg: &[u8], sig: &[u8], pk: &[u8]) -> bool {
+    fn verify_with_context(&self, msg: &[u8], ctx: &[u8], sig: &[u8], pk: &[u8]) -> bool {
         use ml_dsa::{MlDsa65, Signature, VerifyingKey};
         // The encoded verifying key is exactly 1952 bytes for ML-DSA-65;
         // anything else is malformed and collapses to `false`.
@@ -81,7 +89,9 @@ impl MlDsa65Verifier for ExternalMlDsa65 {
         let Ok(sigma) = Signature::<MlDsa65>::try_from(sig) else {
             return false;
         };
-        vk.verify_with_context(msg, &[], &sigma)
+        // FIPS 204 context is a first-class parameter — never stuff the
+        // domain tag into `msg`. Oversized ctx collapses inside the crate.
+        vk.verify_with_context(msg, ctx, &sigma)
     }
 }
 
@@ -293,12 +303,28 @@ impl PqcCourt {
     }
 
     /// The ML-DSA-65 check that the `Hybrid` / `Pqc(MlDsa65)` / `Pqc(Dual)`
-    /// profiles demand.
-    fn judge_mldsa(&self, msg: &[u8], (sig, pk): (&[u8], &[u8])) -> PqcVerdict {
+    /// profiles demand, under an empty FIPS 204 context string.
+    fn judge_mldsa(&self, msg: &[u8], ml_dsa: (&[u8], &[u8])) -> PqcVerdict {
+        self.judge_mldsa_with_context(msg, &[], ml_dsa)
+    }
+
+    /// The ML-DSA-65 check under an explicit FIPS 204 context string.
+    ///
+    /// Used by the PQ-sealed-receipt envelope ([`crate::sealed`]), which
+    /// binds the domain tag as `ctx` rather than stuffing it into `msg`.
+    /// A signature produced under `ctx` MUST fail verification under a
+    /// different (including empty) context — that divergence is the
+    /// context-string sealing court.
+    pub fn judge_mldsa_with_context(
+        &self,
+        msg: &[u8],
+        ctx: &[u8],
+        (sig, pk): (&[u8], &[u8]),
+    ) -> PqcVerdict {
         let Some(v) = self.ml_dsa else {
             return PqcVerdict::Refuse(PqcRefusal::MissingMlDsa65Verifier);
         };
-        if !v.verify(msg, sig, pk) {
+        if !v.verify_with_context(msg, ctx, sig, pk) {
             return PqcVerdict::Refuse(PqcRefusal::MlDsa65Rejected);
         }
         PqcVerdict::Accept
@@ -343,7 +369,7 @@ mod tests {
     }
 
     impl MlDsa65Verifier for FixedChecker {
-        fn verify(&self, _msg: &[u8], sig: &[u8], _pk: &[u8]) -> bool {
+        fn verify_with_context(&self, _msg: &[u8], _ctx: &[u8], sig: &[u8], _pk: &[u8]) -> bool {
             self.calls
                 .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
             sig == self.accept_sig

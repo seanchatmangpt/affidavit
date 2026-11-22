@@ -78,8 +78,20 @@ impl Drop for ScratchDir {
 }
 
 /// Spawn the real built `affi` binary with `args`, return raw `Output`.
+///
+/// Prefer [`affi_in`] whenever the verb touches `.affi/working.json` — concurrent
+/// cargo tests otherwise race on a shared CWD working receipt (EOF decode flake).
 pub fn affi(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_affi"))
+        .args(args)
+        .output()
+        .expect("spawn affi")
+}
+
+/// Spawn `affi` with `cwd` as the process working directory (isolates `.affi/`).
+pub fn affi_in(cwd: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_affi"))
+        .current_dir(cwd)
         .args(args)
         .output()
         .expect("spawn affi")
@@ -175,19 +187,25 @@ pub fn build_world(tag: &str, spec: &WorldSpec) -> World {
         n_planned > 0,
         "fixture_world: a world with zero events cannot assemble — refuse silently-empty fixture"
     );
+    let cwd = dir.path();
     for (i, ev) in spec.events.iter().enumerate() {
         let payload = dir.join(&format!("payload_{i}.txt"));
         std::fs::write(&payload, &ev.payload_text).expect("write payload file");
-        let out = affi(&[
-            "receipt",
-            "emit",
-            "--type",
-            &ev.event_type,
-            "--object",
-            &ev.object_id,
-            "--payload",
-            payload.to_str().expect("utf-8 payload path"),
-        ]);
+        // Payload path must be absolute (or cwd-relative); keep absolute so
+        // current_dir isolation cannot break --payload resolution.
+        let out = affi_in(
+            cwd,
+            &[
+                "receipt",
+                "emit",
+                "--type",
+                &ev.event_type,
+                "--object",
+                &ev.object_id,
+                "--payload",
+                payload.to_str().expect("utf-8 payload path"),
+            ],
+        );
         assert!(
             out.status.success(),
             "fixture emit {i} failed: {:?}",
@@ -198,16 +216,19 @@ pub fn build_world(tag: &str, spec: &WorldSpec) -> World {
         let payload = dir.join("payload_license.txt");
         std::fs::write(&payload, format!("license grant for {lic}\n"))
             .expect("write license payload");
-        let out = affi(&[
-            "receipt",
-            "emit",
-            "--type",
-            "license",
-            "--object",
-            &format!("{}:license", lic),
-            "--payload",
-            payload.to_str().expect("utf-8 license path"),
-        ]);
+        let out = affi_in(
+            cwd,
+            &[
+                "receipt",
+                "emit",
+                "--type",
+                "license",
+                "--object",
+                &format!("{}:license", lic),
+                "--payload",
+                payload.to_str().expect("utf-8 license path"),
+            ],
+        );
         assert!(
             out.status.success(),
             "fixture license emit failed: {:?}",
@@ -216,12 +237,16 @@ pub fn build_world(tag: &str, spec: &WorldSpec) -> World {
     }
     let receipt = dir.join("receipt.json");
     let chain = dir.join("chain.json");
-    let out = affi(&[
-        "receipt",
-        "assemble",
-        "--out",
-        receipt.to_str().expect("utf-8 receipt path"),
-    ]);
+    // --out is absolute; assemble still needs cwd isolation for working.json.
+    let out = affi_in(
+        cwd,
+        &[
+            "receipt",
+            "assemble",
+            "--out",
+            receipt.to_str().expect("utf-8 receipt path"),
+        ],
+    );
     assert!(
         out.status.success(),
         "fixture assemble failed: {:?}",

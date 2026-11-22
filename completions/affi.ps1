@@ -4,7 +4,7 @@
 #
 # GENERATED FILE — DO NOT EDIT.
 # Generator: python3 scripts/generate_completions.py
-# Source: src/registry.rs — Registry verbs: 100, Registry nouns: 13
+# Source: src/registry.rs — Registry verbs: 107, Registry nouns: 14
 # Regenerate after every registry change; tests/completions_drift.rs enforces it.
 #
 # Install: add `. /path/to/completions/affi.ps1` to your $PROFILE.
@@ -13,6 +13,13 @@
 $script:AffiCompletions = [ordered]@{
     'affi' = [ordered]@{
         'doctor' = 'Run environment and receipt-store health checks; optionally apply safe fixes'
+    }
+    'aod' = [ordered]@{
+        'fold' = 'Compose two CTRT shadow tips via the trajectory folding monoid (R_A ⊕ R_B)'
+        'rotate' = 'Rematerialize buffers under a fresh monoatomic lease and emit a folded CTRT shadow'
+        'seal' = 'Write 64B-aligned avec buffers and append a 352B CTRT shadow under a monoatomic lease'
+        'verify' = 'Live Gate: match CompiledOntology, burn monoatomic lease nullifier, exit 0 or 0xE5xx'
+        'witness' = 'Historical Witness on expired/rotated fossils: envelope-only, zero Region 3 mapping'
     }
     'certificate' = [ordered]@{
         'fre-902' = 'Generates self-authenticating electronic records affidavit under FRE 902(14)'
@@ -102,6 +109,8 @@ $script:AffiCompletions = [ordered]@{
         'portfolio-health' = 'Aggregate health signals across a portfolio of receipts into a dashboard-ready report'
         'predict' = 'Forecast future chain state or failure probability based on historical receipt patterns'
         'profile' = 'Profile the performance of verify and assemble operations on a receipt'
+        'proof-carrying' = 'Mint a seal/v2 subject from grounded OCEL DFG fitness/precision (admit_flat → digest)'
+        'proof-carrying-verify' = 'Verify an ML-DSA-65 seal/v2 over a proof-carrying conformance subject'
         'query' = 'Query receipt events using a filter expression (event_type, object, seq range)'
         'receipt-throughput' = 'Measure how many receipts per second the local store can verify under load'
         'replay' = 'Re-execute chain from stored events, optionally applying custom handlers'

@@ -25,7 +25,7 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn cargo() -> String {
@@ -65,7 +65,7 @@ fn cargo_build(dir: &PathBuf, target: &str) -> (bool, String) {
     (out.status.success(), text)
 }
 
-fn wasm_artifact(dir: &PathBuf, target: &str, name: &str) -> PathBuf {
+fn wasm_artifact(dir: &Path, target: &str, name: &str) -> PathBuf {
     dir.join("target")
         .join(target)
         .join("release")

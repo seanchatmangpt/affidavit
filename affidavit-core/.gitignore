@@ -1,3 +1,4 @@
 /target
-# Library crate: don't commit the (zero-dependency) lockfile.
-/Cargo.lock
+# Lockfile is committed: PQC deps declare edition2024 / rust-version floors,
+# and the MSRV court replays with `cargo build --locked` so resolver drift
+# cannot silently raise the floor past the declared rust-version.

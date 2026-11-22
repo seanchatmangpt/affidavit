@@ -133,8 +133,8 @@ pub fn bcinr_admission_frame<H: ChainHasher>(
     let mixed = H::finish(mixed_state);
 
     let mut obj_refs = [0u32; 8];
-    for (i, word) in mixed.as_bytes().chunks_exact(4).enumerate() {
-        obj_refs[i] = u32::from_le_bytes([word[0], word[1], word[2], word[3]]);
+    for (i, word) in mixed.as_bytes().as_chunks::<4>().0.iter().enumerate() {
+        obj_refs[i] = u32::from_le_bytes(*word);
     }
 
     BcinrFrame {

@@ -111,6 +111,7 @@ fn make_receipt(dir: &Path, name: &str) -> PathBuf {
 // (crypto-trust plane not compiled: typed REFUSED_UNSUPPORTED, never a fiction)
 // ---------------------------------------------------------------------------
 
+#[cfg(not(feature = "crypto-trust"))]
 #[test]
 fn dossier_emit_default_binary_is_typed_refusal() {
     let dir = scratch("dossier_emit");
@@ -149,6 +150,7 @@ fn dossier_emit_default_binary_is_typed_refusal() {
     cleanup(&dir);
 }
 
+#[cfg(not(feature = "crypto-trust"))]
 #[test]
 fn dossier_inspect_default_binary_is_typed_refusal() {
     let dir = scratch("dossier_inspect");

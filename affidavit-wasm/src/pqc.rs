@@ -143,20 +143,72 @@ fn verdict_fields(profile: &PqcProfile, verdict: &PqcVerdict) -> Map<String, Val
     out
 }
 
+/// Optional FIPS 204 context bytes from `ctx` (UTF-8) or `ctx_hex`.
+/// Absent/null → empty context (the historical default).
+fn ctx_bytes(req: &Value) -> Res<Vec<u8>> {
+    if let Some(c) = req.get("ctx") {
+        if c.is_null() {
+            return Ok(Vec::new());
+        }
+        let s = c
+            .as_str()
+            .ok_or_else(|| err("bad_field", "`ctx` must be a string"))?;
+        return Ok(s.as_bytes().to_vec());
+    }
+    match req.get("ctx_hex") {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(_) => hex_field(req, "ctx_hex"),
+    }
+}
+
 /// `pqc_verify` op: `{"op":"pqc_verify","msg"|"msg_hex","sig_hex","pk_hex",
-/// "slh_dsa_sig_hex"?,"slh_dsa_pk_hex"?,"profile"?}` -> verdict JSON.
+/// "slh_dsa_sig_hex"?,"slh_dsa_pk_hex"?,"profile"?,"ctx"|"ctx_hex"?}` ->
+/// verdict JSON.
 ///
 /// `sig_hex`/`pk_hex` carry the ML-DSA-65 pair; `slh_dsa_sig_hex`/
 /// `slh_dsa_pk_hex` carry the SLH-DSA pair (both required for `pqc(dual)`,
-/// which judges ML-DSA-65 first, then SLH-DSA).
+/// which judges ML-DSA-65 first, then SLH-DSA). Optional `ctx`/`ctx_hex`
+/// is the FIPS 204 context string for the ML-DSA-65 half (empty default).
 pub fn op_pqc_verify(req: &Value) -> Res<Map<String, Value>> {
     let profile = profile_field(req, "profile")?;
     let msg = msg_bytes(req)?;
+    let ctx = ctx_bytes(req)?;
     let ml_sig = hex_field(req, "sig_hex")?;
     let ml_pk = hex_field(req, "pk_hex")?;
     let slh_sig = hex_optional(req, "slh_dsa_sig_hex")?;
     let slh_pk = hex_optional(req, "slh_dsa_pk_hex")?;
-    let verdict = court().judge(profile, &msg, (&ml_sig, &ml_pk), (&slh_sig, &slh_pk));
+    // Context binds only the ML-DSA-65 half; SLH stays on its empty-ctx path.
+    // Non-empty ctx with a dual/ML profile routes through the context court;
+    // empty ctx preserves the historical judge() path byte-identically.
+    let verdict = if ctx.is_empty() {
+        court().judge(profile, &msg, (&ml_sig, &ml_pk), (&slh_sig, &slh_pk))
+    } else {
+        match profile {
+            PqcProfile::Classical => PqcVerdict::Accept,
+            PqcProfile::Hybrid | PqcProfile::Pqc(Suite::MlDsa65) => {
+                court().judge_mldsa_with_context(&msg, &ctx, (&ml_sig, &ml_pk))
+            }
+            PqcProfile::Pqc(Suite::SlhDsa128s) => {
+                // Context is an ML-DSA parameter; SLH-only profiles ignore it
+                // and judge under the historical empty-context SLH path.
+                court().judge(profile, &msg, (&ml_sig, &ml_pk), (&slh_sig, &slh_pk))
+            }
+            PqcProfile::Pqc(Suite::Dual) => {
+                match court().judge_mldsa_with_context(&msg, &ctx, (&ml_sig, &ml_pk)) {
+                    refuse @ PqcVerdict::Refuse(_) => refuse,
+                    // ML half already certified under ctx — only the SLH half
+                    // remains. Re-running full judge() would re-check ML under
+                    // empty ctx and falsely refuse.
+                    PqcVerdict::Accept => court().judge(
+                        PqcProfile::Pqc(Suite::SlhDsa128s),
+                        &msg,
+                        (&ml_sig, &ml_pk),
+                        (&slh_sig, &slh_pk),
+                    ),
+                }
+            }
+        }
+    };
     Ok(verdict_fields(&profile, &verdict))
 }
 
@@ -217,6 +269,17 @@ mod tests {
     fn classical_profile_never_consults_the_verifier() {
         let v = court().judge(PqcProfile::Classical, b"m", (b"s", b"k"), (EMPTY, EMPTY));
         assert_eq!(v, PqcVerdict::Accept);
+    }
+
+    #[test]
+    fn ctx_bytes_defaults_empty_and_accepts_utf8_or_hex() {
+        assert_eq!(ctx_bytes(&json!({})).unwrap(), b"");
+        assert_eq!(ctx_bytes(&json!({"ctx": null})).unwrap(), b"");
+        assert_eq!(
+            ctx_bytes(&json!({"ctx": "affidavit-core/seal/v2"})).unwrap(),
+            b"affidavit-core/seal/v2"
+        );
+        assert_eq!(ctx_bytes(&json!({"ctx_hex": "6162"})).unwrap(), b"ab");
     }
 
     #[test]
