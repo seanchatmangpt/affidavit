@@ -1,0 +1,27 @@
+# SJ projection parity court (register row 44) — standalone crate.
+#
+# Moved out of the root manifest because it needs the REAL clnrm-core 26.5.x,
+# which is not published to crates.io. Keeping that host-local path in the root
+# [dev-dependencies] made `cargo build` unresolvable on every machine without a
+# clnrm checkout at /Users/sac/clnrm (including CI). This crate keeps the court
+# runnable where the checkout exists; edit the clnrm path below to match.
+[package]
+name = "affidavit-sj-parity-court"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dev-dependencies]
+affidavit = { path = "../.." }
+clnrm-sj-core = { package = "clnrm-core", path = "/Users/sac/clnrm/crates/clnrm-core" }
+
+[[test]]
+name = "sj_projection_parity"
+path = "tests/sj_projection_parity.rs"
+
+# Mirror the root crate's [patch] fence so `affidavit` resolves identically.
+[patch.crates-io]
+clnrm-core = { path = "../../stubs/clnrm-core" }
+clap-noun-verb = { path = "../../vendor/clap-noun-verb" }

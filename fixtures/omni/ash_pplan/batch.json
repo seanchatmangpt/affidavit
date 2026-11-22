@@ -1,0 +1,4 @@
+[
+  {"event_type":"pplan.execution.succeeded","objects":["run-4e65d3fbe8ad6535:pplan-run:run-1","plan-db2a2ad9c3f4a49c:pplan-plan:https://w3id.org/ash-pplan#SubscriptionRenewal","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:git-commit:seanchatmangpt/ash_pplan"],"payload":"payloads/0000.nt"},
+  {"event_type":"pplan.execution.failed","objects":["run-b9d17232a4c83d99:pplan-run:run-2","plan-db2a2ad9c3f4a49c:pplan-plan:https://w3id.org/ash-pplan#SubscriptionRenewal","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:git-commit:seanchatmangpt/ash_pplan"],"payload":"payloads/0001.nt"}
+]

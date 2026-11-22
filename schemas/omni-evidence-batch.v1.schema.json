@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/seanchatmangpt/affidavit/main/schemas/omni-evidence-batch.v1.schema.json",
+  "title": "omni-evidence/v1 batch",
+  "description": "The batch.json of an omni-evidence/v1 bundle: the cross-repo interchange that cgap (gate runs) and ash_pplan (execution receipts) emit and affidavit certifies via `affi receipt emit-batch`. Producers never hash; affidavit computes blake3(payload bytes) per event and seals the chain at `affi receipt assemble`. See docs/integrations/OMNIPLATFORM.md.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["event_type", "objects", "payload"],
+    "properties": {
+      "event_type": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Dotted producer-namespaced type, e.g. cgap.gate.pass or pplan.execution.succeeded."
+      },
+      "objects": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[^:]+:[^:]+(:.*)?$",
+          "description": "affidavit object ref id:type[:qualifier]. id and type are colon-free; the qualifier may contain colons (raw IRIs, commands)."
+        }
+      },
+      "payload": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Path to the payload bytes, relative to the directory holding batch.json (absolute and cwd-relative paths are also accepted)."
+      }
+    }
+  }
+}

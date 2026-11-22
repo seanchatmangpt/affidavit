@@ -2,6 +2,28 @@
 
 All notable changes to the Affidavit provenance layer are documented here.
 
+## [Unreleased]
+
+**Theme: omniplatform — certify cgap and ash_pplan evidence; build anywhere.**
+
+### Added
+- **omni-evidence/v1 bundles** (`docs/integrations/OMNIPLATFORM.md`,
+  `schemas/omni-evidence-batch.v1.schema.json`): the interchange that cgap
+  (`scripts/affidavit_bundle.py`, gate runs) and ash_pplan
+  (`AshPPlan.AffidavitBundle`, execution receipts) emit and `affi receipt
+  emit-batch` seals. Court `tests/omni_bundle_e2e.rs` over real producer
+  bundles in `fixtures/omni/`: seal + ACCEPT, retyped event REJECTs, every
+  commitment equals blake3 of the producer's payload file.
+- `emit-batch` resolves a relative payload path against the batch file's
+  directory when it does not exist from the cwd (absolute and cwd-relative
+  paths unchanged), so a bundle verifies wherever it is copied.
+
+### Changed
+- The real SJ projection parity court (register row 44) lives on as the
+  standalone `courts/sj-parity/` crate (own `[workspace]`, local clnrm path),
+  so it stays runnable where a clnrm checkout exists while the root manifest
+  carries only the ignored refusal stub in `tests/sj_projection_parity.rs`.
+
 ## [26.10.17] — 2026-10-17
 
 **Theme: annealing-wave hardening — PQC vacuity closures, capability register, CLI vacuity audit + ERRC, crypto defect closures.**
