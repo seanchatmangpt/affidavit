@@ -19,7 +19,17 @@ Byte sizes below are **observed** from `stat` / `shasum` after
 | Named WASM twin (`verify_witness` export) | **ALIVE** — `affidavit-gatekeeper-wasm` cdylib export `verify_witness` |
 | Standalone / gatekeeper-pack WASM ≤ 250 KiB | **ALIVE** — size court fail-closed ≤ 256000 |
 | Pinned slim gatekeeper WASM size | **28673 bytes** (28.00 KiB) — **under** bound by **227327** bytes |
-| Fat provenance WASI module (untouched) | **718736 bytes** — still the only productized full ABI; **not** slimmed |
+| Fat provenance WASI module (untouched) | **718736 bytes** — provenance ABI only; **≠ gatekeeper** |
+| Fat-as-gatekeeper backlog (ERRC R5 / Jobs P4) | **KILLED** — point insurers / GTM / C4 at slim pin only |
+
+### Size receipt (measured SoT — do not invent)
+
+| Artifact | Role | Bytes | Standing | Pin |
+|---|---|---:|---|---|
+| `affidavit-gatekeeper-wasm/dist/affidavit_gatekeeper_verify_witness.wasm` | **Gatekeeper** (`verify_witness`, Ed25519-only) | **28673** | **ALIVE** (≤256000 court) | `affidavit-gatekeeper-wasm/registry/ARTIFACTS.sha256` |
+| `affidavit-wasm/dist/affidavit_wasm.wasm` | Full WASI **provenance** ABI | **718736** | Provenance-only (not gatekeeper) | `affidavit-wasm/registry/ARTIFACTS.sha256` |
+
+**Law:** slim = gatekeeper product. Fat = provenance ABI. Citing 718736 B as the air-gapped / insurer gatekeeper is **false**.
 
 ---
 
@@ -86,12 +96,17 @@ Return codes: `0` ok; `-1` malformed key; `-3` verify failed; `-4` null ptr.
 
 ---
 
-## 3. Fat provenance module (unchanged)
+## 3. Fat provenance module (provenance-only — not gatekeeper)
 
 `affidavit-wasm` remains the WASI provenance ABI at **718736** bytes
 (`registry/ARTIFACTS.sha256` / `dist/affidavit_wasm.wasm`). This CONSTRUCT lane
-does **not** slim that module. Closest twin inside it is still op
-`verify_signature` / `alg=Ed25519` (`verify_strict`), not named `verify_witness`.
+does **not** slim that module and does **not** re-label it as the gatekeeper.
+Closest twin inside it is still op `verify_signature` / `alg=Ed25519`
+(`verify_strict`), not named `verify_witness`.
+
+**Backlog kill:** any work order / GTM / C4 row that treated fat WASM as the
+sub-250 KiB gatekeeper product is **closed** — residual is packaging/exhibits
+around the slim pin, not “slim the fat module into a gatekeeper.”
 
 ---
 
@@ -114,4 +129,8 @@ pre-opt) was deleted after reconcile — canonical product path is only
 - `.github/workflows/affidavit-gatekeeper-wasm.yml`
 - Fat SoT unchanged: `affidavit-wasm/registry/ARTIFACTS.sha256` (718736)
 
-**Lane authority:** construct + measure + pin. No commit.
+**Cross-SoT:** Jobs P4 size-receipt rows + anti-goal #14 in
+`fnox/cos/docs/gtm/JOBS-LOCK-NOV21-RUNBOOK.md`; 2027 research plan claim #7 /
+anti-goals / choice C. Fat-as-gatekeeper backlog **KILLED**.
+
+**Lane authority:** construct + measure + pin + docs mop. No commit.

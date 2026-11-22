@@ -1,11 +1,18 @@
 # affidavit as WebAssembly (v26.10.17)
 
 `affidavit-wasm/` builds the provenance layer's verifier as a sandboxed WASI
-module. Hosts (Elixir/Wasmex, Node, Python, edge runtimes) verify, assemble and
-mine receipt chains **without shelling out to `affi`** and get the verdict `affi
-verify` gives — same canonical JSON, same rolling BLAKE3 chain, same seven
-stages, same wording. The design mirrors graphlaw's `graphlaw-wasm`: a tiny
-`unsafe` FFI shell over a safe, natively testable JSON ABI.
+module (**718736 B** pinned — provenance ABI only). Hosts (Elixir/Wasmex, Node,
+Python, edge runtimes) verify, assemble and mine receipt chains **without
+shelling out to `affi`** and get the verdict `affi verify` gives — same canonical
+JSON, same rolling BLAKE3 chain, same seven stages, same wording. The design
+mirrors graphlaw's `graphlaw-wasm`: a tiny `unsafe` FFI shell over a safe,
+natively testable JSON ABI.
+
+> **Not the gatekeeper.** The air-gapped insurer / gatekeeper product is the
+> separate slim crate `affidavit-gatekeeper-wasm` (**28673 B** ALIVE,
+> `verify_witness` Ed25519-only, ≤250 KiB court). Size-receipt + backlog kill:
+> [`GATEKEEPER_VERIFY_WITNESS_WASM_INVENTORY.md`](./GATEKEEPER_VERIFY_WITNESS_WASM_INVENTORY.md).
+> Do not cite this fat WASI module as the sub-250 KiB gatekeeper.
 
 > Doctrine, preserved: **certify, don't decide.** The module checks a receipt
 > against the format standard. It never judges whether the work was honest.
