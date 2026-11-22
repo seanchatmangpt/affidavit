@@ -126,6 +126,19 @@ wasm-build:
 wasm-test:
     cd affidavit-wasm && cargo test
 
+# Slim gatekeeper verify_witness-only WASM (does NOT touch affidavit-wasm fat pin).
+# Crate: affidavit-gatekeeper-wasm. Emits dist + ARTIFACTS pin; size court ≤ 256000.
+gatekeeper-wasm-build:
+    ./scripts/gatekeeper_wasm_build.sh
+
+# Fail-closed ≤256000 court against the gatekeeper artifact (or AFFIDAVIT_GATEKEEPER_WASM).
+gatekeeper-wasm-size-court:
+    cd affidavit-gatekeeper-wasm && cargo test --locked --test size_court -- --nocapture
+
+gatekeeper-wasm-test:
+    cd affidavit-gatekeeper-wasm && cargo test --locked --lib
+    just gatekeeper-wasm-size-court
+
 # --- shell completions --------------------------------------------------------
 
 # Regenerate completions/affi.{bash,zsh,fish} from src/registry.rs.

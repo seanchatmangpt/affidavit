@@ -1,0 +1,7 @@
+# Gatekeeper verify_witness-only module: no WASI, no oversized stack.
+# Target is wasm32-unknown-unknown (browser / air-gapped hosts). Do not
+# inherit affidavit-wasm's 16 MiB stack — that bloats the slim artifact.
+
+[target.wasm32-unknown-unknown]
+# Empty rustflags: pure verify needs no getrandom / wasm_js cfg.
+rustflags = []

@@ -1,0 +1,4 @@
+# affidavit-gatekeeper-wasm size/sha receipt — measured, never invented
+# bound_bytes 256000
+# Fail-closed: tests/size_court.rs refuses measured > 256000.
+wasm 5faae4642ca23c503e96d2a2ab938c056caffdde14e77516054fe4492aed0c97 28673 affidavit_gatekeeper_verify_witness.wasm

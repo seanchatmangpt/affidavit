@@ -1,0 +1,40 @@
+cargo-features = ["trim-paths"]
+
+[package]
+name = "affidavit-gatekeeper-wasm"
+version = "26.10.17"
+edition = "2021"
+rust-version = "1.78"
+description = "Air-gapped gatekeeper: named verify_witness export over Ed25519 verify_strict only. Not the fat provenance WASI module."
+license = "MIT OR Apache-2.0"
+authors = ["Sean Chatman <xpointsh@gmail.com>"]
+repository = "https://github.com/seanchatmangpt/affidavit"
+readme = "README.md"
+publish = false
+
+[lib]
+# cdylib is the deployable .wasm; rlib lets verify_witness be unit-tested natively.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Verify-only: no rand_core, no signing. Same dalek law as native
+# affidavit::ed25519_witness::verify_witness (VerifyingKey::verify_strict).
+ed25519-dalek = { version = "2.1", default-features = false }
+
+[dev-dependencies]
+sha2 = "0.10"
+
+[profile.wasm]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+# Embedded source paths are checkout-independent so size/hash receipts are
+# reproducible across machines.
+trim-paths = "all"
+panic = "abort"
+
+# Standalone workspace root (same seam as affidavit-wasm / affidavit-core):
+# never inherits the root crate's [patch] fences or fat feature graph.
+[workspace]

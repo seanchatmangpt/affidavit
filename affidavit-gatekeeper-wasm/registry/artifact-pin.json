@@ -1,0 +1,22 @@
+{
+  "abi_version": 1,
+  "bound_bytes": 256000,
+  "build": {
+    "locked": true,
+    "profile": "wasm",
+    "target": "wasm32-unknown-unknown",
+    "toolchain": "nightly-2026-08-12",
+    "wasm_opt": "-Oz --enable-bulk-memory"
+  },
+  "bytes": 28673,
+  "crate": "affidavit-gatekeeper-wasm",
+  "exports": [
+    "gatekeeper_abi_version",
+    "verify_witness"
+  ],
+  "imports": [],
+  "name": "affidavit_gatekeeper_verify_witness.wasm",
+  "notes": "Pinned by scripts/gatekeeper_wasm_build.sh after size court. Fat affidavit-wasm (718736) untouched.",
+  "schema": "affidavit.gatekeeper-wasm-pin/1",
+  "sha256": "5faae4642ca23c503e96d2a2ab938c056caffdde14e77516054fe4492aed0c97"
+}

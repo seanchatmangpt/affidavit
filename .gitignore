@@ -99,3 +99,6 @@ affidavit-wasm/target-repro/
 
 # Installed JS dependencies — never commit
 node_modules/
+
+# gatekeeper wasm crate build root
+affidavit-gatekeeper-wasm/target/

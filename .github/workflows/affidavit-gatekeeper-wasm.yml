@@ -1,0 +1,104 @@
+# affidavit-gatekeeper-wasm.yml — slim verify_witness-only gatekeeper lane.
+#
+# Standalone crate (not a root workspace member). Builds Ed25519 verify_strict
+# for wasm32-unknown-unknown, enforces ≤256000, checks the registry pin.
+# Does not touch affidavit-wasm.
+name: affidavit-gatekeeper-wasm
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "affidavit-gatekeeper-wasm/**"
+      - "scripts/gatekeeper_wasm_build.sh"
+      - "rust-toolchain.toml"
+      - ".github/workflows/affidavit-gatekeeper-wasm.yml"
+  pull_request:
+    paths:
+      - "affidavit-gatekeeper-wasm/**"
+      - "scripts/gatekeeper_wasm_build.sh"
+      - "rust-toolchain.toml"
+      - ".github/workflows/affidavit-gatekeeper-wasm.yml"
+
+concurrency:
+  group: affidavit-gatekeeper-wasm-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  gatekeeper:
+    name: gatekeeper-wasm (build + size court ≤ 256000)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the pinned toolchain + wasm32-unknown-unknown
+        working-directory: affidavit-gatekeeper-wasm
+        run: |
+          set -euo pipefail
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add wasm32-unknown-unknown
+
+      - name: Install binaryen (wasm-opt) for -Oz size pass
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: affidavit-gatekeeper-wasm
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: cargo fmt --check
+        working-directory: affidavit-gatekeeper-wasm
+        run: cargo fmt -- --check
+
+      - name: cargo clippy (native)
+        working-directory: affidavit-gatekeeper-wasm
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: cargo clippy (wasm32-unknown-unknown)
+        working-directory: affidavit-gatekeeper-wasm
+        run: cargo clippy --locked --lib --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Native unit tests
+        working-directory: affidavit-gatekeeper-wasm
+        run: cargo test --locked --lib
+
+      - name: Build + pin (wasm-opt -Oz, size court)
+        # Snapshot the committed pin first — the build script rewrites ARTIFACTS;
+        # CI must compare measured bytes/sha against that snapshot (fail-closed).
+        run: |
+          set -euo pipefail
+          pinned_sha="$(awk '$1=="wasm" && length($2)==64 {print $2}' affidavit-gatekeeper-wasm/registry/ARTIFACTS.sha256)"
+          pinned_bytes="$(awk '$1=="wasm" && length($2)==64 {print $3}' affidavit-gatekeeper-wasm/registry/ARTIFACTS.sha256)"
+          test -n "$pinned_sha"
+          test -n "$pinned_bytes"
+          ./scripts/gatekeeper_wasm_build.sh
+          dist=affidavit-gatekeeper-wasm/dist/affidavit_gatekeeper_verify_witness.wasm
+          got_sha="$(sha256sum "$dist" | awk '{print $1}')"
+          got_bytes="$(wc -c < "$dist" | tr -d ' ')"
+          echo "measured sha=${got_sha} bytes=${got_bytes}"
+          echo "pinned   sha=${pinned_sha} bytes=${pinned_bytes}"
+          test "$got_bytes" -le 256000
+          test "$got_sha" = "$pinned_sha"
+          test "$got_bytes" = "$pinned_bytes"
+          git checkout -- affidavit-gatekeeper-wasm/registry/ARTIFACTS.sha256 \
+            affidavit-gatekeeper-wasm/registry/artifact-pin.json || true
+
+      - name: Size court test
+        working-directory: affidavit-gatekeeper-wasm
+        env:
+          AFFIDAVIT_GATEKEEPER_WASM: ${{ github.workspace }}/affidavit-gatekeeper-wasm/dist/affidavit_gatekeeper_verify_witness.wasm
+        run: cargo test --locked --test size_court -- --nocapture
+
+      - name: Upload gatekeeper module
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: affidavit-gatekeeper-wasm
+          path: |
+            affidavit-gatekeeper-wasm/dist/affidavit_gatekeeper_verify_witness.wasm
+            affidavit-gatekeeper-wasm/registry/ARTIFACTS.sha256
